@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Database, 
   HardDrive, 
@@ -14,25 +14,54 @@ import {
   RotateCcw,
   Laptop,
   KeyRound,
+  FolderOpen,
+  Lock,
   X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { DatabaseRecoveryModal } from './DatabaseRecoveryModal';
+import { AppButton } from './AppButton';
 import { MigrationWizardModal } from './MigrationWizardModal';
 import { rafiqAlert } from '../utils/dialogService';
 import { useAuth } from '../context/useAuth';
 import { useUnsavedChangesGuard } from '../context/useUnsavedChanges';
 import { UnsavedChangesChip } from './UnsavedChangesChip';
+import {
+  DEFAULT_MAX_COPIES,
+  DEFAULT_RETENTION_DAYS,
+  DEFAULT_RETENTION_WEEKS,
+  DEFAULT_WARN_AFTER_DAYS,
+  RETENTION_ROOT_ONLY_NOTE,
+} from '../utils/backupRetention';
 import { DateFilterControl } from './DateFilterControl';
 import { useDateFilter, useToday, isDateFilterActive, describeDateFilter, getDateFilterPayload } from '../utils/dateFilter';
+import type { DateFilterValue } from '../utils/dateFilter';
+import {
+  BACKUP_PAGE_SIZE,
+  backupCountLabel,
+  formatBackupDate,
+  formatBackupSize,
+  nextBackupLimit,
+  normalizeFolderState,
+  remainingBackups,
+} from '../utils/backupList';
 
 interface BackupFileInfo {
   fileName: string;
   fullPath: string;
   sizeBytes: number;
   createdAt: string;
+}
+
+interface VerifyOutcome {
+  ok: boolean;
+  text: string;
+}
+
+interface BackupVerifyResult {
   isVerified: boolean;
+  message: string;
 }
 
 interface DriveItem {
@@ -60,6 +89,10 @@ interface BackupStatusInfo {
   warnAfterDays: number;
   maxCopies?: number;
   recentBackups: BackupFileInfo[];
+  totalBackupCount?: number;
+  listedFolder?: string;
+  folderStatus?: string;
+  folderMessage?: string | null;
 }
 
 interface BackupResult {
@@ -80,12 +113,12 @@ interface BackupManagerProps {
 
 /** Same normalisation the save applies, so typing a value and reverting it is clean. */
 function policySnapshotOf(folder: string, days: number, weeks: number, warn: number, copies: number): string {
-  return JSON.stringify([folder.trim(), Number(days) || 7, Number(weeks) || 4, Number(warn) || 2, Number(copies) || 20]);
+  return JSON.stringify([folder.trim(), Number(days) || DEFAULT_RETENTION_DAYS, Number(weeks) || DEFAULT_RETENTION_WEEKS, Number(warn) || DEFAULT_WARN_AFTER_DAYS, Number(copies) || DEFAULT_MAX_COPIES]);
 }
 
 export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupManagerProps = {}) => {
   // Restore / migration and license activation are owner-grade privileges (owner/root always, a manager only when granted; the server enforces the same keys)
-  const { hasPermission } = useAuth();
+  const { hasPermission, isRoot } = useAuth();
   const canRestore = hasPermission('settings.restore');
   const canManageLicense = hasPermission('settings.license');
   const [loading, setLoading] = useState(false);
@@ -94,10 +127,10 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
   const [targetFolder, setTargetFolder] = useState('');
   const [autoOnClose, setAutoOnClose] = useState(true);
   const [autoDaily, setAutoDaily] = useState(true);
-  const [retentionDays, setRetentionDays] = useState(7);
-  const [retentionWeeks, setRetentionWeeks] = useState(4);
-  const [warnAfterDays, setWarnAfterDays] = useState(2);
-  const [maxCopies, setMaxCopies] = useState(20);
+  const [retentionDays, setRetentionDays] = useState(DEFAULT_RETENTION_DAYS);
+  const [retentionWeeks, setRetentionWeeks] = useState(DEFAULT_RETENTION_WEEKS);
+  const [warnAfterDays, setWarnAfterDays] = useState(DEFAULT_WARN_AFTER_DAYS);
+  const [maxCopies, setMaxCopies] = useState(DEFAULT_MAX_COPIES);
   // Retention policy form: compared with the values last loaded or saved (the two switches above it save themselves)
   const [policyBaseline, setPolicyBaseline] = useState<string | null>(null);
   const policySnapshot = policySnapshotOf(targetFolder, retentionDays, retentionWeeks, warnAfterDays, maxCopies);
@@ -106,15 +139,34 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<BackupFileInfo | null>(null);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
-  // The period is applied by the backend to the file creation day, before the list cap
+  // The period is applied by the backend to the backup's own timestamp, before the list cap
   const { dateFilter, setDateFilter, resetDateFilter } = useDateFilter();
   const today = useToday();
   const listDateActive = isDateFilterActive(dateFilter);
+  const [listLimit, setListLimit] = useState(BACKUP_PAGE_SIZE);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [verifyingPath, setVerifyingPath] = useState<string | null>(null);
+  const [verifyOutcomes, setVerifyOutcomes] = useState<Record<string, VerifyOutcome>>({});
   const listQuery = useMemo(
-    () => getDateFilterPayload(dateFilter, today),
-    [dateFilter, today]
+    () => ({ ...getDateFilterPayload(dateFilter, today), limit: listLimit }),
+    [dateFilter, today, listLimit]
   );
+  const listQueryRef = useRef(listQuery);
+  listQueryRef.current = listQuery;
   const firstListRunRef = useRef(true);
+  // Only the latest list request may write state (a slow older answer must not overwrite a newer one)
+  const listRequestRef = useRef(0);
+
+  const handleDateFilterChange = (next: DateFilterValue) => {
+    setListLimit(BACKUP_PAGE_SIZE);
+    setDateFilter(next);
+  };
+
+  const handleResetDateFilter = () => {
+    setListLimit(BACKUP_PAGE_SIZE);
+    resetDateFilter();
+  };
 
   const handleOpenLicense = () => {
     if (onOpenLicenseModal) {
@@ -124,22 +176,45 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
     }
   };
 
-  const fetchBackupStatus = async () => {
+  // Reloads the status banner and the list without touching the policy form (an unsaved draft must survive)
+  const refreshList = async () => {
+    const requestId = ++listRequestRef.current;
+    setListLoading(true);
     try {
-      const res = await invoke<BackupStatusInfo>('backup:getStatus', listQuery);
+      const res = await invoke<BackupStatusInfo>('backup:getStatus', listQueryRef.current);
+      if (requestId !== listRequestRef.current) return;
+      if (res) setStatus(res);
+      setListError(null);
+    } catch (err: unknown) {
+      if (requestId !== listRequestRef.current) return;
+      setListError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (requestId === listRequestRef.current) setListLoading(false);
+    }
+  };
+
+  const fetchBackupStatus = async () => {
+    const requestId = ++listRequestRef.current;
+    try {
+      const res = await invoke<BackupStatusInfo>('backup:getStatus', listQueryRef.current);
+      if (requestId !== listRequestRef.current) return;
       if (res) {
         setStatus(res);
+        setListError(null);
         setTargetFolder(res.configuredFolder || '');
         setAutoOnClose(res.autoOnClose);
         setAutoDaily(res.autoDaily);
-        setRetentionDays(res.retentionDays || 7);
-        setRetentionWeeks(res.retentionWeeks || 4);
-        setWarnAfterDays(res.warnAfterDays || 2);
-        setMaxCopies(res.maxCopies || 20);
-        setPolicyBaseline(policySnapshotOf(res.configuredFolder || '', res.retentionDays || 7, res.retentionWeeks || 4, res.warnAfterDays || 2, res.maxCopies || 20));
+        setRetentionDays(res.retentionDays || DEFAULT_RETENTION_DAYS);
+        setRetentionWeeks(res.retentionWeeks || DEFAULT_RETENTION_WEEKS);
+        setWarnAfterDays(res.warnAfterDays || DEFAULT_WARN_AFTER_DAYS);
+        setMaxCopies(res.maxCopies || DEFAULT_MAX_COPIES);
+        setPolicyBaseline(policySnapshotOf(res.configuredFolder || '', res.retentionDays || DEFAULT_RETENTION_DAYS, res.retentionWeeks || DEFAULT_RETENTION_WEEKS, res.warnAfterDays || DEFAULT_WARN_AFTER_DAYS, res.maxCopies || DEFAULT_MAX_COPIES));
       }
     } catch (err: unknown) {
-      console.error('Failed to get backup status:', err);
+      if (requestId !== listRequestRef.current) return;
+      setListError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (requestId === listRequestRef.current) setListLoading(false);
     }
   };
 
@@ -168,17 +243,20 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
           setTargetFolder(statusRes.configuredFolder || '');
           setAutoOnClose(statusRes.autoOnClose);
           setAutoDaily(statusRes.autoDaily);
-          setRetentionDays(statusRes.retentionDays || 7);
-          setRetentionWeeks(statusRes.retentionWeeks || 4);
-          setWarnAfterDays(statusRes.warnAfterDays || 2);
-          setMaxCopies(statusRes.maxCopies || 20);
-          setPolicyBaseline(policySnapshotOf(statusRes.configuredFolder || '', statusRes.retentionDays || 7, statusRes.retentionWeeks || 4, statusRes.warnAfterDays || 2, statusRes.maxCopies || 20));
+          setRetentionDays(statusRes.retentionDays || DEFAULT_RETENTION_DAYS);
+          setRetentionWeeks(statusRes.retentionWeeks || DEFAULT_RETENTION_WEEKS);
+          setWarnAfterDays(statusRes.warnAfterDays || DEFAULT_WARN_AFTER_DAYS);
+          setMaxCopies(statusRes.maxCopies || DEFAULT_MAX_COPIES);
+          setPolicyBaseline(policySnapshotOf(statusRes.configuredFolder || '', statusRes.retentionDays || DEFAULT_RETENTION_DAYS, statusRes.retentionWeeks || DEFAULT_RETENTION_WEEKS, statusRes.warnAfterDays || DEFAULT_WARN_AFTER_DAYS, statusRes.maxCopies || DEFAULT_MAX_COPIES));
         }
         if (Array.isArray(drivesRes)) {
           setDrives(drivesRes);
         }
       } catch (err: unknown) {
-        console.error('Failed to init backup manager:', err);
+        if (!active) return;
+        setListError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (active) setListLoading(false);
       }
     };
     void init();
@@ -187,30 +265,19 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
     };
   }, []);
 
-  // Changing the period refreshes only the backup list (never the unsaved policy form)
+  // Changing the period or the page size refreshes only the backup list (never the unsaved policy form)
   useEffect(() => {
     if (firstListRunRef.current) {
       firstListRunRef.current = false;
       return;
     }
-    let active = true;
-    void (async () => {
-      try {
-        const res = await invoke<BackupStatusInfo>('backup:getStatus', listQuery);
-        if (active && res) {
-          setStatus((prev) => (prev ? { ...prev, recentBackups: res.recentBackups || [] } : res));
-        }
-      } catch (err: unknown) {
-        console.error('Failed to filter backups list:', err);
-      }
-    })();
-    return () => {
-      active = false;
-    };
+    void refreshList();
+    // refreshList reads the latest query through listQueryRef
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listQuery]);
 
   useDataSubscription(['settings', 'all'], () => {
-    void fetchBackupStatus();
+    void refreshList();
     void fetchDrives();
   });
 
@@ -218,19 +285,20 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
     setLoading(true);
     setActionMessage(null);
     try {
-      const res = await invoke<BackupResult>('backup:create', { folder: targetFolder });
+      // The saved folder is used (the one the list shows); an unsaved draft path is not silently backed up to
+      const res = await invoke<BackupResult>('backup:create');
       if (res && res.success) {
         setActionMessage({
           text: res.message,
           type: res.fallbackToLocal ? 'warning' : 'success'
         });
-        await fetchBackupStatus();
       } else {
         setActionMessage({
           text: res?.message || 'فشلت عملية إنشاء النسخة الاحتياطية',
           type: 'error'
         });
       }
+      await refreshList();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setActionMessage({
@@ -242,18 +310,25 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
     }
   };
 
+  // Only root sends the retention fields: for everyone else the host keeps the stored policy
+  const buildConfigPayload = (autoClose: boolean, daily: boolean) => ({
+    targetFolder: targetFolder.trim(),
+    autoOnClose: autoClose,
+    autoDaily: daily,
+    warnAfterDays: Number(warnAfterDays) || DEFAULT_WARN_AFTER_DAYS,
+    ...(isRoot
+      ? {
+          retentionDays: Number(retentionDays) || DEFAULT_RETENTION_DAYS,
+          retentionWeeks: Number(retentionWeeks) || DEFAULT_RETENTION_WEEKS,
+          maxCopies: Number(maxCopies) || DEFAULT_MAX_COPIES,
+        }
+      : {}),
+  });
+
   const handleToggleAutoOnClose = async (val: boolean) => {
     setAutoOnClose(val);
     try {
-      await invoke('backup:configure', {
-        targetFolder: targetFolder.trim(),
-        autoOnClose: val,
-        autoDaily,
-        retentionDays: Number(retentionDays) || 7,
-        retentionWeeks: Number(retentionWeeks) || 4,
-        warnAfterDays: Number(warnAfterDays) || 2,
-        maxCopies: Number(maxCopies) || 20
-      });
+      await invoke('backup:configure', buildConfigPayload(val, autoDaily));
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2000);
     } catch (e) {
@@ -264,15 +339,7 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
   const handleToggleAutoDaily = async (val: boolean) => {
     setAutoDaily(val);
     try {
-      await invoke('backup:configure', {
-        targetFolder: targetFolder.trim(),
-        autoOnClose,
-        autoDaily: val,
-        retentionDays: Number(retentionDays) || 7,
-        retentionWeeks: Number(retentionWeeks) || 4,
-        warnAfterDays: Number(warnAfterDays) || 2,
-        maxCopies: Number(maxCopies) || 20
-      });
+      await invoke('backup:configure', buildConfigPayload(autoOnClose, val));
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2000);
     } catch (e) {
@@ -282,15 +349,7 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
 
   const handleSavePolicy = async (): Promise<boolean> => {
     try {
-      await invoke('backup:configure', {
-        targetFolder: targetFolder.trim(),
-        autoOnClose,
-        autoDaily,
-        retentionDays: Number(retentionDays) || 7,
-        retentionWeeks: Number(retentionWeeks) || 4,
-        warnAfterDays: Number(warnAfterDays) || 2,
-        maxCopies: Number(maxCopies) || 20
-      });
+      await invoke('backup:configure', buildConfigPayload(autoOnClose, autoDaily));
       setPolicyBaseline(policySnapshot);
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 3000);
@@ -317,11 +376,25 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
     discard: () => void fetchBackupStatus(),
   });
 
-  const formatBytes = (bytes: number) => {
-    if (!bytes || bytes <= 0) return '0 بايت';
-    const mb = bytes / (1024 * 1024);
-    if (mb < 1) return `${Math.round(bytes / 1024)} ك.ب`;
-    return `${mb.toFixed(2)} م.ب`;
+  const handleVerifyBackup = async (bk: BackupFileInfo) => {
+    setVerifyingPath(bk.fullPath);
+    setVerifyOutcomes((prev) => {
+      const next = { ...prev };
+      delete next[bk.fullPath];
+      return next;
+    });
+    try {
+      const res = await invoke<BackupVerifyResult>('backup:verify', { backupFilePath: bk.fullPath });
+      setVerifyOutcomes((prev) => ({
+        ...prev,
+        [bk.fullPath]: { ok: Boolean(res?.isVerified), text: res?.message || 'لم يصل رد من الفحص.' },
+      }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setVerifyOutcomes((prev) => ({ ...prev, [bk.fullPath]: { ok: false, text: `فشل الفحص: ${msg}` } }));
+    } finally {
+      setVerifyingPath(null);
+    }
   };
 
   const formatDate = (isoStr: string) => {
@@ -339,6 +412,11 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
       return isoStr;
     }
   };
+
+  const shownCount = status?.recentBackups?.length ?? 0;
+  const totalCount = status?.totalBackupCount ?? shownCount;
+  const remaining = remainingBackups(shownCount, totalCount);
+  const folderState = normalizeFolderState(status?.folderStatus);
 
   return (
     <div className="flex flex-col gap-5 text-ink dark:text-ink-dark select-none font-sans">
@@ -374,13 +452,7 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
             {actionMessage.type === 'error' && <AlertCircle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />}
             <span className="leading-relaxed">{actionMessage.text}</span>
           </div>
-          <button 
-            onClick={() => setActionMessage(null)}
-            className="text-xs opacity-60 hover:opacity-100 mr-2 p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={() => setActionMessage(null)} className="mr-2" />
         </div>
       )}
 
@@ -389,47 +461,30 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-b border-line dark:border-line-dark pb-5">
           <div className="flex flex-wrap items-center gap-3">
             {canManageLicense && (
-            <button
-              type="button"
+            <AppButton
+              variant="soft"
+              icon={KeyRound}
               onClick={handleOpenLicense}
-              className="h-10 px-4 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand-soft/80 dark:hover:bg-brand-bright/25 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright rounded-lg text-xs font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-colors shadow-2xs cursor-pointer"
               title="ترخيص وتفعيل برنامج رفيق، تجديد الاشتراك، أو نقل الترخيص لجهاز آخر"
             >
-              <KeyRound className="w-4 h-4 text-brand dark:text-brand-bright" />
-              <span>ترخيص وتفعيل البرنامج</span>
-            </button>
+              ترخيص وتفعيل البرنامج
+            </AppButton>
             )}
 
             {canRestore && (
-            <button
-              type="button"
+            <AppButton
+              variant="soft"
+              icon={Laptop}
               onClick={() => setIsMigrationModalOpen(true)}
-              className="h-10 px-4 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand-soft/80 dark:hover:bg-brand-bright/25 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright rounded-lg text-xs font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-colors shadow-2xs cursor-pointer"
               title="نقل البرنامج والبيانات إلى جهاز جديد مع مقارنة الأرقام"
             >
-              <Laptop className="w-4 h-4 text-brand dark:text-brand-bright" />
-              <span>نقل لجهاز جديد</span>
-            </button>
+              نقل لجهاز جديد
+            </AppButton>
             )}
 
-            <button
-              type="button"
-              onClick={() => void handleCreateBackup()}
-              disabled={loading}
-              className="h-10 px-5 bg-brand dark:bg-paid-bright hover:bg-brand-hover dark:hover:bg-paid-bright-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-muted-dark text-white dark:text-surface-dark rounded-lg text-xs font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-colors shadow-sm cursor-pointer"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>جاري إنشاء النسخة والتحقق...</span>
-                </>
-              ) : (
-                <>
-                  <Database className="w-4 h-4" />
-                  <span>خذ نسخة احتياطية دلوقتي</span>
-                </>
-              )}
-            </button>
+            <AppButton variant="primary" icon={Database} loading={loading} onClick={() => void handleCreateBackup()}>
+              {loading ? 'جاري إنشاء النسخة والتحقق...' : 'خذ نسخة احتياطية دلوقتي'}
+            </AppButton>
           </div>
         </div>
 
@@ -469,7 +524,7 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
             <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-medium">حجم النسخة الأخيرة</span>
             <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark font-mono">
               <HardDrive className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark shrink-0" />
-              <span>{formatBytes(status?.lastBackupSizeBytes || 0)}</span>
+              <span>{formatBackupSize(status?.lastBackupSizeBytes || 0)}</span>
             </div>
           </div>
 
@@ -477,7 +532,7 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
             <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-medium">فحص السلامة الآلي</span>
             <div className="flex items-center gap-2 font-bold text-paid dark:text-paid-bright">
               <ShieldCheck className="w-4 h-4 shrink-0" />
-              <span>PRAGMA Verified OK</span>
+              <span>اجتازت الفحص بنجاح</span>
             </div>
           </div>
         </div>
@@ -508,7 +563,8 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
                 type="button"
                 key={d.name}
                 onClick={() => setTargetFolder(`${d.name}RafiqBackups`)}
-                className={`p-3.5 rounded-lg border text-right transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                aria-pressed={targetFolder.startsWith(d.name)}
+                className={`p-3.5 rounded-lg border text-right flex items-center justify-between gap-3 ${
                   targetFolder.startsWith(d.name)
                     ? 'bg-brand-soft dark:bg-brand-bright/20 border-brand dark:border-brand-bright text-brand dark:text-brand-bright ring-1 ring-brand/30 dark:ring-brand-bright/30'
                     : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark-hover text-ink dark:text-ink-dark'
@@ -523,7 +579,7 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
                   <div>
                     <span className="font-bold text-xs block text-ink dark:text-ink-dark">{d.name} {d.label}</span>
                     <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-mono block mt-0.5">
-                      المتاح: {formatBytes(d.freeSpaceBytes)} / {formatBytes(d.totalSpaceBytes)}
+                      المتاح: {formatBackupSize(d.freeSpaceBytes)} / {formatBackupSize(d.totalSpaceBytes)}
                     </span>
                   </div>
                 </div>
@@ -550,13 +606,13 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
               placeholder="مثال: E:\RafiqBackups أو C:\RafiqBackups"
               className="flex-1 min-w-[14rem] bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
             />
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
               onClick={() => setTargetFolder(status?.configuredFolder || '')}
-              className="px-4 h-10 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark rounded-lg text-xs font-semibold whitespace-nowrap text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
+              className="shrink-0"
             >
               استعادة الافتراضي
-            </button>
+            </AppButton>
           </div>
           <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-2 leading-relaxed font-sans">
             ملاحظة: لو الفلاشة اتفصلت أو تعذر الحفظ فيها، النظام بيحفظ تلقائياً في مجلد آمن داخل الجهاز عشان البيع ما يقفش أبداً.
@@ -572,7 +628,7 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
                 type="checkbox"
                 checked={autoOnClose}
                 onChange={(e) => void handleToggleAutoOnClose(e.target.checked)}
-                className="w-4 h-4 accent-brand dark:accent-paid-bright rounded cursor-pointer"
+                className="cursor-pointer"
               />
               <span>أخذ نسخة احتياطية تلقائياً عند قفل البرنامج (موصى به جداً)</span>
             </label>
@@ -582,7 +638,7 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
                 type="checkbox"
                 checked={autoDaily}
                 onChange={(e) => void handleToggleAutoDaily(e.target.checked)}
-                className="w-4 h-4 accent-brand dark:accent-paid-bright rounded cursor-pointer"
+                className="cursor-pointer"
               />
               <span>تفعيل النسخ الاحتياطي اليومي التلقائي</span>
             </label>
@@ -598,8 +654,9 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
                   min="1"
                   max="60"
                   value={retentionDays}
-                  onChange={(e) => setRetentionDays(parseInt(e.target.value) || 7)}
-                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  disabled={!isRoot}
+                  onChange={(e) => setRetentionDays(parseInt(e.target.value) || DEFAULT_RETENTION_DAYS)}
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-surface-2 dark:disabled:bg-surface-dark-3"
                 />
               </div>
 
@@ -610,8 +667,9 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
                   min="1"
                   max="52"
                   value={retentionWeeks}
-                  onChange={(e) => setRetentionWeeks(parseInt(e.target.value) || 4)}
-                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  disabled={!isRoot}
+                  onChange={(e) => setRetentionWeeks(parseInt(e.target.value) || DEFAULT_RETENTION_WEEKS)}
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-surface-2 dark:disabled:bg-surface-dark-3"
                 />
               </div>
 
@@ -622,8 +680,9 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
                   min="3"
                   max="50"
                   value={maxCopies}
-                  onChange={(e) => setMaxCopies(parseInt(e.target.value) || 20)}
-                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  disabled={!isRoot}
+                  onChange={(e) => setMaxCopies(parseInt(e.target.value) || DEFAULT_MAX_COPIES)}
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-surface-2 dark:disabled:bg-surface-dark-3"
                 />
               </div>
 
@@ -634,11 +693,17 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
                   min="1"
                   max="30"
                   value={warnAfterDays}
-                  onChange={(e) => setWarnAfterDays(parseInt(e.target.value) || 2)}
+                  onChange={(e) => setWarnAfterDays(parseInt(e.target.value) || DEFAULT_WARN_AFTER_DAYS)}
                   className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
               </div>
             </div>
+            {!isRoot && (
+              <p className="flex items-center gap-1.5 text-xs font-bold text-ink-muted dark:text-ink-muted-dark font-sans m-0">
+                <Lock className="w-3.5 h-3.5 shrink-0" />
+                {RETENTION_ROOT_ONLY_NOTE}
+              </p>
+            )}
             <p className="text-xs text-ink-muted dark:text-ink-muted-dark font-sans m-0 leading-relaxed">
               * محرك الاستبقاء الآمن: بيدمج نسخ نفس اليوم لمنع تراكم الملفات عند قفل البرنامج وفتحه، وبيحتفظ دائماً بـ 3 نسخ سليمة كحد أدنى مضمون مهما حصل.
             </p>
@@ -646,19 +711,10 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
         </div>
 
         <div ref={policySaveBarRef} className="self-end flex flex-wrap items-center justify-end gap-3 rounded-xl">
-          {policyDirty && (
-            <div role="status">
-              <UnsavedChangesChip />
-            </div>
-          )}
-          <button
-          type="button"
-          onClick={() => void handleSavePolicy()}
-          className="self-end h-10 px-5 bg-brand dark:bg-paid-bright hover:bg-brand-hover dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
-        >
-          <Save className="w-3.5 h-3.5" />
-          <span>حفظ وتطبيق سياسة النسخ</span>
-        </button>
+          <UnsavedChangesChip dirty={policyDirty} />
+          <AppButton variant="primary" icon={Save} onClick={() => void handleSavePolicy()}>
+            حفظ وتطبيق سياسة النسخ
+          </AppButton>
         </div>
       </div>
 
@@ -671,87 +727,177 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">تاريخ النسخة:</span>
-            <DateFilterControl value={dateFilter} onChange={setDateFilter} size="sm" selectWidthClass="w-44" />
-            <span className="text-xs text-ink-muted dark:text-ink-muted-dark">
-              {listDateActive
-                ? `${status?.recentBackups?.length ?? 0} نسخة خلال ${describeDateFilter(dateFilter)}`
-                : `إجمالي النسخ: ${status?.recentBackups?.length ?? 0}`}
-            </span>
+            <DateFilterControl value={dateFilter} onChange={handleDateFilterChange} size="sm" selectWidthClass="w-44" />
+            {!listError && folderState !== 'unreadable' && (
+              <span className="text-xs text-ink-muted dark:text-ink-muted-dark" aria-live="polite">
+                {backupCountLabel(shownCount, totalCount, listDateActive ? describeDateFilter(dateFilter) : null)}
+              </span>
+            )}
           </div>
         </div>
 
-        {status?.recentBackups && status.recentBackups.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-right border-collapse text-xs">
-              <thead>
-                <tr className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border-b border-line dark:border-line-dark">
-                  <th className="py-2 px-3 font-semibold">اسم ملف النسخة</th>
-                  <th className="py-2 px-3 font-semibold">تاريخ الإنشاء</th>
-                  <th className="py-2 px-3 font-semibold">الحجم</th>
-                  <th className="py-2 px-3 font-semibold text-center">الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line dark:divide-line-dark font-mono">
-                {status.recentBackups.map((bk) => (
-                  <tr key={bk.fileName} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
-                    <td className="py-2.5 px-3 font-semibold text-ink dark:text-ink-dark">{bk.fileName}</td>
-                    <td className="py-2.5 px-3 text-ink-muted dark:text-ink-muted-dark">{bk.createdAt}</td>
-                    <td className="py-2.5 px-3 text-ink dark:text-ink-dark font-bold">{formatBytes(bk.sizeBytes)}</td>
-                    <td className="py-2.5 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              const res: any = await invoke('backup:verify', { backupFilePath: bk.fullPath });
-                              setActionMessage({
-                                text: res.message,
-                                type: res.isVerified ? 'success' : 'error'
-                              });
-                            } catch (err: unknown) {
-                              const msg = err instanceof Error ? err.message : String(err);
-                              setActionMessage({ text: `فشل الفحص: ${msg}`, type: 'error' });
-                            }
-                          }}
-                          className="px-2 py-1 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark rounded text-micro font-sans text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
-                          title="إعادة فحص سلامة وتطابق النسخة"
-                        >
-                          <ShieldCheck className="w-3 h-3 text-paid dark:text-paid-bright" />
-                          <span>فحص</span>
-                        </button>
+        {status?.listedFolder && (
+          <div className="flex items-start gap-2 text-ink-muted dark:text-ink-muted-dark">
+            <FolderOpen className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="shrink-0">المجلد المعروض:</span>
+            <span dir="ltr" className="font-mono break-all text-ink dark:text-ink-dark select-text">{status.listedFolder}</span>
+          </div>
+        )}
 
-                        {canRestore && (
-                        <button
-                          type="button"
-                          onClick={() => setRestoreTarget(bk)}
-                          className="px-2.5 py-1 bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand dark:hover:bg-paid-bright hover:text-white dark:hover:text-surface-dark border border-line dark:border-line-dark rounded text-micro font-sans font-bold text-ink dark:text-ink-dark transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
-                          title="استرجاع قاعدة البيانات من هذه النسخة"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          <span>استرجاع</span>
-                        </button>
-                        )}
-                      </div>
-                    </td>
+        {folderState === 'unavailable' && (
+          <div role="alert" className="p-3 rounded-lg border bg-warn-soft dark:bg-warn-dark-soft border-warn/30 dark:border-warn-bright/30 text-warn dark:text-warn-bright flex items-start gap-2 leading-relaxed">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{status?.folderMessage || 'تعذر الوصول إلى مجلد النسخ المحدد.'}</span>
+          </div>
+        )}
+
+        {listError ? (
+          <div role="alert" className="p-5 rounded-lg border bg-danger-soft dark:bg-danger-dark-soft border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright flex flex-col items-center gap-3 text-center">
+            <div className="flex items-center gap-2 font-semibold">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>تعذر تحميل سجل النسخ الاحتياطية: {listError}</span>
+            </div>
+            <AppButton variant="secondary" size="sm" icon={RefreshCw} onClick={() => void refreshList()}>
+              إعادة المحاولة
+            </AppButton>
+          </div>
+        ) : folderState === 'unreadable' ? (
+          <div role="alert" className="p-5 rounded-lg border bg-danger-soft dark:bg-danger-dark-soft border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright flex flex-col items-center gap-3 text-center">
+            <div className="flex items-center gap-2 font-semibold">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{status?.folderMessage || 'تعذر قراءة مجلد النسخ الاحتياطية.'}</span>
+            </div>
+            <span className="leading-relaxed">قد تكون النسخ موجودة لكن المجلد غير متاح الآن. تأكد من توصيل الفلاشة أو صلاحيات المجلد ثم أعد المحاولة.</span>
+            <AppButton variant="secondary" size="sm" icon={RefreshCw} onClick={() => void refreshList()}>
+              إعادة المحاولة
+            </AppButton>
+          </div>
+        ) : listLoading && !status ? (
+          <div role="status" className="p-6 flex items-center justify-center gap-2 text-ink-muted dark:text-ink-muted-dark bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>جاري تحميل سجل النسخ الاحتياطية...</span>
+          </div>
+        ) : shownCount > 0 ? (
+          <div className="flex flex-col gap-3">
+            <div className={`overflow-x-auto rounded-lg border border-line dark:border-line-dark transition-opacity ${listLoading ? 'opacity-60' : ''}`} aria-busy={listLoading}>
+              <table className="w-full text-right border-collapse text-xs">
+                <thead>
+                  <tr className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border-b border-line dark:border-line-dark">
+                    <th className="py-2.5 px-3 font-semibold">اسم ملف النسخة</th>
+                    <th className="py-2.5 px-3 font-semibold whitespace-nowrap">تاريخ الإنشاء</th>
+                    <th className="py-2.5 px-3 font-semibold whitespace-nowrap">الحجم</th>
+                    <th className="py-2.5 px-3 font-semibold text-center whitespace-nowrap">الإجراءات</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-line dark:divide-line-dark">
+                  {status?.recentBackups.map((bk) => {
+                    const outcome = verifyOutcomes[bk.fullPath];
+                    const isVerifying = verifyingPath === bk.fullPath;
+                    return (
+                      <Fragment key={bk.fullPath}>
+                        <tr className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
+                          <td className="py-3 px-3 font-semibold text-ink dark:text-ink-dark">
+                            <span dir="ltr" className="inline-block font-mono break-all text-left select-text">{bk.fileName}</span>
+                          </td>
+                          <td className="py-3 px-3 text-ink-muted dark:text-ink-muted-dark whitespace-nowrap">
+                            <span dir="ltr" className="inline-block tabular-nums">{formatBackupDate(bk.createdAt)}</span>
+                          </td>
+                          <td className="py-3 px-3 text-ink dark:text-ink-dark font-bold whitespace-nowrap tabular-nums">{formatBackupSize(bk.sizeBytes)}</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center justify-center gap-2">
+                              <AppButton
+                                variant="secondary"
+                                size="sm"
+                                icon={ShieldCheck}
+                                loading={isVerifying}
+                                onClick={() => void handleVerifyBackup(bk)}
+                                className="min-w-[4.5rem]"
+                                title="فحص سلامة هذه النسخة وتطابقها (قراءة فقط، لا يمس بيانات النظام)"
+                              >
+                                {isVerifying ? 'جاري الفحص' : 'فحص'}
+                              </AppButton>
+
+                              {canRestore && (
+                              <AppButton
+                                variant="soft"
+                                size="sm"
+                                icon={RotateCcw}
+                                onClick={() => setRestoreTarget(bk)}
+                                disabled={isVerifying}
+                                className="min-w-[4.5rem]"
+                                title="استرجاع قاعدة البيانات من هذه النسخة"
+                              >
+                                استرجاع
+                              </AppButton>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {outcome && (
+                          <tr>
+                            <td colSpan={4} className="px-3 pb-3 pt-0">
+                              <div
+                                role="status"
+                                className={`p-2.5 rounded-lg border flex items-start justify-between gap-3 leading-relaxed ${
+                                  outcome.ok
+                                    ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30'
+                                    : 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/30 dark:border-danger-bright/30'
+                                }`}
+                              >
+                                <div className="flex items-start gap-2">
+                                  {outcome.ok ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+                                  <span>{outcome.text}</span>
+                                </div>
+                                <AppButton
+                                  variant="subtle"
+                                  size="xs"
+                                  icon={X}
+                                  aria-label="إغلاق"
+                                  onClick={() => setVerifyOutcomes((prev) => {
+                                    const next = { ...prev };
+                                    delete next[bk.fullPath];
+                                    return next;
+                                  })}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {remaining > 0 && (
+              <AppButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setListLimit(nextBackupLimit(listLimit, totalCount))}
+                disabled={listLoading}
+                className="self-center"
+              >
+                عرض المزيد ({remaining})
+              </AppButton>
+            )}
+            {totalCount > shownCount && remaining === 0 && (
+              <p className="m-0 text-center text-ink-muted dark:text-ink-muted-dark">
+                تم عرض أقصى عدد ممكن. استخدم فلتر «تاريخ النسخة» لعرض النسخ الأقدم.
+              </p>
+            )}
           </div>
         ) : (
-          <div className="p-6 text-center text-ink-muted dark:text-ink-muted-dark bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark">
+          <div className="p-6 text-center text-ink-muted dark:text-ink-muted-dark bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark">
             {listDateActive ? (
               <div className="flex flex-col items-center gap-2">
                 <span>{`مفيش نسخ احتياطية خلال ${describeDateFilter(dateFilter)}.`}</span>
-                <button
-                  type="button"
-                  onClick={resetDateFilter}
-                  className="h-8 px-3 inline-flex items-center gap-1.5 rounded-lg bg-brand dark:bg-paid-bright text-white dark:text-surface-dark text-xs font-bold cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>عرض كل النسخ</span>
-                </button>
+                <AppButton variant="primary" size="sm" icon={RotateCcw} onClick={handleResetDateFilter}>
+                  عرض كل النسخ
+                </AppButton>
               </div>
+            ) : folderState === 'unavailable' ? (
+              'لا توجد نسخ محفوظة في المجلد المحلي الآمن أيضاً. وصّل الفلاشة أو اختر مجلداً متاحاً ثم خذ نسخة احتياطية.'
             ) : (
               'لم يتم العثور على أي نسخ احتياطية في المجلد المحدد حتى الآن. انقر على «خذ نسخة احتياطية الآن» أعلاه لإنشاء أول نسخة.'
             )}
@@ -767,15 +913,15 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
             isCorrupt: false,
             message: 'طلب استرجاع يدوي موجه',
             latestValidBackupFile: restoreTarget.fullPath,
-            latestValidBackupDate: restoreTarget.createdAt,
+            latestValidBackupDate: formatBackupDate(restoreTarget.createdAt),
             latestValidBackupSizeBytes: restoreTarget.sizeBytes
           }}
           isStandaloneDialog={true}
           onDismiss={() => setRestoreTarget(null)}
           onRestored={() => {
             setRestoreTarget(null);
-            void fetchBackupStatus();
-            void fetchDrives();
+            // The data under every screen (products, users, settings, shift) was replaced: reload the app state from scratch
+            window.location.reload();
           }}
         />
       )}

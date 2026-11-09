@@ -22,7 +22,9 @@ import { useAuth } from '../context/useAuth';
 import { invoke, type UserDto } from '../bridge/ipc';
 import { CustomSelect, type SelectOption } from '../components/CustomSelect';
 import { RequiredMark } from '../components/RequiredMark';
+import { AppButton } from '../components/AppButton';
 import { getRoleLabel, getTier } from '../utils/roleLabels';
+import { normalizeTokenOrKey } from '../utils/tokenNormalizer';
 
 export const LoginScreen: React.FC = () => {
   const { login, refreshUser } = useAuth();
@@ -79,24 +81,25 @@ export const LoginScreen: React.FC = () => {
 
   const handleLoginRoot = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rootTokenInput.trim()) {
-      setRootError('يرجى لصق تصريح دخول Root الموقّع من المطور');
+    const cleanToken = normalizeTokenOrKey(rootTokenInput);
+    if (!cleanToken) {
+      setRootError('يرجى لصق تصريح دخول المطور الموقّع من المطور');
       return;
     }
     setRootLoading(true);
     setRootError('');
     try {
       const res = await invoke<any>('auth:loginRootChallenge', {
-        token: rootTokenInput.trim(),
+        token: cleanToken,
       });
       if (res?.success && res?.user) {
         setIsRootModalOpen(false);
         await refreshUser();
       } else {
-        setRootError(res?.message || 'فشل التحقق من تصريح Root');
+        setRootError(res?.message || 'فشل التحقق من تصريح المطور');
       }
     } catch (err: any) {
-      setRootError(err?.message || 'تعذر التحقق من تصريح دخول Root');
+      setRootError(err?.message || 'تعذر التحقق من تصريح دخول المطور');
     } finally {
       setRootLoading(false);
     }
@@ -171,7 +174,7 @@ export const LoginScreen: React.FC = () => {
       return;
     }
     if (!password) {
-      setError('يرجى إدخال الرقم السري (PIN).');
+      setError('يرجى إدخال الرقم السري.');
       return;
     }
     if (lockoutSeconds > 0) {
@@ -212,7 +215,7 @@ export const LoginScreen: React.FC = () => {
 
   const handleResetWithRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanCode = recoveryCodeInput.trim().toUpperCase();
+    const cleanCode = normalizeTokenOrKey(recoveryCodeInput);
     if (!cleanCode) {
       setRecoveryError('يرجى إدخال كود الدعم الفني أو رمز الاسترجاع.');
       return;
@@ -284,7 +287,7 @@ export const LoginScreen: React.FC = () => {
             </div>
 
             <div className="mt-8 space-y-4">
-              <div className="p-4 rounded-xl bg-white/10 border border-white/15 backdrop-blur-sm">
+              <div className="p-4 rounded-xl bg-white/10 border border-white/15 shadow-sm">
                 <p className="text-xs text-emerald-100 font-medium mb-1">المتجر الحالي:</p>
                 <p className="text-lg font-bold text-white truncate">{storeName}</p>
               </div>
@@ -322,14 +325,14 @@ export const LoginScreen: React.FC = () => {
                 </p>
               </div>
 
-              <button
-                type="button"
+              <AppButton
+                variant="secondary"
+                size="xs"
                 onClick={() => setIsNumericMode(!isNumericMode)}
-                className="text-xs px-2.5 py-1.5 rounded-lg border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark-strong text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors flex items-center gap-1 cursor-pointer"
                 title="التبديل بين وضع لوحة الأرقام والكيبورد العادي"
               >
-                <span>{isNumericMode ? 'وضع الكيبورد' : 'لوحة الأرقام'}</span>
-              </button>
+                {isNumericMode ? 'وضع الكيبورد' : 'لوحة الأرقام'}
+              </AppButton>
             </div>
 
             {/* Error or Lockout Alert */}
@@ -363,19 +366,19 @@ export const LoginScreen: React.FC = () => {
                         ({activeUsers.length} موظف متاح)
                       </span>
                     )}
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="subtle"
+                      size="xs"
                       onClick={() =>
                         setUserPickerMode((prev) => {
                           const currentIsDropdown = prev === 'dropdown' || (prev === 'auto' && activeUsers.length > 3);
                           return currentIsDropdown ? 'buttons' : 'dropdown';
                         })
                       }
-                      className="text-micro font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
                       title="التبديل بين القائمة المنسدلة والأزرار"
                     >
                       {isDropdown ? 'عرض كأزرار' : 'عرض كقائمة'}
-                    </button>
+                    </AppButton>
                   </div>
                 </div>
 
@@ -411,20 +414,21 @@ export const LoginScreen: React.FC = () => {
                               passwordInputRef.current.focus();
                             }
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 cursor-pointer ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 ${
                             isSelected
-                              ? 'bg-brand text-white border-brand shadow-sm'
+                              ? 'bg-brand text-white border-brand shadow-sm dark:bg-brand-dark-soft dark:text-brand-bright dark:border-brand-bright'
                               : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark-strong'
                           }`}
+                          aria-pressed={isSelected}
                         >
                           <UserIcon className="w-3.5 h-3.5" />
                           <span>{u.displayName}</span>
                           {getTier(u) >= 1 ? (
-                            <span className={`text-micro px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright'}`}>
+                            <span className={`text-micro px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white dark:bg-brand-bright/20 dark:text-brand-bright' : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright'}`}>
                               {getRoleLabel(u)}
                             </span>
                           ) : (
-                            <span className={`text-micro px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'}`}>
+                            <span className={`text-micro px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white dark:bg-brand-bright/20 dark:text-brand-bright' : 'bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'}`}>
                               كاشير
                             </span>
                           )}
@@ -444,16 +448,16 @@ export const LoginScreen: React.FC = () => {
                     اسم المستخدم (أو كتابة يدوية) <RequiredMark />
                   </label>
                   {username && (
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="subtle"
+                      size="xs"
                       onClick={() => {
                         setUsername('');
                         setPassword('');
                       }}
-                      className="text-micro text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer"
                     >
                       مسح
-                    </button>
+                    </AppButton>
                   )}
                 </div>
                 <div className="relative">
@@ -472,10 +476,12 @@ export const LoginScreen: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark">
-                    الرقم السري (PIN) <RequiredMark />
+                    الرقم السري <RequiredMark />
                   </label>
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="subtle"
+                    size="xs"
+                    icon={KeyRound}
                     onClick={() => {
                       setIsRecoveryModalOpen(true);
                       setRecoveryError('');
@@ -484,11 +490,9 @@ export const LoginScreen: React.FC = () => {
                       setRecoveryNewPin('');
                       setRecoveryConfirmPin('');
                     }}
-                    className="text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    <KeyRound className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                    <span>نسيت الرمز؟ (كود الدعم الفني)</span>
-                  </button>
+                    نسيت الرمز؟ (كود الدعم الفني)
+                  </AppButton>
                 </div>
                 <div className="relative">
                   <input
@@ -496,20 +500,21 @@ export const LoginScreen: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="ادخل الرقم السري (PIN)"
+                    placeholder="ادخل الرقم السري"
                     disabled={lockoutSeconds > 0 || isSubmitting}
                     className="w-full h-11 pr-10 pl-11 rounded-xl border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand-soft dark:focus:ring-brand-soft/20 bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-sm transition-all"
                     autoFocus
                   />
                   <Lock className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-3.5 pointer-events-none" />
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="subtle"
+                    size="xs"
+                    icon={showPassword ? EyeOff : Eye}
+                    aria-label={showPassword ? 'إخفاء الرقم السري' : 'إظهار الرقم السري'}
                     onClick={() => setShowPassword(!showPassword)}
                     tabIndex={-1}
-                    className="absolute left-3 top-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                    className="absolute left-1.5 top-2"
+                  />
                 </div>
               </div>
 
@@ -518,71 +523,67 @@ export const LoginScreen: React.FC = () => {
                 <div className="pt-2">
                   <div className="grid grid-cols-3 gap-2">
                     {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                      <button
+                      <AppButton
                         key={digit}
-                        type="button"
+                        variant="secondary"
+                        size="lg"
+                        className="!text-lg"
                         onClick={() => handleKeypadPress(digit)}
                         disabled={lockoutSeconds > 0}
-                        className="h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg border border-line dark:border-line-dark transition-colors active:scale-95 cursor-pointer"
                       >
                         {digit}
-                      </button>
+                      </AppButton>
                     ))}
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="secondary"
+                      size="lg"
+                      icon={RotateCcw}
                       onClick={handleKeypadClear}
                       disabled={lockoutSeconds > 0}
-                      className="h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted font-medium text-xs border border-line dark:border-line-dark transition-colors flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
                       title="مسح الكل"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
                       مسح
-                    </button>
-                    <button
-                      type="button"
+                    </AppButton>
+                    <AppButton
+                      variant="secondary"
+                      size="lg"
+                      className="!text-lg"
                       onClick={() => handleKeypadPress('0')}
                       disabled={lockoutSeconds > 0}
-                      className="h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg border border-line dark:border-line-dark transition-colors active:scale-95 cursor-pointer"
                     >
                       0
-                    </button>
-                    <button
-                      type="button"
+                    </AppButton>
+                    <AppButton
+                      variant="secondary"
+                      size="lg"
+                      aria-label="مسح رقم"
+                      title="مسح رقم"
                       onClick={handleKeypadBackspace}
                       disabled={lockoutSeconds > 0}
-                      className="h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark transition-colors flex items-center justify-center active:scale-95 cursor-pointer"
-                      title="مسح رقم"
                     >
                       <Delete className="w-4 h-4" />
-                    </button>
+                    </AppButton>
                   </div>
                 </div>
               )}
 
-              <button
+              <AppButton
                 type="submit"
-                disabled={lockoutSeconds > 0 || isSubmitting}
-                className="w-full h-11 mt-4 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
+                variant="primary"
+                size="lg"
+                fullWidth
+                icon={LogIn}
+                loading={isSubmitting}
+                disabled={lockoutSeconds > 0}
+                className="mt-4"
               >
-                {isSubmitting ? (
-                  <span>جاري تسجيل الدخول...</span>
-                ) : (
-                  <>
-                    <LogIn className="w-4 h-4" />
-                    <span>دخول إلى النظام</span>
-                  </>
-                )}
-              </button>
+                {isSubmitting ? 'جاري تسجيل الدخول...' : 'دخول إلى النظام'}
+              </AppButton>
 
               <div className="flex items-center justify-center pt-2">
-                <button
-                  type="button"
-                  onClick={handleOpenRootModal}
-                  className="text-xs font-semibold text-ink-muted hover:text-brand dark:text-ink-dark-muted dark:hover:text-brand-bright transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <Terminal className="w-3.5 h-3.5" />
-                  <span>دخول مطور النظام (Root)</span>
-                </button>
+                <AppButton variant="subtle" size="xs" icon={Terminal} onClick={handleOpenRootModal}>
+                  دخول مطور النظام
+                </AppButton>
               </div>
             </form>
           </div>
@@ -591,8 +592,8 @@ export const LoginScreen: React.FC = () => {
 
       {/* Root Developer Challenge-Response Modal (SEC-01) */}
       {isRootModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl max-w-md w-full overflow-hidden transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="bg-brand-soft dark:bg-brand-dark/40 px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -601,20 +602,14 @@ export const LoginScreen: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-ink dark:text-ink-dark">
-                    جلسة دعم مطور النظام (Root)
+                    جلسة دعم مطور النظام
                   </h3>
                   <p className="text-micro text-ink-muted dark:text-ink-dark-muted">
-                    بروتوكول التحدي والاستجابة الرقمي المشفر (Challenge-Response)
+                    بروتوكول التحدي والاستجابة الرقمي المشفر
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsRootModalOpen(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setIsRootModalOpen(false)} />
             </div>
 
             {/* Body */}
@@ -629,22 +624,22 @@ export const LoginScreen: React.FC = () => {
               {/* Challenge Box */}
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  1. كود التحدي الخاص بهذا الجهاز (Challenge)
+                  1. كود التحدي الخاص بهذا الجهاز
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-12 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-4 flex items-center justify-center font-mono font-black text-base text-brand dark:text-brand-bright tracking-widest dir-ltr">
                     {rootChallenge || 'جاري التوليد...'}
                   </div>
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="secondary"
+                    size="lg"
+                    icon={Copy}
                     onClick={handleCopyChallenge}
                     disabled={!rootChallenge}
-                    className="h-12 px-3.5 rounded-xl bg-surface-2 hover:bg-line dark:bg-surface-dark-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer"
                     title="نسخ كود التحدي"
                   >
-                    <Copy className="w-4 h-4" />
-                    <span>{copiedChallenge ? 'تم النسخ!' : 'نسخ'}</span>
-                  </button>
+                    {copiedChallenge ? 'تم النسخ!' : 'نسخ'}
+                  </AppButton>
                 </div>
                 <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 leading-relaxed">
                   أملِ هذا الكود لمطور النظام ليقوم بتوقيع تصريح الدخول المؤقت من لوحة التراخيص السحابية.
@@ -654,7 +649,7 @@ export const LoginScreen: React.FC = () => {
               {/* Response Token Input */}
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  2. رمز تصريح Root الموقع (RFQ-ROOT-...) <RequiredMark />
+                  2. رمز تصريح المطور الموقع (RFQ-ROOT-...) <RequiredMark />
                 </label>
                 <textarea
                   value={rootTokenInput}
@@ -668,28 +663,19 @@ export const LoginScreen: React.FC = () => {
               </div>
 
               <div className="pt-2 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsRootModalOpen(false)}
-                  disabled={rootLoading}
-                  className="flex-1 h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark font-medium text-xs border border-line dark:border-line-dark transition-colors cursor-pointer"
-                >
+                <AppButton variant="secondary" className="flex-1" onClick={() => setIsRootModalOpen(false)} disabled={rootLoading}>
                   إلغاء
-                </button>
-                <button
+                </AppButton>
+                <AppButton
                   type="submit"
-                  disabled={rootLoading || !rootTokenInput.trim()}
-                  className="flex-1 h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold text-xs transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                  variant="primary"
+                  icon={ShieldCheck}
+                  loading={rootLoading}
+                  disabled={!rootTokenInput.trim()}
+                  className="flex-1"
                 >
-                  {rootLoading ? (
-                    <span>جاري التحقق...</span>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>تحقق ودخول بصلاحية Root</span>
-                    </>
-                  )}
-                </button>
+                  {rootLoading ? 'جاري التحقق...' : 'تحقق ودخول بصلاحية المطور'}
+                </AppButton>
               </div>
             </form>
           </div>
@@ -698,8 +684,8 @@ export const LoginScreen: React.FC = () => {
 
       {/* Emergency Support / Recovery Modal */}
       {isRecoveryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl max-w-md w-full overflow-hidden transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="bg-brand-soft dark:bg-brand-dark/40 px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -715,13 +701,7 @@ export const LoginScreen: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsRecoveryModalOpen(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setIsRecoveryModalOpen(false)} />
             </div>
 
             {/* Body */}
@@ -761,7 +741,7 @@ export const LoginScreen: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  الرقم السري (PIN) الجديد للمدير <RequiredMark />
+                  الرقم السري الجديد للمدير <RequiredMark />
                 </label>
                 <input
                   type="password"
@@ -792,28 +772,12 @@ export const LoginScreen: React.FC = () => {
               </div>
 
               <div className="pt-2 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsRecoveryModalOpen(false)}
-                  disabled={recoveryLoading}
-                  className="flex-1 h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark font-medium text-xs border border-line dark:border-line-dark transition-colors cursor-pointer"
-                >
+                <AppButton variant="secondary" className="flex-1" onClick={() => setIsRecoveryModalOpen(false)} disabled={recoveryLoading}>
                   إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={recoveryLoading}
-                  className="flex-1 h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold text-xs transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {recoveryLoading ? (
-                    <span>جاري التحقق...</span>
-                  ) : (
-                    <>
-                      <KeyRound className="w-4 h-4" />
-                      <span>تأكيد وتعيين الرمز والدخول</span>
-                    </>
-                  )}
-                </button>
+                </AppButton>
+                <AppButton type="submit" variant="primary" icon={KeyRound} loading={recoveryLoading} className="flex-1">
+                  {recoveryLoading ? 'جاري التحقق...' : 'تأكيد وتعيين الرمز والدخول'}
+                </AppButton>
               </div>
             </form>
           </div>

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Ban, X, AlertTriangle, Lock, Check } from 'lucide-react';
 import type { Sale } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
+import { AppButton } from './AppButton';
 interface VoidInvoiceModalProps {
   isOpen: boolean;
   sale: Sale | null;
@@ -30,6 +31,17 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
   const [supervisorPin, setSupervisorPin] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const saleId = sale?.id;
+
+  // A new opening never inherits the reason or supervisor PIN typed before
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedReason('الزبون رجع في كلامه');
+      setCustomReason('');
+      setSupervisorPin('');
+      setErrorMessage(null);
+    }
+  }, [isOpen, saleId]);
 
   const isDirty = Boolean(customReason.trim() || supervisorPin.trim());
 
@@ -79,26 +91,20 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
       onClick={handleBackdropClick}
     >
       <div 
-        className="w-full max-w-[480px] bg-surface rounded-xl border border-line shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-danger"
+        className="w-full max-w-[30rem] bg-surface rounded-xl border border-line shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-danger"
         dir="rtl"
       >
         {/* Modal Header */}
-        <div className="h-[52px] px-4 border-b border-danger/20 dark:border-danger-bright/30 flex items-center justify-between bg-danger-soft dark:bg-danger-dark-soft shrink-0">
+        <div className="h-[3.25rem] px-4 border-b border-danger/20 dark:border-danger-bright/30 flex items-center justify-between bg-danger-soft dark:bg-danger-dark-soft shrink-0">
           <div className="flex items-center gap-2">
             <Ban className="w-5 h-5 text-danger dark:text-danger-bright" />
             <h2 className="t-modal-title text-danger dark:text-danger-bright m-0">إلغاء الفاتورة بالكامل</h2>
           </div>
-          <button 
-            type="button"
-            onClick={requestClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="dangerSubtle" size="sm" icon={X} onClick={requestClose} aria-label="إغلاق" />
         </div>
 
         {/* Modal Form */}
@@ -177,7 +183,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
                 type="password"
                 value={supervisorPin}
                 onChange={(e) => setSupervisorPin(e.target.value)}
-                className="w-full h-[40px] bg-surface-2 border border-line rounded-lg px-4 pr-10 text-lg font-bold text-center tracking-[4px] text-ink focus:outline-none focus:border-danger focus:bg-surface"
+                className="w-full h-[2.5rem] bg-surface-2 border border-line rounded-lg px-4 pr-10 text-lg font-bold text-center tracking-[4px] text-ink focus:outline-none focus:border-danger focus:bg-surface"
               />
               <Lock className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2" />
             </div>
@@ -188,22 +194,12 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
 
           {/* Footer Buttons */}
           <div className="pt-2 border-t border-line flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={requestClose}
-              disabled={loading}
-              className="h-[38px] px-4 text-xs font-bold text-ink-muted hover:text-ink rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" onClick={requestClose} disabled={loading}>
               تراجع
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="h-[40px] px-5 bg-danger hover:bg-red-700 active:bg-red-800 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
-            >
-              <Ban className="w-4 h-4" />
-              <span>{loading ? 'بيتم الإلغاء...' : 'تأكيد إلغاء الفاتورة نهائياً'}</span>
-            </button>
+            </AppButton>
+            <AppButton type="submit" variant="danger" icon={Ban} loading={loading}>
+              {loading ? 'بيتم الإلغاء...' : 'تأكيد إلغاء الفاتورة نهائياً'}
+            </AppButton>
           </div>
         </form>
       </div>

@@ -1,6 +1,7 @@
 // Shared report printing: picks the page size (A4 / 80mm / 58mm), injects the matching @page rule,
-// calls window.print() and cleans up afterwards. Pure helpers are exported for node tests; DOM and
-// IPC are only touched inside printReport() so this module is safe to import without a browser.
+// calls window.print() and cleans up afterwards. outputReport() adds the save fallback (PDF, then HTML)
+// when there is no printer or printing fails. Pure helpers are exported for node tests; DOM and
+// IPC are only touched inside the print/save functions so this module is safe to import without a browser.
 
 export type ReportPaper = 'a4' | '80mm' | '58mm';
 export type PrintKind = 'a4only' | 'compact';
@@ -195,14 +196,19 @@ function clearPageStyle(): void {
   clearPrintTarget();
 }
 
-export async function printReport(options: PrintReportOptions): Promise<void> {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+interface PrintLayout {
+  paper: ReportPaper;
+  orientation: PrintOrientation;
+  release: () => void;
+}
 
+/** Marks the report root and injects the @page rule; release() undoes both (also runs on afterprint or after a long timeout). */
+async function enterPrintLayout(options: PrintReportOptions, showHint: boolean): Promise<PrintLayout> {
   const configured = options.kind === 'compact' && options.paper ? options.paper : await getConfiguredReportPaper();
   const mode = resolvePrintMode(options.kind, configured, options.paper);
   const orientation: PrintOrientation = mode.paper === 'a4' ? options.orientation ?? 'portrait' : 'portrait';
 
-  if (mode.downgraded) {
+  if (mode.downgraded && showHint) {
     const hint = showA4OnlyHint();
     // Let the browser paint the hint before the print dialog opens
     await new Promise<void>((resolve) => window.setTimeout(resolve, HINT_PAINT_DELAY_MS));
@@ -224,27 +230,269 @@ export async function printReport(options: PrintReportOptions): Promise<void> {
   timer = window.setTimeout(cleanup, CLEANUP_TIMEOUT_MS);
 
   applyPageStyle(mode.paper, orientation);
+  return { paper: mode.paper, orientation, release: cleanup };
+}
 
-  try {
-    // In desktop WebView2 host: trigger safe non-blocking native print UI to prevent UI thread lockup
-    const isWebView = typeof window !== 'undefined' && Boolean((window as unknown as { chrome?: { webview?: unknown } }).chrome?.webview);
-    if (isWebView) {
-      try {
-        const { invoke } = await import('../bridge/ipc');
-        const res = await invoke<{ triggered?: boolean }>('system:showPrintDialog', { kind: 'browser' });
-        if (res && res.triggered) {
-          return;
-        }
-      } catch (ipcErr) {
-        console.warn('تعذر استدعاء طباعة النظام عبر IPC، سيتم استخدام window.print() كبديل', ipcErr);
+function isWebViewHost(): boolean {
+  return typeof window !== 'undefined' && Boolean((window as unknown as { chrome?: { webview?: unknown } }).chrome?.webview);
+}
+
+async function hostInvoke<T>(action: string, payload?: unknown, timeoutMs?: number): Promise<T> {
+  const { invoke } = await import('../bridge/ipc');
+  return invoke<T>(action, payload, timeoutMs);
+}
+
+/** Opens the system print UI; throws when neither the host dialog nor window.print() could be opened. */
+async function openPrintUi(): Promise<void> {
+  // In desktop WebView2 host: trigger safe non-blocking native print UI to prevent UI thread lockup
+  if (isWebViewHost()) {
+    try {
+      const res = await hostInvoke<{ triggered?: boolean }>('system:showPrintDialog', { kind: 'browser' });
+      if (res && res.triggered) {
+        return;
       }
+    } catch (ipcErr) {
+      console.warn('تعذر استدعاء طباعة النظام عبر IPC، سيتم استخدام window.print() كبديل', ipcErr);
     }
+  }
 
-    window.print();
+  window.print();
+}
+
+export async function printReport(options: PrintReportOptions): Promise<void> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  const layout = await enterPrintLayout(options, true);
+  try {
+    await openPrintUi();
   } catch (err) {
-    cleanup();
+    layout.release();
     throw err;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Report output: print, and when printing is impossible or fails, SAVE the same report as a file
+// ---------------------------------------------------------------------------
+
+export interface PrinterStatus {
+  hasPrinter: boolean;
+  printerCount?: number;
+  defaultPrinter?: string;
+  configuredPrinter?: string;
+  configuredFound?: boolean;
+}
+
+export interface SavedReport {
+  path: string;
+  folder: string;
+  fileName: string;
+  format: 'pdf' | 'html' | 'png';
+}
+
+export type ReportOutputStatus = 'printed' | 'saved' | 'empty' | 'failed' | 'busy';
+
+export interface ReportOutcome {
+  status: ReportOutputStatus;
+  message: string;
+  saved?: SavedReport;
+}
+
+export interface ReportOutputRequest {
+  reportName: string;
+  /** false means there is nothing to print: the report is not printed or saved silently */
+  hasData?: boolean;
+}
+
+export interface ReportOutputHost {
+  /** null/undefined when the status could not be read: printing is then attempted anyway */
+  getPrinterStatus(): Promise<PrinterStatus | null | undefined>;
+  print(): Promise<void>;
+  savePdf(reportName: string): Promise<SavedReport>;
+  saveHtml(reportName: string): Promise<SavedReport>;
+}
+
+export const EMPTY_REPORT_MESSAGE = 'لا توجد بيانات في هذا التقرير لطباعتها أو حفظها';
+export const REPORT_BUSY_MESSAGE = 'جاري تجهيز التقرير، انتظر لحظة';
+export const NO_PRINTER_REASON = 'لا توجد طابعة متاحة على هذا الجهاز';
+const UNKNOWN_ERROR_MESSAGE = 'خطأ غير معروف';
+const DEFAULT_COOLDOWN_MS = 1200;
+
+export function describeError(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'string' && err.trim()) return err;
+  return UNKNOWN_ERROR_MESSAGE;
+}
+
+function formatLabel(format: SavedReport['format']): string {
+  if (format === 'png') return 'كصورة PNG';
+  return format === 'pdf' ? 'كملف PDF' : 'كملف HTML يُفتح بالمتصفح';
+}
+
+/**
+ * Print-or-save flow: 1) nothing to print -> say so, 2) no real printer -> save, 3) try the printer UI,
+ * 4) any failure -> save as PDF, then as a standalone HTML file, 5) only when both fail the Arabic errors are surfaced.
+ */
+export async function runReportOutput(host: ReportOutputHost, request: ReportOutputRequest): Promise<ReportOutcome> {
+  if (request.hasData === false) {
+    return { status: 'empty', message: EMPTY_REPORT_MESSAGE };
+  }
+
+  let printerStatus: PrinterStatus | null | undefined = null;
+  try {
+    printerStatus = await host.getPrinterStatus();
+  } catch (statusErr) {
+    console.warn('تعذر قراءة حالة الطابعات، ستتم محاولة الطباعة مباشرة', statusErr);
+  }
+
+  let reason: string;
+  if (printerStatus && printerStatus.hasPrinter === false) {
+    reason = NO_PRINTER_REASON;
+  } else {
+    try {
+      await host.print();
+      return { status: 'printed', message: 'تم فتح نافذة الطباعة' };
+    } catch (printErr) {
+      reason = 'تعذرت الطباعة: ' + describeError(printErr);
+    }
+  }
+
+  let pdfError = '';
+  try {
+    const saved = await host.savePdf(request.reportName);
+    return { status: 'saved', saved, message: `${reason}، فتم حفظ "${request.reportName}" ${formatLabel(saved.format)}` };
+  } catch (pdfErr) {
+    pdfError = describeError(pdfErr);
+  }
+
+  try {
+    const saved = await host.saveHtml(request.reportName);
+    return { status: 'saved', saved, message: `${reason}، فتم حفظ "${request.reportName}" ${formatLabel(saved.format)}` };
+  } catch (htmlErr) {
+    return {
+      status: 'failed',
+      message: `${reason}. وتعذر حفظ التقرير كملف PDF (${pdfError}) أو كملف HTML (${describeError(htmlErr)}). التقرير ما زال معروضاً على الشاشة.`,
+    };
+  }
+}
+
+export interface ReportOutputController {
+  run(options: PrintReportOptions, request: ReportOutputRequest): Promise<ReportOutcome>;
+  isBusy(): boolean;
+}
+
+/** Single-flight wrapper: a second click while a report is being prepared (and shortly after) is ignored. */
+export function createReportOutput(
+  buildHost: (options: PrintReportOptions) => ReportOutputHost,
+  cooldownMs: number = DEFAULT_COOLDOWN_MS
+): ReportOutputController {
+  let busy = false;
+  return {
+    isBusy: () => busy,
+    async run(options, request) {
+      if (busy) return { status: 'busy', message: REPORT_BUSY_MESSAGE };
+      busy = true;
+      try {
+        return await runReportOutput(buildHost(options), request);
+      } finally {
+        if (cooldownMs > 0 && typeof setTimeout === 'function') {
+          setTimeout(() => {
+            busy = false;
+          }, cooldownMs);
+        } else {
+          busy = false;
+        }
+      }
+    },
+  };
+}
+
+interface HostSavedFile {
+  path: string;
+  folder: string;
+  fileName: string;
+}
+
+function toSavedReport(res: HostSavedFile | null | undefined, format: SavedReport['format']): SavedReport {
+  if (!res || !res.path) throw new Error('لم يرجع النظام مسار الملف المحفوظ');
+  return { path: res.path, folder: res.folder, fileName: res.fileName, format };
+}
+
+const PDF_SAVE_TIMEOUT_MS = 90000;
+const LAYOUT_SETTLE_MS = 60;
+
+function collectStyleText(): string {
+  const chunks: string[] = [];
+  for (let i = 0; i < document.styleSheets.length; i++) {
+    try {
+      const rules = document.styleSheets[i].cssRules;
+      for (let j = 0; j < rules.length; j++) chunks.push(rules[j].cssText);
+    } catch {
+      // A stylesheet from another origin cannot be read: the bundled app sheets are enough
+    }
+  }
+  return chunks.join('\n').replace(/<\/style/gi, '<\\/style');
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** One self-contained HTML document of the marked report root: opens in any browser and prints with the same print rules. */
+export function buildStandaloneReportHtml(reportName: string, bodyHtml: string, css: string, paper: ReportPaper, orientation: PrintOrientation): string {
+  const screenCss =
+    '@media screen{body{background:#fff;color:#000;margin:0;padding:16px}' +
+    '[data-print-target]{position:static!important;inset:auto!important;width:100%!important;max-width:none!important;height:auto!important;max-height:none!important;box-shadow:none!important;transform:none!important;animation:none!important;overflow:visible!important;background:#fff!important;color:#000!important}' +
+    '[data-print-target] *{color:#000!important}[data-print-target] [class*="overflow-"],[data-print-target] [class*="max-h-"]{overflow:visible!important;max-height:none!important}' +
+    'button,.no-print,[data-no-print]{display:none!important}}';
+  return (
+    '<!DOCTYPE html><html lang="ar" dir="rtl" data-print-paper="' + paper + '"><head><meta charset="utf-8">' +
+    '<title>' + escapeHtml(reportName) + '</title>' +
+    '<style>' + css + '</style><style>' + buildPageSizeCss(paper, orientation) + screenCss + '</style></head>' +
+    '<body data-printing>' + bodyHtml + '</body></html>'
+  );
+}
+
+function createBrowserHost(options: PrintReportOptions): ReportOutputHost {
+  return {
+    getPrinterStatus: () => hostInvoke<PrinterStatus>('report:getPrinterStatus'),
+    print: () => printReport(options),
+    async savePdf(reportName) {
+      const layout = await enterPrintLayout(options, false);
+      try {
+        // Give the print attributes a moment to apply before the host renders the page
+        await new Promise<void>((resolve) => window.setTimeout(resolve, LAYOUT_SETTLE_MS));
+        const res = await hostInvoke<HostSavedFile>(
+          'report:savePdf',
+          { reportName, landscape: layout.orientation === 'landscape' },
+          PDF_SAVE_TIMEOUT_MS
+        );
+        return toSavedReport(res, 'pdf');
+      } finally {
+        layout.release();
+      }
+    },
+    async saveHtml(reportName) {
+      const layout = await enterPrintLayout(options, false);
+      try {
+        const target = document.querySelector('[' + PRINT_TARGET_ATTR + ']');
+        if (!target) throw new Error('لا يوجد تقرير معروض لحفظه');
+        const clone = target.cloneNode(true) as HTMLElement;
+        const html = buildStandaloneReportHtml(reportName, clone.outerHTML, collectStyleText(), layout.paper, layout.orientation);
+        const res = await hostInvoke<HostSavedFile>('report:saveFile', { reportName, extension: 'html', content: html }, PDF_SAVE_TIMEOUT_MS);
+        return toSavedReport(res, 'html');
+      } finally {
+        layout.release();
+      }
+    },
+  };
+}
+
+const browserReportOutput = createReportOutput(createBrowserHost);
+
+/** Prints the report that is on screen, or saves it as a file when printing is not possible. */
+export function outputReport(options: PrintReportOptions, request: ReportOutputRequest): Promise<ReportOutcome> {
+  return browserReportOutput.run(options, request);
 }
 
 /** For 'كاشير / A4' toggles: thermal follows the saved roll width, a4 always prints A4. */

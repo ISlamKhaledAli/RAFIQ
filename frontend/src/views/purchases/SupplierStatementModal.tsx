@@ -1,5 +1,8 @@
 import React from 'react';
 import { Receipt, X } from 'lucide-react';
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 import type { Supplier, SupplierTransaction } from '../../types/models';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatMoney } from './types';
@@ -37,6 +40,7 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
     onClose,
     isDirty: false,
   });
+  const motionPanel = useMotionPanel(describeDateFilter(dateFilter));
 
   if (!isOpen || !supplier) return null;
 
@@ -59,13 +63,7 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
               كشف حساب المورد: {supplier.name}
             </h3>
           </div>
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => void requestClose()} />
         </div>
 
         <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
@@ -113,7 +111,9 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark p-2">
+        <MotionHeight className="flex-1 overflow-y-auto p-2">
+          <div {...motionPanel}>
+          <div className="divide-y divide-line dark:divide-line-dark">
           {loading ? (
             <div className="h-40 flex items-center justify-center text-xs text-ink-muted dark:text-ink-dark-muted">
               جاري تحميل كشف حساب المورد...
@@ -122,13 +122,9 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
             <div className="h-40 flex flex-col items-center justify-center gap-2 text-xs text-ink-muted dark:text-ink-dark-muted">
               <span>{isDateActive ? `لا توجد حركات مسجلة خلال الفترة المحددة (${periodLabel})` : 'مفيش حركات مسجلة للمورد ده لحد دلوقتي'}</span>
               {isDateActive && (
-                <button
-                  type="button"
-                  onClick={() => onDateFilterChange({ ...DEFAULT_DATE_FILTER })}
-                  className="h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
-                >
+                <AppButton variant="soft" size="sm" onClick={() => onDateFilterChange({ ...DEFAULT_DATE_FILTER })}>
                   عرض كل الفترات
-                </button>
+                </AppButton>
               )}
             </div>
           ) : (
@@ -217,7 +213,9 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
               </div>
             ))
           )}
-        </div>
+          </div>
+          </div>
+        </MotionHeight>
       </div>
     </div>
   );

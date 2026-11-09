@@ -20,7 +20,12 @@ import {
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert, rafiqConfirm } from '../utils/dialogService';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { isSameFormValue } from '../utils/dirtyForm';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import { RequiredMark } from './RequiredMark';
+import { normalizeTokenOrKey } from '../utils/tokenNormalizer';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
 
 export interface LicenseInfoData {
   isActive: boolean;
@@ -46,6 +51,7 @@ type LicenseTab = 'online' | 'offline' | 'transfer';
 
 export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModalProps) => {
   const [activeTab, setActiveTab] = useState<LicenseTab>('online');
+  const tabPanel = useMotionPanel(activeTab);
   const [license, setLicense] = useState<LicenseInfoData | null>(null);
   const [inputKey, setInputKey] = useState('');
   const [supportCode, setSupportCode] = useState('');
@@ -58,11 +64,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
     reader.onload = (event) => {
       const content = (event.target?.result as string || '').trim();
       if (content) {
-        if (content.toUpperCase().startsWith('RFQ-SUP-')) {
-          setSupportCode('RFQ-SUP-' + content.slice(8).trim());
-        } else {
-          setSupportCode(content);
-        }
+        setSupportCode(normalizeTokenOrKey(content));
         setStatusMessage({ text: 'تمت قراءة كود الدعم من الملف', type: 'success' });
       }
     };
@@ -129,6 +131,9 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
   useEffect(() => {
     let active = true;
     if (isOpen) {
+      setInputKey('');
+      setSupportCode('');
+      setTransferReason('');
       void (async () => {
         try {
           const res = await invoke<LicenseInfoData>('license:getInfo');
@@ -305,7 +310,9 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
     }
   };
 
-  const isDirty = Boolean(inputKey.trim() || supportCode.trim() || transferReason.trim());
+  const isDirty = Boolean(
+    !isSameFormValue(inputKey, license?.licenseKey) || supportCode.trim() || transferReason.trim()
+  );
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -323,11 +330,11 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150 select-none"
       onClick={handleBackdropClick}
     >
       <div 
-        className="bg-surface dark:bg-surface-dark rounded-3xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] text-ink dark:text-ink-dark font-sans"
+        className="bg-surface dark:bg-surface-dark rounded-3xl shadow-xl border border-line dark:border-line-dark w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] text-ink dark:text-ink-dark font-sans transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -350,14 +357,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
             </div>
           </div>
 
-          <button 
-            type="button"
-            onClick={requestClose}
-            className="w-9 h-9 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="secondary" size="sm" icon={X} aria-label="إغلاق" onClick={requestClose} />
         </div>
 
         {/* Mode Switcher Tabs */}
@@ -422,7 +422,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                   ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark' 
                   : isAlreadyActive 
                   ? 'bg-paid text-white' 
-                  : 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40'
+                  : 'bg-warn-bright text-ink dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40'
               }`}>
                 {isTransferred ? (
                   <ShieldAlert className="w-6 h-6" />
@@ -505,21 +505,17 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
             <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
               <span className="flex items-center gap-1.5 text-ink dark:text-ink-dark">
                 <Cpu className="w-4 h-4 text-brand dark:text-brand-bright" />
-                بصمة جهاز الكاشير (Hardware Fingerprint):
+                بصمة جهاز الكاشير:
               </span>
-              <button 
-                type="button"
+              <AppButton
+                variant={copiedFp ? 'successSoft' : 'secondary'}
+                size="xs"
+                icon={copiedFp ? Check : Copy}
                 onClick={handleCopyFp}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-micro font-black border transition-all cursor-pointer ${
-                  copiedFp 
-                    ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-paid-dark-border' 
-                    : 'bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-brand dark:text-brand-bright border-line dark:border-line-dark'
-                }`}
                 title="انقر لنسخ بصمة الجهاز"
               >
-                {copiedFp ? <Check className="w-3.5 h-3.5 text-paid dark:text-paid-bright" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedFp ? 'تم النسخ!' : 'نسخ البصمة'}</span>
-              </button>
+                {copiedFp ? 'تم النسخ!' : 'نسخ البصمة'}
+              </AppButton>
             </div>
             
             <div className="bg-surface dark:bg-surface-dark p-3 rounded-xl border border-line dark:border-line-dark font-mono text-xs font-bold text-ink dark:text-ink-dark select-all break-all dir-ltr text-center tracking-wider leading-relaxed shadow-2xs">
@@ -543,16 +539,19 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
             </div>
           </div>
 
+          {/* The tabs differ in height: the wrapper glides between them (motion on) while header, tab strip and footer stay still */}
+          <MotionHeight>
+          <div {...tabPanel}>
           {/* Tab 1: Online Cloud Activation */}
           {activeTab === 'online' && (
             <div className="space-y-2">
               <label className="block text-xs font-bold text-ink dark:text-ink-dark">
-                كود الترخيص السحابي (License Key): <RequiredMark />
+                كود الترخيص السحابي: <RequiredMark />
               </label>
               <input
                 type="text"
                 value={inputKey}
-                onChange={(e) => setInputKey(e.target.value.toUpperCase())}
+                onChange={(e) => setInputKey(normalizeTokenOrKey(e.target.value))}
                 placeholder="RFQ-PERM-XXXX-XXXX"
                 className="w-full h-12 bg-surface dark:bg-surface-dark-2 border-2 border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink dark:text-ink-dark placeholder:text-ink-muted/40 dark:placeholder:text-ink-dark-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
               />
@@ -578,26 +577,14 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                     accept=".txt"
                     className="hidden"
                   />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>استيراد كود من ملف (.txt)</span>
-                  </button>
+                  <AppButton variant="subtle" size="xs" icon={Download} onClick={() => fileInputRef.current?.click()}>
+                    استيراد كود من ملف (.txt)
+                  </AppButton>
                 </div>
                 <input
                   type="text"
                   value={supportCode}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val.trim().toUpperCase().startsWith('RFQ-SUP-')) {
-                      setSupportCode('RFQ-SUP-' + val.trim().slice(8));
-                    } else {
-                      setSupportCode(val);
-                    }
-                  }}
+                  onChange={(e) => setSupportCode(normalizeTokenOrKey(e.target.value))}
                   placeholder="RFQ-SUP-eyJhbGci..."
                   className="w-full h-12 bg-surface dark:bg-surface-dark-2 border-2 border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink dark:text-ink-dark placeholder:text-ink-muted/40 dark:placeholder:text-ink-dark-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
                 />
@@ -631,14 +618,9 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                   <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark font-mono text-base font-black text-paid dark:text-paid-bright tracking-widest select-all dir-ltr shadow-2xs">
                     {releaseCodeResult}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyRel}
-                    className="px-4 py-2.5 bg-paid hover:bg-paid-hover text-white rounded-xl text-xs font-bold flex items-center gap-1.5 mx-auto cursor-pointer transition-all shadow-xs"
-                  >
-                    {copiedRel ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    <span>{copiedRel ? 'تم النسخ!' : 'نسخ كود النقل لإرساله للدعم'}</span>
-                  </button>
+                  <AppButton variant="success" icon={copiedRel ? Check : Copy} onClick={handleCopyRel} className="mx-auto">
+                    {copiedRel ? 'تم النسخ!' : 'نسخ كود النقل لإرساله للدعم'}
+                  </AppButton>
                   <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">
                     أرسل الكود ده مع بصمة الجهاز الجديد للدعم الفني لتفعيل رفيق على جهازك الجديد فوراً.
                   </p>
@@ -682,91 +664,37 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
               )}
             </div>
           )}
+          </div>
+          </MotionHeight>
         </div>
 
         {/* Footer Actions */}
         <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={handleVerify}
-            disabled={isLoading}
-            className="h-10 px-4 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-xs transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            title="التحقق من حالة وسريان الترخيص"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted ${isLoading ? 'animate-spin' : ''}`} />
-            <span>فحص صلاحية الترخيص</span>
-          </button>
+          <AppButton variant="secondary" icon={RefreshCw} loading={isLoading} onClick={handleVerify} title="التحقق من حالة وسريان الترخيص">
+            فحص صلاحية الترخيص
+          </AppButton>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-10 px-5 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark font-bold text-xs transition-all cursor-pointer shadow-2xs"
-            >
+            <AppButton variant="secondary" onClick={onClose}>
               إغلاق
-            </button>
+            </AppButton>
 
             {activeTab === 'online' && (
-              <button
-                type="button"
-                onClick={handleActivateOnline}
-                disabled={isLoading || !inputKey.trim()}
-                className="h-10 px-6 rounded-xl bg-brand dark:bg-brand-bright hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>بيتم الاتصال...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>تفعيل أونلاين</span>
-                  </>
-                )}
-              </button>
+              <AppButton variant="primary" icon={ShieldCheck} loading={isLoading} disabled={!inputKey.trim()} onClick={handleActivateOnline}>
+                {isLoading ? 'بيتم الاتصال...' : 'تفعيل أونلاين'}
+              </AppButton>
             )}
 
             {activeTab === 'offline' && (
-              <button
-                type="button"
-                onClick={handleActivateSupportCode}
-                disabled={isLoading || !supportCode.trim()}
-                className="h-10 px-6 rounded-xl bg-brand dark:bg-brand-bright hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>بيتم التحقق...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>تفعيل بكود الدعم</span>
-                  </>
-                )}
-              </button>
+              <AppButton variant="primary" icon={ShieldCheck} loading={isLoading} disabled={!supportCode.trim()} onClick={handleActivateSupportCode}>
+                {isLoading ? 'بيتم التحقق...' : 'تفعيل بكود الدعم'}
+              </AppButton>
             )}
 
             {activeTab === 'transfer' && !releaseCodeResult && (
-              <button
-                type="button"
-                onClick={handleTransferDeactivate}
-                disabled={isLoading || isTransferred}
-                className="h-10 px-5 rounded-xl bg-danger hover:bg-danger/90 text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>بيتم تجهيز النقل...</span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowLeftRight className="w-4 h-4" />
-                    <span>إلغاء التفعيل والنقل</span>
-                  </>
-                )}
-              </button>
+              <AppButton variant="danger" icon={ArrowLeftRight} loading={isLoading} disabled={isTransferred} onClick={handleTransferDeactivate}>
+                {isLoading ? 'بيتم تجهيز النقل...' : 'إلغاء التفعيل والنقل'}
+              </AppButton>
             )}
           </div>
         </div>

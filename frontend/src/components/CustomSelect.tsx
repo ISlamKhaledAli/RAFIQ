@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Check, Plus } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 
 export interface SelectOption {
   value: string;
@@ -162,9 +163,9 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   };
 
   const sizeClasses = {
-    sm: 'min-h-[26px] h-[26px] px-2 py-0 text-micro',
-    md: 'min-h-[32px] px-2.5 py-1.5 text-xs',
-    lg: 'min-h-[40px] px-3 py-2 text-sm',
+    sm: 'min-h-[1.625rem] h-[1.625rem] px-2 py-0 text-micro',
+    md: 'min-h-[2rem] px-2.5 py-1.5 text-xs',
+    lg: 'min-h-[2.5rem] px-3 py-2 text-sm',
   }[size];
 
   return (
@@ -222,13 +223,14 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         >
           {isSearchEnabled && (
             <div className="p-1.5 border-b border-line/60 dark:border-line-dark/60 sticky top-0 bg-surface dark:bg-surface-dark z-10">
-              <input
+              <SearchInput
                 ref={searchInputRef}
-                type="text"
+                size="sm"
+                searchButton={false}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={setSearchQuery}
                 placeholder="بحث في الخيارات..."
-                className="w-full h-7 px-2 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                ariaLabel="بحث في الخيارات"
               />
             </div>
           )}

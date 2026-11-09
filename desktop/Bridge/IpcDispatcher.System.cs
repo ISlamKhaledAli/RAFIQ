@@ -78,6 +78,47 @@ namespace RafiqPOS.Bridge
             }
 
             Dictionary<string, string> writable = RemoveProtectedSettingKeys(input);
+
+            // The retention policy decides which backups get deleted: only root may change it, here too (not only in backup:configure)
+            if (!IsCurrentUserRoot() && DatabaseService.Backup != null)
+            {
+                foreach (var kvp in writable)
+                {
+                    if (!BackupService.IsRetentionSettingKey(kvp.Key)) continue;
+                    if (!DatabaseService.Backup.IsRetentionSettingChange(kvp.Key, kvp.Value)) continue;
+                    Logger.Warn("رفض تعديل سياسة الاحتفاظ بالنسخ الاحتياطية عبر الإعدادات: يتطلب حساب الروت.");
+                    return BridgeResponse.Fail(request.Id, "FORBIDDEN", BackupService.RETENTION_ROOT_ONLY_MESSAGE);
+                }
+            }
+
+            // Animations can slow weak shop PCs down: only root switches them, every user reads the value (settings:getStoreProfile)
+            var motionKeys = new List<string>();
+            foreach (var kvp in writable)
+            {
+                if (SettingsService.IsUiMotionSettingKey(kvp.Key)) motionKeys.Add(kvp.Key);
+            }
+            if (motionKeys.Count > 0 && DatabaseService.Settings != null)
+            {
+                bool isRootUser = IsCurrentUserRoot();
+                for (int m = 0; m < motionKeys.Count; m++)
+                {
+                    string motionKey = motionKeys[m];
+                    if (!isRootUser)
+                    {
+                        if (DatabaseService.Settings.IsUiMotionChange(motionKey, writable[motionKey]))
+                        {
+                            Logger.Warn("رفض تعديل الحركات والانتقالات: يتطلب حساب الروت.");
+                            return BridgeResponse.Fail(request.Id, "FORBIDDEN", SettingsService.UiMotionRootOnlyMessageFor(motionKey));
+                        }
+                        writable.Remove(motionKey);
+                    }
+                    else
+                    {
+                        writable[motionKey] = SettingsService.NormalizeUiMotionSettingValue(motionKey, writable[motionKey]);
+                    }
+                }
+            }
+
             List<string> denied = FindUnauthorizedSettingKeys(writable);
             if (denied.Count > 0)
             {
@@ -218,8 +259,15 @@ namespace RafiqPOS.Bridge
                     }
                     if (RafiqPOS.MainForm.Instance != null)
                     {
-                        RafiqPOS.MainForm.Instance.ShowPrintDialog(dialogKind);
-                        response = BridgeResponse.Ok(request.Id, new { triggered = true });
+                        string dialogError;
+                        if (RafiqPOS.MainForm.Instance.TryShowPrintDialog(dialogKind, out dialogError))
+                        {
+                            response = BridgeResponse.Ok(request.Id, new { triggered = true });
+                        }
+                        else
+                        {
+                            response = BridgeResponse.Fail(request.Id, "PRINT_DIALOG_FAILED", dialogError);
+                        }
                     }
                     else
                     {
@@ -275,13 +323,20 @@ namespace RafiqPOS.Bridge
 
                 case "system:getInfo":
                     string osDetails = RafiqPOS.Common.OsDetector.GetOsFriendlyName() + (Environment.Is64BitOperatingSystem ? " (64-bit)" : " (32-bit)");
+                    DatabaseHealthInfo dbHealth = DatabaseService.GetHealth();
                     response = BridgeResponse.Ok(request.Id, new
                     {
                         appName = "رفيق POS",
                         version = RafiqPOS.Services.AppUpdateService.CurrentVersion,
                         osVersion = osDetails,
                         isWebView2 = true,
-                        dbStatus = DatabaseService.GetStatus()
+                        dbStatus = dbHealth.ToSummaryText(),
+                        dbOk = dbHealth.IsOk,
+                        dbJournalMode = dbHealth.JournalMode,
+                        dbSchemaVersion = dbHealth.SchemaVersion,
+                        dbSizeBytes = dbHealth.SizeBytes,
+                        dbError = dbHealth.Error,
+                        lastBackupAt = DatabaseService.Backup != null ? DatabaseService.Backup.GetLastSuccessfulBackupAt() : ""
                     });
                     return true;
 
@@ -347,7 +402,15 @@ namespace RafiqPOS.Bridge
                     string sName = storeSettings.ContainsKey("store_name") ? storeSettings["store_name"] : (storeSettings.ContainsKey("storeName") ? storeSettings["storeName"] : "رفيق POS");
                     string sPhone = storeSettings.ContainsKey("store_phone") ? storeSettings["store_phone"] : "";
                     string sAddr = storeSettings.ContainsKey("store_address") ? storeSettings["store_address"] : "";
-                    response = BridgeResponse.Ok(request.Id, new { storeName = sName, storePhone = sPhone, storeAddress = sAddr });
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        storeName = sName,
+                        storePhone = sPhone,
+                        storeAddress = sAddr,
+                        uiMotionEnabled = DatabaseService.Settings.IsUiMotionEnabled(),
+                        uiMotionLevel = DatabaseService.Settings.GetUiMotionLevel(),
+                        uiMotionStyle = DatabaseService.Settings.GetUiMotionStyle()
+                    });
                     return true;
 
                 case "settings:save":
@@ -422,17 +485,20 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "system:factoryReset":
-                    bool wipeBackups = false;
-                    if (request.Payload != null)
+                    string resetConfirmWord = "";
+                    JObject resetPayload = request.Payload as JObject;
+                    if (resetPayload != null && resetPayload["confirmWord"] != null)
                     {
-                        var pObj = request.Payload as JObject;
-                        if (pObj != null && pObj["wipeBackups"] != null)
-                        {
-                            wipeBackups = pObj["wipeBackups"].Value<bool>();
-                        }
+                        resetConfirmWord = resetPayload["confirmWord"].ToString().Trim();
                     }
-                    // Decision D1 & DATA-01: Backups are mandatory and cannot be wiped on reset
-                    var resetResult = DatabaseService.FactoryReset(false);
+                    // The typed word is enforced here too, so no other caller can wipe the store by accident
+                    if (resetConfirmWord != "مسح" && resetConfirmWord != "تأكيد")
+                    {
+                        response = BridgeResponse.Fail(request.Id, "CONFIRMATION_REQUIRED", "لم يتم تأكيد التصفير: اكتب كلمة التأكيد كما هي في النافذة.");
+                        return true;
+                    }
+                    // Backups are mandatory and are never wiped by a reset (Decision D1 & DATA-01)
+                    var resetResult = DatabaseService.FactoryReset();
                     response = BridgeResponse.Ok(request.Id, resetResult);
                     return true;
 

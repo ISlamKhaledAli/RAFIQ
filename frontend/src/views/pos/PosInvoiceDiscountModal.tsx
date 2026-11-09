@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AppButton } from '../../components/AppButton';
 import { Tag, X, AlertTriangle } from 'lucide-react';
 import {
   formatArabicCurrency,
@@ -96,15 +97,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
             </div>
             <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">إضافة خصم على الفاتورة</h3>
           </div>
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg border border-transparent text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 focus-visible:border-brand dark:focus-visible:border-brand-bright transition-colors cursor-pointer"
-            title="إغلاق"
-            aria-label="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="md" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" className="shrink-0" />
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
@@ -150,19 +143,12 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
           </div>
 
           <div className="flex gap-3 px-5 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
-            <button
-              type="submit"
-              className="flex-1 h-12 bg-brand hover:bg-brand-hover text-white border border-brand dark:border-brand-bright/60 focus-visible:border-brand-bright font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
-            >
+            <AppButton type="submit" variant="primary" size="lg" className="flex-1">
               تطبيق الخصم (Enter)
-            </button>
-            <button
-              type="button"
-              onClick={() => void requestClose()}
-              className="px-5 h-12 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark focus-visible:border-brand dark:focus-visible:border-brand-bright text-ink dark:text-ink-dark font-semibold rounded-xl transition-colors cursor-pointer"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="lg" onClick={() => void requestClose()}>
               إلغاء (Esc)
-            </button>
+            </AppButton>
           </div>
         </form>
       </div>

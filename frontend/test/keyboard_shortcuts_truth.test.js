@@ -42,7 +42,7 @@ describe('the keyboard cheat-sheet only lists keys the code really handles', () 
     assert.ok(!/بالفيزا|البطاقة البنكية/.test(modal), 'F10 no longer pays by card');
     assert.match(modal, /key: 'F10',\n\s+label: 'دفع فوري بإنستاباي'/);
     assert.match(modal, /key: 'F4',\n\s+label: 'خصم على الفاتورة'/);
-    assert.match(modal, /key: 'F3',\n\s+label: 'تعديل كمية أو وزن آخر صنف'/);
+    assert.match(modal, /key: 'F3',\n\s+label: 'تعديل كمية أو وزن (الصنف المحدد|آخر صنف)'/);
   });
 
   it('alt-number screens are listed only when their feature is on', () => {
@@ -89,3 +89,25 @@ describe('F1 is only advertised where it works', () => {
   });
 });
 
+
+describe('the header shows the real store activity only when there is one, and no scale chip', () => {
+  it('the activity label comes from the store-type registry and has no generic fallback badge', () => {
+    assert.match(modal, /const label = findStoreTypeLabel\(activityType\);/);
+    assert.ok(!modal.includes('أنشطة التجزئة العامة'), 'a shop without a specific activity shows no badge');
+    assert.match(modal, /\{storeBadge\.label && \(/);
+    assert.ok(!modal.includes('أصناف وميزان إلكتروني'), 'the scale flag must not rename the shop activity');
+    const filter = read('src', 'utils', 'categoryIconFilter.ts');
+    assert.match(filter, /supermarket: 'سوبر ماركت'/);
+  });
+
+  it('the scale feature only gates its shortcut row: no scale chip in the header', () => {
+    assert.match(modal, /const isWeighing = isEnabled\('feature_scale_weight'\);/);
+    assert.ok(!modal.includes('الميزان الإلكتروني مفعّل'));
+    assert.match(modal, /if \(isWeighing\) \{\n\s+storeShortcuts\.push\(\{\n\s+key: 'مسح'/);
+  });
+
+  it('pharmacy and clothing keep their own gating', () => {
+    assert.match(modal, /const isPharmacy = storeType === 'pharmacy' \|\| isEnabled\('feature_pharmacy'\);/);
+    assert.match(modal, /const isClothing = !isPharmacy && \(storeType === 'clothing_apparel' \|\| isEnabled\('feature_matrix_variants'\)\);/);
+  });
+});

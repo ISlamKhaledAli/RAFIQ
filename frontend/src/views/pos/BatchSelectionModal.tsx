@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AppButton } from '../../components/AppButton';
 import { 
   Layers, 
   Calendar, 
@@ -10,6 +11,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import type { ProductBatch } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
+import { formatUnitArabic } from '../../utils/units';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 
@@ -85,14 +87,7 @@ export const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Content */}
@@ -155,7 +150,7 @@ export const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({
                       </span>
                       <span>•</span>
                       <span>
-                        الرصيد المتاح: <strong className="font-mono text-ink dark:text-ink-dark">{Math.floor(b.quantityMilli / 1000)}</strong> {b.unit || 'قطعة'}
+                        الرصيد المتاح: <strong className="font-mono text-ink dark:text-ink-dark">{Math.floor(b.quantityMilli / 1000)}</strong> {formatUnitArabic(b.unit)}
                       </span>
                     </div>
                   </div>

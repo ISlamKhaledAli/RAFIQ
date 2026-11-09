@@ -3,11 +3,10 @@ import {
   LayoutGrid, 
   Flame, 
   Star, 
-  Search, 
-  X, 
   ChevronLeft,
   PanelLeftClose
 } from 'lucide-react';
+import { SearchInput } from '../../components/SearchInput';
 import type { Category } from '../../types/models';
 import { PANEL_TOGGLE_BUTTON_CLASS, PANEL_TOGGLE_ICON_CLASS } from '../../utils/panelToggle';
 import { normalizeArabicText } from '../../utils/money';
@@ -95,10 +94,12 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
   // Collapsed: only the title as vertical text; the whole strip is the expand button (no icons, no items)
   if (isCollapsed) {
     return (
-      <section className="w-[3.625rem] min-w-[3.625rem] h-full bg-surface-2 dark:bg-surface-dark-2 border-r border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs">
+      <section className="w-[3.625rem] min-w-[3.625rem] h-full bg-surface-2 dark:bg-surface-dark-2 border-r border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 motion-resize motion-swap-children shadow-2xs">
         <button
           type="button"
           onClick={toggleCollapsed}
+          aria-expanded={false}
+          aria-label="توسيع قائمة الأقسام"
           title="توسيع قائمة الأقسام"
           className="flex-1 w-full flex items-center justify-center cursor-pointer hover:bg-brand-soft dark:hover:bg-surface-dark-3 transition-colors"
         >
@@ -115,7 +116,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
 
   return (
     <section 
-      className="w-[13.75rem] sm:w-[15rem] p-2.5 sm:p-3 h-full bg-surface-2 dark:bg-surface-dark-2 border-r border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs"
+      className="w-[13.75rem] sm:w-[15rem] p-2.5 sm:p-3 h-full bg-surface-2 dark:bg-surface-dark-2 border-r border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 motion-resize motion-swap-children shadow-2xs"
     >
       {/* Header */}
       <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-line dark:border-line-dark shrink-0">
@@ -135,6 +136,8 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
             <button
               type="button"
               onClick={toggleCollapsed}
+              aria-expanded={true}
+              aria-label="تصغير قائمة الأقسام"
               className={PANEL_TOGGLE_BUTTON_CLASS}
               title="تصغير قائمة الأقسام"
             >
@@ -144,131 +147,124 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
       </div>
 
       {/* Quick Search within Categories */}
-      <div className="relative mb-2 shrink-0">
-          <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="بحث في الأقسام..."
-            className="w-full h-7.5 pr-8 pl-6 text-xs bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand/20 outline-none transition-all placeholder:text-ink-muted/60 dark:placeholder:text-ink-dark-muted/60 text-ink dark:text-ink-dark font-medium shadow-2xs"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark p-0.5 rounded cursor-pointer"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </div>
+      <SearchInput
+        size="sm"
+        searchButton={false}
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="بحث في الأقسام..."
+        ariaLabel="بحث في الأقسام"
+        className="mb-2 shrink-0"
+      />
 
       {/* Categories List Container */}
       <div className="flex-1 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar w-full">
         {/* 1. All Products Main Card */}
-                  <button
-            type="button"
-            onClick={() => onSelectCategory('__ALL__')}
-            className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group active:scale-[0.99] ${
+        <button
+          type="button"
+          onClick={() => onSelectCategory('__ALL__')}
+          className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group ${
+            activeCatalogTab === '__ALL__'
+              ? 'bg-brand border-brand-dark text-white dark:bg-brand-dark-soft dark:border-brand-bright/40 dark:ring-1 dark:ring-inset dark:ring-brand-bright/30 shadow-xs'
+              : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark'
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
               activeCatalogTab === '__ALL__'
-                ? 'bg-brand border-brand-dark text-white shadow-xs'
-                : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark'
-            }`}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                activeCatalogTab === '__ALL__'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
-              }`}>
-                <LayoutGrid className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold truncate">جميع الأصناف</div>
+                ? 'bg-white/20 text-white'
+                : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
+            }`}>
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold truncate">جميع الأصناف</div>
+              <div className={`text-micro ${activeCatalogTab === '__ALL__' ? 'text-white/80' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
+                كافة منتجات المتجر
               </div>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
-                activeCatalogTab === '__ALL__'
-                  ? 'bg-white dark:bg-surface-dark text-brand dark:text-brand-bright'
-                  : 'bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark'
-              }`}>
-                {totalProductsCount}
-              </span>
-              <ChevronLeft className={`w-3.5 h-3.5 opacity-60 ${activeCatalogTab === '__ALL__' ? 'text-white' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
-            </div>
-          </button>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
+              activeCatalogTab === '__ALL__'
+                ? 'bg-white dark:bg-surface-dark text-brand dark:text-brand-bright'
+                : 'bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark'
+            }`}>
+              {totalProductsCount}
+            </span>
+            <ChevronLeft className={`w-3.5 h-3.5 opacity-60 ${activeCatalogTab === '__ALL__' ? 'text-white' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
+          </div>
+        </button>
 
         {/* 2. Top Sellers (الأكثر طلباً) Card */}
-                  <button
-            type="button"
-            onClick={() => onSelectCategory('__POPULAR__')}
-            title={`${popularHint} (${popularItemsCount})`}
-            className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group active:scale-[0.99] ${
+        <button
+          type="button"
+          onClick={() => onSelectCategory('__POPULAR__')}
+          title={`${popularHint} (${popularItemsCount})`}
+          className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group ${
+            activeCatalogTab === '__POPULAR__'
+              ? 'bg-warn-bright border-warn-bright text-ink dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs'
+              : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-warn/40 hover:bg-warn-soft/50 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark'
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
               activeCatalogTab === '__POPULAR__'
-                ? 'bg-warn border-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs'
-                : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-warn/40 hover:bg-warn-soft/50 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark'
-            }`}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                activeCatalogTab === '__POPULAR__'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright'
-              }`}>
-                <Flame className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold truncate">الأكثر طلباً ومبيعاً</div>
-                <div className="text-micro font-medium opacity-80 truncate">{popularCaption}</div>
-              </div>
+                ? 'bg-white/20 text-white'
+                : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright'
+            }`}>
+              <Flame className="w-3.5 h-3.5" />
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
-                activeCatalogTab === '__POPULAR__'
-                  ? 'bg-white dark:bg-surface-dark text-warn dark:text-warn-bright'
-                  : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30'
-              }`}>
-                {popularItemsCount}
-              </span>
-              <ChevronLeft className={`w-3.5 h-3.5 opacity-60 ${activeCatalogTab === '__POPULAR__' ? 'text-white' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
+            <div className="min-w-0">
+              <div className="text-xs font-bold truncate">الأكثر طلباً ومبيعاً</div>
+              <div className="text-micro font-medium opacity-80 truncate">{popularCaption}</div>
             </div>
-          </button>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
+              activeCatalogTab === '__POPULAR__'
+                ? 'bg-white dark:bg-surface-dark text-warn dark:text-warn-bright'
+                : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30'
+            }`}>
+              {popularItemsCount}
+            </span>
+            <ChevronLeft className={`w-3.5 h-3.5 opacity-60 ${activeCatalogTab === '__POPULAR__' ? 'text-white' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
+          </div>
+        </button>
 
         {/* 3. Favorites & Fast Items (المفضلة) Card */}
-                  <button
-            type="button"
-            onClick={() => onSelectCategory('__CUSTOM__')}
-            className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group active:scale-[0.99] ${
+        <button
+          type="button"
+          onClick={() => onSelectCategory('__CUSTOM__')}
+          className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group ${
+            activeCatalogTab === '__CUSTOM__'
+              ? 'bg-brand-dark border-brand-dark text-white dark:bg-brand-dark-soft dark:border-brand-bright/40 dark:ring-1 dark:ring-inset dark:ring-brand-bright/30 shadow-xs'
+              : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-brand-dark/40 hover:bg-brand-soft/50 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark'
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
               activeCatalogTab === '__CUSTOM__'
-                ? 'bg-brand-dark border-brand-dark text-white shadow-xs'
-                : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-brand-dark/40 hover:bg-brand-soft/50 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark'
-            }`}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                activeCatalogTab === '__CUSTOM__'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-paid-soft dark:bg-emerald-950/40 text-paid dark:text-emerald-300'
-              }`}>
-                <Star className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold truncate">الأصناف المفضلة والسريعة</div>
-              </div>
+                ? 'bg-white/20 text-white'
+                : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
+            }`}>
+              <Star className="w-3.5 h-3.5" />
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
-                activeCatalogTab === '__CUSTOM__'
-                  ? 'bg-white dark:bg-surface-dark text-brand-dark dark:text-brand-bright'
-                  : 'bg-paid-soft dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-paid-border dark:border-emerald-600/40'
-              }`}>
-                {customItemsCount}
-              </span>
-              <ChevronLeft className={`w-3.5 h-3.5 opacity-60 ${activeCatalogTab === '__CUSTOM__' ? 'text-white' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
+            <div className="min-w-0">
+              <div className="text-xs font-bold truncate">الأصناف المفضلة والسريعة</div>
             </div>
-          </button>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
+              activeCatalogTab === '__CUSTOM__'
+                ? 'bg-white dark:bg-surface-dark text-brand-dark dark:text-brand-bright'
+                : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
+            }`}>
+              {customItemsCount}
+            </span>
+            <ChevronLeft className={`w-3.5 h-3.5 opacity-60 ${activeCatalogTab === '__CUSTOM__' ? 'text-white' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
+          </div>
+        </button>
 
         {/* Separator */}
         <div className="py-1 flex items-center w-full">
@@ -296,9 +292,9 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
                 type="button"
                 key={cat.id || cat.name}
                 onClick={() => onSelectCategory(cat.name)}
-                className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group active:scale-[0.99] ${
+                className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group ${
                   isSelected
-                    ? 'bg-brand border-brand-dark text-white shadow-xs'
+                    ? 'bg-brand border-brand-dark text-white dark:bg-brand-dark-soft dark:border-brand-bright/40 dark:ring-1 dark:ring-inset dark:ring-brand-bright/30 shadow-xs'
                     : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark'
                 }`}
               >
@@ -313,6 +309,9 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
                   <div className="min-w-0">
                     <div className="text-xs font-bold truncate">
                       {cat.name}
+                    </div>
+                    <div className={`text-micro ${isSelected ? 'text-white/80' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
+                      {count} {count === 1 ? 'صنف' : 'أصناف'}
                     </div>
                   </div>
                 </div>

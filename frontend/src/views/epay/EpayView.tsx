@@ -6,12 +6,12 @@ import {
   FileText, 
   Landmark, 
   Banknote, 
+  Plus,
   PlusCircle, 
   TrendingUp, 
   AlertTriangle, 
   CheckCircle2, 
   Printer, 
-  Search, 
   Layers, 
   CreditCard, 
   ArrowDownLeft, 
@@ -20,22 +20,29 @@ import {
   Clock, 
   Edit3, 
   X,
-  RotateCcw,
-  Trash2
+  Trash2,
+  Hash
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
 import { rafiqConfirm, rafiqAlert } from '../../utils/dialogService';
 import { useAuth } from '../../context/useAuth';
 import { RequiredMark } from '../../components/RequiredMark';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
 import { DateFilterControl } from '../../components/DateFilterControl';
+import { ClearFiltersButton } from '../../components/ClearFiltersButton';
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
+import { SearchInput } from '../../components/SearchInput';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useFormBaseline } from '../../hooks/useFormBaseline';
+import { isFormDirty } from '../../utils/dirtyForm';
 import { useUnsavedChangesGuard } from '../../context/useUnsavedChanges';
 import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
 import {
@@ -58,6 +65,7 @@ import type {
   EpayPaymentDestination
 } from '../../types/models';
 import { createAttemptKey } from '../../utils/idempotency';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 
 export type EpaySubTab = 'pos' | 'terminals' | 'history' | 'analytics';
 
@@ -154,6 +162,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
     if (activeTabRaw === 'analytics' && !canViewAnalytics) return 'pos';
     return activeTabRaw;
   }, [activeTabRaw, canAccessTerminals, canViewHistory, canViewAnalytics]);
+  const motionPanel = useMotionPanel(activeTab);
 
   const [terminals, setTerminals] = useState<EpayTerminal[]>([]);
   // A retry after a timeout reuses the key so a terminal operation or funding is never recorded twice
@@ -271,9 +280,12 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [terminalModalError, setTerminalModalError] = useState<string | null>(null);
 
   // Modal Dismiss & Unsaved Changes Protection (ESC key and Outside click)
-  const isFundingDirty = useCallback(() => {
-    return fundingAmountPiasters > 0 || fundingNotes.trim().length > 0;
-  }, [fundingAmountPiasters, fundingNotes]);
+  // The amount opens pre-filled with a suggested top-up: only a different amount or a note is a change
+  const fundingBaseline = useFormBaseline(isFundingModalOpen, { fundingAmountPiasters, fundingNotes });
+  const isFundingDirty = useCallback(
+    () => isFormDirty(fundingBaseline, { fundingAmountPiasters, fundingNotes }),
+    [fundingBaseline, fundingAmountPiasters, fundingNotes],
+  );
 
   const { requestClose: requestCloseFunding, handleBackdropClick: handleFundingBackdropClick } = useModalDismiss({
     isOpen: isFundingModalOpen,
@@ -618,6 +630,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
         terminalId: fundingTerminalId,
         amountPiasters: fundingAmountPiasters,
         fundingSource,
+        source: fundingSource,
         notes: fundingNotes.trim() || undefined,
         idempotencyKey: fundAttemptRef.current.current(),
       });
@@ -824,9 +837,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const analyticsTerminalTillPiasters = periodAnalytics?.totalInTerminalTillPiasters || 0;
 
   return (
-    <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
+    <div {...motionPanel} className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
       {/* 1. Top Header Bar */}
-      <header className="bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
+      <header className="motion-static bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-emerald-950/50 text-paid dark:text-emerald-400 border border-paid-border dark:border-emerald-500/30 flex items-center justify-center shrink-0 shadow-2xs">
             <CreditCard className="w-5 h-5" />
@@ -852,14 +865,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
         </div>
 
         {activeTab === 'terminals' && canManageTerminals && terminals.length > 0 && (
-          <button
-            type="button"
-            onClick={openNewTerminalModal}
-            className="h-10 px-4 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>إضافة ماكينة جديدة</span>
-          </button>
+          <AppButton variant="primary" size="md" icon={PlusCircle} onClick={openNewTerminalModal}>
+            إضافة ماكينة جديدة
+          </AppButton>
         )}
       </header>
 
@@ -879,7 +887,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 <span className="text-micro text-paid dark:text-paid-bright font-medium block mt-0.5">جاهز للشحن والتحويل</span>
               </div>
               <div className="w-9 h-9 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-bright/30 flex items-center justify-center text-paid dark:text-paid-bright shadow-2xs shrink-0">
-                <Wallet className="w-4.5 h-4.5" />
+                <Wallet className="w-4.5 h-4.5 shrink-0" />
               </div>
             </div>
 
@@ -942,14 +950,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
             <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
             <span>{errorMsg}</span>
           </div>
-          <button 
-            type="button"
-            onClick={() => setErrorMsg(null)} 
-            className="p-1 text-danger/70 dark:text-danger-bright/70 hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft rounded-lg transition-colors cursor-pointer"
-            title="إغلاق التنبيه"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق التنبيه" onClick={() => setErrorMsg(null)} />
         </div>
       )}
       {successMsg && (
@@ -958,14 +959,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
             <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
             <span>{successMsg}</span>
           </div>
-          <button 
-            type="button"
-            onClick={() => setSuccessMsg(null)} 
-            className="p-1 text-paid/70 dark:text-paid-bright/70 hover:text-paid dark:hover:text-paid-bright hover:bg-paid/10 dark:hover:bg-paid-dark-soft/60 rounded-lg transition-colors cursor-pointer"
-            title="إغلاق التنبيه"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق التنبيه" onClick={() => setSuccessMsg(null)} />
         </div>
       )}
 
@@ -983,13 +977,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 {terminals.length === 0 ? (
                   <div className="p-4 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl text-warn dark:text-warn-bright text-sm font-bold flex flex-wrap items-center justify-between gap-3">
                     <span>لا توجد ماكينات مسجلة حالياً.</span>
-                    <button
-                      type="button"
-                      onClick={openNewTerminalModal}
-                      className="h-11 px-4 bg-warn hover:bg-warn/90 dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark text-xs font-bold rounded-xl cursor-pointer transition-colors shadow-2xs"
-                    >
+                    <AppButton variant="primary" size="md" icon={Plus} onClick={openNewTerminalModal}>
                       إضافة ماكينة الآن
-                    </button>
+                    </AppButton>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1041,7 +1031,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         key={preset.type}
                         type="button"
                         onClick={() => handleSelectServicePreset(preset)}
-                        className={`p-3.5 min-h-[88px] rounded-xl border text-right transition-all flex flex-col gap-2 cursor-pointer active:scale-98 ${
+                        className={`p-3.5 min-h-[5.5rem] rounded-xl border text-right transition-all flex flex-col gap-2 cursor-pointer ${
                           isSelected
                             ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright shadow-xs dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                             : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
@@ -1102,7 +1092,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
                   <div className="p-4 rounded-2xl bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/25 dark:border-paid-bright/30 transition-all focus-within:border-paid dark:focus-within:border-paid-bright">
                     <label className="text-xs font-black text-paid dark:text-paid-bright flex items-center gap-2 mb-2">
-                      <TrendingUp className="w-4 h-4 text-paid dark:text-paid-bright" />
+                      <TrendingUp className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                       <span>ربح المحل</span>
                     </label>
                     <MoneyInput
@@ -1224,11 +1214,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   <div className="text-4xl font-black font-mono text-paid dark:text-paid-bright tracking-tight tabular-nums">
                     {formatArabicCurrency(totalReceivedPiasters)}
                   </div>
-                  {serviceType === 'cash_out' && (
-                    <span className="text-micro font-medium text-paid dark:text-paid-bright block mt-1">
-                      (شامل مبلغ السحب + عمولة الماكينة + ربح المحل)
-                    </span>
-                  )}
+                  <span className="text-micro font-medium text-paid dark:text-paid-bright block mt-1 min-h-4">
+                    (شامل المبلغ والعمولة وربح المحل)
+                  </span>
                 </div>
 
                 {/* Breakdown of the total */}
@@ -1279,12 +1267,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           : '0.00 ج.م'}
                       </span>
                     </div>
-                    {isBalanceInsufficient && (
-                      <div className="mt-2 text-xs text-danger dark:text-danger-bright font-bold flex items-center gap-1">
-                        <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
-                        رصيد الماكينة غير كافٍ لإتمام العملية!
-                      </div>
-                    )}
+                    <div
+                      aria-hidden={!isBalanceInsufficient}
+                      className={`mt-2 text-xs font-bold flex items-center gap-1 h-4 ${isBalanceInsufficient ? 'text-danger dark:text-danger-bright' : 'invisible'}`}
+                    >
+                      <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
+                      رصيد الماكينة غير كافٍ لإتمام العملية!
+                    </div>
                   </div>
                 </div>
 
@@ -1327,30 +1316,21 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
                 {/* Confirm Action Button */}
                 <div ref={transactSaveBarRef} className="flex flex-col gap-2 rounded-xl">
-                {transactionDraftDirty && (
-                  <div role="status">
-                    <UnsavedChangesChip />
-                  </div>
-                )}
-                <button
-                  type="button"
+                <UnsavedChangesChip dirty={transactionDraftDirty} />
+                <AppButton
+                  variant="success"
+                  size="lg"
+                  fullWidth
+                  icon={CheckCircle2}
                   onClick={() => void handleCreateTransaction()}
                   disabled={isSubmittingTx || isBalanceInsufficient || billAmountPiasters <= 0}
-                  className={`w-full h-12 px-4 rounded-xl font-black text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    isSubmittingTx || isBalanceInsufficient || billAmountPiasters <= 0
-                      ? 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark cursor-not-allowed shadow-none'
-                      : 'bg-paid dark:bg-paid-bright hover:bg-paid-dark dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark active:scale-98'
-                  }`}
                 >
-                  <CheckCircle2 className="w-4.5 h-4.5" />
-                  <span>
-                    {isSubmittingTx
-                      ? 'جاري تنفيذ العملية...'
-                      : autoPrintReceipt
-                        ? 'تأكيد العملية وتسجيل الحساب (مع طباعة الإيصال)'
-                        : 'تأكيد العملية وتسجيل الحساب (بدون طباعة)'}
-                  </span>
-                </button>
+                  {isSubmittingTx
+                    ? 'جاري تنفيذ العملية...'
+                    : autoPrintReceipt
+                      ? 'تأكيد العملية وتسجيل الحساب (مع طباعة الإيصال)'
+                      : 'تأكيد العملية وتسجيل الحساب (بدون طباعة)'}
+                </AppButton>
                 </div>
 
                 {/* Last Processed Transaction Card (Like Wallets & InstaPay) */}
@@ -1365,14 +1345,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           تم تنفيذ المعاملة بنجاح
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setLastProcessedTx(null)}
-                        className="p-1 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark rounded-lg cursor-pointer"
-                        title="إخفاء"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                      <AppButton variant="subtle" size="xs" icon={X} aria-label="إخفاء" onClick={() => setLastProcessedTx(null)} />
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs bg-surface-2 dark:bg-surface-dark-2 p-2.5 rounded-xl font-mono">
@@ -1399,23 +1372,19 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="success"
+                        size="md"
+                        icon={Printer}
+                        className="flex-1"
                         onClick={() => void handlePrintReceiptDirect(lastProcessedTx)}
                         disabled={isPrintingReceipt}
-                        className="flex-1 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
                       >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>{isPrintingReceipt ? 'جاري إرسال الإيصال للطابعة...' : 'طباعة إيصال إضافي'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setReceiptTx(lastProcessedTx)}
-                        className="px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold font-sans transition-colors cursor-pointer"
-                        title="معاينة الإيصال"
-                      >
+                        {isPrintingReceipt ? 'جاري إرسال الإيصال للطابعة...' : 'طباعة إيصال إضافي'}
+                      </AppButton>
+                      <AppButton variant="secondary" size="md" title="معاينة الإيصال" onClick={() => setReceiptTx(lastProcessedTx)}>
                         معاينة
-                      </button>
+                      </AppButton>
                     </div>
                   </div>
                 )}
@@ -1440,48 +1409,33 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   </p>
                 </div>
                 {canManageTerminals && (
-                  <button
-                    type="button"
-                    onClick={openNewTerminalModal}
-                    className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 mt-1"
-                  >
-                    <PlusCircle className="w-3.5 h-3.5" />
-                    <span>إضافة ماكينة جديدة</span>
-                  </button>
+                  <AppButton variant="primary" size="md" icon={PlusCircle} className="mt-1" onClick={openNewTerminalModal}>
+                    إضافة ماكينة جديدة
+                  </AppButton>
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
                 {terminals.map((term) => (
-                  <div key={term.id} className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 flex flex-col justify-between gap-4 hover:border-brand/40 dark:hover:border-brand-bright/40 transition-colors">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
+                  <div key={term.id} className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 flex flex-col gap-4 hover:border-brand/40 dark:hover:border-brand-bright/40 transition-colors">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-2">
                         <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30">
                           {PROVIDER_NAMES[term.provider] || term.provider}
                         </span>
-                        {canManageTerminals && (
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => openEditTerminalModal(term)}
-                              className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark p-1 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                              title="تعديل الماكينة"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTerminal(term.id, term.name)}
-                              className="text-ink-muted dark:text-ink-muted-dark hover:text-danger dark:hover:text-danger-bright p-1 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
-                              title="حذف الماكينة"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
                       </div>
-                      <h3 className="t-card-title text-ink dark:text-ink-dark">{term.name}</h3>
-                      <p className="text-xs text-ink-muted dark:text-ink-muted-dark font-mono mt-0.5">كود الماكينة: {term.terminalCode || '---'}</p>
+                      <h3 className="t-card-title text-ink dark:text-ink-dark truncate" title={term.name}>{term.name}</h3>
+                      {term.terminalCode && (
+                        <div className="mt-2 rounded-xl border border-line dark:border-line-dark px-3 py-2 flex items-center justify-between gap-3 min-w-0" data-testid="terminal-code-row">
+                          <span className="shrink-0 flex items-center gap-1.5 text-micro font-bold text-ink-muted dark:text-ink-muted-dark">
+                            <Hash className="w-3.5 h-3.5" />
+                            <span>كود الماكينة</span>
+                          </span>
+                          <span dir="ltr" className="min-w-0 text-left text-sm font-bold font-mono tabular-nums text-ink dark:text-ink-dark break-all leading-snug" title={term.terminalCode}>
+                            {term.terminalCode}
+                          </span>
+                        </div>
+                      )}
 
                       <div className="mt-4 p-3.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
                         <span className="text-xs text-ink-muted dark:text-ink-muted-dark block mb-1">الرصيد المتاح الحالي:</span>
@@ -1498,21 +1452,43 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       )}
                     </div>
 
-                    {canFund && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFundingTerminalId(term.id);
-                          setFundingAmountPiasters(100000);
-                          setFundingModalError(null);
-                          void fetchLiveDrawerCash();
-                          setIsFundingModalOpen(true);
-                        }}
-                        className="w-full py-2.5 px-4 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-98 group"
-                      >
-                        <Zap className="w-4 h-4 text-emerald-200 dark:text-surface-dark fill-emerald-200/30 dark:fill-surface-dark/30 group-hover:fill-white dark:group-hover:fill-surface-dark group-hover:text-white dark:group-hover:text-surface-dark transition-all group-hover:scale-110" />
-                        <span>شحن وتغذية الرصيد</span>
-                      </button>
+                    {(canFund || canManageTerminals) && (
+                      <div className="-mx-5 -mb-5 px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 rounded-b-2xl flex flex-wrap items-center gap-2">
+                        {canFund && (
+                          <AppButton
+                            variant="successSoft"
+                            size="sm"
+                            fullWidth
+                            icon={Zap}
+                            onClick={() => {
+                              setFundingTerminalId(term.id);
+                              setFundingAmountPiasters(100000);
+                              setFundingModalError(null);
+                              void fetchLiveDrawerCash();
+                              setIsFundingModalOpen(true);
+                            }}
+                          >
+                            شحن وتغذية الرصيد
+                          </AppButton>
+                        )}
+                        {canManageTerminals && (
+                          <AppButton variant="secondary" size="sm" icon={Edit3} title="تعديل الماكينة" onClick={() => openEditTerminalModal(term)}>
+                            تعديل
+                          </AppButton>
+                        )}
+                        {canManageTerminals && (
+                          <AppButton
+                            variant="dangerSubtle"
+                            size="sm"
+                            icon={Trash2}
+                            className="ms-auto"
+                            title="حذف الماكينة"
+                            onClick={() => handleDeleteTerminal(term.id, term.name)}
+                          >
+                            حذف
+                          </AppButton>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -1531,57 +1507,53 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
 
               {/* Fundings Filter Bar */}
-              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl p-3 flex flex-wrap items-center gap-2.5">
-                <div className="flex-1 min-w-[200px] relative">
-                  <Search className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark absolute right-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={fundingSearch}
-                    onChange={(e) => setFundingSearch(e.target.value)}
-                    placeholder="بحث باسم الماكينة، مصدر التغذية، أو الملاحظات..."
-                    className="w-full pr-9 pl-3 py-1.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
+              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl p-3 flex flex-wrap items-center gap-x-8 gap-y-2.5">
+                <SearchInput
+                  size="sm"
+                  value={fundingSearch}
+                  onChange={setFundingSearch}
+                  placeholder="بحث باسم الماكينة، مصدر التغذية، أو الملاحظات..."
+                  ariaLabel="بحث في سجل تغذية الماكينات"
+                  className="flex-1 min-w-[16.25rem]"
+                />
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <CustomSelect
+                    value={fundingTerminalFilter}
+                    onChange={setFundingTerminalFilter}
+                    options={[
+                      { value: 'all', label: 'كل الماكينات' },
+                      ...terminals.map((t) => ({ value: t.id, label: t.name })),
+                    ]}
+                    className="w-40"
+                  />
+
+                  <CustomSelect
+                    value={fundingSourceFilter}
+                    onChange={setFundingSourceFilter}
+                    options={[
+                      { value: 'all', label: 'كل مصادر الشحن' },
+                      { value: 'cash_drawer', label: 'درج كاشير المحل' },
+                      { value: 'bank_transfer', label: 'تحويل بنكي' },
+                      { value: 'other', label: 'كاش خارجي / مصدر آخر' },
+                    ]}
+                    className="w-44"
+                  />
+
+                  <DateFilterControl
+                    value={fundingDateFilter}
+                    onChange={setFundingDateFilter}
+                    size="sm"
+                    selectWidthClass="w-40 sm:w-44"
+                  />
+
+                  <ClearFiltersButton
+                    active={isFundingFiltered}
+                    onClick={resetFundingFilters}
+                    label="إلغاء الفلترة"
+                    title="إعادة تعيين الفلاتر"
                   />
                 </div>
-
-                <CustomSelect
-                  value={fundingTerminalFilter}
-                  onChange={setFundingTerminalFilter}
-                  options={[
-                    { value: 'all', label: 'كل الماكينات' },
-                    ...terminals.map((t) => ({ value: t.id, label: t.name })),
-                  ]}
-                  className="w-40"
-                />
-
-                <CustomSelect
-                  value={fundingSourceFilter}
-                  onChange={setFundingSourceFilter}
-                  options={[
-                    { value: 'all', label: 'كل مصادر الشحن' },
-                    { value: 'cash_drawer', label: 'درج كاشير المحل' },
-                    { value: 'bank_transfer', label: 'تحويل بنكي' },
-                    { value: 'other', label: 'كاش خارجي / مصدر آخر' },
-                  ]}
-                  className="w-44"
-                />
-
-                <DateFilterControl
-                  value={fundingDateFilter}
-                  onChange={setFundingDateFilter}
-                  size="sm"
-                  selectWidthClass="w-40 sm:w-44"
-                />
-
-                {isFundingFiltered && (
-                  <button
-                    onClick={resetFundingFilters}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center gap-1 transition-colors cursor-pointer"
-                    title="إعادة تعيين الفلاتر"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>إلغاء الفلترة</span>
-                  </button>
-                )}
               </div>
 
               {isFundingsCapped && (
@@ -1601,19 +1573,15 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           ? `لا توجد حركات شحن في الفترة (${describeDateFilter(fundingDateFilter)}) تطابق الفلاتر.`
                           : 'لا توجد حركات شحن مطابقة لخيارات الفلترة المحددة.'}
                       </span>
-                      <button
-                        type="button"
-                        onClick={resetFundingFilters}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-brand dark:text-brand-bright border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                      >
+                      <AppButton variant="secondary" size="sm" onClick={resetFundingFilters}>
                         عرض كل الحركات
-                      </button>
+                      </AppButton>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-line/70 dark:border-line-dark/70">
-                  <table className="w-full text-xs text-right min-w-[850px] border-collapse">
+                  <table className="w-full text-xs text-right min-w-[53.125rem] border-collapse">
                     <thead className="bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark text-micro font-bold select-none">
                       <tr>
                         <th className="py-3 px-3.5 whitespace-nowrap">التاريخ والوقت</th>
@@ -1678,17 +1646,15 @@ export const EpayView: React.FC<EpayViewProps> = ({
           <div className="w-full flex flex-col gap-5">
             {/* Filter Bar */}
             <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-4 flex flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex-1 min-w-[240px] relative">
-                  <Search className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark absolute right-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={historySearch}
-                    onChange={(e) => setHistorySearch(e.target.value)}
-                    placeholder="بحث برقم الإيصال، رقم الهاتف، اسم الخدمة، أو اسم العميل..."
-                    className="w-full pr-9 pl-4 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
-                  />
-                </div>
+              <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3">
+                <SearchInput
+                  size="sm"
+                  value={historySearch}
+                  onChange={setHistorySearch}
+                  placeholder="بحث برقم الإيصال، رقم الهاتف، اسم الخدمة، أو اسم العميل..."
+                  ariaLabel="بحث في سجل عمليات الدفع الإلكتروني"
+                  className="flex-1 min-w-[18.75rem]"
+                />
 
                 <div className="flex flex-wrap items-center gap-2.5">
                   <CustomSelect
@@ -1698,7 +1664,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       { value: 'all', label: 'كل الماكينات' },
                       ...terminals.map((t) => ({ value: t.id, label: t.name })),
                     ]}
-                    className="w-44"
+                    className="w-36"
                   />
 
                   <CustomSelect
@@ -1712,7 +1678,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       { value: 'cash_in', label: 'إيداع نقدي' },
                       { value: 'cash_out', label: 'سحب نقدي' },
                     ]}
-                    className="w-44"
+                    className="w-36"
                   />
 
                   <CustomSelect
@@ -1723,26 +1689,23 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       { value: 'cash_drawer', label: 'درج كاشير المحل' },
                       { value: 'terminal_till', label: 'درج المحفظة/الماكينة' },
                     ]}
-                    className="w-44"
+                    className="w-36"
                   />
 
                   <DateFilterControl
                     value={historyDateFilter}
                     onChange={setHistoryDateFilter}
                     size="md"
-                    selectWidthClass="w-44 sm:w-48"
+                    selectWidthClass="w-40"
                   />
 
-                  {isHistoryFiltered && (
-                    <button
-                      onClick={resetHistoryFilters}
-                      className="px-3 py-2 rounded-xl text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center gap-1.5 transition-colors cursor-pointer"
-                      title="إعادة تعيين الفلاتر"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>إلغاء الفلترة</span>
-                    </button>
-                  )}
+                  <ClearFiltersButton
+                    active={isHistoryFiltered}
+                    onClick={resetHistoryFilters}
+                    label="إلغاء الفلترة"
+                    title="إعادة تعيين الفلاتر"
+                    size="md"
+                  />
                 </div>
               </div>
             </div>
@@ -1766,19 +1729,15 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           ? `لا توجد عمليات دفع في الفترة (${describeDateFilter(historyDateFilter)}) تطابق الفلاتر والبحث.`
                           : 'لا توجد عمليات دفع إلكتروني مطابقة لخيارات الفلترة والبحث.'}
                       </span>
-                      <button
-                        type="button"
-                        onClick={resetHistoryFilters}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-brand dark:text-brand-bright border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                      >
+                      <AppButton variant="secondary" size="sm" onClick={resetHistoryFilters}>
                         عرض كل العمليات
-                      </button>
+                      </AppButton>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-line/70 dark:border-line-dark/70">
-                  <table className="w-full text-xs text-right min-w-[860px] border-collapse [&_th]:px-2 [&_td]:px-2">
+                  <table className="w-full text-xs text-right min-w-[53.75rem] border-collapse [&_th]:px-2 [&_td]:px-2">
                     <thead className="bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark text-micro font-bold select-none">
                       <tr>
                         <th className="py-3 px-3.5 whitespace-nowrap">التاريخ والوقت</th>
@@ -1803,7 +1762,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           <td className="py-3.5 px-3.5 whitespace-nowrap font-bold text-ink dark:text-ink-dark text-xs align-middle">
                             {tx.terminalName}
                           </td>
-                          <td className="py-3.5 px-3.5 align-middle max-w-[210px]">
+                          <td className="py-3.5 px-3.5 align-middle max-w-[13.125rem]">
                             <span className={`font-bold text-ink dark:text-ink-dark text-xs block leading-snug truncate ${tx.status === 'cancelled' ? 'line-through text-ink-muted dark:text-ink-muted-dark' : ''}`} title={tx.serviceName}>
                               {tx.serviceName}
                             </span>
@@ -1820,7 +1779,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-xs font-mono align-middle">
                             {tx.customerPhone ? (
-                              <div className="text-ink dark:text-ink-dark font-semibold tracking-wide font-mono">{tx.customerPhone}</div>
+                              <div className="text-ink dark:text-ink-dark font-semibold tracking-wide font-mono">{formatPhoneDisplay(tx.customerPhone)}</div>
                             ) : null}
                             {tx.referenceNumber ? (
                               <div className="text-micro text-ink-muted dark:text-ink-muted-dark font-mono">مرجع: {tx.referenceNumber}</div>
@@ -1855,24 +1814,24 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle sticky left-0 z-10 bg-surface dark:bg-surface-dark">
                             <div className="flex items-center justify-center gap-1">
-                              <button
+                              <AppButton
+                                variant="subtle"
+                                size="xs"
+                                icon={Printer}
+                                aria-label="طباعة إيصال"
                                 onClick={() => setReceiptTx(tx)}
-                                className="p-1.5 text-ink-muted dark:text-ink-muted-dark hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-bright/15 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center"
-                                title="طباعة إيصال"
-                              >
-                                <Printer className="w-4 h-4" />
-                              </button>
+                              />
                               {tx.status !== 'cancelled' && canCancel && (
-                                <button
+                                <AppButton
+                                  variant="dangerSubtle"
+                                  size="xs"
+                                  icon={X}
+                                  aria-label="إلغاء العملية واسترجاع الرصيد"
                                   onClick={() => {
                                     setCancellingTx(tx);
                                     setCancelReason('');
                                   }}
-                                  className="p-1.5 text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center text-xs font-bold"
-                                  title="إلغاء العملية واسترجاع الرصيد"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
+                                />
                               )}
                             </div>
                           </td>
@@ -2017,7 +1976,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   return (
                     <div key={preset.type} className="p-4 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
                       <div className="flex items-center gap-2 mb-2">
-                        <Icon className="w-4.5 h-4.5 text-brand dark:text-brand-bright" />
+                        <Icon className="w-4.5 h-4.5 text-brand dark:text-brand-bright shrink-0" />
                         <span className="font-black text-xs sm:text-sm text-ink dark:text-ink-dark">{preset.name}</span>
                       </div>
                       <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1">
@@ -2045,104 +2004,106 @@ export const EpayView: React.FC<EpayViewProps> = ({
       {/* MODAL: FUNDING TERMINAL */}
       {isFundingModalOpen && (
         <div onClick={handleFundingBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-md w-full p-6 shadow-xl border border-line dark:border-line-dark" dir="rtl">
-            <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-xl w-full shadow-xl border border-line dark:border-line-dark max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden" dir="rtl">
+            <div className="flex items-center justify-between border-b border-line dark:border-line-dark px-6 pt-5 pb-3 shrink-0">
               <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-2">
                 <Zap className="w-5 h-5 text-paid dark:text-paid-bright" />
                 تغذية وشحن رصيد الماكينة
               </h3>
-              <button onClick={() => void requestCloseFunding()} className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => void requestCloseFunding()} />
             </div>
 
-            <form onSubmit={handleFundTerminal} className="flex flex-col gap-4">
-              {fundingModalError && (
-                <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-xl p-3 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
-                  <span>{fundingModalError}</span>
-                </div>
-              )}
-              <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">الماكينة المراد تغذيتها</label>
-                <CustomSelect
-                  value={fundingTerminalId}
-                  onChange={setFundingTerminalId}
-                  options={terminalOptions}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">مبلغ التغذية (الشحن) <RequiredMark /></label>
-                <MoneyInput
-                  valuePiasters={fundingAmountPiasters}
-                  onChangePiasters={setFundingAmountPiasters}
-                  className="text-lg font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">مصدر التغذية</label>
-                <CustomSelect
-                  value={fundingSource}
-                  onChange={(val) => setFundingSource(val as any)}
-                  options={[
-                    { value: 'cash_drawer', label: 'درج كاشير المحل (يخصم من نقدية الدرج)' },
-                    { value: 'bank_transfer', label: 'تحويل بنكي / إنستاباي' },
-                    { value: 'external_cash', label: 'كاش خارجي من صاحب المحل' },
-                  ]}
-                />
-
-                {fundingSource === 'cash_drawer' && (
-                  <div className="space-y-1.5 mt-2">
-                    <div className="p-2.5 rounded-xl border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between">
-                      <span className="text-ink-muted dark:text-ink-muted-dark font-bold text-micro">كاش الدرج المتوفر حالياً:</span>
-                      <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
-                        {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
-                      </span>
-                    </div>
-
-                    {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (fundingAmountPiasters > 0 && fundingAmountPiasters > liveDrawerCashPiasters)) && (
-                      <div className="p-2.5 rounded-xl border text-micro bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-1">
-                        <div className="flex items-center gap-1.5 font-bold">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                          <span>
-                            {liveDrawerCashPiasters <= 0
-                              ? 'درج الكاشير فارغ (0.00 ج.م)!'
-                              : 'رصيد نقدية الدرج غير كافٍ!'}
-                          </span>
-                        </div>
-                        <p className="text-micro leading-relaxed">
-                          {liveDrawerCashPiasters <= 0
-                            ? 'لا يمكن سحب نقدية من درج فارغ. إذا كان الشحن تم من مالك المحل أو نقدية خارجية، يرجى تغيير مصدر التغذية إلى: «كاش خارجي من صاحب المحل».'
-                            : `المبلغ المطلوب (${formatArabicCurrency(fundingAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي من صاحب المحل» إذا كان المبلغ مدفوعاً من مالك المحل.`}
-                        </p>
-                      </div>
-                    )}
+            <form onSubmit={handleFundTerminal} className="flex flex-col min-h-0 flex-1">
+              <MotionHeight className="px-6 py-4 flex-1 min-h-0 overflow-y-auto">
+              <div className="flex flex-col gap-4">
+                {fundingModalError && (
+                  <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-xl p-3 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
+                    <span>{fundingModalError}</span>
                   </div>
                 )}
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">الماكينة المراد تغذيتها</label>
+                    <CustomSelect
+                      value={fundingTerminalId}
+                      onChange={setFundingTerminalId}
+                      options={terminalOptions}
+                    />
+                  </div>
 
-              <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">ملاحظات</label>
-                <input
-                  type="text"
-                  value={fundingNotes}
-                  onChange={(e) => setFundingNotes(e.target.value)}
-                  placeholder="ملاحظات..."
-                  className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
-                />
-              </div>
+                  <div>
+                    <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">مبلغ التغذية (الشحن) <RequiredMark /></label>
+                    <MoneyInput
+                      valuePiasters={fundingAmountPiasters}
+                      onChangePiasters={setFundingAmountPiasters}
+                      className="text-lg font-bold"
+                    />
+                  </div>
+                </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-line dark:border-line-dark">
-                <button
-                  type="button"
-                  onClick={() => void requestCloseFunding()}
-                  className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold cursor-pointer transition-colors"
-                >
+                <div>
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">مصدر التغذية</label>
+                  <CustomSelect
+                    value={fundingSource}
+                    onChange={(val) => setFundingSource(val as any)}
+                    options={[
+                      { value: 'cash_drawer', label: 'درج كاشير المحل (يخصم من نقدية الدرج)' },
+                      { value: 'bank_transfer', label: 'تحويل بنكي / إنستاباي' },
+                      { value: 'external_cash', label: 'كاش خارجي من صاحب المحل' },
+                    ]}
+                  />
+
+                  {fundingSource === 'cash_drawer' && (
+                    <div className="space-y-1.5 mt-2">
+                      <div className="p-2.5 rounded-xl border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between">
+                        <span className="text-ink-muted dark:text-ink-muted-dark font-bold text-micro">كاش الدرج المتوفر حالياً:</span>
+                        <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                          {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
+                        </span>
+                      </div>
+
+                      {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (fundingAmountPiasters > 0 && fundingAmountPiasters > liveDrawerCashPiasters)) && (
+                        <div className="p-2.5 rounded-xl border text-micro bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-1">
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              {liveDrawerCashPiasters <= 0
+                                ? 'درج الكاشير فارغ (0.00 ج.م)!'
+                                : 'رصيد نقدية الدرج غير كافٍ!'}
+                            </span>
+                          </div>
+                          <p className="text-micro leading-relaxed">
+                            {liveDrawerCashPiasters <= 0
+                              ? 'لا يمكن سحب نقدية من درج فارغ. إذا كان الشحن تم من مالك المحل أو نقدية خارجية، يرجى تغيير مصدر التغذية إلى: «كاش خارجي من صاحب المحل».'
+                              : `المبلغ المطلوب (${formatArabicCurrency(fundingAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي من صاحب المحل» إذا كان المبلغ مدفوعاً من مالك المحل.`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">ملاحظات</label>
+                  <input
+                    type="text"
+                    value={fundingNotes}
+                    onChange={(e) => setFundingNotes(e.target.value)}
+                    placeholder="ملاحظات..."
+                    className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+              </MotionHeight>
+
+              <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
+                <AppButton variant="secondary" size="md" onClick={() => void requestCloseFunding()}>
                   إلغاء
-                </button>
-                <button
+                </AppButton>
+                <AppButton
+                  variant="success"
+                  size="md"
                   type="submit"
                   disabled={
                     isSubmittingFunding ||
@@ -2151,10 +2112,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       liveDrawerCashPiasters !== null &&
                       (liveDrawerCashPiasters <= 0 || fundingAmountPiasters > liveDrawerCashPiasters))
                   }
-                  className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmittingFunding ? 'جاري الشحن...' : 'تأكيد شحن الرصيد'}
-                </button>
+                </AppButton>
               </div>
             </form>
           </div>
@@ -2164,137 +2124,126 @@ export const EpayView: React.FC<EpayViewProps> = ({
       {/* MODAL: ADD / EDIT TERMINAL */}
       {isTerminalModalOpen && (
         <div onClick={handleTerminalBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-xl w-full p-6 shadow-xl border border-line dark:border-line-dark max-h-[90vh] overflow-y-auto" dir="rtl">
-            <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-2xl w-full shadow-xl border border-line dark:border-line-dark max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden" dir="rtl">
+            <div className="flex items-center justify-between border-b border-line dark:border-line-dark px-6 pt-5 pb-3 shrink-0">
               <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-paid dark:text-paid-bright" />
                 {editingTerminalId ? 'تعديل بيانات ماكينة الدفع' : 'إضافة ماكينة دفع جديدة'}
               </h3>
-              <button onClick={() => void requestCloseTerminal()} className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => void requestCloseTerminal()} />
             </div>
 
-            <form onSubmit={handleSaveTerminal} className="flex flex-col gap-4">
-              {terminalModalError && (
-                <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-xl p-3 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
-                  <span>{terminalModalError}</span>
-                </div>
-              )}
-              <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">اسم الماكينة <RequiredMark /></label>
-                <input
-                  type="text"
-                  value={termName}
-                  onChange={(e) => setTermName(e.target.value)}
-                  placeholder="مثال: ماكينة سوبر باي (SuperPay)"
-                  className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">الشركة المزودة (Provider)</label>
-                <CustomSelect
-                  value={termProvider}
-                  onChange={setTermProvider}
-                  options={[
-                    { value: 'super_pay', label: 'سوبر باي (SuperPay)' },
-                    { value: 'fawry', label: 'فوري (Fawry)' },
-                    { value: 'aman', label: 'أمان (Aman)' },
-                    { value: 'masary', label: 'مصاري (Masary)' },
-                    { value: 'momkn', label: 'ممكن (Momkn)' },
-                    { value: 'other', label: 'أخرى' },
-                  ]}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">كود الماكينة أو رقم السيريال</label>
-                <input
-                  type="text"
-                  value={termCode}
-                  onChange={(e) => setTermCode(e.target.value)}
-                  placeholder="مثال: SP-01 أو رقم الجهاز"
-                  className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-left text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
-                  dir="ltr"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">
-                    {editingTerminalId ? 'الرصيد الحالي للماكينة (تسوية رصيد)' : 'الرصيد الافتتاحي'}
-                  </label>
-                  {editingTerminalId && (
-                    <span className="text-micro text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-bright/15 px-2 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/30">
-                      تعديل الرصيد يسجل تسوية مالية فورية
-                    </span>
-                  )}
-                </div>
-                <MoneyInput
-                  valuePiasters={termBalancePiasters}
-                  onChangePiasters={setTermBalancePiasters}
-                />
-                {editingTerminalId && (
-                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                    يمكنك تعديل الرصيد هنا لتصحيح المبلغ أو تسويته، وسيتم تحديث رصيد الماكينة مباشرة وحفظ حركة تسوية في السجل.
-                  </span>
+            <form onSubmit={handleSaveTerminal} className="flex flex-col min-h-0 flex-1">
+              <div className="flex flex-col gap-4 px-6 py-4 flex-1 min-h-0 overflow-y-auto">
+                {terminalModalError && (
+                  <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-xl p-3 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
+                    <span>{terminalModalError}</span>
+                  </div>
                 )}
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">اسم الماكينة <RequiredMark /></label>
+                    <input
+                      type="text"
+                      value={termName}
+                      onChange={(e) => setTermName(e.target.value)}
+                      placeholder="مثال: ماكينة سوبر باي"
+                      className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
+                      required
+                    />
+                  </div>
 
-              <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">حد تنبيه انخفاض الرصيد</label>
-                <MoneyInput
-                  valuePiasters={termAlertPiasters}
-                  onChangePiasters={setTermAlertPiasters}
-                />
-              </div>
+                  <div>
+                    <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">الشركة المزودة</label>
+                    <CustomSelect
+                      value={termProvider}
+                      onChange={setTermProvider}
+                      options={[
+                        { value: 'super_pay', label: 'سوبر باي' },
+                        { value: 'fawry', label: 'فوري' },
+                        { value: 'aman', label: 'أمان' },
+                        { value: 'masary', label: 'مصاري' },
+                        { value: 'momkn', label: 'ممكن' },
+                        { value: 'other', label: 'أخرى' },
+                      ]}
+                    />
+                  </div>
 
-                            {/* Simple & Clear Pricing Notice */}
-              <div className="p-3.5 rounded-xl bg-paid-soft/40 dark:bg-emerald-950/30 border border-paid/20 dark:border-emerald-600/30 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-paid dark:bg-paid-bright text-white dark:text-surface-dark flex items-center justify-center shrink-0">
-                  <CreditCard className="w-4 h-4" />
+                  <div>
+                    <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">كود الماكينة أو رقم السيريال</label>
+                    <input
+                      type="text"
+                      value={termCode}
+                      onChange={(e) => setTermCode(e.target.value)}
+                      placeholder="مثال: SP-01 أو رقم الجهاز"
+                      className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-left text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                      <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">
+                        {editingTerminalId ? 'الرصيد الحالي للماكينة (تسوية رصيد)' : 'الرصيد الافتتاحي'}
+                      </label>
+                      {editingTerminalId && (
+                        <span className="text-micro text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-bright/15 px-2 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/30">
+                          تعديل الرصيد يسجل تسوية مالية فورية
+                        </span>
+                      )}
+                    </div>
+                    <MoneyInput
+                      valuePiasters={termBalancePiasters}
+                      onChangePiasters={setTermBalancePiasters}
+                    />
+                    {editingTerminalId && (
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
+                        يمكنك تعديل الرصيد هنا لتصحيح المبلغ أو تسويته، وسيتم تحديث رصيد الماكينة مباشرة وحفظ حركة تسوية في السجل.
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">حد تنبيه انخفاض الرصيد</label>
+                    <MoneyInput
+                      valuePiasters={termAlertPiasters}
+                      onChangePiasters={setTermAlertPiasters}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <span className="text-xs font-black text-ink dark:text-ink-dark block">
-                    نظام الحساب المباشر (3 مدخلات سريعة)
-                  </span>
-                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                    يتم تحديد (مبلغ الفاتورة + عمولة الماكينة + ربح المحل) بحرية ومرونة أثناء كل عملية بيع مباشرة دون تعقيد.
-                  </span>
+
+                {/* Simple & Clear Pricing Notice */}
+                <div className="p-3.5 rounded-xl bg-paid-soft/40 dark:bg-emerald-950/30 border border-paid/20 dark:border-emerald-600/30 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-paid dark:bg-paid-bright text-white dark:text-surface-dark flex items-center justify-center shrink-0">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-ink dark:text-ink-dark block">
+                      نظام الحساب المباشر (3 مدخلات سريعة)
+                    </span>
+                    <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                      يتم تحديد (مبلغ الفاتورة + عمولة الماكينة + ربح المحل) بحرية ومرونة أثناء كل عملية بيع مباشرة دون تعقيد.
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-line dark:border-line-dark">
+              <div className="flex items-center justify-between px-6 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
                 <div>
                   {editingTerminalId && canManageTerminals && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteTerminal(editingTerminalId, termName)}
-                      className="px-3 py-2 bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright border border-danger/30 dark:border-danger-bright/30 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>حذف الماكينة</span>
-                    </button>
+                    <AppButton variant="dangerSoft" size="md" icon={Trash2} onClick={() => handleDeleteTerminal(editingTerminalId, termName)}>
+                      حذف الماكينة
+                    </AppButton>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void requestCloseTerminal()}
-                    className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold cursor-pointer transition-colors"
-                  >
+                  <AppButton variant="secondary" size="md" onClick={() => void requestCloseTerminal()}>
                     إلغاء
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSavingTerminal}
-                    className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50"
-                  >
+                  </AppButton>
+                  <AppButton variant="primary" size="md" type="submit" disabled={isSavingTerminal}>
                     {isSavingTerminal ? 'جاري الحفظ...' : 'حفظ الماكينة'}
-                  </button>
+                  </AppButton>
                 </div>
               </div>
             </form>
@@ -2365,22 +2314,19 @@ export const EpayView: React.FC<EpayViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
+              <AppButton
+                variant="success"
+                size="md"
+                icon={Printer}
+                className="flex-1"
                 onClick={() => void handlePrintReceiptDirect(receiptTx)}
                 disabled={isPrintingReceipt}
-                className="flex-1 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-98 disabled:opacity-50"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>{isPrintingReceipt ? 'جاري إرسال الإيصال للطابعة...' : 'طباعة الإيصال'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void requestCloseReceipt()}
-                className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold font-sans transition-colors cursor-pointer"
-              >
+                {isPrintingReceipt ? 'جاري إرسال الإيصال للطابعة...' : 'طباعة الإيصال'}
+              </AppButton>
+              <AppButton variant="secondary" size="md" onClick={() => void requestCloseReceipt()}>
                 إغلاق
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -2389,19 +2335,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
       {/* MODAL: CANCEL / VOID TRANSACTION */}
       {cancellingTx && (
         <div onClick={handleCancelBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-md w-full p-6 shadow-2xl border border-line dark:border-line-dark" dir="rtl">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-line dark:border-line-dark max-h-[calc(100vh-2rem)] overflow-y-auto" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
               <h3 className="t-card-title text-danger dark:text-danger-bright flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-danger dark:text-danger-bright shrink-0" />
                 <span>إلغاء واسترجاع عملية دفع إلكتروني</span>
               </h3>
-              <button
-                type="button"
-                onClick={() => void requestCloseCancel()}
-                className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => void requestCloseCancel()} />
             </div>
 
             <div className="flex flex-col gap-3">
@@ -2448,22 +2388,18 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-line dark:border-line-dark mt-1">
-                <button
-                  type="button"
-                  onClick={() => void requestCloseCancel()}
-                  className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
+                <AppButton variant="secondary" size="md" onClick={() => void requestCloseCancel()}>
                   تراجع
-                </button>
-                <button
-                  type="button"
+                </AppButton>
+                <AppButton
+                  variant="danger"
+                  size="md"
+                  icon={AlertTriangle}
                   disabled={isSubmittingCancel}
                   onClick={handleCancelTransaction}
-                  className="px-4 py-2 bg-danger hover:bg-danger/90 dark:bg-danger dark:hover:bg-danger/90 text-white rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>{isSubmittingCancel ? 'جاري الإلغاء...' : 'تأكيد الإلغاء والاسترجاع'}</span>
-                </button>
+                  {isSubmittingCancel ? 'جاري الإلغاء...' : 'تأكيد الإلغاء والاسترجاع'}
+                </AppButton>
               </div>
             </div>
           </div>

@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
 import type { ReactNode } from 'react';
 import {
   Barcode,
@@ -65,9 +67,6 @@ const OPTION_BASE =
   'flex-1 h-10 px-2 rounded-lg border text-sm font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30';
 const FIELD =
   'w-full h-10 px-3 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm font-mono text-ink dark:text-ink-dark placeholder:text-ink-muted/60 dark:placeholder:text-ink-dark-muted/60 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand/20';
-const FOOTER_BTN =
-  'h-10 px-4 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-
 function detectPrefix(raw: string, configuredPrefix: string): string {
   if (configuredPrefix && raw.startsWith(configuredPrefix)) return configuredPrefix;
   const match = /^[^0-9A-Za-z\u0600-\u06FF]+/.exec(raw);
@@ -319,10 +318,10 @@ export const BarcodeScannerSettingsModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      className="motion-modal-backdrop fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
+      <div className="motion-modal-panel bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
         {/* Header */}
         <div className="h-16 px-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -336,14 +335,7 @@ export const BarcodeScannerSettingsModal = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-10 h-10 rounded-lg hover:bg-surface dark:hover:bg-surface-dark-3 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="md" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" />
         </div>
 
         {/* Body */}
@@ -355,15 +347,15 @@ export const BarcodeScannerSettingsModal = ({
                 <Zap className="w-4 h-4 text-brand dark:text-brand-bright" />
                 <h3 className="t-card-title text-ink dark:text-ink-dark m-0">اختبار القارئ</h3>
               </div>
-              <button
-                type="button"
+              <AppButton
+                variant="secondary"
+                size="md"
+                icon={Trash2}
                 onClick={clearLogs}
                 disabled={samples.length === 0 && !currentBuffer && lastRejected === null}
-                className="h-10 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:border-danger/40 dark:hover:border-danger-bright/40 text-sm font-bold inline-flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>مسح السجل</span>
-              </button>
+                مسح السجل
+              </AppButton>
             </div>
 
             <ol className="m-0 p-0 list-none grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-ink-muted dark:text-ink-dark-muted">
@@ -399,7 +391,7 @@ export const BarcodeScannerSettingsModal = ({
             </div>
 
             {/* Last scan result */}
-            <div className="min-h-[148px] bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 flex flex-col justify-center gap-3">
+            <div className="min-h-[9.25rem] bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 flex flex-col justify-center gap-3">
               {lastSample ? (
                 <>
                   <div className="flex items-center justify-between gap-2">
@@ -466,7 +458,7 @@ export const BarcodeScannerSettingsModal = ({
                   <div className="h-10 flex items-center justify-center text-xs text-ink-muted dark:text-ink-dark-muted">السجل فاضي</div>
                 ) : (
                   samples.map((log) => (
-                    <div key={log.id} className="h-10 px-3 grid grid-cols-[88px_1fr_auto_auto] items-center gap-3 text-xs">
+                    <div key={log.id} className="h-10 px-3 grid grid-cols-[5.5rem_1fr_auto_auto] items-center gap-3 text-xs">
                       <span className="font-mono tabular-nums text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
                         {new Date(log.timestamp).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </span>
@@ -566,6 +558,7 @@ export const BarcodeScannerSettingsModal = ({
               </span>
             </div>
 
+            <MotionHeight>
             <div className="flex flex-col gap-2">
               <button
                 type="button"
@@ -598,6 +591,7 @@ export const BarcodeScannerSettingsModal = ({
                 </div>
               )}
             </div>
+            </MotionHeight>
           </section>
         </div>
 
@@ -617,22 +611,12 @@ export const BarcodeScannerSettingsModal = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => void requestClose()}
-              className={`${FOOTER_BTN} bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2`}
-            >
+            <AppButton variant="secondary" size="md" onClick={() => void requestClose()}>
               إغلاق
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveSettings}
-              disabled={saving || loading}
-              className={`${FOOTER_BTN} bg-brand hover:bg-brand-hover text-white shadow-xs`}
-            >
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}</span>
-            </button>
+            </AppButton>
+            <AppButton variant="primary" size="md" icon={Save} onClick={handleSaveSettings} disabled={saving || loading}>
+              {saving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+            </AppButton>
           </div>
         </div>
       </div>

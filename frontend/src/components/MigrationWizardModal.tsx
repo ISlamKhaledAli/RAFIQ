@@ -8,18 +8,24 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileCheck,
-  RefreshCw,
   Download,
   Upload,
   FolderOpen,
   ShieldCheck,
   Info,
+  Eye,
+  EyeOff,
+  KeyRound,
   X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import { rafiqAlert } from '../utils/dialogService';
+import { rafiqConfirm } from '../utils/dialogService';
+import { hasUnpaidPosCart } from '../utils/posCartDraft';
+import { useAuth } from '../context/useAuth';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RequiredMark } from './RequiredMark';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
 
 export interface DriveItem {
   name: string;
@@ -41,6 +47,8 @@ export interface MigrationAuditMetrics {
   suppliersCount: number;
   totalSupplierDebtPiasters: number;
   categoriesCount: number;
+  totalSalesPiasters?: number | null;
+  totalWalletBalancePiasters?: number | null;
 }
 
 export interface MigrationPackageManifest {
@@ -103,11 +111,19 @@ interface MigrationWizardModalProps {
 
 type WizardStep = 'role_select' | 'export_step' | 'import_step' | 'reconcile_step';
 
+// Snapshot, encryption and verification of a whole shop can take minutes on a slow PC and a flash drive: the 15 second bridge default would report a failure while the host is still working
+const MIGRATION_TIMEOUT_MS = 10 * 60 * 1000;
+
+const messageOf = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
+
 export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
   isOpen,
   onClose,
   onComplete,
 }) => {
+  const { hasPermission } = useAuth();
+  const canExport = hasPermission('settings.backup');
+  const canImport = hasPermission('settings.restore');
   const [step, setStep] = useState<WizardStep>('role_select');
   const [loading, setLoading] = useState(false);
   const [currentMetrics, setCurrentMetrics] = useState<MigrationAuditMetrics | null>(null);
@@ -117,6 +133,8 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
   // Import State
   const [packagePath, setPackagePath] = useState<string>('');
+  const [recoveryCode, setRecoveryCode] = useState<string>('');
+  const [showRecoveryCode, setShowRecoveryCode] = useState(false);
   const [inspectResult, setInspectResult] = useState<MigrationPackageInspectResult | null>(null);
   const [restoreResult, setRestoreResult] = useState<MigrationRestoreResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -137,14 +155,18 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
         }
       }
     } catch (err) {
-      console.error('Failed to load migration data:', err);
+      setErrorMessage(messageOf(err, 'تعذر قراءة أرقام هذا الجهاز أو الفلاشات المتصلة.'));
     }
   }, []);
 
+  // The recovery code never outlives the open wizard
   useEffect(() => {
+    setRecoveryCode('');
+    setShowRecoveryCode(false);
     if (isOpen) {
       setStep('role_select');
       setExportResult(null);
+      setPackagePath('');
       setInspectResult(null);
       setRestoreResult(null);
       setErrorMessage(null);
@@ -160,31 +182,44 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
   };
 
   const formatBytes = (bytes: number) => {
-    if (bytes <= 0) return '0 بايت';
+    if (!bytes || bytes <= 0) return '0 بايت';
     const k = 1024;
     const sizes = ['بايت', 'ك.بايت', 'م.بايت', 'ج.بايت'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   // 1. Export Action
   const handleExport = async () => {
+    if (loading) return;
     setLoading(true);
     setErrorMessage(null);
+    setExportResult(null);
     try {
       const res = await invoke<MigrationPackageExportResult>('migration:export', {
         folder: targetFolder.trim() || undefined,
-      });
+      }, MIGRATION_TIMEOUT_MS);
       if (res && res.success) {
         setExportResult(res);
-        await rafiqAlert('تم إنشاء حزمة النقل. الملف في: ' + res.filePath);
       } else {
         setErrorMessage(res?.message || 'فشل إنشاء حزمة النقل');
       }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'حدث خطأ غير متوقع أثناء التصدير');
+    } catch (err: unknown) {
+      setErrorMessage(messageOf(err, 'حدث خطأ غير متوقع أثناء التصدير'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBrowseFolder = async () => {
+    try {
+      const res = await invoke<{ selectedFolder: string | null; cancelled: boolean }>('migration:browseFolder');
+      if (res && !res.cancelled && res.selectedFolder) {
+        setTargetFolder(res.selectedFolder);
+        setExportResult(null);
+      }
+    } catch (err: unknown) {
+      setErrorMessage(messageOf(err, 'تعذر فتح نافذة اختيار المكان.'));
     }
   };
 
@@ -194,18 +229,25 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
       const res = await invoke<{ selectedPath: string; cancelled: boolean }>('migration:browseFile');
       if (res && !res.cancelled && res.selectedPath) {
         setPackagePath(res.selectedPath);
-        void handleInspectPackage(res.selectedPath);
+        setInspectResult(null);
+        setErrorMessage(null);
+        if (recoveryCode.trim()) void handleInspectPackage(res.selectedPath);
       }
-    } catch (err) {
-      console.error('File dialog error:', err);
+    } catch (err: unknown) {
+      setErrorMessage(messageOf(err, 'تعذر فتح نافذة اختيار الملف.'));
     }
   };
 
   // 2. Inspect Package
   const handleInspectPackage = async (pathOverride?: string) => {
+    if (loading) return;
     const target = pathOverride || packagePath;
     if (!target.trim()) {
       setErrorMessage('يرجى تحديد مسار حزمة النقل أولاً.');
+      return;
+    }
+    if (!recoveryCode.trim()) {
+      setErrorMessage('يرجى إدخال كود استرجاع المالك الخاص بالجهاز القديم لفتح الحزمة.');
       return;
     }
     setLoading(true);
@@ -213,16 +255,17 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
     try {
       const res = await invoke<MigrationPackageInspectResult>('migration:inspect', {
         packagePath: target.trim(),
-      });
+        recoveryCode: recoveryCode.trim(),
+      }, MIGRATION_TIMEOUT_MS);
       if (res && res.success) {
         setInspectResult(res);
       } else {
         setInspectResult(null);
         setErrorMessage(res?.message || 'حزمة النقل غير صالحة أو تالفة.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setInspectResult(null);
-      setErrorMessage(err?.message || 'حدث خطأ أثناء فحص الحزمة.');
+      setErrorMessage(messageOf(err, 'حدث خطأ أثناء فحص الحزمة.'));
     } finally {
       setLoading(false);
     }
@@ -230,21 +273,36 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
   // 3. Restore & Reconcile Package (Task 139-2 & 139-3)
   const handleRestorePackage = async () => {
-    if (!packagePath.trim()) return;
+    if (loading || !inspectResult || !packagePath.trim() || !recoveryCode.trim()) return;
+    if (hasUnpaidPosCart()) {
+      setErrorMessage('في شاشة البيع فاتورة لم تُدفع بعد. أنهِ الفاتورة أو أفرغ السلة ثم أعد المحاولة، لأن النقل يستبدل كل بيانات هذا الجهاز.');
+      return;
+    }
+    const m = inspectResult.manifest.metrics;
+    const confirmed = await rafiqConfirm({
+      title: 'استبدال كل بيانات هذا الجهاز؟',
+      message: `سيتم استبدال كل بيانات هذا الجهاز الحالية (${currentMetrics ? `${currentMetrics.productsCount} صنف و${currentMetrics.customersCount} عميل و${currentMetrics.invoicesCount} فاتورة` : 'الأصناف والعملاء والفواتير والحسابات'}) ببيانات الملف (${m.productsCount} صنف و${m.customersCount} عميل و${m.invoicesCount} فاتورة). يؤخذ نسخة أمان من البيانات الحالية قبل الاستبدال. هل تريد المتابعة؟`,
+      confirmText: 'نعم، استبدل البيانات',
+      cancelText: 'تراجع',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setLoading(true);
     setErrorMessage(null);
     try {
       const res = await invoke<MigrationRestoreResult>('migration:restore', {
         packagePath: packagePath.trim(),
-      });
+        recoveryCode: recoveryCode.trim(),
+      }, MIGRATION_TIMEOUT_MS);
       if (res && res.success) {
+        setRecoveryCode('');
         setRestoreResult(res);
         setStep('reconcile_step');
       } else {
         setErrorMessage(res?.message || 'فشل استرجاع حزمة النقل.');
       }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'حدث خطأ أثناء استرجاع الحزمة.');
+    } catch (err: unknown) {
+      setErrorMessage(messageOf(err, 'حدث خطأ أثناء استرجاع الحزمة.'));
     } finally {
       setLoading(false);
     }
@@ -257,7 +315,8 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
     window.location.reload();
   };
 
-  const isDirty = step !== 'role_select' && step !== 'reconcile_step';
+  // Choosing a step is navigation, not work: only data typed or inspected in the import step is lost on close
+  const isDirty = step === 'import_step' && Boolean(packagePath.trim() || recoveryCode.trim() || inspectResult);
   const isBusy = loading;
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
@@ -295,17 +354,12 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 border border-transparent hover:border-line transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={requestClose} />
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+        <MotionHeight className="p-6 overflow-y-auto flex-1">
+        <div className="space-y-6">
           {/* Error Banner */}
           {errorMessage && (
             <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs flex items-center gap-2 animate-in fade-in">
@@ -332,7 +386,8 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setStep('export_step')}
-                  className="p-5 rounded-2xl border-2 border-line dark:border-line-dark hover:border-brand bg-surface dark:bg-surface-dark hover:bg-brand-soft/20 dark:hover:bg-brand-dark-soft/20 text-right transition-all flex flex-col justify-between group cursor-pointer shadow-2xs hover:shadow-md"
+                  disabled={!canExport}
+                  className="p-5 rounded-2xl border-2 border-line dark:border-line-dark hover:border-brand bg-surface dark:bg-surface-dark hover:bg-brand-soft/20 dark:hover:bg-brand-dark-soft/20 text-right transition-all flex flex-col justify-between group cursor-pointer shadow-2xs hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-2xs"
                 >
                   <div className="space-y-3">
                     <div className="w-12 h-12 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -346,7 +401,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-line/60 dark:border-line-dark flex items-center justify-between text-xs font-bold text-brand dark:text-brand-bright">
-                    <span>حفظ بيانات المحل على الفلاشة</span>
+                    <span>{canExport ? 'حفظ بيانات المحل على الفلاشة' : 'ليس لديك صلاحية النسخ الاحتياطي'}</span>
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                   </div>
                 </button>
@@ -355,7 +410,8 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setStep('import_step')}
-                  className="p-5 rounded-2xl border-2 border-line dark:border-line-dark hover:border-paid bg-surface dark:bg-surface-dark hover:bg-paid-soft/20 dark:hover:bg-paid-dark-soft/20 text-right transition-all flex flex-col justify-between group cursor-pointer shadow-2xs hover:shadow-md"
+                  disabled={!canImport}
+                  className="p-5 rounded-2xl border-2 border-line dark:border-line-dark hover:border-paid bg-surface dark:bg-surface-dark hover:bg-paid-soft/20 dark:hover:bg-paid-dark-soft/20 text-right transition-all flex flex-col justify-between group cursor-pointer shadow-2xs hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-2xs"
                 >
                   <div className="space-y-3">
                     <div className="w-12 h-12 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -369,10 +425,17 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-line/60 dark:border-line-dark flex items-center justify-between text-xs font-bold text-paid">
-                    <span>تنزيل وتشغيل البيانات من الفلاشة</span>
+                    <span>{canImport ? 'تنزيل وتشغيل البيانات من الفلاشة' : 'ليس لديك صلاحية الاسترجاع'}</span>
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                   </div>
                 </button>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed flex items-start gap-2">
+                <KeyRound className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
+                <span>
+                  <strong className="text-ink dark:text-ink-dark">قبل ما تبدأ:</strong> الملف مشفر بكود استرجاع المالك الخاص بالجهاز القديم، وهتحتاجه على الجهاز الجديد لفتح الملف. وترخيص البرنامج مرتبط بالجهاز، فبعد النقل ممكن يطلب منك تفعيل الترخيص من جديد على الجهاز الجديد (من «ترخيص وتفعيل البرنامج»)، أو تواصل مع الدعم الفني.
+                </span>
               </div>
 
               {/* Current Local Stats Preview */}
@@ -415,14 +478,9 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     اختار الفلاشة واضغط "حفظ البيانات" عشان تاخد نسخة كاملة من المحل في جيبك.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setStep('role_select')}
-                  className="flex items-center gap-1 text-xs text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
-                >
-                  <ArrowRight className="w-3.5 h-3.5" />
-                  <span>رجوع للاختيارات</span>
-                </button>
+                <AppButton variant="subtle" size="xs" icon={ArrowRight} disabled={loading} onClick={() => setStep('role_select')}>
+                  رجوع للاختيارات
+                </AppButton>
               </div>
 
               {/* Connected Drives Selection */}
@@ -435,8 +493,10 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     <button
                       type="button"
                       key={d.name}
+                      disabled={loading || !d.isReady}
                       onClick={() => setTargetFolder(`${d.name}RafiqMigration`)}
-                      className={`p-2.5 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer ${
+                      aria-pressed={targetFolder.startsWith(d.name)}
+                      className={`p-2.5 rounded-xl border text-right flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${
                         targetFolder.startsWith(d.name)
                           ? 'bg-brand-soft dark:bg-brand-dark-soft border-brand text-brand dark:text-brand-bright'
                           : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-line-hover text-ink dark:text-ink-dark'
@@ -449,7 +509,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                           <HardDrive className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted shrink-0" />
                         )}
                         <div className="truncate">
-                          <span className="font-bold text-xs block truncate">{d.name} {d.label}</span>
+                          <span className="font-bold text-xs block truncate"><bdi dir="ltr">{d.name}</bdi> {d.label}</span>
                           <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono block">
                             متاح: {formatBytes(d.freeSpaceBytes)}
                           </span>
@@ -474,10 +534,15 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   <input
                     type="text"
                     value={targetFolder}
+                    disabled={loading}
                     onChange={(e) => setTargetFolder(e.target.value)}
-                    placeholder="مثال: E:\RafiqMigration أو C:\Users\Desktop"
-                    className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl h-10 px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
+                    placeholder="E:\RafiqMigration"
+                    dir="ltr"
+                    className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono disabled:opacity-50"
                   />
+                  <AppButton variant="secondary" icon={FolderOpen} disabled={loading} onClick={() => void handleBrowseFolder()}>
+                    اختيار المكان...
+                  </AppButton>
                 </div>
               </div>
 
@@ -488,27 +553,19 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     نسخة شاملة بضغطة واحدة (البضاعة + الفواتير + الحسابات والإعدادات)
                   </span>
                   <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">
-                    البرنامج بيقفل كل الحسابات بدقة لضمان إن مفيش مليم أو صنف يضيع أثناء النقل.
+                    البرنامج بياخد صورة كاملة ومتسقة من بيانات المحل في لحظة واحدة، ويشفّر الملف، ويراجعه بعد ما يكتبه على الفلاشة قبل ما يقولك إنه تم.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void handleExport()}
+                <AppButton
+                  variant="primary"
+                  icon={Download}
+                  loading={loading}
                   disabled={loading}
-                  className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
+                  onClick={() => void handleExport()}
+                  className="w-full md:w-auto"
                 >
-                  {loading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>جاري حفظ بيانات المحل دلوقتي...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4" />
-                      <span>حفظ كل بيانات المحل على الفلاشة</span>
-                    </>
-                  )}
-                </button>
+                  {loading ? 'جاري حفظ بيانات المحل دلوقتي...' : 'حفظ كل بيانات المحل على الفلاشة'}
+                </AppButton>
               </div>
 
               {/* Success Result */}
@@ -516,7 +573,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 <div className="p-4 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 space-y-3 animate-in fade-in">
                   <div className="flex items-center gap-2 text-paid font-bold text-xs">
                     <CheckCircle2 className="w-4 h-4 text-paid" />
-                    <span>تم حفظ بيانات المحل على الفلاشة</span>
+                    <span>تم حفظ بيانات المحل على الفلاشة وفحص الملف بعد الكتابة</span>
                   </div>
                   <div className="bg-surface dark:bg-surface-dark p-3 rounded-lg border border-line dark:border-line-dark space-y-1.5 text-xs font-mono">
                     <div className="flex justify-between">
@@ -533,10 +590,20 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                         {exportResult.filePath}
                       </span>
                     </div>
+                    <div className="flex justify-between gap-3 flex-wrap">
+                      <span className="text-ink-muted dark:text-ink-dark-muted">محتوى الملف:</span>
+                      <span className="text-ink dark:text-ink-dark">
+                        {exportResult.manifest.metrics.productsCount} صنف — {exportResult.manifest.metrics.customersCount} عميل — {exportResult.manifest.metrics.invoicesCount} فاتورة — ديون العملاء {formatPiasters(exportResult.manifest.metrics.totalCustomerDebtPiasters)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="p-2.5 rounded bg-paid/10 text-paid text-micro leading-relaxed flex items-center gap-2">
-                    <Info className="w-4 h-4 text-paid shrink-0" />
-                    <span><strong>الخطوة الجاية:</strong> خد الفلاشة وركّبها في جهازك الجديد، وافتح نفس الشاشة دي واختار «2. على جهازك الجديد (تنزيل المحل من الفلاشة)».</span>
+                  <div className="p-2.5 rounded bg-paid/10 text-paid text-micro leading-relaxed flex items-start gap-2">
+                    <KeyRound className="w-4 h-4 text-paid shrink-0 mt-0.5" />
+                    <span><strong>مهم جداً:</strong> الملف مشفر، ومش هيتفتح على الجهاز الجديد غير بكود استرجاع المالك الخاص بالمحل. احتفظ بالكود في مكان آمن ومنفصل عن الفلاشة، ولو ضاع الكود مش هتقدر تفتح الملف.</span>
+                  </div>
+                  <div className="p-2.5 rounded bg-paid/10 text-paid text-micro leading-relaxed flex items-start gap-2">
+                    <Info className="w-4 h-4 text-paid shrink-0 mt-0.5" />
+                    <span><strong>الخطوة الجاية:</strong> افصل الفلاشة بأمان من الجهاز، وركّبها في جهازك الجديد، وافتح نفس الشاشة دي واختار «2. على جهازك الجديد (تنزيل المحل من الفلاشة)».</span>
                   </div>
                 </div>
               )}
@@ -553,14 +620,9 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     اختار ملف المحل من الفلاشة، والبرنامج هيراجع كل البضاعة والأرقام الأول قبل التثبيت.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setStep('role_select')}
-                  className="flex items-center gap-1 text-xs text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
-                >
-                  <ArrowRight className="w-3.5 h-3.5" />
-                  <span>رجوع للاختيارات</span>
-                </button>
+                <AppButton variant="subtle" size="xs" icon={ArrowRight} disabled={loading} onClick={() => setStep('role_select')}>
+                  رجوع للاختيارات
+                </AppButton>
               </div>
 
               {/* Package Path input & Browse button */}
@@ -572,30 +634,59 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   <input
                     type="text"
                     value={packagePath}
+                    disabled={loading}
                     onChange={(e) => {
                       setPackagePath(e.target.value);
                       setInspectResult(null);
                     }}
-                    placeholder="مثال: E:\RafiqMigration\rafiq_migration_albaraka.rafiqpkg"
-                    className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl h-10 px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
+                    placeholder="E:\RafiqMigration\rafiq_migration_albaraka.rafiqpkg"
+                    dir="ltr"
+                    className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono disabled:opacity-50"
                   />
-                  <button
-                    type="button"
-                    onClick={() => void handleBrowsePackage()}
-                    className="px-4 h-10 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover rounded-xl text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <FolderOpen className="w-4 h-4 text-brand dark:text-brand-bright" />
-                    <span>اختيار الملف...</span>
-                  </button>
-                  <button
-                    type="button"
+                  <AppButton variant="secondary" icon={FolderOpen} disabled={loading} onClick={() => void handleBrowsePackage()}>
+                    اختيار الملف...
+                  </AppButton>
+                </div>
+              </div>
+
+              {/* Owner recovery code of the OLD shop: opens the encrypted package, never stored or logged */}
+              <div>
+                <label htmlFor="migration-recovery-code" className="block text-ink dark:text-ink-dark font-semibold text-xs mb-1.5">
+                  كود استرجاع المالك (بتاع الجهاز القديم): <RequiredMark />
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="migration-recovery-code"
+                    type={showRecoveryCode ? 'text' : 'password'}
+                    value={recoveryCode}
+                    disabled={loading}
+                    onChange={(e) => {
+                      setRecoveryCode(e.target.value);
+                      setInspectResult(null);
+                    }}
+                    placeholder="RFK-XXXX-XXXX-XXXX"
+                    autoComplete="off"
+                    dir="ltr"
+                    className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono tracking-widest disabled:opacity-50"
+                  />
+                  <AppButton
+                    variant="secondary"
+                    icon={showRecoveryCode ? EyeOff : Eye}
+                    aria-label={showRecoveryCode ? 'إخفاء الكود' : 'إظهار الكود'}
+                    onClick={() => setShowRecoveryCode((v) => !v)}
+                  />
+                  <AppButton
+                    variant="primary"
+                    loading={loading}
                     onClick={() => void handleInspectPackage()}
-                    disabled={loading || !packagePath.trim()}
-                    className="px-4 h-10 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
+                    disabled={loading || !packagePath.trim() || !recoveryCode.trim()}
                   >
                     فحص الملف
-                  </button>
+                  </AppButton>
                 </div>
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0 mt-1.5">
+                  الكود اللي اتسلم لصاحب المحل عند إعداد النسخ الاحتياطي على الجهاز القديم. بدونه مش هيتفتح الملف.
+                </p>
               </div>
 
               {/* Inspection Preview Card */}
@@ -639,29 +730,25 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   </div>
 
                   {/* Safety note */}
+                  <div className="p-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-micro flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span><strong>تنبيه:</strong> التثبيت هيستبدل كل بيانات الجهاز ده الحالية ببيانات الملف. لازم يكون الجهاز ده جديد أو فاضي، ومفيش فاتورة شغالة في شاشة البيع.</span>
+                  </div>
                   <div className="p-2.5 rounded bg-brand-soft/50 dark:bg-brand-dark-soft/50 border border-brand/20 text-ink dark:text-ink-dark text-micro flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-                      <span><strong>أمان وحماية تامة:</strong> البرنامج بياخد نسخة أمان تلقائية قبل أي خطوة عشان مفيش حاجة تضيع.</span>
+                      <span><strong>أمان وحماية:</strong> البرنامج بياخد نسخة أمان من البيانات الحالية قبل الاستبدال، ولو حصل أي خطأ بيرجّعها زي ما كانت.</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => void handleRestorePackage()}
+                    <AppButton
+                      variant="success"
+                      icon={CheckCircle2}
+                      loading={loading}
                       disabled={loading}
-                      className="px-5 py-2 rounded-xl bg-paid hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark shrink-0"
+                      onClick={() => void handleRestorePackage()}
+                      className="shrink-0"
                     >
-                      {loading ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>بيتم تثبيت ومطابقة البيانات دلوقتي...</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>تثبيت وتشغيل البيانات دلوقتي</span>
-                        </>
-                      )}
-                    </button>
+                      {loading ? 'بيتم تثبيت ومطابقة البيانات دلوقتي...' : 'تثبيت وتشغيل البيانات دلوقتي'}
+                    </AppButton>
                   </div>
                 </div>
               )}
@@ -684,6 +771,19 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   </p>
                 </div>
               </div>
+
+              {!restoreResult.isMatch && (
+                <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs space-y-1">
+                  <div className="flex items-center gap-2 font-bold">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{restoreResult.message}</span>
+                  </div>
+                  {restoreResult.differences.map((d) => (
+                    <div key={d} className="ps-6">{d}</div>
+                  ))}
+                  <div className="ps-6">راجع الأرقام قبل بدء الشغل، ونسخة الأمان من بيانات هذا الجهاز قبل النقل محفوظة في مجلد النسخ الاحتياطية الآمنة بجوار قاعدة البيانات، وتقدر تتواصل مع الدعم الفني لاسترجاعها.</div>
+                </div>
+              )}
 
               {/* Side-by-side Reconcile Table */}
               <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
@@ -731,20 +831,18 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
               {/* Final Success Call to Action */}
               <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-between gap-4">
                 <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
-                  كل الأرقام مطابقة 100%، تقدر تفتح شاشة البيع وتبدأ الشغل فوراً!
+                  {restoreResult.isMatch
+                    ? 'كل الأرقام مطابقة 100%. هتتحمّل الشاشة من جديد (مش هيتقفل البرنامج)، وبعدها سجّل الدخول بنفس الأرقام السرية اللي كنت بتستخدمها على الجهاز القديم. وراجع تفعيل الترخيص على الجهاز ده.'
+                    : 'في أرقام مش متطابقة، راجعها قبل ما تبدأ الشغل. هتتحمّل الشاشة من جديد (مش هيتقفل البرنامج)، وبعدها سجّل الدخول بنفس أرقام الدخول القديمة.'}
                 </span>
-                <button
-                  type="button"
-                  onClick={handleFinish}
-                  className="px-6 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-sm"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>اعتماد وبدء الشغل</span>
-                </button>
+                <AppButton variant="primary" icon={CheckCircle2} onClick={handleFinish}>
+                  اعتماد وبدء الشغل
+                </AppButton>
               </div>
             </div>
           )}
         </div>
+        </MotionHeight>
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted">

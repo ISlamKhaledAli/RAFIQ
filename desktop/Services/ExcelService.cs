@@ -585,7 +585,7 @@ namespace RafiqPOS.Services
                 // 1. Header Banner (Row 1)
                 ws.Range("A1:G1").Merge();
                 var titleCell = ws.Cell("A1");
-                titleCell.Value = "رفيق لنقاط البيع (Rafiq POS) - كشف حسابات وأرصدة العملاء والديون";
+                titleCell.Value = "رفيق لنقاط البيع - كشف حسابات وأرصدة العملاء والديون";
                 titleCell.Style.Font.Bold = true;
                 titleCell.Style.Font.FontSize = 13;
                 titleCell.Style.Font.FontColor = XLColor.White;
@@ -1755,11 +1755,11 @@ namespace RafiqPOS.Services
                 string txtFile = Path.Combine(targetFolder, "بيان_ملكية_وتصدير_البيانات.txt");
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine("================================================================================");
-                sb.AppendLine("         وثيقة ملكية وتصدير البيانات الشاملة - نظام رفيق لنقاط البيع (Rafiq POS)");
+                sb.AppendLine("         وثيقة ملكية وتصدير البيانات الشاملة - نظام رفيق لنقاط البيع");
                 sb.AppendLine("================================================================================");
                 sb.AppendLine(string.Format("اسم المنشأة / المحل: {0}", shopName));
                 sb.AppendLine(string.Format("تاريخ وتوقيت التصدير: {0}", DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")));
-                sb.AppendLine("البيئة: Windows Desktop Offline-First (SQLite Engine)");
+                sb.AppendLine("البيئة: ويندوز سطح المكتب، يعمل بدون إنترنت (محرك SQLite)");
                 sb.AppendLine("--------------------------------------------------------------------------------");
                 sb.AppendLine("إحصائيات السجلات المصدرة:");
                 sb.AppendLine(string.Format(" • إجمالي الأصناف والمنتجات:       {0} صنف", res.ProductsCount));
@@ -2321,7 +2321,7 @@ namespace RafiqPOS.Services
                 ws.Cell(r, 7).Style.NumberFormat.Format = "#,##0.00";
                 ws.Cell(r, 8).SetValue<string>(m.ReferenceId ?? "");
                 ws.Cell(r, 8).Style.NumberFormat.Format = "@";
-                ws.Cell(r, 9).Value = m.Note ?? "";
+                ws.Cell(r, 9).Value = StockMovement.LocalizeNote(m.Note) ?? "";
 
                 if (i % 2 == 1) ws.Range(r, 1, r, 9).Style.Fill.BackgroundColor = ZebraLight;
             }

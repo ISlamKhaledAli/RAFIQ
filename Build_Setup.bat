@@ -1,2 +1,3 @@
 @echo off
-call "%~dp0انشاء_ملف_التثبيت_Setup.bat" %*
+call "%~dp0Build_Installer.bat" %*
+exit /b %errorlevel%

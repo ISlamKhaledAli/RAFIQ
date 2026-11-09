@@ -65,7 +65,7 @@ namespace RafiqPOS.Services
             result.Checks.Add(new ReadinessCheckItem
             {
                 Key = "os_environment",
-                Title = "بيئة الويندوز ومحرك العرض (Windows & WebView2)",
+                Title = "بيئة الويندوز ومحرك العرض",
                 Passed = osPassed,
                 StatusText = osStatusText,
                 Description = isLegacy
@@ -146,11 +146,11 @@ namespace RafiqPOS.Services
             result.Checks.Add(new ReadinessCheckItem
             {
                 Key = "root_security",
-                Title = "أمان المستخدم الجذر والإدارة (Root & Admin)",
+                Title = "أمان المستخدم الجذر والإدارة",
                 Passed = rootPassed,
-                StatusText = rootPassed ? "مؤمن ومشفر (PBKDF2)" : "غير مكتمل",
+                StatusText = rootPassed ? "مؤمن ومشفر" : "غير مكتمل",
                 Description = rootPassed
-                    ? "المستخدم الجذر (Root) وصاحب المحل (Admin) مسجلان ومشفران لحماية الصلاحيات والإعدادات الحساسة."
+                    ? "حساب المطور وحساب صاحب المحل مسجلان ومشفران لحماية الصلاحيات والإعدادات الحساسة."
                     : "يرجى التأكد من إنشاء حساب المدير وصاحب المحل وتعيين الصلاحيات.",
                 ActionLabel = "إدارة المستخدمين",
                 ActionTarget = "settings:users"

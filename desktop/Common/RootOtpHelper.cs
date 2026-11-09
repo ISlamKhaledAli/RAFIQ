@@ -77,7 +77,7 @@ namespace RafiqPOS.Common
 
                 if (string.IsNullOrEmpty(responseToken))
                 {
-                    error = "تصريح دخول Root فارغ.";
+                    error = "تصريح دخول المطور فارغ.";
                     return false;
                 }
 
@@ -91,7 +91,7 @@ namespace RafiqPOS.Common
                 VerifiedLicenseToken verified = LicenseTokenVerifier.Verify(cleanToken, deviceFingerprint, "root_session", out verifyError);
                 if (verified == null)
                 {
-                    error = verifyError ?? "تصريح دخول Root غير صالح أو التوقيع غير مطابق.";
+                    error = verifyError ?? "تصريح دخول المطور غير صالح أو التوقيع غير مطابق.";
                     return false;
                 }
 

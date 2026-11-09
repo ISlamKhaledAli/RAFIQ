@@ -271,6 +271,7 @@ export interface Sale {
   discountPiasters: number;
   taxPiasters: number;
   totalPiasters: number;
+  refundedPiasters?: number;
   paidPiasters: number;
   changePiasters?: number;
   paymentMethod: string;
@@ -567,6 +568,7 @@ export interface StockMovement {
   note?: string | null;
   batchNumber?: string | null;
   createdAt: string;
+  balanceAfterMilli?: number | null;
   movementTypeArabic?: string;
   quantityFormatted?: string;
   costFormatted?: string;
@@ -1675,6 +1677,7 @@ export interface DigitalTransaction {
   customerName?: string;
   referenceNumber?: string;
   notes?: string;
+  paymentDestination?: string;
   saleId?: string;
   createdBy?: string;
   createdByName?: string;

@@ -244,7 +244,7 @@ describe('help center: modal behaviour guards', () => {
   });
 
   it('shows the support bundle button to admins only and never invents diagnostics', () => {
-    assert.match(MODAL, /\{isAdmin \? \(\s*<button/);
+    assert.match(MODAL, /\{isAdmin \? \(\s*<AppButton/);
     assert.doesNotMatch(MODAL, /'RAFIQ-POS-HOST'|'v1\.0\.0'|'دائم'|متاح طوال الأسبوع/);
   });
 

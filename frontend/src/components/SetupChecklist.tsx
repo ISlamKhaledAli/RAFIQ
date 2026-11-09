@@ -38,7 +38,7 @@ export const SetupChecklist: React.FC<SetupChecklistProps> = ({ onNavigate }) =>
           <button
             type="button"
             onClick={() => onNavigate(target)}
-            className="w-full min-h-[64px] px-4 py-3 flex items-center gap-3.5 text-start bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] hover:border-brand dark:hover:border-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-brand dark:focus-visible:outline-brand-bright"
+            className="w-full min-h-[4rem] px-4 py-3 flex items-center gap-3.5 text-start bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] hover:border-brand dark:hover:border-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-brand dark:focus-visible:outline-brand-bright"
           >
             <span className="w-10 h-10 shrink-0 rounded-[6px] border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark flex items-center justify-center">
               <Icon className="w-5 h-5 text-brand dark:text-brand-bright" />

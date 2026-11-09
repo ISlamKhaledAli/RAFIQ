@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Compass, FileSpreadsheet, FlaskConical, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, Compass, FileSpreadsheet, FlaskConical, ShieldCheck, Trash2 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { DemoDataModal } from '../../components/DemoDataModal';
 import { FactoryResetModal } from '../../components/FactoryResetModal';
 import { FullStoreExportModal } from '../../components/FullStoreExportModal';
 import { GuidedTourModal } from '../../components/GuidedTourModal';
-import { DANGER_BUTTON_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SettingsCard } from '../settings/settingsParts';
+import { AppButton } from '../../components/AppButton';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
+import { SettingsCard } from '../settings/settingsParts';
 
 interface DemoStatus {
   hasDemoData?: boolean;
   demoProductsCount?: number;
   demoSalesCount?: number;
   demoCustomersCount?: number;
+  keptProductsCount?: number;
+  keptCustomersCount?: number;
+  canLoad?: boolean;
+  loadBlockedReason?: string | null;
 }
 
 interface CountTileProps {
@@ -32,6 +38,7 @@ const CountTile = ({ label, value, unit }: CountTileProps) => (
 /** Root page: demo data and cashier training, full data export and the factory reset (one home for each). */
 export const RootDataPage = () => {
   const [demoStatus, setDemoStatus] = useState<DemoStatus | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [isDemoOpen, setIsDemoOpen] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -40,8 +47,9 @@ export const RootDataPage = () => {
   const loadDemoStatus = useCallback(async () => {
     try {
       setDemoStatus(await invoke<DemoStatus>('demo:getStatus'));
-    } catch (err) {
-      console.error('Failed to load demo status:', err);
+      setStatusError(null);
+    } catch (err: unknown) {
+      setStatusError(err instanceof Error && err.message ? err.message : 'تعذر قراءة حالة البيانات التجريبية.');
     }
   }, []);
 
@@ -50,27 +58,34 @@ export const RootDataPage = () => {
   }, [loadDemoStatus]);
 
   const hasDemo = demoStatus?.hasDemoData === true;
+  const loadBlocked = !hasDemo && demoStatus?.canLoad === false;
+  const keptDemoCount = (demoStatus?.keptProductsCount ?? 0) + (demoStatus?.keptCustomersCount ?? 0);
+  const statePanel = useMotionPanel(hasDemo ? 'present' : 'empty');
 
   return (
     <div className="flex flex-col gap-5 text-sm text-ink dark:text-ink-dark pb-8">
       <SettingsCard
         icon={FlaskConical}
         title="البيانات التجريبية وتدريب الكاشير"
-        description="تجربة البرنامج وتدريب الكاشير على بيانات وهمية جاهزة، ومسحها بضغطة زر دون لمس الحسابات الحقيقية."
+        description="تجربة البرنامج وتدريب الكاشير على أصناف وزبائن وهمية بدون فواتير ولا ديون، ثم مسحها لاحقاً دون لمس بيانات المحل الحقيقية."
         action={
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => setIsTourOpen(true)} className={SECONDARY_BUTTON_CLASS}>
-              <Compass className="w-4 h-4 text-brand dark:text-brand-bright" />
-              <span>بدء الجولة السريعة (5 خطوات)</span>
-            </button>
-            <button type="button" onClick={() => setIsDemoOpen(true)} className={PRIMARY_BUTTON_CLASS}>
-              <FlaskConical className="w-4 h-4" />
-              <span>{hasDemo ? 'مسح وإدارة البيانات التجريبية' : 'تحميل بضاعة تجريبية'}</span>
-            </button>
+            <AppButton variant="secondary" size="lg" icon={Compass} onClick={() => setIsTourOpen(true)}>
+              بدء الجولة السريعة (5 خطوات)
+            </AppButton>
+            <AppButton variant="primary" size="lg" icon={FlaskConical} disabled={loadBlocked} onClick={() => setIsDemoOpen(true)}>
+              {hasDemo ? 'مسح وإدارة البيانات التجريبية' : 'تحميل بضاعة تجريبية'}
+            </AppButton>
           </div>
         }
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {statusError && (
+          <p role="alert" className="flex items-start gap-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/30 rounded-xl p-4 leading-relaxed m-0 font-semibold text-warn dark:text-warn-bright">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <span>{statusError}</span>
+          </p>
+        )}
+        <div {...statePanel} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="flex flex-col gap-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4">
             <span className="text-sm font-semibold text-ink-muted dark:text-ink-muted-dark">حالة البيانات التجريبية</span>
             <span className="flex items-start gap-3 font-bold leading-relaxed">
@@ -86,12 +101,20 @@ export const RootDataPage = () => {
           <CountTile label="الزبائن التجريبيون" value={demoStatus?.demoCustomersCount ?? 0} unit="زبون" />
         </div>
 
+        {loadBlocked && (
+          <p role="status" className="flex items-start gap-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/30 rounded-xl p-4 leading-relaxed m-0 font-semibold text-warn dark:text-warn-bright">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <span>{demoStatus?.loadBlockedReason}</span>
+          </p>
+        )}
+
         <p className="flex items-start gap-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-bright/30 rounded-xl p-4 leading-relaxed m-0">
           <ShieldCheck className="w-5 h-5 shrink-0 text-paid dark:text-paid-bright" />
           <span>
-            كل البيانات التجريبية مميّزة بكود يبدأ بـ{' '}
-            <code className="font-mono bg-surface dark:bg-surface-dark border border-line dark:border-line-dark px-1.5 py-0.5 rounded text-brand-dark dark:text-brand-bright font-bold">demo_</code>
-            ، وعند المسح تُحذف هذه السجلات فقط وتبقى بضاعة وفواتير وزبائن المحل الحقيقية كما هي.
+            كل سجل تجريبي مميّز بكود يبدأ بـ{' '}
+            <code dir="ltr" className="font-mono bg-surface dark:bg-surface-dark border border-line dark:border-line-dark px-1.5 py-0.5 rounded text-brand-dark dark:text-brand-bright font-bold">demo_</code>
+            ، وعند المسح تُحذف هذه السجلات فقط بعد أخذ نسخة احتياطية موثقة، وتبقى سجلات المحل الحقيقية كما هي. أي صنف أو زبون تجريبي استخدمته عملية حقيقية يبقى موقوفاً ولا يُحذف
+            {keptDemoCount > 0 ? ` (يوجد الآن ${keptDemoCount} من هذا النوع)` : ''}.
           </span>
         </p>
       </SettingsCard>
@@ -101,10 +124,9 @@ export const RootDataPage = () => {
         title="تصدير كل بيانات المحل"
         description="الأصناف والمخزن والزبائن والموردون والفواتير والورديات في ملفات Excel مفصلة على جهازك، بدون تشفير."
         action={
-          <button type="button" onClick={() => setIsExportOpen(true)} className={PRIMARY_BUTTON_CLASS}>
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>تصدير بيانات المحل (Excel)</span>
-          </button>
+          <AppButton variant="primary" size="lg" icon={FileSpreadsheet} onClick={() => setIsExportOpen(true)}>
+            تصدير بيانات المحل (Excel)
+          </AppButton>
         }
       >
         <p className="text-sm text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0">
@@ -120,14 +142,13 @@ export const RootDataPage = () => {
           <div className="flex flex-col gap-1 min-w-0">
             <h3 className="t-card-title text-danger-ink dark:text-danger-bright m-0">تصفير كل البيانات وإعادة ضبط المصنع</h3>
             <p className="text-sm text-ink dark:text-ink-dark m-0 leading-relaxed">
-              يمسح المبيعات والأصناف وحركات المخزن والديون، مع خيار مسح النسخ الاحتياطية، ويعيد البرنامج كأنه جديد. لا يمكن التراجع.
+              يمسح المبيعات والأصناف وحركات المخزن والديون والورديات والإعدادات، ويعيد الموظفين إلى حسابَي صاحب المحل والكاشير الأوليين، ويظهر معالج الإعداد من جديد. تبقى النسخ الاحتياطية والترخيص، ويؤخذ قبل المسح نسخة احتياطية موثقة. لا يمكن التراجع.
             </p>
           </div>
         </div>
-        <button type="button" onClick={() => setIsResetOpen(true)} className={DANGER_BUTTON_CLASS}>
-          <Trash2 className="w-4 h-4" />
-          <span>مسح كل البيانات وبدء المحل من الصفر</span>
-        </button>
+        <AppButton variant="danger" size="lg" icon={Trash2} onClick={() => setIsResetOpen(true)}>
+          مسح كل البيانات وبدء المحل من الصفر
+        </AppButton>
       </section>
 
       <DemoDataModal

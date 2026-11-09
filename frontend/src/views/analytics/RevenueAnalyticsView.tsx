@@ -22,7 +22,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
-import { printReport } from '../../utils/printReport';
+import { usePrintReport } from '../../hooks/usePrintReport';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
@@ -49,6 +49,8 @@ import type {
   VatReport,
 } from '../../types/models';
 
+import { AppButton } from '../../components/AppButton';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 const PERIOD_OPTIONS: SelectOption[] = [
   { value: 'today', label: 'اليوم' },
   { value: 'yesterday', label: 'أمس' },
@@ -67,7 +69,7 @@ const SECTION_TABS: SegmentedTabOption<RevenueSection>[] = [
   { value: 'categories', label: 'أداء الأقسام والتصنيفات', icon: BarChart3 },
   { value: 'items', label: 'ربحية الأصناف والهوامش', icon: Award },
   { value: 'closings', label: 'سجل إقفالات الوردية', icon: CheckCircle2 },
-  { value: 'vat', label: 'إقرار وضريبة القيمة المضافة (VAT)', icon: Receipt },
+  { value: 'vat', label: 'إقرار وضريبة القيمة المضافة', icon: Receipt },
 ];
 
 const ITEMS_DIRECTION_TABS: SegmentedTabOption<'desc' | 'asc'>[] = [
@@ -102,6 +104,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const isTaxesEnabled = isEnabled('feature_taxes');
 
   const [activeSection, setActiveSection] = useState<RevenueSection>('overview');
+  const motionPanel = useMotionPanel(activeSection);
   const availableSectionTabs = useMemo(() => {
     if (isTaxesEnabled) return SECTION_TABS;
     return SECTION_TABS.filter((tab) => tab.value !== 'vat');
@@ -205,9 +208,11 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   );
 
   // Print handler
-  const handlePrint = () => {
-    void printReport({ kind: 'a4only' });
-  };
+  const { print: handlePrint, printing } = usePrintReport({
+    reportName: 'تقرير تحليلات الإيرادات',
+    kind: 'a4only',
+    hasData: salesReport !== null,
+  });
 
   if (showLoading && !salesReport) {
     return (
@@ -261,22 +266,16 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
             />
           )}
 
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="h-10 px-4 rounded-lg bg-brand-dark dark:bg-brand-bright dark:text-surface-dark hover:bg-brand dark:hover:bg-brand-bright/90 text-white text-sm font-bold flex items-center gap-2 transition-colors shadow-2xs cursor-pointer"
-            title="طباعة التقرير"
-          >
-            <Printer className="w-4 h-4" />
-            <span>طباعة التقرير</span>
-          </button>
+          <AppButton variant="primary" icon={Printer} onClick={handlePrint} loading={printing} title="طباعة التقرير">
+            طباعة التقرير
+          </AppButton>
         </div>
       </div>
 
       {/* 2. Top Financial KPI Cards (Waterfall of Supermarket Money) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 shrink-0">
         {/* KPI 1: Gross Sales */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">إجمالي المبيعات</span>
             <span className="text-xs bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded text-ink-muted dark:text-ink-dark-muted font-mono">
@@ -297,7 +296,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         </div>
 
         {/* KPI 2: Net Merchant Revenue */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">إيراد المتجر الحقيقي</span>
             <DollarSign className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
@@ -311,7 +310,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         </div>
 
         {/* KPI 3: COGS */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">تكلفة البضاعة المباعة</span>
             <Layers className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
@@ -325,7 +324,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         </div>
 
         {/* KPI 4: Gross Profit */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">مجمل ربح المبيعات</span>
             <TrendingUp className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
@@ -339,7 +338,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         </div>
 
         {/* KPI 5: Operational Expenses */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">المصروفات التشغيلية</span>
             <Minus className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
@@ -353,7 +352,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         </div>
 
         {/* KPI 5: Inventory Losses & Shrinkage */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">خسائر وعجز المخزون</span>
             <AlertTriangle className="w-3.5 h-3.5 text-danger dark:text-danger-bright" />
@@ -367,7 +366,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         </div>
 
         {/* KPI 6: Real Net Profit */}
-        <div className={`border rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px] sm:col-span-2 xl:col-span-3 ${
+        <div className={`border rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem] sm:col-span-2 xl:col-span-3 ${
           netOperationalProfit >= 0
             ? 'bg-paid-soft/40 dark:bg-paid-dark-soft/40 border-paid/30 dark:border-paid/40 text-paid dark:text-paid-bright'
             : 'bg-danger-soft/40 dark:bg-danger-dark-soft/40 border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
@@ -395,7 +394,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
       </div>
 
       {/* 4. Dynamic Tab Content */}
-      <div className="flex-1 pb-4">
+      <div {...motionPanel} className="flex-1 pb-4">
         {/* SECTION A: Overview & Breakdown */}
         {activeSection === 'overview' && (
           <div className="space-y-5">
@@ -429,7 +428,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col justify-between">
                 <div>
                   <h2 className="t-section-title text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5">
-                    <Wallet className="w-4 h-4 text-paid dark:text-paid-bright" />
+                    <Wallet className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                     <span>توزيع المبيعات حسب طريقة الدفع</span>
                   </h2>
                   <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted mb-5">
@@ -549,7 +548,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full bg-[#582C83] shrink-0" />
-                      <span>انستاباي (InstaPay - خارج الدرج):</span>
+                      <span>إنستاباي (خارج الدرج):</span>
                     </div>
                     <div className="font-mono font-bold text-[#582C83]">
                       {formatArabicCurrency(instapaySales)} ({instapayPct}%)
@@ -953,7 +952,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                             </span>
                           )}
                         </td>
-                        <td className="py-3.5 px-2.5 text-ink-muted dark:text-ink-dark-muted max-w-[120px] truncate" title={cl.notes}>
+                        <td className="py-3.5 px-2.5 text-ink-muted dark:text-ink-dark-muted max-w-[7.5rem] truncate" title={cl.notes}>
                           {cl.notes || '—'}
                         </td>
                       </tr>
@@ -988,7 +987,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
             {/* 6 Key VAT Declaration Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {/* 1. Gross Sales Base */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
                 <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   إجمالي مبيعات الفترة
                 </div>
@@ -1001,7 +1000,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               </div>
 
               {/* 2. Taxable Sales */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
                 <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   المبيعات الخاضعة للضريبة
                 </div>
@@ -1014,7 +1013,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               </div>
 
               {/* 3. Tax-Exempt Sales */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
                 <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   المبيعات المعفاة من الضريبة
                 </div>
@@ -1027,7 +1026,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               </div>
 
               {/* 4. Output VAT */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
                 <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   ضريبة المخرجات المحصلة
                 </div>
@@ -1040,7 +1039,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               </div>
 
               {/* 5. Returns VAT */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
                 <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   ضريبة المرتجعات المخصومة
                 </div>
@@ -1053,7 +1052,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               </div>
 
               {/* 6. Net VAT Payable */}
-              <div className="bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+              <div className="bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
                 <div className="text-xs font-bold text-paid dark:text-paid-bright mb-1">
                   صافي الضريبة واجبة التوريد
                 </div>
@@ -1071,7 +1070,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               <div className="p-5 border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="t-card-title text-ink dark:text-ink-dark">
-                    تفصيل الوعاء الضريبي حسب شرائح ونسب الضريبة (VAT Rates Breakdown)
+                    تفصيل الوعاء الضريبي حسب شرائح ونسب الضريبة
                   </h3>
                   <p className="text-sm text-ink-muted dark:text-ink-dark-muted mt-1">
                     تفكيك مبيعات الأصناف الخاضعة والمعفاة ومبالغ الضريبة المحسوبة بدقة

@@ -21,6 +21,7 @@ import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
 import { usePrinterExtras } from './settings/usePrinterExtras';
 import { DEFAULT_DEVELOPER_SIGNATURE, normalizeReceiptText, receiptTextLimitError, resolveReceiptFooter, resolveReceiptSignature } from '../utils/receiptLayout';
 import { invalidateReportPaperCache, normalizeReportPaper, type ReportPaper } from '../utils/printReport';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 
 /** Owner-facing screens only: everything reserved for the root account lives in the root console (views/root). */
 export type SettingsSubTab = 'profile' | 'policies' | 'backup' | 'printer';
@@ -51,6 +52,7 @@ const SettingsViewContent = ({
   const printerExtras = usePrinterExtras(isEnabled('feature_kitchen_printer'));
   const allowedSubTabs = getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission });
   const subTab: SettingsSubTab = resolveSettingsSubTab(activeSubTab, allowedSubTabs);
+  const motionPanel = useMotionPanel(subTab);
   const [storeName, setStoreName] = useState('متجر رفيق');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -426,7 +428,7 @@ const SettingsViewContent = ({
     },
     policies: {
       title: 'سياسات البيع والمخزون',
-      subtitle: 'البيع بالسالب، إلزام الوردية، ضريبة القيمة المضافة (VAT)، وحد الدين للزبائن الجدد',
+      subtitle: 'البيع بالسالب، إلزام الوردية، ضريبة القيمة المضافة، وحد الدين للزبائن الجدد',
       icon: ClipboardList,
     },
     backup: {
@@ -483,9 +485,9 @@ const SettingsViewContent = ({
   });
 
   return (
-    <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-4 sm:p-5 gap-5 overflow-y-auto select-none">
+    <div {...motionPanel} className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-4 sm:p-5 gap-5 overflow-y-auto select-none">
       {/* 1. Top Header */}
-      <div className="min-h-[4.5rem] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 shrink-0">
+      <div className="motion-static min-h-[4.5rem] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 shrink-0">
         <div className="flex items-center gap-4 min-w-0">
           <div className="w-11 h-11 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
             <TabIcon className="w-5 h-5 text-paid dark:text-paid-bright" />

@@ -11,6 +11,7 @@ import {
 import { ReceiptModal } from '../components/ReceiptModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UndoToast } from '../components/UndoToast';
+import { useExitValue } from '../hooks/useExitTransition';
 import { WeightInputModal } from '../components/WeightInputModal';
 import { QuickItemsManagerModal } from '../components/QuickItemsManagerModal';
 import { QuickFastItemModal } from '../components/QuickFastItemModal';
@@ -127,6 +128,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const showDeliveryManagement = showCafeMode && isEnabled('feature_delivery_management');
 
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedCartIndex, setSelectedCartIndex] = useState<number | null>(null);
   const [barcodeQuery, setBarcodeQuery] = useState('');
   const [discountPiasters, setDiscountPiasters] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -205,6 +207,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     return null;
   });
   const [undoItem, setUndoItem] = useState<{ item: CartItem; index: number } | null>(null);
+  const undoToast = useExitValue(undoItem);
   const [weightModalProduct, setWeightModalProduct] = useState<{
     id?: string;
     name: string;
@@ -382,6 +385,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const confirmClearCart = () => {
     setIsClearConfirmOpen(false);
     setCart([]);
+    setSelectedCartIndex(null);
     setDiscountPiasters(0);
     setSelectedCustomerId('');
     setActiveInsuranceClaim(null);
@@ -541,6 +545,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         item.isDivisible = isDivisible;
         item.totalPiasters = calculateLineTotal(item.unitPricePiasters, updatedQty, item.discountPiasters);
         item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+        setSelectedCartIndex(idx);
         return updated;
       }
 
@@ -583,6 +588,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         }, 80);
       }
 
+      setSelectedCartIndex(0);
       return [newItem, ...prev];
     });
 
@@ -940,9 +946,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           kotPrintedQtyMilli: it.quantityMilli,
         }))
       );
-      showStatus(res?.message || 'تم إرسال طلب المطبخ والبار (KOT)', 'success');
+      showStatus(res?.message || 'تم إرسال طلب المطبخ والبار', 'success');
     } catch (err) {
-      showStatus(err instanceof Error ? err.message : 'تعذر طباعة تذكرة المطبخ KOT', 'error');
+      showStatus(err instanceof Error ? err.message : 'تعذر طباعة تذكرة المطبخ', 'error');
     } finally {
       setKotPrinting(false);
     }
@@ -981,6 +987,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         totalPiasters: netTotalPiasters,
       });
       setCart([]);
+      setSelectedCartIndex(null);
       setDiscountPiasters(0);
       setSelectedCustomerId('');
       resetCartSession();
@@ -1348,7 +1355,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
     // Story 137 / Feature #194: Hard lock checkout when severe DDI is un-overridden
     if (isDdiActive && ddiResult && ddiResult.hasInteractions && ddiResult.maxSeverity === 'severe' && !isDdiOverridden) {
-      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة (Severe DDI)! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
+      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
       setIsDdiModalOpen(true);
       return;
     }
@@ -1465,6 +1472,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }
 
       setCart([]);
+      setSelectedCartIndex(null);
       setDiscountPiasters(0);
       setSelectedCustomerId('');
       setPaymentMethod('cash');
@@ -1804,12 +1812,24 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         e.preventDefault();
         setIsSearchDropdownOpen(true);
         setSelectedDropdownIndex((prev) => (prev + 1) % liveSearchResults.length);
+      } else if (cart.length > 0) {
+        e.preventDefault();
+        setSelectedCartIndex((prev) => {
+          if (prev === null) return 0;
+          return Math.min(prev + 1, cart.length - 1);
+        });
       }
     } else if (e.key === 'ArrowUp') {
       if (liveSearchResults.length > 0) {
         e.preventDefault();
         setIsSearchDropdownOpen(true);
         setSelectedDropdownIndex((prev) => (prev - 1 + liveSearchResults.length) % liveSearchResults.length);
+      } else if (cart.length > 0) {
+        e.preventDefault();
+        setSelectedCartIndex((prev) => {
+          if (prev === null) return cart.length - 1;
+          return Math.max(prev - 1, 0);
+        });
       }
     } else if (e.key === 'Escape') {
       dismissLiveSearch();
@@ -2160,8 +2180,86 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }
       return prev.filter((_, i) => i !== index);
     });
+    setSelectedCartIndex((prev) => {
+      const newLen = cart.length - 1;
+      if (newLen <= 0) return null;
+      if (prev === null) return 0;
+      if (prev === index) return Math.min(index, newLen - 1);
+      if (prev > index) return prev - 1;
+      return prev;
+    });
+    barcodeInputRef.current?.focus();
+  }, [cart.length]);
+
+  const handleSelectCartItem = useCallback((index: number) => {
+    setSelectedCartIndex(index);
     barcodeInputRef.current?.focus();
   }, []);
+
+  const onSelectNextCartItem = useCallback(() => {
+    if (cart.length === 0) return;
+    setSelectedCartIndex((prev) => {
+      if (prev === null) return 0;
+      return Math.min(prev + 1, cart.length - 1);
+    });
+  }, [cart.length]);
+
+  const onSelectPrevCartItem = useCallback(() => {
+    if (cart.length === 0) return;
+    setSelectedCartIndex((prev) => {
+      if (prev === null) return cart.length - 1;
+      return Math.max(prev - 1, 0);
+    });
+  }, [cart.length]);
+
+  const handleCartBackspace = useCallback(() => {
+    if (cart.length === 0) {
+      showStatus('السلة فارغة', 'warning');
+      return;
+    }
+
+    const targetIndex = (selectedCartIndex !== null && selectedCartIndex >= 0 && selectedCartIndex < cart.length)
+      ? selectedCartIndex
+      : 0;
+
+    const targetItem = cart[targetIndex];
+    if (!targetItem) return;
+
+    const currentPieces = Math.round(targetItem.quantityMilli / 1000);
+
+    if (targetItem.unit === 'kg') {
+      if (targetItem.quantityMilli > 1000) {
+        const newQtyMilli = targetItem.quantityMilli - 1000;
+        setCart((prev) => {
+          const updated = [...prev];
+          const it = updated[targetIndex];
+          if (!it) return prev;
+          const newTotal = calculateLineTotal(it.unitPricePiasters, newQtyMilli, it.discountPiasters);
+          const newTax = calculateTaxPiasters(newTotal, it.taxRatePercent || 0, true);
+          updated[targetIndex] = {
+            ...it,
+            quantityMilli: newQtyMilli,
+            totalPiasters: newTotal,
+            taxPiasters: newTax,
+          };
+          return updated;
+        });
+        showStatus(`تم إنقاص وزن "${targetItem.productName}" بمقدار 1 كجم`, 'success');
+      } else {
+        removeItem(targetIndex);
+        showStatus(`تم حذف "${targetItem.productName}" من السلة`, 'success');
+      }
+      return;
+    }
+
+    if (currentPieces > 1) {
+      updateQuantity(targetIndex, -1);
+      showStatus(`تم إنقاص كمية "${targetItem.productName}" إلى ${currentPieces - 1}`, 'success');
+    } else {
+      removeItem(targetIndex);
+      showStatus(`تم حذف "${targetItem.productName}" من السلة`, 'success');
+    }
+  }, [cart, selectedCartIndex, updateQuantity, removeItem, showStatus]);
 
   const handleDismissUndo = useCallback(() => {
     setUndoItem(null);
@@ -2398,7 +2496,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
     // Story 137 / Feature #194: Hard lock fast cash checkout (F12) when severe DDI is un-overridden
     if (isDdiActive && ddiResult && ddiResult.hasInteractions && ddiResult.maxSeverity === 'severe' && !isDdiOverridden) {
-      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة (Severe DDI)! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
+      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
       setIsDdiModalOpen(true);
       return;
     }
@@ -2545,18 +2643,44 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     },
     hasPermission,
     isAdmin,
+    selectedCartIndex,
+    handleCartBackspace,
+    onSelectNextCartItem,
+    onSelectPrevCartItem,
   });
 
-  // Focus Management - Always return focus to barcode/search input when POS is active
+  // Focus Management - Keep barcode/search input focused when interacting with non-input POS elements
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || isAnyModalOpen) return;
 
-    if (!isAnyModalOpen) {
-      const timer = setTimeout(() => {
-        barcodeInputRef.current?.focus();
-      }, 60);
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      barcodeInputRef.current?.focus();
+    }, 60);
+
+    const handleWindowClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const isInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+      const isModal = Boolean(target.closest('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+      if (isInput || isModal) return;
+
+      setTimeout(() => {
+        const hasOpenModal = Boolean(document.querySelector('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+        if (!isAnyModalOpen && !hasOpenModal && barcodeInputRef.current && document.activeElement !== barcodeInputRef.current) {
+          const currentActive = document.activeElement as HTMLElement | null;
+          const currentIsInput = currentActive instanceof HTMLInputElement || currentActive instanceof HTMLTextAreaElement;
+          if (!currentIsInput) {
+            barcodeInputRef.current.focus();
+          }
+        }
+      }, 50);
+    };
+
+    window.addEventListener('click', handleWindowClick);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handleWindowClick);
+    };
   }, [isAnyModalOpen, isActive]);
 
   return (
@@ -2565,7 +2689,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       <div className="flex-1 flex flex-row overflow-hidden">
         
         {/* ================= REGION A: BARCODE SEARCH & CART TABLE ================= */}
-        <section className={`${showFastItems ? 'flex-1 min-w-[360px]' : 'flex-1'} h-full bg-surface dark:bg-surface-dark hairline-l flex flex-col overflow-hidden`}>
+        <section className={`${showFastItems ? 'flex-1 min-w-[22.5rem]' : 'flex-1'} h-full bg-surface dark:bg-surface-dark hairline-l flex flex-col overflow-hidden`}>
           {showCafeMode && (
             <PosOrderModeBar
               orderType={orderType}
@@ -2703,11 +2827,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
           <PosCartTable
             cart={cart}
+            selectedCartIndex={selectedCartIndex}
+            onSelectCartItem={handleSelectCartItem}
             lastInvoiceNumber={lastInvoiceNumber}
             draftPrompt={draftPrompt}
             onRestoreDraft={() => {
               if (draftPrompt) {
                 setCart(draftPrompt.items);
+                setSelectedCartIndex(0);
                 setDiscountPiasters(draftPrompt.discountPiasters || 0);
                 if (draftPrompt.customerId) setSelectedCustomerId(draftPrompt.customerId);
                 setDraftPrompt(null);
@@ -2903,10 +3030,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       />
 
       {/* 5. UNDO REMOVED ITEM TOAST (Feature #112 / Task 112-3) */}
-      {undoItem && (
+      {undoToast.value && (
         <UndoToast
-          message={`تم حذف الصنف "${undoItem.item.productName}" من السلة.`}
+          message={`تم حذف الصنف "${undoToast.value.item.productName}" من السلة.`}
           durationMs={6000}
+          exiting={undoToast.exiting}
           onUndo={handleUndoRemove}
           onDismiss={handleDismissUndo}
         />

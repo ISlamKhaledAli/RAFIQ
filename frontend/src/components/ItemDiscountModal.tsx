@@ -4,7 +4,9 @@ import { formatArabicCurrency, normalizeArabicNumerals, calculateDiscountAmount 
 import { DiscountEntry, type DiscountType } from './discount/DiscountEntry';
 import type { SaleItem } from '../types/models';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { isFormDirty } from '../utils/dirtyForm';
 
+import { AppButton } from './AppButton';
 interface ItemDiscountModalProps {
   isOpen: boolean;
   item: SaleItem | null;
@@ -32,11 +34,16 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
   onRequestSupervisor,
 }) => {
   const [discountType, setDiscountType] = useState<DiscountType>('amount');
-  const [inputValue, setInputValue] = useState(() => {
+  const [initialInputValue] = useState(() => {
     return item && item.discountPiasters > 0 ? (item.discountPiasters / 100).toFixed(2) : '';
   });
+  const [inputValue, setInputValue] = useState(initialInputValue);
 
-  const isDirty = inputValue.trim() !== '' && inputValue.trim() !== '0';
+  // The line's existing discount is pre-filled: only a different value or type is a change
+  const isDirty = isFormDirty(
+    { value: parseFloat(normalizeArabicNumerals(initialInputValue)) || 0, type: 'amount' },
+    { value: parseFloat(normalizeArabicNumerals(inputValue)) || 0, type: discountType },
+  );
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -88,10 +95,10 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-in fade-in duration-150"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-md max-h-full flex flex-col overflow-hidden text-right text-ink dark:text-ink-dark select-none animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-xl border border-line dark:border-line-dark w-full max-w-md max-h-full flex flex-col overflow-hidden text-right text-ink dark:text-ink-dark select-none transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-line dark:border-line-dark shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -105,15 +112,7 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg border border-transparent text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 focus-visible:border-brand dark:focus-visible:border-brand-bright transition-colors cursor-pointer"
-            title="إغلاق"
-            aria-label="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" icon={X} onClick={() => void requestClose()} title="إغلاق" aria-label="إغلاق" />
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
@@ -143,7 +142,7 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
                   <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
                   <span>{canDiscountLine ? `يتطلب موافقة المشرف (أعلى من ${maxPercentWithoutPin}%)` : 'حسابك لا يملك صلاحية خصم الأصناف'}</span>
                 </span>
-                <span className="font-bold whitespace-nowrap">مطلوب PIN</span>
+                <span className="font-bold whitespace-nowrap">مطلوب رقم سري للمشرف</span>
               </div>
             )}
 
@@ -156,19 +155,12 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
 
           {/* Actions */}
           <div className="flex gap-3 px-5 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
-            <button
-              type="submit"
-              className="flex-1 h-12 bg-brand hover:bg-brand-hover text-white border border-brand dark:border-brand-bright/60 focus-visible:border-brand-bright font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
-            >
+            <AppButton type="submit" variant="primary" size="lg" className="flex-1">
               تأكيد الخصم (Enter)
-            </button>
-            <button
-              type="button"
-              onClick={() => void requestClose()}
-              className="px-5 h-12 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark focus-visible:border-brand dark:focus-visible:border-brand-bright text-ink dark:text-ink-dark font-semibold rounded-xl transition-colors cursor-pointer"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="lg" onClick={() => void requestClose()}>
               إلغاء
-            </button>
+            </AppButton>
           </div>
         </form>
       </div>

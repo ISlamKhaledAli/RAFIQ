@@ -10,6 +10,7 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { AppButton } from './AppButton';
 
 interface DosageLabelModalProps {
   isOpen: boolean;
@@ -136,13 +137,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Messages */}
@@ -310,7 +305,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
           {/* Right/Live Label Simulation (5 Cols) */}
           <div className="lg:col-span-5 flex flex-col items-center justify-center p-6 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
             <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider mb-3">
-              معاينة الملصق الحراري الفعلي (Live Preview)
+              معاينة الملصق الحراري الفعلي
             </span>
 
             {/* Thermal Label Mockup */}
@@ -358,7 +353,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
               </div>
             </div>
 
-            <p className="text-micro text-ink-muted dark:text-ink-dark-muted text-center mt-3 max-w-[280px]">
+            <p className="text-micro text-ink-muted dark:text-ink-dark-muted text-center mt-3 max-w-[17.5rem]">
               يتم إرسال الملصق مباشرة لطابعة الإيصالات أو ملصقات الباركود الحرارية (ESC/POS) بدون هوامش زائدة.
             </p>
           </div>
@@ -366,23 +361,13 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
 
         {/* Footer Actions */}
         <div className="px-6 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
-          >
+          <AppButton variant="subtle" onClick={onClose}>
             إغلاق
-          </button>
+          </AppButton>
 
-          <button
-            type="button"
-            onClick={handlePrint}
-            disabled={printing}
-            className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold rounded-lg bg-brand hover:bg-brand-dark text-white shadow-md hover:shadow-lg transition-all disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
-          >
-            <Printer className="w-4 h-4" />
-            <span>{printing ? 'جارٍ إرسال أمر الطباعة...' : `طباعة الملصق الحراري (${copies} نسخ)`}</span>
-          </button>
+          <AppButton variant="primary" icon={Printer} onClick={handlePrint} loading={printing}>
+            {printing ? 'جارٍ إرسال أمر الطباعة...' : `طباعة الملصق الحراري (${copies} نسخ)`}
+          </AppButton>
         </div>
       </div>
     </div>

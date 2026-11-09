@@ -26,7 +26,7 @@ function Rows({ rows, small = false }: { rows: ReceiptRow[]; small?: boolean }) 
 }
 
 // The real invoice barcode (Code 128) at its printed physical size: whole-dot modules, distinctive RFQ-INV- signature underneath, always black on white.
-function InvoiceBarcode({ value, paper }: { value: string; paper: ReceiptPaperWidth }) {
+function InvoiceBarcode({ value, paper, showText = true }: { value: string; paper: ReceiptPaperWidth; showText?: boolean }) {
   const bits = encodeInvoiceBarcode(value);
   if (!bits) return null;
   const layout = layoutReceiptBarcode(bits.length, paper);
@@ -54,9 +54,11 @@ function InvoiceBarcode({ value, paper }: { value: string; paper: ReceiptPaperWi
           <rect key={bar.x} x={bar.x} y={0} width={bar.width} height={1} fill="currentColor" />
         ))}
       </svg>
-      <div className="text-micro font-mono font-bold tracking-wider text-black mt-0.5 select-text">
-        {value}
-      </div>
+      {showText && (
+        <div className="text-micro font-mono font-bold tracking-wider text-black mt-0.5 select-text">
+          {value}
+        </div>
+      )}
     </div>
   );
 }
@@ -231,7 +233,7 @@ export function ReceiptPaper({ model, paper, logoUrl, id }: ReceiptPaperProps) {
         </>
       )}
 
-      {model.barcode && <InvoiceBarcode value={model.barcode.value} paper={paper} />}
+      {model.barcode && <InvoiceBarcode value={model.barcode.value} paper={paper} showText={Boolean(model.invoiceLabel)} />}
 
       <div className="border-t border-dashed border-black my-1.5"></div>
       {model.coldChainNotice && <div className="text-center font-bold break-words mb-0.5">{model.coldChainNotice}</div>}

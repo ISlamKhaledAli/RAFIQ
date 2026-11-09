@@ -40,29 +40,33 @@ export function packageLineGross(packageCostPiasters: number, quantityMilli: num
  */
 export function computePurchaseLine(item: NewPurchaseLineItem): PurchaseLineAmounts {
   const packSize = resolvePackSize(item);
+  const isPackage = resolvePurchaseUnitMode(item) === 'package' && packSize > 1;
   const quantityMilli = Math.round((item.quantityUnits || 0) * 1000);
-  const bonusQuantityMilli = Math.max(0, Math.round((item.bonusQuantityUnits || 0) * packSize * 1000));
+  const bonusMultiplier = isPackage ? packSize : 1;
+  const bonusQuantityMilli = Math.max(0, Math.round((item.bonusQuantityUnits || 0) * bonusMultiplier * 1000));
   const unitCostPiasters = item.unitCostPiasters;
 
-  if (packSize <= 1) {
+  if (!isPackage) {
+    const packageCostPiasters = packSize > 1 ? (unitCostPiasters * packSize) : unitCostPiasters;
     return {
       quantityMilli,
       bonusQuantityMilli,
       conversionFactor: 1,
-      packageCostPiasters: unitCostPiasters,
+      packageCostPiasters,
       unitCostPiasters,
       lineGrossPiasters: calculateLineTotal(unitCostPiasters, quantityMilli),
     };
   }
 
-  const packagePriced = resolvePurchaseUnitMode(item) === 'package' && (item.packageCostPiasters || 0) > 0;
+  const packagePriced = (item.packageCostPiasters || 0) > 0;
   const packageCostPiasters = packagePriced ? (item.packageCostPiasters as number) : unitCostPiasters * packSize;
+  const effectiveUnitCost = packagePriced ? Math.round(packageCostPiasters / packSize) : unitCostPiasters;
   return {
     quantityMilli,
     bonusQuantityMilli,
     conversionFactor: packSize,
     packageCostPiasters,
-    unitCostPiasters,
+    unitCostPiasters: effectiveUnitCost,
     lineGrossPiasters: packageLineGross(packageCostPiasters, quantityMilli, packSize),
   };
 }

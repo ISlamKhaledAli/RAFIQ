@@ -7,7 +7,6 @@ import {
   CheckCircle2, 
   Copy, 
   Check, 
-  Loader2, 
   Lock, 
   Sliders, 
   ShieldAlert,
@@ -16,6 +15,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RequiredMark } from './RequiredMark';
+import { AppButton } from './AppButton';
 
 export interface PinSettingsModalProps {
   isOpen: boolean;
@@ -245,13 +245,13 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
       onClick={handleBackdropClick}
     >
       <div 
-        className="w-full max-w-lg bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark overflow-hidden flex flex-col max-h-[90vh] text-ink dark:text-ink-dark"
+        className="w-full max-w-2xl bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark overflow-hidden flex flex-col max-h-[90vh] text-ink dark:text-ink-dark"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-brand dark:bg-surface-dark-2 text-white dark:text-ink-dark px-6 py-4 flex items-center justify-between border-b border-brand-dark dark:border-line-dark">
+        <div className="bg-brand dark:bg-surface-dark-2 text-white dark:text-ink-dark px-6 py-4 flex items-center justify-between border-b border-brand-dark dark:border-line-dark shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-white/10 dark:bg-surface-dark-3 flex items-center justify-center border border-white/20 dark:border-line-dark text-white dark:text-brand-bright">
               <KeyRound className="w-5 h-5" />
@@ -266,14 +266,15 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
           <button
             type="button"
             onClick={requestClose}
-            className="p-1.5 rounded-lg text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition-colors"
+            aria-label="إغلاق"
+            className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm bg-canvas dark:bg-canvas-dark">
+        <div className="p-6 overflow-y-auto space-y-6 flex-1 min-h-0 text-sm bg-canvas dark:bg-canvas-dark">
           {error && (
             <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 rounded-xl text-xs text-danger dark:text-danger-bright flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -302,14 +303,9 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
                 <span className="font-mono text-base font-extrabold text-warn dark:text-warn-bright tracking-wider">
                   {generatedRecoveryCode}
                 </span>
-                <button
-                  type="button"
-                  onClick={copyRecoveryCode}
-                  className="px-3 py-1.5 bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark text-xs font-bold text-ink dark:text-ink-dark rounded-lg border border-line dark:border-line-dark flex items-center gap-1.5 transition-colors"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-paid dark:text-paid-bright" /> : <Copy className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />}
-                  <span>{copied ? 'تم النسخ' : 'نسخ'}</span>
-                </button>
+                <AppButton variant="secondary" size="xs" icon={copied ? Check : Copy} onClick={copyRecoveryCode}>
+                  {copied ? 'تم النسخ' : 'نسخ'}
+                </AppButton>
               </div>
             </div>
           )}
@@ -326,19 +322,15 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
               </div>
             </div>
             {isPinSet && (
-              <button
-                type="button"
+              <AppButton
+                variant={isEnabled ? 'dangerSoft' : 'successSoft'}
+                size="sm"
+                icon={Power}
                 onClick={() => void handleToggleEnable()}
                 disabled={loading}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors border ${
-                  isEnabled 
-                    ? 'bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright border-danger-border dark:border-danger/30' 
-                    : 'bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 text-paid dark:text-paid-bright border-paid-border dark:border-paid-dark-border'
-                }`}
               >
-                <Power className="w-3.5 h-3.5" />
-                <span>{isEnabled ? 'إيقاف مؤقت' : 'تفعيل'}</span>
-              </button>
+                {isEnabled ? 'إيقاف مؤقت' : 'تفعيل'}
+              </AppButton>
             )}
           </div>
 
@@ -365,7 +357,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
                     type="checkbox"
                     checked={Boolean(protectedActions[act.id])}
                     onChange={(e) => void handleToggleAction(act.id, e.target.checked)}
-                    className="w-4 h-4 rounded text-brand focus:ring-brand cursor-pointer"
+                    className="cursor-pointer"
                   />
                   <span className="text-xs font-medium text-ink dark:text-ink-dark leading-tight">
                     {act.label}
@@ -430,14 +422,16 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
               </div>
             </div>
 
-            <button
+            <AppButton
               type="submit"
-              disabled={loading || !newPin.trim() || (isPinSet && !currentPin.trim())}
-              className="w-full py-2.5 bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
+              variant="primary"
+              fullWidth
+              icon={ShieldCheck}
+              loading={loading}
+              disabled={!newPin.trim() || (isPinSet && !currentPin.trim())}
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-              <span>{isPinSet ? 'تحديث الرقم السري وتوليد كود استرجاع' : 'حفظ الرقم السري وتوليد كود استرجاع'}</span>
-            </button>
+              {isPinSet ? 'تحديث الرقم السري وتوليد كود استرجاع' : 'حفظ الرقم السري وتوليد كود استرجاع'}
+            </AppButton>
           </form>
         </div>
       </div>
@@ -460,7 +454,8 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsConfirmToggleOpen(false)}
-                className="p-1 rounded text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3"
+                aria-label="إغلاق"
+                className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -482,21 +477,19 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
                 />
               </div>
               <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsConfirmToggleOpen(false)}
-                  className="flex-1 py-2 text-xs font-bold rounded-xl border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors text-ink dark:text-ink-dark"
-                >
+                <AppButton variant="secondary" className="flex-1" onClick={() => setIsConfirmToggleOpen(false)}>
                   إلغاء
-                </button>
-                <button
+                </AppButton>
+                <AppButton
                   type="submit"
-                  disabled={loading || !togglePinInput.trim()}
-                  className="flex-1 py-2 text-xs font-bold rounded-xl bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-xs"
+                  variant="primary"
+                  icon={CheckCircle2}
+                  loading={loading}
+                  disabled={!togglePinInput.trim()}
+                  className="flex-1"
                 >
-                  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                  <span>تأكيد</span>
-                </button>
+                  تأكيد
+                </AppButton>
               </div>
             </form>
           </div>

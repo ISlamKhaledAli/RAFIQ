@@ -79,12 +79,19 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "demo:getStatus":
-                    var demoStatus = DatabaseService.DemoData.GetStatus();
+                    string demoStatusType = null;
+                    JObject demoStatusObj = request.Payload as JObject;
+                    if (demoStatusObj != null && demoStatusObj["storeType"] != null)
+                    {
+                        demoStatusType = demoStatusObj["storeType"].ToString();
+                    }
+                    var demoStatus = DatabaseService.DemoData.GetStatus(demoStatusType);
                     response = BridgeResponse.Ok(request.Id, demoStatus);
                     return true;
 
                 case "demo:load":
                     string demoStoreType = "supermarket";
+                    bool demoAcknowledgeReal = false;
                     if (request.Payload != null)
                     {
                         JObject demoLoadObj = request.Payload as JObject;
@@ -92,15 +99,19 @@ namespace RafiqPOS.Bridge
                         {
                             demoStoreType = demoLoadObj["storeType"].ToString();
                         }
+                        if (demoLoadObj != null && demoLoadObj["acknowledgeRealData"] != null)
+                        {
+                            demoAcknowledgeReal = demoLoadObj["acknowledgeRealData"].Value<bool>();
+                        }
                         else if (request.Payload is string)
                         {
                             demoStoreType = request.Payload.ToString();
                         }
                     }
-                    var demoLoadRes = DatabaseService.DemoData.LoadDemoData(demoStoreType);
+                    var demoLoadRes = DatabaseService.DemoData.LoadDemoData(demoStoreType, demoAcknowledgeReal);
                     if (!demoLoadRes.Success)
                     {
-                        response = BridgeResponse.Fail(request.Id, "DEMO_LOAD_FAILED", demoLoadRes.Message);
+                        response = BridgeResponse.Fail(request.Id, demoLoadRes.Code ?? "DEMO_LOAD_FAILED", demoLoadRes.Message);
                         return true;
                     }
                     response = BridgeResponse.Ok(request.Id, demoLoadRes);
@@ -110,7 +121,7 @@ namespace RafiqPOS.Bridge
                     var demoClearRes = DatabaseService.DemoData.ClearDemoData();
                     if (!demoClearRes.Success)
                     {
-                        response = BridgeResponse.Fail(request.Id, "DEMO_CLEAR_FAILED", demoClearRes.Message);
+                        response = BridgeResponse.Fail(request.Id, demoClearRes.Code ?? "DEMO_CLEAR_FAILED", demoClearRes.Message);
                         return true;
                     }
                     response = BridgeResponse.Ok(request.Id, demoClearRes);

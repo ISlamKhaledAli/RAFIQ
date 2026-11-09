@@ -157,6 +157,7 @@ namespace RafiqPOS.Bridge
                 if (TryDispatchPurchases(request, out response)) return response;
                 if (TryDispatchInventory(request, out response)) return response;
                 if (TryDispatchPrinting(request, out response)) return response;
+                if (TryDispatchReportFiles(request, out response)) return response;
                 if (TryDispatchAuth(request, out response)) return response;
                 if (TryDispatchTemplates(request, out response)) return response;
                 if (TryDispatchReports(request, out response)) return response;
@@ -592,6 +593,13 @@ namespace RafiqPOS.Bridge
             { "barcode:printLabels", "settings.printer" },
             { "printer:testLabel", "settings.printer" },
             { "printer:printReceipt", "pos.reprint" },
+            { "printer:saveReceiptImage", "pos.reprint" },
+            // The printed or saved document is a screen the user can already see, so any signed-in session may print or save it
+            { "system:showPrintDialog", REQUIRE_SESSION },
+            { "report:getPrinterStatus", REQUIRE_SESSION },
+            { "report:savePdf", REQUIRE_SESSION },
+            { "report:saveFile", REQUIRE_SESSION },
+            { "report:openFolder", REQUIRE_SESSION },
             { "printer:printRecoveryVoucher", REQUIRE_OWNER },
             { "printer:kickDrawer", "shifts.cash_in" },
             { "printer:cutPaper", "settings.printer" },
@@ -656,8 +664,9 @@ namespace RafiqPOS.Bridge
             { "templates:seedProducts", REQUIRE_ADMIN },
             { "templates:resetFirstRun", REQUIRE_ADMIN },
             { "demo:getStatus", REQUIRE_ADMIN },
-            { "demo:load", REQUIRE_ADMIN },
-            { "demo:clear", REQUIRE_ADMIN },
+            // Loads or deletes catalog rows on the live store: owner or developer root only
+            { "demo:load", REQUIRE_OWNER },
+            { "demo:clear", REQUIRE_OWNER },
             { "readiness:getStatus", REQUIRE_ADMIN },
             { "readiness:processTestSale", REQUIRE_ADMIN },
             { "db:testTransaction", REQUIRE_ADMIN },

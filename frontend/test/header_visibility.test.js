@@ -173,7 +173,7 @@ describe('app-shell cleanups', () => {
       assert.ok(shell.includes(pair), `${pair} on the forced PIN shell`);
     }
     const form = fs.readFileSync(path.resolve('src', 'components', 'ForcedPinChangeForm.tsx'), 'utf8');
-    assert.ok(form.includes('dark:disabled:bg-surface-dark-3') && form.includes('disabled:opacity-100'), 'disabled submit stays readable in dark');
+    assert.match(form, /<AppButton\s+type="submit"\s+variant="primary"/, 'the submit uses the shared button, whose disabled state is themed for dark in app_button.test.js');
     assert.ok(!form.includes('text-warn dark:text-warn-bright flex'), 'warning copy uses ink text, not warn-on-soft');
   });
 });

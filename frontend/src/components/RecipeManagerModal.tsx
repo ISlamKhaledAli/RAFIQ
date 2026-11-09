@@ -12,6 +12,9 @@ import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import { RequiredMark } from './RequiredMark';
 import { formatArabicCurrency } from '../utils/money';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import type { Recipe, RecipeIngredient, ProductionBatch } from '../types/cafe';
 import type { Product } from '../types/models';
 
@@ -33,6 +36,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
   onProductsChanged,
 }) => {
   const [activeTab, setActiveTab] = useState<'bom_editor' | 'batch_production'>('bom_editor');
+  const motionPanel = useMotionPanel(activeTab);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [productionLog, setProductionLog] = useState<ProductionBatch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -188,7 +192,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
       });
       if (saved) {
         setRecipeId(saved.id);
-        setSuccessMsg('تم حفظ الوصفة (BOM) وتحديث تكلفة الصنف');
+        setSuccessMsg('تم حفظ الوصفة وتحديث تكلفة الصنف');
         await fetchRecipesAndLog();
         onProductsChanged?.();
       }
@@ -246,8 +250,8 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="motion-modal-backdrop fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
+      <div className="motion-modal-panel bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -255,20 +259,14 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
               <FlaskConical className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="t-modal-title text-ink dark:text-ink-dark">إدارة الرسبي والتصنيع وخصم الخامات التلقائي (Recipes / BOM)</h2>
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">إدارة الرسبي والتصنيع وخصم الخامات التلقائي</h2>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 ربط المشروبات والوجبات والمنتجات بمكوناتها الخام (بالجرام/المللي) مع الخصم الفوري عند البيع أو بالتصنيع المجمع
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger/10 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="secondary" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Tabs */}
@@ -283,8 +281,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
             }`}
           >
             <FlaskConical className="w-3.5 h-3.5" />
-            <span>تكوين رسبي الأصناف (BOM)</span>
-          </button>
+            <span>            تكوين رسبي الأصناف</span>          </button>
 
           {canProduceBatch && (
             <button
@@ -317,7 +314,8 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
           </div>
         )}
 
-        <div className="p-6 overflow-y-auto flex-1">
+        <MotionHeight className="p-6 overflow-y-auto flex-1">
+        <div {...motionPanel}>
           {activeTab === 'bom_editor' ? (
             <form onSubmit={handleSaveRecipe} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left: Product Selection & Depletion Mode */}
@@ -402,7 +400,6 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                     type="checkbox"
                     checked={updateProductCost}
                     onChange={(e) => setUpdateProductCost(e.target.checked)}
-                    className="accent-brand"
                   />
                   <span>تحديث تكلفة الصنف في الكتالوج تلقائياً</span>
                 </label>
@@ -445,14 +442,9 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                   </div>
 
                   <div className="flex items-end">
-                    <button
-                      type="button"
-                      onClick={handleAddIngredient}
-                      className="w-full py-2 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1 hover:opacity-90 transition-opacity"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>إضافة للوصفة</span>
-                    </button>
+                    <AppButton variant="primary" icon={Plus} onClick={handleAddIngredient} fullWidth>
+                      إضافة للوصفة
+                    </AppButton>
                   </div>
                 </div>
 
@@ -474,13 +466,13 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                             • الكمية: {(ing.quantityMilli / 1000).toFixed(3)} ({ing.quantityMilli} مللي/جم)
                           </span>
                         </div>
-                        <button
-                          type="button"
+                        <AppButton
+                          variant="dangerSubtle"
+                          size="xs"
+                          icon={Trash2}
                           onClick={() => handleRemoveIngredient(ing.rawProductId)}
-                          className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          aria-label="حذف المكوّن"
+                        />
                       </div>
                     ))
                   )}
@@ -488,25 +480,21 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
 
                 <div className="flex items-center justify-between pt-3 border-t border-line dark:border-line-dark">
                   {recipeId ? (
-                    <button
-                      type="button"
-                      onClick={handleDeleteRecipe}
-                      className="px-3 py-2 rounded-xl bg-danger/10 dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-xs font-black hover:bg-danger/20 transition-colors"
-                    >
+                    <AppButton variant="dangerSoft" onClick={handleDeleteRecipe}>
                       حذف الرسبي
-                    </button>
+                    </AppButton>
                   ) : (
                     <div />
                   )}
 
-                  <button
+                  <AppButton
                     type="submit"
+                    variant="success"
+                    icon={CheckCircle2}
                     disabled={loading || !selectedProductId || ingredients.length === 0}
-                    className="px-6 py-2.5 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark flex items-center gap-1.5 shadow-sm transition-opacity"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>حفظ واعتماد الوصفة (BOM)</span>
-                  </button>
+                    حفظ واعتماد الوصفة
+                  </AppButton>
                 </div>
               </div>
             </form>
@@ -560,13 +548,9 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={loading || !produceRecipeId}
-                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-opacity"
-                >
+                <AppButton type="submit" variant="success" disabled={loading || !produceRecipeId} fullWidth>
                   تنفيذ التصنيع (خصم الخامات وإضافة المنتج التام)
-                </button>
+                </AppButton>
               </form>
 
               {/* Production Batches Log */}
@@ -604,6 +588,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
             </div>
           )}
         </div>
+        </MotionHeight>
       </div>
     </div>
   );

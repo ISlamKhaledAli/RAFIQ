@@ -1,5 +1,6 @@
 import React from 'react';
 import { Receipt, X, Tag } from 'lucide-react';
+import { AppButton } from '../../components/AppButton';
 import type { Purchase } from '../../types/models';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatMoney } from './types';
@@ -24,7 +25,7 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
       onClick={handleBackdropClick}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
     >
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         <div className="h-14 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs">
@@ -34,13 +35,7 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
               تفاصيل فاتورة الشراء رقم #{purchase.invoiceNumber}
             </h3>
           </div>
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => void requestClose()} />
         </div>
 
         {/* Header info */}
@@ -187,15 +182,15 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
 
         {onPrintLabels && (
           <div className="p-3.5 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex items-center shrink-0">
-            <button
-              type="button"
+            <AppButton
+              variant="primary"
+              size="md"
+              icon={Tag}
               onClick={() => onPrintLabels(purchase)}
-              className="px-4 h-9 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
               title="طباعة ملصقات الباركود لأصناف هذه الفاتورة بالكميات المشتراة"
             >
-              <Tag className="w-4 h-4" />
-              <span>طباعة ملصقات الباركود</span>
-            </button>
+              طباعة ملصقات الباركود
+            </AppButton>
           </div>
         )}
       </div>

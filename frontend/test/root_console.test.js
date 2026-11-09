@@ -69,7 +69,7 @@ describe('root console access rules (pure)', () => {
 
 describe('root console wiring in App', () => {
   it('has one root nav item, gated by canAccessRootConsole, and no separate audit tab', () => {
-    assert.ok(/\{ id: 'root' as TabType, label: 'لوحة المطور \(Root\)'/.test(app), 'the nav label');
+    assert.ok(/\{ id: 'root' as TabType, label: 'لوحة المطور'/.test(app), 'the nav label');
     assert.ok(app.includes('const canAccessRoot = canAccessRootConsole({ isRoot, canViewAudit: hasPermission(\'audit_log.view\') });'));
     assert.ok(app.includes("case 'root': return canAccessRoot;"), 'tab gate');
     assert.ok(!/TabType = [^;]*'audit'/.test(app) && !app.includes("id: 'audit' as TabType") && !app.includes('canAccessAudit'), 'the audit log is a root page now');
@@ -182,7 +182,7 @@ describe('every root feature has exactly one home', () => {
   it('the wizard is reopened from the root features page only (App keeps the first-run flow)', () => {
     assert.deepEqual(importers('FirstRunWizardModal').sort(), ['App.tsx', 'views/root/RootConsoleView.tsx']);
     assert.equal((read('views/root/RootFeaturesPage.tsx').match(/onOpenWizard/g) || []).length >= 2, true);
-    assert.equal(rootFiles.filter((f) => read(`views/root/${f}`).includes('<Sparkles')).join(','), 'RootFeaturesPage.tsx', 'one wizard button');
+    assert.equal(rootFiles.filter((f) => /\bSparkles\b/.test(read(`views/root/${f}`))).join(','), 'RootFeaturesPage.tsx', 'one wizard button');
   });
 
   it('feature toggles live only on the root features page', () => {
@@ -203,7 +203,7 @@ describe('root pages: layout language and content rules', () => {
   it('use the shared settings parts, 44px controls and no cramped text', () => {
     for (const [name, src] of pages) {
       if (name === 'RootConsoleView.tsx' || name === 'SignatureImageField.tsx') continue;
-      assert.ok(/settingsParts/.test(src), `${name} uses the shared settings parts`);
+      assert.ok(/settingsParts|AppButton/.test(src), `${name} uses the shared settings parts or the shared button`);
       assert.ok(!/h-9 px|h-10 px/.test(src), `${name} has a sub-44px button`);
       assert.ok(!/text-\[\d+px\]|\btext-xs font-black\b/.test(src), `${name} uses an ad-hoc text size`);
     }

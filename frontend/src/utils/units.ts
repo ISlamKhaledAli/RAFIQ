@@ -15,10 +15,12 @@ export function formatUnitArabic(unit?: string | null): string {
   if (u === 'kg' || u === 'kilogram' || u === 'kilo') return 'كجم';
   if (u === 'g' || u === 'gram' || u === 'gm') return 'جم';
   if (u === 'carton' || u === 'cartons' || u === 'ctn') return 'كرتونة';
-  if (u === 'pack' || u === 'packs' || u === 'packet') return 'باكت';
-  if (u === 'strip' || u === 'strips') return 'شريط';
+  if (u === 'pack' || u === 'packs' || u === 'packet' || u === 'pkt' || u === 'pkg') return 'باكت';
+  if (u === 'strip' || u === 'strips' || u === 'blister' || u === 'blisters') return 'شريط';
   if (u === 'tablet' || u === 'tablets' || u === 'pill' || u === 'pills' || u === 'tab') return 'قرص';
   if (u === 'capsule' || u === 'capsules' || u === 'cap') return 'كبسولة';
+  if (u === 'ampoule' || u === 'ampoules' || u === 'amp' || u === 'vial' || u === 'vials') return 'أمبول';
+  if (u === 'tube' || u === 'tubes') return 'أنبوبة';
   if (u === 'bottle' || u === 'bottles') return 'زجاجة';
   if (u === 'can' || u === 'cans') return 'كانز';
   if (u === 'liter' || u === 'l' || u === 'liters') return 'لتر';
@@ -26,6 +28,13 @@ export function formatUnitArabic(unit?: string | null): string {
   if (u === 'roll' || u === 'rolls') return 'بكرة';
   if (u === 'bag' || u === 'bags') return 'كيس';
   if (u === 'dozen' || u === 'dozens') return 'دستة';
+  if (u === 'pair' || u === 'pairs') return 'زوج';
+  if (u === 'set' || u === 'sets') return 'طقم';
+  if (u === 'sheet' || u === 'sheets') return 'فرخ';
+  if (u === 'cup' || u === 'cups') return 'كوب';
+  if (u === 'tin' || u === 'tins') return 'صفيحة';
+  if (u === 'sack' || u === 'sacks') return 'شوال';
+  if (u === 'jar' || u === 'jars') return 'برطمان';
   return unit.trim();
 }
 

@@ -690,13 +690,22 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.IsTrue(ownerDto.IsOwner);
             Assert.IsFalse(SecurityService.MapToDto(UserRepo.GetById(RootId)).HasPin, "المطور بلا رقم ثابت");
 
+            // The staff list is strictly below the caller (see S68); the DTO flag is checked on the mapped records
             var all = SecurityService.GetAllUsers();
-            int owners = 0;
             for (int i = 0; i < all.Count; i++)
             {
-                if (all[i].IsOwner) owners++;
+                Assert.IsFalse(all[i].IsOwner, "المالك لا يرى نفسه في قائمة الموظفين");
             }
-            Assert.AreEqual(1, owners, "مالك واحد فقط في القائمة");
+            Assert.IsTrue(all.Exists(delegate(UserDto d) { return d.Id == pwOnly.Id; }));
+
+            LoginAs(RootId);
+            int owners = 0;
+            var rootList = SecurityService.GetAllUsers();
+            for (int i = 0; i < rootList.Count; i++)
+            {
+                if (rootList[i].IsOwner) owners++;
+            }
+            Assert.AreEqual(1, owners, "مالك واحد فقط في القائمة كما يراها المطور");
         }
 
         [Test]
@@ -706,28 +715,25 @@ namespace RafiqPOS.Tests.Scenarios
             var underManager = CreateCashierBy(m.Id, "cash_y1");
             var underOwner = CreateCashierBy(OwnerId, "cash_y2");
 
+            // The owner's tree starts at his managers and cashiers; his own node and root are never part of it
             LoginAs(OwnerId);
-            var tree = SecurityService.GetUserTree();
-
-            UserDto ownerNode = null;
-            for (int i = 0; i < tree.Count; i++)
+            var ownerTree = SecurityService.GetUserTree();
+            for (int i = 0; i < ownerTree.Count; i++)
             {
-                Assert.AreNotEqual("root", tree[i].Role, "حساب المطور مخفي عن المالك في الشجرة");
-                if (tree[i].Id == OwnerId) { ownerNode = tree[i]; }
+                Assert.AreNotEqual("root", ownerTree[i].Role, "حساب المطور مخفي عن المالك في الشجرة");
+                Assert.AreNotEqual(OwnerId, ownerTree[i].Id, "المالك لا يرى نفسه في الشجرة");
             }
-            Assert.IsNotNull(ownerNode, "المالك جذر الشجرة");
 
+            // Root sees the owner as the top node (the developer himself is not listed) and the branches under him
             LoginAs(RootId);
             var rootTree = SecurityService.GetUserTree();
-            int rootIndex = -1;
-            int ownerIndexForRoot = -1;
+            UserDto ownerNode = null;
             for (int i = 0; i < rootTree.Count; i++)
             {
-                if (rootTree[i].Role == "root") rootIndex = i;
-                if (rootTree[i].Id == OwnerId) ownerIndexForRoot = i;
+                Assert.AreNotEqual("root", rootTree[i].Role, "حساب المطور لا يرى نفسه في الشجرة");
+                if (rootTree[i].Id == OwnerId) ownerNode = rootTree[i];
             }
-            Assert.GreaterOrEqual(rootIndex, 0, "حساب المطور ظاهر في الشجرة لحساب المطور نفسه");
-            Assert.Greater(ownerIndexForRoot, rootIndex, "حساب المطور يسبق المالك");
+            Assert.IsNotNull(ownerNode, "المالك جذر الشجرة كما يراها المطور");
 
             bool seenCashier = false;
             bool managerFound = false;

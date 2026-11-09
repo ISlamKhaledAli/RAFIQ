@@ -11,6 +11,7 @@ import { rafiqConfirm } from '../utils/dialogService';
 import { getStoreTerminology } from '../utils/storeTerminology';
 import { useFeatures } from '../context/useFeatures';
 import { formatUnitArabic } from '../utils/units';
+import { AppButton } from './AppButton';
 
 export interface ProductUnitsEditorProps {
   units?: ProductUnit[];
@@ -201,25 +202,20 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
           {isConfigured && (
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="sm"
+              icon={Trash2}
               onClick={handleResetPackaging}
-              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark hover:border-danger/50 hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
               title={`إلغاء العبوات الإضافية والرجوع لـ (${effectiveBaseUnitName}) فقط`}
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>إلغاء</span>
-            </button>
+              إلغاء
+            </AppButton>
           )}
 
-          <button
-            type="button"
-            onClick={() => setIsWizardOpen(true)}
-            className="px-3.5 py-1.5 bg-brand hover:bg-brand-dark text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-brand-bright" />
-            <span>{isConfigured ? 'تعديل العبوات والتجزئة' : terminology.packagingAddAction}</span>
-          </button>
+          <AppButton variant="primary" size="sm" icon={Sparkles} onClick={() => setIsWizardOpen(true)}>
+            {isConfigured ? 'تعديل العبوات والتجزئة' : terminology.packagingAddAction}
+          </AppButton>
         </div>
       </div>
 

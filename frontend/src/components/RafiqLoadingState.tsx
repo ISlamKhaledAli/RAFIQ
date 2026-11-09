@@ -12,7 +12,7 @@ export interface RafiqLoadingStateProps {
 export const RafiqLoadingState: React.FC<RafiqLoadingStateProps> = ({
   label = 'جاري جلب وتحميل البيانات...',
   sublabel = 'الاتصال بقاعدة البيانات المحلية وتحديث السجلات الحية',
-  minHeight = 'min-h-[220px]',
+  minHeight = 'min-h-[13.75rem]',
   className = '',
   icon,
 }) => {
@@ -71,7 +71,7 @@ export const RafiqTableLoading: React.FC<RafiqTableLoadingProps> = ({
   return (
     <tr>
       <td colSpan={colSpan} className="p-0">
-        <RafiqLoadingState label={label} sublabel={sublabel} minHeight="min-h-[240px]" />
+        <RafiqLoadingState label={label} sublabel={sublabel} minHeight="min-h-[15rem]" />
       </td>
     </tr>
   );

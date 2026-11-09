@@ -8,13 +8,17 @@ import {
   HelpCircle,
   Sparkles,
   Pill,
-  Scale,
   Shirt,
   Compass,
   Zap,
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import { useFeatures } from '../context/useFeatures';
+import { AppButton } from './AppButton';
 import { openHelpCenter } from '../utils/helpService';
+import { findStoreTypeLabel } from '../utils/categoryIconFilter';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -40,6 +44,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
   const { isEnabled } = useFeatures();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | 'pos' | 'payment' | 'store_specific' | 'navigation'>('all');
+  const motionPanel = useMotionPanel(activeCategory);
 
   const [storeType, setStoreType] = useState<string>(() => {
     try {
@@ -61,14 +66,16 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
 
   const isPharmacy = storeType === 'pharmacy' || isEnabled('feature_pharmacy');
   const isClothing = !isPharmacy && (storeType === 'clothing_apparel' || isEnabled('feature_matrix_variants'));
-  const isWeighing = storeType === 'produce_butchery' || isEnabled('feature_scale_weight');
+  const isWeighing = isEnabled('feature_scale_weight');
 
   const storeBadge = useMemo(() => {
-    if (isPharmacy) return { label: 'صيدلية وأدوية', icon: <Pill className="w-3.5 h-3.5 text-paid dark:text-paid-bright" /> };
-    if (isClothing) return { label: 'محلات الملابس والأحذية', icon: <Shirt className="w-3.5 h-3.5 text-brand dark:text-brand-bright" /> };
-    if (isWeighing) return { label: 'أصناف وميزان إلكتروني', icon: <Scale className="w-3.5 h-3.5 text-warn dark:text-warn-bright" /> };
-    return { label: 'أنشطة التجزئة العامة', icon: <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright" /> };
-  }, [isPharmacy, isClothing, isWeighing]);
+    const activityType = isPharmacy ? 'pharmacy' : isClothing ? 'clothing_apparel' : storeType;
+    // No generic fallback label: a shop without a specific activity simply shows no activity badge
+    const label = findStoreTypeLabel(activityType);
+    if (isPharmacy) return { label, icon: <Pill className="w-3.5 h-3.5 text-paid dark:text-paid-bright" /> };
+    if (isClothing) return { label, icon: <Shirt className="w-3.5 h-3.5 text-brand dark:text-brand-bright" /> };
+    return { label, icon: <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright" /> };
+  }, [isPharmacy, isClothing, storeType]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -135,9 +142,22 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
         icon: <ShoppingCart className="w-4 h-4 text-brand dark:text-brand-bright" />,
         shortcuts: [
           {
+            key: 'Backspace',
+            label: 'إنقاص كمية أو حذف الصنف المحدد',
+            desc: 'ينقص كمية الصنف المحدد أو آخر صنف بالسلة، وإذا أصبحت الكمية 1 يحذفه وينتقل للصنف السابق. يعمل وخانة البحث فارغة.',
+            category: 'pos',
+            badge: 'جديد',
+          },
+          {
+            key: '↑ / ↓',
+            label: 'التنقل وتحديد الأصناف بالسلة',
+            desc: 'عندما تكون خانة البحث فارغة، يمكنك التنقل بالأسهم لتحديد صنف بالسلة وإنقاصه أو حذفه بـ Backspace.',
+            category: 'pos',
+          },
+          {
             key: 'F3',
-            label: 'تعديل كمية أو وزن آخر صنف',
-            desc: 'يفتح نافذة الكمية لآخر صنف في السلة (للأصناف بالوزن تفتح نافذة الوزن).',
+            label: 'تعديل كمية أو وزن الصنف المحدد',
+            desc: 'يفتح نافذة الكمية للصنف المحدد أو آخر صنف في السلة (للأصناف بالوزن تفتح نافذة الوزن).',
             category: 'pos',
           },
           {
@@ -255,7 +275,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
     if (storeShortcuts.length > 0) {
       groups.push({
         id: 'store_specific',
-        title: `خاص بنشاطك (${storeBadge.label})`,
+        title: storeBadge.label ? `خاص بنشاطك (${storeBadge.label})` : 'خاص بنشاطك',
         icon: <Zap className="w-4 h-4 text-warn dark:text-warn-bright" />,
         shortcuts: storeShortcuts,
       });
@@ -339,7 +359,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="h-[56px] bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between shrink-0">
+        <div className="h-[3.5rem] bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center text-brand dark:text-brand-bright shadow-2xs shrink-0">
               <Keyboard className="w-4 h-4" />
@@ -355,56 +375,43 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               </div>
               <div className="flex items-center gap-2 text-micro text-ink-muted dark:text-ink-dark-muted truncate">
                 <span>سرعة فائقة بدون لمس الماوس</span>
-                <span className="text-line-hover">•</span>
-                <span className="flex items-center gap-1 font-bold text-paid dark:text-paid-bright">
-                  {storeBadge.icon}
-                  {storeBadge.label}
-                </span>
+                {storeBadge.label && (
+                  <>
+                    <span className="text-line-hover">•</span>
+                    <span className="flex items-center gap-1 font-bold text-paid dark:text-paid-bright">
+                      {storeBadge.icon}
+                      {storeBadge.label}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:border-danger/30 transition-colors cursor-pointer shrink-0"
-            title="إغلاق (Esc)"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="secondary" size="sm" icon={X} aria-label="إغلاق" title="إغلاق (Esc)" onClick={onClose} className="shrink-0" />
         </div>
 
         {/* Toolbar: Search & Category Tabs */}
         <div className="bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
           {/* Quick Search */}
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث عن مفتاح أو عملية (مثلاً: F9, خصم, كاش...)"
-              className="w-full h-8 pl-3 pr-8 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright placeholder:text-ink-muted/70 transition-all"
-            />
-            <Search className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark absolute left-2.5 top-1/2 -translate-y-1/2"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+          <SearchInput
+            size="sm"
+            searchButton={false}
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="ابحث عن مفتاح أو عملية (مثلاً: F9, خصم, كاش...)"
+            ariaLabel="بحث في اختصارات لوحة المفاتيح"
+            className="flex-1 min-w-[12.5rem] max-w-sm"
+          />
 
           {/* Category Tabs */}
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
             <button
               type="button"
               onClick={() => setActiveCategory('all')}
-              className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`h-7 px-2.5 rounded-lg text-xs font-bold whitespace-nowrap ${
                 activeCategory === 'all'
-                  ? 'bg-brand text-white shadow-2xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright shadow-2xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
@@ -413,9 +420,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
             <button
               type="button"
               onClick={() => setActiveCategory('pos')}
-              className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`h-7 px-2.5 rounded-lg text-xs font-bold whitespace-nowrap ${
                 activeCategory === 'pos'
-                  ? 'bg-brand text-white shadow-2xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright shadow-2xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
@@ -424,9 +431,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
             <button
               type="button"
               onClick={() => setActiveCategory('payment')}
-              className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`h-7 px-2.5 rounded-lg text-xs font-bold whitespace-nowrap ${
                 activeCategory === 'payment'
-                  ? 'bg-brand text-white shadow-2xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright shadow-2xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
@@ -435,9 +442,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
             <button
               type="button"
               onClick={() => setActiveCategory('store_specific')}
-              className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+              className={`h-7 px-2.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1 ${
                 activeCategory === 'store_specific'
-                  ? 'bg-paid text-white shadow-2xs'
+                  ? 'bg-paid text-white dark:bg-paid-dark-soft dark:text-paid-bright shadow-2xs'
                   : 'text-paid dark:text-paid-bright hover:bg-paid-soft dark:hover:bg-paid-dark-soft/40'
               }`}
             >
@@ -447,9 +454,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
             <button
               type="button"
               onClick={() => setActiveCategory('navigation')}
-              className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`h-7 px-2.5 rounded-lg text-xs font-bold whitespace-nowrap ${
                 activeCategory === 'navigation'
-                  ? 'bg-brand text-white shadow-2xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright shadow-2xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
@@ -459,7 +466,8 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
         </div>
 
         {/* Content Body: Grid of Shortcut Groups */}
-        <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
+        <MotionHeight className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto">
+          <div {...motionPanel} className="flex flex-col gap-4">
           {filteredGroups.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-center text-ink-muted">
               <Search className="w-8 h-8 text-line-hover" />
@@ -505,7 +513,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
                         </div>
 
                         {/* Visual KBD Key Styling */}
-                        <kbd className="shrink-0 px-2 py-1 font-mono text-micro font-extrabold bg-surface dark:bg-surface-dark border border-line-hover dark:border-line-dark text-brand dark:text-brand-bright rounded-lg shadow-xs select-all text-center min-w-[38px]">
+                        <kbd className="shrink-0 px-2 py-1 font-mono text-micro font-extrabold bg-surface dark:bg-surface-dark border border-line-hover dark:border-line-dark text-brand dark:text-brand-bright rounded-lg shadow-xs select-all text-center min-w-[2.375rem]">
                           {sc.key}
                         </kbd>
                       </div>
@@ -515,27 +523,28 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               ))}
             </div>
           )}
-        </div>
+          </div>
+        </MotionHeight>
 
         {/* Footer */}
-        <div className="h-[48px] bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between shrink-0 text-xs">
+        <div className="h-[3rem] bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between shrink-0 text-xs">
           <div className="flex items-center gap-2 text-ink-muted dark:text-ink-dark-muted hidden sm:flex">
             <span className="w-2 h-2 rounded-full bg-paid animate-pulse" />
             <span>بيع سريع من الكيبورد: F2 للبحث، Enter للإضافة، ثم F12 للدفع كاش وطباعة الإيصال</span>
           </div>
 
           <div className="flex items-center gap-2 mr-auto sm:mr-0">
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="sm"
+              icon={HelpCircle}
               onClick={() => {
                 onClose();
                 openHelpCenter('pos');
               }}
-              className="h-8 px-3 rounded-lg bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
             >
-              <HelpCircle className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-              <span>دليل الكاشير والدعم</span>
-            </button>
+              دليل الكاشير والدعم
+            </AppButton>
           </div>
         </div>
       </div>

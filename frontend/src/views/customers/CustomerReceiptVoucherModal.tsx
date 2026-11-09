@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Printer, X, FileText } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
-import { printCompactReport } from '../../utils/printReport';
+import { usePrintReport } from '../../hooks/usePrintReport';
 import { DEFAULT_DEVELOPER_SIGNATURE, splitReceiptText } from '../../utils/receiptLayout';
 
+import { AppButton } from '../../components/AppButton';
 export interface CustomerReceiptVoucherModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -32,11 +33,13 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen || !customer || !entry) return null;
+  const { print: handlePrint, printing } = usePrintReport({
+    reportName: 'سند قبض ' + (customer ? customer.name : 'عميل'),
+    kind: 'compact',
+    paper: printMode === 'a4' ? 'a4' : 'roll',
+  });
 
-  const handlePrint = () => {
-    void printCompactReport(printMode);
-  };
+  if (!isOpen || !customer || !entry) return null;
 
   const voucherNumber = entry.id.replace('led_', '').toUpperCase();
   const amountPiasters = Math.abs(entry.amountPiasters);
@@ -80,9 +83,7 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
               </button>
             </div>
 
-            <button onClick={onClose} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer">
-              <X className="w-4 h-4" />
-            </button>
+            <AppButton variant="subtle" size="xs" icon={X} onClick={onClose} aria-label="إغلاق" />
           </div>
         </div>
 
@@ -125,7 +126,7 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
               </div>
               <div className="flex justify-between items-center pt-0.5">
                 <span className="font-semibold text-neutral-600">البيان وملاحظات السند:</span>
-                <span className="font-medium text-neutral-800 text-right max-w-[200px]">
+                <span className="font-medium text-neutral-800 text-right max-w-[12.5rem]">
                   {entry.notes || 'سداد نقدي لحساب الآجل'}
                 </span>
               </div>
@@ -176,14 +177,9 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
 
         {/* Footer Actions (Hidden in Print) */}
         <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-line dark:border-line-dark px-4 flex items-center justify-end shrink-0 print:hidden">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="px-4 py-1.5 rounded-lg bg-paid text-white text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 shadow-xs cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>طباعة سند القبض</span>
-          </button>
+          <AppButton variant="success" icon={Printer} onClick={handlePrint} loading={printing}>
+            طباعة سند القبض
+          </AppButton>
         </div>
       </div>
     </div>

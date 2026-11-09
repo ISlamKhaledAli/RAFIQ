@@ -119,6 +119,9 @@ namespace RafiqPOS.Models
         [JsonProperty("totalPiasters")]
         public long TotalPiasters { get; set; }
 
+        [JsonProperty("refundedPiasters")]
+        public long RefundedPiasters { get; set; }
+
         [JsonProperty("paidPiasters")]
         public long PaidPiasters { get; set; }
 

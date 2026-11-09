@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   X, 
   Layers, 
-  Search, 
   Check, 
   AlertCircle, 
   Printer, 
@@ -13,11 +12,14 @@ import {
   ArrowDownLeft, 
   Minus 
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
-import { printReport } from '../utils/printReport';
+import { usePrintReport } from '../hooks/usePrintReport';
 import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from './CustomSelect';
+import { AppButton } from './AppButton';
 import { formatArabicCurrency } from '../utils/money';
+import { formatUnitArabic } from '../utils/units';
 
 interface PharmacyStocktakingModalProps {
   isOpen: boolean;
@@ -326,6 +328,12 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
     }
   };
 
+  const { print: printSheet, printing: isPrintingSheet } = usePrintReport({
+    reportName: 'كشف الجرد الصيدلي',
+    kind: 'a4only',
+    hasData: Boolean(sheet && sheet.items && sheet.items.length > 0),
+  });
+
   if (!isOpen) return null;
 
   return (
@@ -357,23 +365,11 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void printReport({ kind: 'a4only' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
-              title="طباعة كشف الجرد الورقي"
-            >
-              <Printer className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-              <span>طباعة الكشف</span>
-            </button>
+            <AppButton variant="secondary" size="sm" icon={Printer} title="طباعة كشف الجرد الورقي" onClick={printSheet} loading={isPrintingSheet}>
+              طباعة الكشف
+            </AppButton>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={onClose} />
           </div>
         </div>
 
@@ -416,20 +412,17 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
           </div>
 
           {/* Search Query */}
-          <div>
+          <div className="md:ms-5">
             <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
               بحث بالاسم التجاري أو العلمي
             </label>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="اسم الدواء / الباركود..."
-                className="w-full pr-8 pl-3 py-1.5 text-xs rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark focus:border-brand focus:outline-hidden"
-              />
-            </div>
+            <SearchInput
+              size="sm"
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="اسم الدواء / الباركود..."
+              ariaLabel="بحث في أصناف الجرد"
+            />
           </div>
         </div>
 
@@ -559,7 +552,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                         <span className="font-bold text-ink dark:text-ink-dark">مستويات التعبئة:</span>
                         {units.map((u, ui) => (
                           <span key={u.unitId} className="px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark font-mono">
-                            {u.unitName} = {u.conversionFactor} {ui < units.length - 1 ? '←' : ''}
+                            {formatUnitArabic(u.unitName)} = {u.conversionFactor} {ui < units.length - 1 ? '←' : ''}
                           </span>
                         ))}
                       </div>
@@ -604,7 +597,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                                           onChange={(e) => handleCompoundUnitChange(batch.batchId, u.unitId, e.target.value, units)}
                                           className="w-14 px-2 py-1 text-center font-mono font-bold rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink text-xs focus:border-brand focus:outline-hidden"
                                         />
-                                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{u.unitName}</span>
+                                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{formatUnitArabic(u.unitName)}</span>
                                       </div>
                                     ))}
                                   </div>
@@ -622,7 +615,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                                 )}
 
                                 {/* Delta badge */}
-                                <div className="min-w-[90px] text-left">
+                                <div className="min-w-[5.625rem] text-left">
                                   {deltaMilli === 0 ? (
                                     <span className="inline-flex items-center gap-1 text-micro px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid font-bold">
                                       <Minus className="w-3 h-3" /> مطابق
@@ -659,7 +652,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                                     onChange={(e) => handleCompoundUnitChange(item.productId, u.unitId, e.target.value, units)}
                                     className="w-14 px-2 py-1 text-center font-mono font-bold rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink text-xs focus:border-brand focus:outline-hidden"
                                   />
-                                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{u.unitName}</span>
+                                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{formatUnitArabic(u.unitName)}</span>
                                 </div>
                               ))}
                             </div>
@@ -681,7 +674,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                             const dMilli = cMilli - item.bookQuantityMilli;
                             const dUnits = dMilli / 1000;
                             return (
-                              <div className="min-w-[90px] text-left">
+                              <div className="min-w-[5.625rem] text-left">
                                 {dMilli === 0 ? (
                                   <span className="inline-flex items-center gap-1 text-micro px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid font-bold">
                                     <Minus className="w-3 h-3" /> مطابق
@@ -721,23 +714,19 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
-            >
+            <AppButton variant="secondary" size="md" onClick={onClose}>
               إلغاء وتراجع
-            </button>
+            </AppButton>
 
-            <button
-              type="button"
+            <AppButton
+              variant="primary"
+              size="md"
+              icon={Save}
               onClick={handleApplyAdjustments}
               disabled={submitting || stats.diffCount === 0}
-              className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold rounded-lg bg-paid hover:bg-paid/90 text-white shadow-md hover:shadow-lg transition-all disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
             >
-              <Save className="w-4 h-4" />
-              <span>{submitting ? 'جارٍ اعتماد القيود...' : `اعتماد تسوية الجرد (${stats.diffCount} فروقات)`}</span>
-            </button>
+              {submitting ? 'جارٍ اعتماد القيود...' : `اعتماد تسوية الجرد (${stats.diffCount} فروقات)`}
+            </AppButton>
           </div>
         </div>
       </div>

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import {
   ClipboardList,
-  Search,
   CheckSquare,
   Square,
   AlertTriangle,
@@ -28,8 +27,12 @@ import {
   Layers,
   MoreHorizontal,
   ChevronDown,
+  type LucideIcon,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { AppButton } from '../../components/AppButton';
+import { SearchInput } from '../../components/SearchInput';
+import { MENU_PANEL, MENU_ITEM, MENU_ITEM_DANGER, MENU_ITEM_ICON, MENU_ITEM_ICON_DANGER, MENU_DIVIDER, TABLE_ACTION_TRIGGER } from '../../utils/buttonStyles';
 import { useDataSubscription } from '../../utils/eventBus';
 import {
   formatUnitArabic,
@@ -48,11 +51,28 @@ import {
   type DateFilterValue,
   DEFAULT_DATE_FILTER,
   describeDateFilter,
+  getDateFilterPayload,
   getDateFilterRange,
   isDateFilterActive,
   useToday,
 } from '../../utils/dateFilter';
 import { formatShortageDate, matchesShortageDay } from './shortageDates';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
+import { useExitValue } from '../../hooks/useExitTransition';
+import { remToPx } from '../../utils/textScale';
+
+// Same pill geometry as the stock-movements type pills (h-8, rounded-full, text-xs bold); the selected tone follows the status.
+const STATUS_PILL_BASE = 'h-8 px-3.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer';
+const STATUS_PILL_IDLE =
+  'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark';
+const STATUS_PILL_ACTIVE_BRAND = 'bg-brand text-white dark:bg-paid-bright dark:text-surface-dark';
+const STATUS_PILLS: ReadonlyArray<{ id: string; label: string; icon?: LucideIcon; activeClass: string }> = [
+  { id: 'pending', label: 'بانتظار الطلب (معلق)', icon: Clock, activeClass: 'bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark' },
+  { id: 'ordered', label: 'تم الطلب من المورد', icon: Truck, activeClass: STATUS_PILL_ACTIVE_BRAND },
+  { id: 'received', label: 'تم الاستلام بالمخزن', icon: CheckCircle2, activeClass: 'bg-paid text-white dark:bg-paid-bright dark:text-surface-dark' },
+  { id: 'cancelled', label: 'الملغيات', icon: XCircle, activeClass: 'bg-danger text-white dark:bg-danger-bright dark:text-surface-dark' },
+  { id: 'all', label: 'كافة النواقص', activeClass: 'bg-brand-dark text-white dark:bg-paid-bright dark:text-surface-dark' },
+];
 
 interface ShortagesTabProps {
   onLoadProposalToNewPurchase?: (proposal: ShortagePurchaseProposal) => void;
@@ -84,7 +104,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   const [lostSalesReport, setLostSalesReport] = useState<LostSalesReportSummary | null>(null);
   const [reportScope, setReportScope] = useState<'unmet' | 'all'>('unmet');
   const [reportSource, setReportSource] = useState<string>('all');
-  const [reportDays, setReportDays] = useState<number>(30);
+  const [reportDateFilter, setReportDateFilter] = useState<DateFilterValue>({ ...DEFAULT_DATE_FILTER });
   const [reportSortBy, setReportSortBy] = useState<'revenue' | 'requests' | 'qty' | 'name'>('revenue');
   const [reportSortOrder, setReportSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isReportLoading, setIsReportLoading] = useState(false);
@@ -148,11 +168,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     }
 
     const rect = e.currentTarget.getBoundingClientRect();
-    const menuEstimatedHeight = 240;
+    const menuEstimatedHeight = remToPx(15);
     const spaceBelow = window.innerHeight - rect.bottom;
     const openUpwards = spaceBelow < menuEstimatedHeight && rect.top > menuEstimatedHeight;
 
-    const menuWidth = 230;
+    const menuWidth = remToPx(14.375);
     let left = rect.left;
     if (left + menuWidth > window.innerWidth - 12) {
       left = window.innerWidth - menuWidth - 12;
@@ -172,6 +192,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   };
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toast = useExitValue(notification);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -399,11 +420,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   };
 
   const loadLostSalesReport = useCallback(
-    async (scope: string = reportScope, src: string = reportSource, days: number = reportDays) => {
+    async (scope: string = reportScope, src: string = reportSource, dateRange: DateFilterValue = reportDateFilter) => {
       setIsReportLoading(true);
       try {
         const report = await invoke<any>('shortages:getLostSalesReport', {
-          days: days > 0 ? days : undefined,
+          ...getDateFilterPayload(dateRange),
           status: scope,
           source: src === 'all' ? undefined : src,
         });
@@ -441,27 +462,27 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
         setIsReportLoading(false);
       }
     },
-    [reportScope, reportSource, reportDays, showToast]
+    [reportScope, reportSource, reportDateFilter, showToast]
   );
 
   const handleOpenLostSalesReport = () => {
     setIsLostSalesReportOpen(true);
-    void loadLostSalesReport(reportScope, reportSource, reportDays);
+    void loadLostSalesReport(reportScope, reportSource, reportDateFilter);
   };
 
   const handleScopeChange = (newScope: 'unmet' | 'all') => {
     setReportScope(newScope);
-    void loadLostSalesReport(newScope, reportSource, reportDays);
+    void loadLostSalesReport(newScope, reportSource, reportDateFilter);
   };
 
   const handleReportSourceChange = (newSrc: string) => {
     setReportSource(newSrc);
-    void loadLostSalesReport(reportScope, newSrc, reportDays);
+    void loadLostSalesReport(reportScope, newSrc, reportDateFilter);
   };
 
-  const handleReportDaysChange = (newDays: number) => {
-    setReportDays(newDays);
-    void loadLostSalesReport(reportScope, reportSource, newDays);
+  const handleReportDateFilterChange = (next: DateFilterValue) => {
+    setReportDateFilter(next);
+    void loadLostSalesReport(reportScope, reportSource, next);
   };
 
   const sortedReportItems = useMemo(() => {
@@ -557,15 +578,6 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     { value: 'auto_reorder', label: 'تنبيهات نفاد المخزون' },
   ];
 
-  const reportDaysOptions: SelectOption[] = [
-    { value: '30', label: 'آخر 30 يوماً' },
-    { value: '60', label: 'آخر 60 يوماً' },
-    { value: '90', label: 'آخر 90 يوماً' },
-    { value: '0', label: 'كافة الفترات (الكل)' },
-  ];
-
-
-
   const urgencyOptions: SelectOption[] = [
     { value: 'all', label: 'كافة درجات الأهمية' },
     { value: 'normal', label: 'عادي' },
@@ -583,186 +595,135 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden gap-3">
       {/* Toast */}
-      {notification && (
+      {toast.value && (
         <div
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-xl border font-bold text-xs shadow-md transition-all ${
-            notification.type === 'success'
-              ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 dark:border-emerald-800/40 text-paid dark:text-paid-bright'
+          data-exiting={toast.exiting || undefined}
+          className={`motion-toast motion-exit-toast fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-xl border font-bold text-xs shadow-md transition-all ${
+            toast.value.type === 'success'
+              ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 dark:border-paid-bright/30 text-paid dark:text-paid-bright'
               : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
           }`}
         >
-          {notification.message}
+          {toast.value.message}
         </div>
       )}
 
       {/* Top Action Bar */}
       <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 flex flex-wrap items-center justify-between gap-2.5 shadow-2xs">
         {/* Search & Filters */}
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
-          <div className="relative w-64">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث باسم الصنف أو العميل..."
-              className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-            />
-            <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2.5 pointer-events-none" />
-          </div>
-
-
-
-          <div className="w-40">
-            <CustomSelect
-              options={urgencyOptions}
-              value={urgencyFilter}
-              onChange={(val) => setUrgencyFilter(val)}
-              size="sm"
-            />
-          </div>
-
-          <div className="w-44">
-            <CustomSelect
-              options={sourceOptions}
-              value={sourceFilter}
-              onChange={(val) => setSourceFilter(val)}
-              size="sm"
-            />
-          </div>
-
-          <DateFilterControl
-            value={dateFilter}
-            onChange={setDateFilter}
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-2 flex-1 min-w-[17.5rem]">
+          <SearchInput
             size="sm"
-            selectWidthClass="w-44"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="بحث باسم الصنف أو العميل..."
+            ariaLabel="بحث في النواقص"
+            className="w-80"
           />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-40">
+              <CustomSelect
+                options={urgencyOptions}
+                value={urgencyFilter}
+                onChange={(val) => setUrgencyFilter(val)}
+                size="sm"
+              />
+            </div>
+
+            <div className="w-44">
+              <CustomSelect
+                options={sourceOptions}
+                value={sourceFilter}
+                onChange={(val) => setSourceFilter(val)}
+                size="sm"
+              />
+            </div>
+
+            <DateFilterControl
+              value={dateFilter}
+              onChange={setDateFilter}
+              size="sm"
+              selectWidthClass="w-44"
+            />
+          </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="sm"
+            icon={TrendingDown}
             onClick={handleOpenLostSalesReport}
-            className="h-8 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
             title="تقرير المبيعات المفقودة والفرص الضائعة"
           >
-            <TrendingDown className="w-3.5 h-3.5 text-danger dark:text-danger-bright" />
-            <span>المبيعات الضائعة</span>
-          </button>
+            المبيعات الضائعة
+          </AppButton>
 
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="sm"
+            icon={RefreshCw}
             onClick={() => void handleGenerateAutoShortages()}
-            disabled={isGeneratingAuto}
-            className="h-8 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+            loading={isGeneratingAuto}
             title="فحص المخزون واستخراج الأصناف التي تحت حد الطلب التلقائي"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-brand dark:text-brand-bright ${isGeneratingAuto ? 'animate-spin' : ''}`} />
-            <span>فحص النواقص التلقائي</span>
-          </button>
+            فحص النواقص التلقائي
+          </AppButton>
 
           {canConvertShortages && (
-          <button
-            type="button"
-            onClick={() => void handleConvertToPurchase()}
-            disabled={selectedIds.length === 0}
-            className="h-8 px-3.5 rounded-lg bg-paid hover:bg-paid-hover text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-40"
-          >
-            <Truck className="w-3.5 h-3.5" />
-            <span>تحويل للطلبية ({selectedIds.length})</span>
-          </button>
+            <AppButton
+              variant="success"
+              size="sm"
+              icon={Truck}
+              onClick={() => void handleConvertToPurchase()}
+              disabled={selectedIds.length === 0}
+              title={selectedIds.length === 0 ? 'حدد صنف ناقص واحد على الأقل لتحويله إلى طلبية' : undefined}
+            >
+              تحويل للطلبية ({selectedIds.length})
+            </AppButton>
           )}
 
           {canManageShortages && (
-          <button
-            type="button"
-            onClick={() => setIsQuickAddOpen(true)}
-            className="h-8 px-3.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>تسجيل نواقص</span>
-          </button>
+            <AppButton variant="primary" size="sm" icon={Plus} onClick={() => setIsQuickAddOpen(true)}>
+              تسجيل نواقص
+            </AppButton>
           )}
         </div>
       </div>
 
       {/* Status Workflow Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs select-none">
-        <button
-          type="button"
-          onClick={() => setStatusFilter('pending')}
-          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-            statusFilter === 'pending'
-              ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs'
-              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-          }`}
-        >
-          <Clock className="w-3.5 h-3.5" />
-          <span>بانتظار الطلب (معلق)</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('ordered')}
-          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-            statusFilter === 'ordered'
-              ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
-              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-          }`}
-        >
-          <Truck className="w-3.5 h-3.5" />
-          <span>تم الطلب من المورد</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('received')}
-          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-            statusFilter === 'received'
-              ? 'bg-paid text-white dark:bg-paid-dark-soft dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40 shadow-xs'
-              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-          }`}
-        >
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>تم الاستلام بالمخزن</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('cancelled')}
-          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-            statusFilter === 'cancelled'
-              ? 'bg-ink-muted text-white dark:bg-surface-dark-2 dark:text-ink-dark dark:ring-1 dark:ring-inset dark:ring-line-dark shadow-xs'
-              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-          }`}
-        >
-          <XCircle className="w-3.5 h-3.5" />
-          <span>الملغيات</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('all')}
-          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-            statusFilter === 'all'
-              ? 'bg-brand-dark text-white dark:bg-surface-dark-3 dark:text-ink-dark dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
-              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-          }`}
-        >
-          <span>كافة النواقص</span>
-        </button>
+      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 text-xs select-none">
+        {STATUS_PILLS.map((pill) => {
+          const Icon = pill.icon;
+          return (
+            <button
+              key={pill.id}
+              type="button"
+              onClick={() => setStatusFilter(pill.id)}
+              aria-pressed={statusFilter === pill.id}
+              className={`${STATUS_PILL_BASE} ${statusFilter === pill.id ? pill.activeClass : STATUS_PILL_IDLE}`}
+            >
+              {Icon && <Icon className="w-3.5 h-3.5" />}
+              <span>{pill.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Main Table */}
       <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden flex flex-col shadow-2xs">
         <div className="overflow-x-auto flex-1">
-          <table className="w-full text-right text-xs">
+          <table className="w-full text-right text-sm">
             <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted sticky top-0 z-10 font-bold select-none">
               <tr>
-                <th className="w-10 px-3 py-2.5 text-center">
+                <th className="w-10 px-2 py-2.5 text-center">
                   <button
                     type="button"
                     onClick={handleSelectAll}
+                    aria-label="تحديد كل النواقص المعروضة"
+                    aria-pressed={selectedIds.length > 0 && selectedIds.length === filteredShortages.length}
                     className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
                   >
                     {selectedIds.length > 0 && selectedIds.length === filteredShortages.length ? (
@@ -772,15 +733,15 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                     )}
                   </button>
                 </th>
-                <th className="px-3 py-2.5">الصنف الناقص</th>
-                <th className="px-3 py-2.5 text-center whitespace-nowrap">الأهمية</th>
-                <th className="px-3 py-2.5 text-center whitespace-nowrap">الكمية المطلوبة</th>
-                <th className="px-3 py-2.5 text-center whitespace-nowrap">الرصيد / حد الطلب</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">المصدر / العميل</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">المورد المفضل</th>
-                <th className="px-3 py-2.5 text-center whitespace-nowrap">الحالة</th>
-                <th className="px-3 py-2.5 text-center whitespace-nowrap">تاريخ التسجيل</th>
-                <th className="w-28 px-3 py-2.5 text-center whitespace-nowrap">خيارات الصنف</th>
+                <th className="px-2 py-2.5">الصنف الناقص</th>
+                <th className="px-2 py-2.5 text-center">الأهمية</th>
+                <th className="px-2 py-2.5 text-center">الكمية المطلوبة</th>
+                <th className="px-2 py-2.5 text-center">الرصيد / حد الطلب</th>
+                <th className="px-2 py-2.5">المصدر / العميل</th>
+                <th className="px-2 py-2.5">المورد المفضل</th>
+                <th className="px-2 py-2.5 text-center">الحالة</th>
+                <th className="px-2 py-2.5 text-center">تاريخ التسجيل</th>
+                <th className="w-28 px-2 py-2.5 text-center">خيارات الصنف</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60 dark:divide-line-dark/60">
@@ -797,13 +758,14 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                       يمكنك تسجيل صنف ناقص يدوياً أو الضغط على "فحص النواقص التلقائي"
                     </p>
                     {isDateFilterActive(dateFilter) && (
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="soft"
+                        size="sm"
+                        className="mt-2"
                         onClick={() => setDateFilter({ ...DEFAULT_DATE_FILTER })}
-                        className="mt-2 h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
                       >
                         عرض كل الفترات
-                      </button>
+                      </AppButton>
                     )}
                   </td>
                 </tr>
@@ -817,10 +779,12 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         isSelected ? 'bg-brand-soft/30 dark:bg-brand-soft/10' : ''
                       }`}
                     >
-                      <td className="px-3 py-2.5 text-center">
+                      <td className="px-2 py-2.5 text-center">
                         <button
                           type="button"
                           onClick={() => handleToggleSelect(item.id)}
+                          aria-label={`تحديد ${item.productName}`}
+                          aria-pressed={isSelected}
                           className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
                         >
                           {isSelected ? (
@@ -831,7 +795,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         </button>
                       </td>
 
-                      <td className="px-3 py-2.5">
+                      <td className="px-2 py-2.5">
                         <div className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 flex-wrap">
                           <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                           <span>{item.productName}</span>
@@ -850,7 +814,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                      <td className="px-2 py-2.5 text-center whitespace-nowrap">
                         {item.urgency === 'critical' ? (
                           <span className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-micro font-bold whitespace-nowrap">
                             <Flame className="w-3 h-3" />
@@ -869,7 +833,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5 text-center font-bold whitespace-nowrap" dir="rtl">
+                      <td className="px-2 py-2.5 text-center font-bold whitespace-nowrap" dir="rtl">
                         <span className="font-mono text-ink dark:text-ink-dark">
                           {typeof item.requestedQuantityMilli === 'number' && !isNaN(item.requestedQuantityMilli)
                             ? item.requestedQuantityMilli / 1000
@@ -880,7 +844,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         </span>
                       </td>
 
-                      <td className="px-3 py-2.5 text-center font-mono text-micro whitespace-nowrap" dir="rtl">
+                      <td className="px-2 py-2.5 text-center font-mono whitespace-nowrap" dir="rtl">
                         <span
                           className={
                             typeof item.currentStockMilli === 'number' && item.currentStockMilli > 0
@@ -900,7 +864,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         </span>
                       </td>
 
-                      <td className="px-3 py-2.5">
+                      <td className="px-2 py-2.5">
                         {item.customerName ? (
                           <div className="flex flex-col">
                             <span className="font-bold flex items-center gap-1 text-ink dark:text-ink-dark">
@@ -910,7 +874,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                             {item.customerPhone && (
                               <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono flex items-center gap-1">
                                 <Phone className="w-2.5 h-2.5" />
-                                {item.customerPhone}
+                                {formatPhoneDisplay(item.customerPhone)}
                               </span>
                             )}
                           </div>
@@ -921,7 +885,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5">
+                      <td className="px-2 py-2.5">
                         {item.preferredSupplierName ? (
                           <span className="font-semibold text-ink dark:text-ink-dark">
                             {item.preferredSupplierName}
@@ -931,7 +895,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                      <td className="px-2 py-2.5 text-center whitespace-nowrap">
                         {item.status === 'pending' && (
                           <span className="inline-flex items-center justify-center whitespace-nowrap px-2.5 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-bold text-micro">
                             بانتظار الطلب
@@ -954,32 +918,22 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5 text-center text-micro text-ink-muted dark:text-ink-dark-muted font-mono whitespace-nowrap">
+                      <td className="px-2 py-2.5 text-center text-ink-muted dark:text-ink-dark-muted font-mono whitespace-nowrap">
                         {formatShortageDate(item.createdAt)}
                       </td>
 
-                      <td className="w-28 px-3 py-2.5 text-center whitespace-nowrap">
+                      <td className="w-28 px-2 py-2.5 text-center whitespace-nowrap">
                         <button
                           type="button"
                           onClick={(e) => handleToggleMenu(item, e)}
-                          className={`h-7 px-2.5 rounded-lg border text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer select-none ${
-                            activeMenu?.item.id === item.id
-                              ? 'bg-brand dark:bg-brand text-white border-brand ring-2 ring-brand/20 shadow-xs'
-                              : 'bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright hover:border-brand/40'
-                          }`}
+                          aria-expanded={activeMenu?.item.id === item.id}
+                          aria-haspopup="menu"
+                          className={TABLE_ACTION_TRIGGER}
                           title="قائمة إجراءات وخيارات الصنف الناقص"
                         >
-                          <MoreHorizontal
-                            className={`w-3.5 h-3.5 transition-colors ${
-                              activeMenu?.item.id === item.id ? 'text-white' : 'text-brand dark:text-brand-bright'
-                            }`}
-                          />
+                          <MoreHorizontal className="w-3.5 h-3.5" />
                           <span>خيارات</span>
-                          <ChevronDown
-                            className={`w-3 h-3 transition-transform duration-150 ${
-                              activeMenu?.item.id === item.id ? 'rotate-180 text-white' : 'text-ink-muted dark:text-ink-dark-muted'
-                            }`}
-                          />
+                          <ChevronDown className="w-3 h-3" />
                         </button>
                       </td>
                     </tr>
@@ -1026,13 +980,13 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                   مقترحات أوامر الشراء مجمعة حسب الموردين
                 </h3>
               </div>
-              <button
-                type="button"
+              <AppButton
+                variant="subtle"
+                size="sm"
+                icon={X}
+                aria-label="إغلاق"
                 onClick={() => setIsProposalsModalOpen(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              />
             </div>
 
             <div className="p-5 flex-1 overflow-y-auto flex flex-col gap-4 text-xs">
@@ -1056,7 +1010,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                           {prop.supplierPhone && (
                             <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono flex items-center gap-1">
                               <Phone className="w-3 h-3" />
-                              {prop.supplierPhone}
+                              {formatPhoneDisplay(prop.supplierPhone)}
                             </div>
                           )}
                         </div>
@@ -1069,17 +1023,17 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                             </div>
                           </div>
                           {onLoadProposalToNewPurchase && (
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="primary"
+                              size="sm"
+                              icon={Plus}
                               onClick={() => {
                                 setIsProposalsModalOpen(false);
                                 onLoadProposalToNewPurchase(prop);
                               }}
-                              className="h-8 px-3 rounded-lg bg-brand hover:bg-brand-hover dark:bg-brand dark:hover:bg-brand-hover text-white font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
                             >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>تحميل في فاتورة شراء</span>
-                            </button>
+                              تحميل في فاتورة شراء
+                            </AppButton>
                           )}
                         </div>
                       </div>
@@ -1121,13 +1075,9 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
             </div>
 
             <div className="h-12 px-5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsProposalsModalOpen(false)}
-                className="h-8 px-4 rounded-lg border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 cursor-pointer"
-              >
+              <AppButton variant="secondary" size="sm" onClick={() => setIsProposalsModalOpen(false)}>
                 إغلاق
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -1157,14 +1107,13 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               </div>
 
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
+                <AppButton
+                  variant="subtle"
+                  size="sm"
+                  icon={X}
+                  aria-label="إغلاق"
                   onClick={() => setIsLostSalesReportOpen(false)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark"
-                  title="إغلاق"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                />
               </div>
             </div>
 
@@ -1174,11 +1123,8 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                 <button
                   type="button"
                   onClick={() => handleScopeChange('unmet')}
-                  className={`h-7 px-3 rounded-lg font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer ${
-                    reportScope === 'unmet'
-                      ? 'bg-brand text-white shadow-xs'
-                      : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark hover:bg-line/40 dark:hover:bg-line-dark/40'
-                  }`}
+                  aria-pressed={reportScope === 'unmet'}
+                  className={`${STATUS_PILL_BASE} ${reportScope === 'unmet' ? STATUS_PILL_ACTIVE_BRAND : STATUS_PILL_IDLE}`}
                 >
                   <Package className="w-3.5 h-3.5" />
                   <span>النواقص غير المتوفرة حالياً</span>
@@ -1187,11 +1133,8 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                 <button
                   type="button"
                   onClick={() => handleScopeChange('all')}
-                  className={`h-7 px-3 rounded-lg font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer ${
-                    reportScope === 'all'
-                      ? 'bg-brand-dark text-white shadow-xs'
-                      : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark hover:bg-line/40 dark:hover:bg-line-dark/40'
-                  }`}
+                  aria-pressed={reportScope === 'all'}
+                  className={`${STATUS_PILL_BASE} ${reportScope === 'all' ? STATUS_PILL_ACTIVE_BRAND : STATUS_PILL_IDLE}`}
                 >
                   <Layers className="w-3.5 h-3.5" />
                   <span>كافة النواقص والطلبات</span>
@@ -1207,14 +1150,12 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                     size="sm"
                   />
                 </div>
-                <div className="w-36">
-                  <CustomSelect
-                    options={reportDaysOptions}
-                    value={reportDays.toString()}
-                    onChange={(val) => handleReportDaysChange(parseInt(val, 10) || 0)}
-                    size="sm"
-                  />
-                </div>
+                <DateFilterControl
+                  value={reportDateFilter}
+                  onChange={handleReportDateFilterChange}
+                  size="sm"
+                  selectWidthClass="w-44"
+                />
               </div>
             </div>
 
@@ -1289,7 +1230,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="t-label text-ink dark:text-ink-dark flex items-center gap-1.5">
-                    <span>أكثر الأصناف المطلوبة غير المتوفرة (Top Missing Opportunities)</span>
+                    <span>أكثر الأصناف المطلوبة غير المتوفرة</span>
                   </h4>
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                     انقر على رأس أي عمود لتغيير الترتيب
@@ -1361,7 +1302,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                               )}
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center whitespace-nowrap min-w-[110px]">إجراء سريع</th>
+                          <th className="px-3 py-2 text-center whitespace-nowrap min-w-[6.875rem]">إجراء سريع</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-line/40 dark:divide-line-dark/40">
@@ -1423,18 +1364,16 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
 
                             <td className="px-3 py-2 text-center whitespace-nowrap">
                               {onLoadProposalToNewPurchase && (
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="soft"
+                                  size="xs"
+                                  icon={ShoppingCart}
                                   onClick={() => void handleOrderFromReport(p)}
                                   disabled={orderingReportProductId === (p.productId || p.productName)}
-                                  className="h-7 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand text-brand dark:text-brand-bright hover:text-white dark:hover:text-white transition-colors text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
                                   title="إنشاء طلبية شراء فورية لهذا الصنف"
                                 >
-                                  <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
-                                  <span className="whitespace-nowrap">
-                                    {orderingReportProductId === (p.productId || p.productName) ? 'جاري التحويل...' : 'اطلب الآن'}
-                                  </span>
-                                </button>
+                                  {orderingReportProductId === (p.productId || p.productName) ? 'جاري التحويل...' : 'اطلب الآن'}
+                                </AppButton>
                               )}
                             </td>
                           </tr>
@@ -1448,13 +1387,9 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
 
             {/* Modal Footer */}
             <div className="h-12 px-5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsLostSalesReportOpen(false)}
-                className="h-8 px-5 rounded-lg border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-              >
+              <AppButton variant="secondary" size="sm" onClick={() => setIsLostSalesReportOpen(false)}>
                 إغلاق
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -1467,11 +1402,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
           onClick={() => setPendingAction(null)}
         >
           <div
-            className="w-full max-w-md bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            className="w-full max-w-lg max-h-[90vh] flex flex-col bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="p-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
+            <div className="p-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
               <div className="flex items-center gap-2">
                 <div
                   className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
@@ -1500,17 +1435,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                   {pendingAction.type === 'delete' && 'حذف القيد نهائياً من الدفتر'}
                 </h4>
               </div>
-              <button
-                type="button"
-                onClick={() => setPendingAction(null)}
-                className="w-7 h-7 rounded-lg border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setPendingAction(null)} />
             </div>
 
             {/* Modal Body */}
-            <div className="p-4 flex flex-col gap-3 text-xs">
+            <div className="p-4 flex flex-col gap-3 text-xs flex-1 min-h-0 overflow-y-auto">
               <div className="bg-surface-2 dark:bg-surface-dark-2 rounded-xl p-3 border border-line dark:border-line-dark">
                 <div className="font-bold text-ink dark:text-ink-dark text-sm mb-1">
                   {pendingAction.item.productName}
@@ -1561,15 +1490,15 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         setPendingAction(null);
                         void handleConvertToPurchaseSingle(item);
                       }}
-                      className="w-full text-right p-3 rounded-xl border border-brand/40 bg-brand-soft/40 dark:bg-brand-dark-soft/40 hover:bg-brand-soft dark:hover:bg-brand-dark-soft transition-all flex items-start gap-2.5 cursor-pointer group"
+                      className="w-full text-right p-3 rounded-xl border border-brand/40 bg-brand-soft/40 dark:bg-brand-dark-soft/40 hover:bg-brand-soft dark:hover:bg-brand-dark-soft flex items-start gap-2.5 cursor-pointer"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-brand text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
+                      <div className="w-8 h-8 rounded-lg bg-brand text-white dark:bg-brand-bright dark:text-surface-dark flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ">
                         <Receipt className="w-4 h-4" />
                       </div>
                       <div className="flex-1">
                         <div className="font-bold text-brand-dark dark:text-brand-bright text-xs flex items-center justify-between">
                           <span>تحويل إلى فاتورة شراء جديدة (المسار المحاسبي)</span>
-                          <span className="text-micro bg-brand text-white px-2 py-0.5 rounded-full font-bold">موصى به</span>
+                          <span className="text-micro bg-brand text-white dark:bg-brand-bright dark:text-surface-dark px-2 py-0.5 rounded-full font-bold">موصى به</span>
                         </div>
                         <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 leading-normal">
                           ينقل الصنف لشاشة الشراء لتسجيل المورد، سعر التكلفة، والدفع (كاش/آجل)، ويزيد المخزون رسمياً عند حفظ الفاتورة.
@@ -1585,9 +1514,9 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         setPendingAction(null);
                         await handleStatusChange(item.id, 'received', item.productName, true, item.requestedQuantityMilli, formatUnitArabic(item.unit));
                       }}
-                      className="w-full text-right p-3 rounded-xl border border-paid/40 bg-paid-soft/40 dark:bg-paid-dark-soft/40 hover:bg-paid-soft dark:hover:bg-paid-dark-soft transition-all flex items-start gap-2.5 cursor-pointer group"
+                      className="w-full text-right p-3 rounded-xl border border-paid/40 bg-paid-soft/40 dark:bg-paid-dark-soft/40 hover:bg-paid-soft dark:hover:bg-paid-dark-soft flex items-start gap-2.5 cursor-pointer"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-paid text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
+                      <div className="w-8 h-8 rounded-lg bg-paid text-white dark:bg-paid-bright dark:text-surface-dark flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <div className="flex-1">
@@ -1626,18 +1555,17 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
             </div>
 
             {/* Modal Footer */}
-            <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setPendingAction(null)}
-                className="h-8 px-3 rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark text-xs font-bold cursor-pointer"
-              >
+            <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
+              <AppButton variant="secondary" size="md" onClick={() => setPendingAction(null)}>
                 إلغاء
-              </button>
+              </AppButton>
 
               {pendingAction.type !== 'receive' && (
-                <button
-                  type="button"
+                <AppButton
+                  variant={
+                    pendingAction.type === 'cancel' ? 'warning' : pendingAction.type === 'delete' ? 'danger' : 'primary'
+                  }
+                  size="md"
                   onClick={async () => {
                     const action = pendingAction;
                     setPendingAction(null);
@@ -1651,21 +1579,12 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                       await handleDelete(action.item.id, action.item.productName);
                     }
                   }}
-                  className={`h-8 px-4 rounded-lg text-white text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer ${
-                    pendingAction.type === 'order'
-                      ? 'bg-brand hover:bg-brand-hover'
-                      : pendingAction.type === 'cancel'
-                      ? 'bg-warn hover:bg-warn-hover'
-                      : pendingAction.type === 'restore'
-                      ? 'bg-brand hover:bg-brand-hover'
-                      : 'bg-danger hover:bg-danger-hover'
-                  }`}
                 >
                   {pendingAction.type === 'order' && 'تأكيد ونقل لـ "تم الطلب"'}
                   {pendingAction.type === 'cancel' && 'تأكيد الإلغاء'}
                   {pendingAction.type === 'restore' && 'إعادة التفعيل'}
                   {pendingAction.type === 'delete' && 'حذف نهائي'}
-                </button>
+                </AppButton>
               )}
             </div>
           </div>
@@ -1682,36 +1601,15 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               top: activeMenu.top,
               left: activeMenu.left,
               transform: activeMenu.openUpwards ? 'translateY(-100%)' : 'none',
-              width: '230px',
+              width: '14.375rem',
               zIndex: 9999,
             }}
             onWheel={(e) => e.stopPropagation()}
-            className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl overflow-hidden animate-fade-in text-right font-sans select-none"
+            className={`${MENU_PANEL} font-sans`}
             dir="rtl"
           >
-            {/* Header: Shortage Item Info */}
-            <div className="p-2.5 bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark">
-              <div className="font-bold text-xs text-ink dark:text-ink-dark truncate" title={activeMenu.item.productName}>
-                {activeMenu.item.productName}
-              </div>
-              <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-sans flex items-center justify-between mt-0.5">
-                <span>
-                  الكمية: {typeof activeMenu.item.requestedQuantityMilli === 'number' && !isNaN(activeMenu.item.requestedQuantityMilli) ? activeMenu.item.requestedQuantityMilli / 1000 : 1} {formatUnitArabic(activeMenu.item.unit)}
-                </span>
-                <span className="font-bold text-brand dark:text-brand-bright">
-                  {activeMenu.item.status === 'pending'
-                    ? 'بانتظار الطلب'
-                    : activeMenu.item.status === 'ordered'
-                    ? 'تم الطلب'
-                    : activeMenu.item.status === 'received'
-                    ? 'تم الاستلام'
-                    : 'ملغي'}
-                </span>
-              </div>
-            </div>
-
             {/* Actions List */}
-            <div className="p-1.5 flex flex-col gap-0.5 max-h-[min(480px,calc(100vh-60px))] overflow-y-auto">
+            <div className="flex flex-col gap-0.5 max-h-[min(480px,calc(100vh-60px))] overflow-y-auto">
               {/* 1. Convert to Purchase Invoice */}
               {canConvertShortages && (activeMenu.item.status === 'pending' || activeMenu.item.status === 'ordered') && (
                 <button
@@ -1721,11 +1619,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                     setActiveMenu(null);
                     void handleConvertToPurchaseSingle(itm);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className={MENU_ITEM}
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <span className={MENU_ITEM_ICON}>
                     <Receipt className="w-3.5 h-3.5" />
-                  </div>
+                  </span>
                   <span className="flex-1 min-w-0 truncate">تحويل لفاتورة شراء جديدة</span>
                 </button>
               )}
@@ -1739,11 +1637,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                     setActiveMenu(null);
                     setPendingAction({ type: 'order', item: itm });
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className={MENU_ITEM}
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <span className={MENU_ITEM_ICON}>
                     <Truck className="w-3.5 h-3.5" />
-                  </div>
+                  </span>
                   <span className="flex-1 min-w-0 truncate">طلب الصنف من المورد</span>
                 </button>
               )}
@@ -1757,11 +1655,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                     setActiveMenu(null);
                     setPendingAction({ type: 'receive', item: itm });
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-ink dark:text-ink-dark hover:text-paid dark:hover:text-paid-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className={MENU_ITEM}
                 >
-                  <div className="w-6 h-6 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright group-hover:bg-paid group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <span className={MENU_ITEM_ICON}>
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                  </div>
+                  </span>
                   <span className="flex-1 min-w-0 truncate">استلام بالمخزن وتوريد</span>
                 </button>
               )}
@@ -1775,11 +1673,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                     setActiveMenu(null);
                     setPendingAction({ type: 'restore', item: itm });
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className={MENU_ITEM}
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <span className={MENU_ITEM_ICON}>
                     <RotateCcw className="w-3.5 h-3.5" />
-                  </div>
+                  </span>
                   <span className="flex-1 min-w-0 truncate">إعادة تفعيل القيد (معلق)</span>
                 </button>
               )}
@@ -1793,18 +1691,18 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                     setActiveMenu(null);
                     setPendingAction({ type: 'cancel', item: itm });
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className={MENU_ITEM}
                 >
-                  <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <span className={MENU_ITEM_ICON}>
                     <XCircle className="w-3.5 h-3.5" />
-                  </div>
+                  </span>
                   <span className="flex-1 min-w-0 truncate">إلغاء طلب الصنف</span>
                 </button>
               )}
 
               {/* Divider */}
               {canManageShortages && (
-                <div className="my-0.5 border-t border-line dark:border-line-dark" />
+                <div className={MENU_DIVIDER} />
               )}
 
               {/* 6. Delete Shortage Entry */}
@@ -1816,11 +1714,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                     setActiveMenu(null);
                     setPendingAction({ type: 'delete', item: itm });
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className={MENU_ITEM_DANGER}
                 >
-                  <div className="w-6 h-6 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright group-hover:bg-danger group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <span className={MENU_ITEM_ICON_DANGER}>
                     <Trash2 className="w-3.5 h-3.5" />
-                  </div>
+                  </span>
                   <span className="flex-1 min-w-0 truncate">حذف نهائي من الدفتر</span>
                 </button>
               )}

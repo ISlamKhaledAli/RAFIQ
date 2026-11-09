@@ -328,6 +328,36 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.ok(html.includes('tabBtnLogs'), 'Must have separate Audit Logs tab button');
       assert.ok(html.includes('licensesPaginationBar'), 'Must have Licenses pagination bar');
       assert.ok(html.includes('logsPaginationBar'), 'Must have Logs pagination bar');
+      assert.ok(html.includes('/admin/assets/tailwind.min.js'), 'Must load self-hosted Tailwind bundle');
+    });
+
+    it('Serves Self-Hosted Tailwind bundle on GET /admin/assets/tailwind.min.js', async () => {
+      const req = new Request('http://localhost/admin/assets/tailwind.min.js');
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      assert.ok(res.headers.get('content-type')?.includes('application/javascript'));
+      const js = await res.text();
+      assert.ok(js.length > 100000, 'Tailwind bundle must be populated and non-empty');
+    });
+
+    it('Serves Self-Hosted Admin App JS on GET /admin/assets/app.js', async () => {
+      const req = new Request('http://localhost/admin/assets/app.js');
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      assert.ok(res.headers.get('content-type')?.includes('application/javascript'));
+      const js = await res.text();
+      assert.ok(js.includes('handleLogin'), 'Must contain handleLogin function');
+      assert.ok(js.length > 10000, 'App script must be populated');
+    });
+
+    it('Serves Self-Hosted Official Brand Logo on GET /admin/assets/logo.png', async () => {
+      const req = new Request('http://localhost/admin/assets/logo.png');
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('content-type'), 'image/png');
+      assert.ok(res.headers.get('cache-control')?.includes('immutable'));
+      const buf = await res.arrayBuffer();
+      assert.ok(buf.byteLength > 1000, 'Logo image binary must be non-empty');
     });
 
     it('Admin can list audit logs via /api/admin/logs', async () => {
@@ -370,6 +400,116 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.equal(listRes.status, 200);
       const listData = await listRes.json() as any;
       assert.ok(listData.data.some((l: any) => l.license_key === createData.license.license_key));
+    });
+
+    it('Admin can update license with duration deduction (days_to_deduct)', async () => {
+      // 1. Create a 90-day license
+      const createReq = new Request('http://localhost/api/admin/licenses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          shop_name: 'محل تجربة الخصم',
+          license_type: 'monthly',
+          days_valid: 90,
+        }),
+      });
+      const createRes = await server.fetch(createReq, env);
+      const createData = await createRes.json() as any;
+      const licId = createData.license.id;
+      const initialExp = new Date(createData.license.expires_at).getTime();
+
+      // 2. Deduct 30 days
+      const updateReq = new Request(`http://localhost/api/admin/licenses/${licId}/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          days_to_deduct: 30,
+        }),
+      });
+      const updateRes = await server.fetch(updateReq, env);
+      assert.equal(updateRes.status, 200);
+
+      // Verify expiration shortened
+      const licCheck = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?').bind(licId).first<any>();
+      const newExp = new Date(licCheck.expires_at).getTime();
+      const diffDays = Math.round((initialExp - newExp) / (1000 * 60 * 60 * 24));
+      assert.equal(diffDays, 30);
+    });
+
+    it('Admin can reset period (set_days) replacing existing duration entirely from today', async () => {
+      // 1. Create license with 365 days
+      const createReq = new Request('http://localhost/api/admin/licenses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          shop_name: 'محل لاختبار إعادة تعيين الفترة',
+          license_type: 'annual',
+        }),
+      });
+      const createRes = await server.fetch(createReq, env);
+      const createData = await createRes.json() as any;
+      const licId = createData.license.id;
+
+      // 2. Admin resets period to exactly 45 days from today (replacing the previous 365 days)
+      const updateReq = new Request(`http://localhost/api/admin/licenses/${licId}/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          set_days: 45,
+        }),
+      });
+      const updateRes = await server.fetch(updateReq, env);
+      assert.equal(updateRes.status, 200);
+
+      // Verify expiration is exactly 45 days from now, previous period erased
+      const licCheck = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?').bind(licId).first<any>();
+      const newExp = new Date(licCheck.expires_at).getTime();
+      const now = Date.now();
+      const remainingDays = Math.round((newExp - now) / (1000 * 60 * 60 * 24));
+      assert.equal(remainingDays, 45);
+      assert.equal(licCheck.license_type, 'monthly'); // 45 days is monthly (< 365)
+    });
+
+    it('Admin can delete a license permanently', async () => {
+      // 1. Create license
+      const createReq = new Request('http://localhost/api/admin/licenses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          shop_name: 'محل للحذف المؤقت',
+          license_type: 'trial',
+        }),
+      });
+      const createRes = await server.fetch(createReq, env);
+      const createData = await createRes.json() as any;
+      const licId = createData.license.id;
+
+      // 2. Delete it
+      const delReq = new Request(`http://localhost/api/admin/licenses/${licId}/delete`, {
+        method: 'POST',
+        headers: { 'X-Admin-Secret': ADMIN_SECRET },
+      });
+      const delRes = await server.fetch(delReq, env);
+      assert.equal(delRes.status, 200);
+
+      // 3. Confirm not in DB
+      const check = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?').bind(licId).first();
+      assert.equal(check, null);
     });
 
     it('Admin can reset device binding to allow transfer to a new PC', async () => {
@@ -559,6 +699,54 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.ok(data.reset_code.startsWith('RFQ-TIME-'));
 
       const verified = await verifyActivationToken(data.reset_code.substring('RFQ-TIME-'.length), TOKEN_SECRET);
+      assert.equal(verified.valid, true);
+      assert.equal(verified.payload?.kind, 'clock_reset');
+    });
+
+    it('Admin can generate PIN Recovery code via direct endpoint POST /api/admin/pin-recovery', async () => {
+      const targetFp = 'DIRECT-PIN-FP-01';
+      const req = new Request('http://localhost/api/admin/pin-recovery', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          challenge: targetFp,
+          shop_name: 'Direct PIN Shop',
+        }),
+      });
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.success, true);
+      assert.ok(data.recovery_code.startsWith('RFQ-REC-'));
+
+      const verified = await verifyActivationToken(data.recovery_code.substring('RFQ-REC-'.length), TOKEN_SECRET);
+      assert.equal(verified.valid, true);
+      assert.equal(verified.payload?.kind, 'pin_reset');
+    });
+
+    it('Admin can generate Clock Reset code via direct endpoint POST /api/admin/clock-reset', async () => {
+      const targetFp = 'DIRECT-CLOCK-FP-01';
+      const req = new Request('http://localhost/api/admin/clock-reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          clock_code: targetFp,
+          shop_name: 'Direct Clock Shop',
+        }),
+      });
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.success, true);
+      assert.ok(data.reset_token.startsWith('RFQ-TIME-'));
+
+      const verified = await verifyActivationToken(data.reset_token.substring('RFQ-TIME-'.length), TOKEN_SECRET);
       assert.equal(verified.valid, true);
       assert.equal(verified.payload?.kind, 'clock_reset');
     });

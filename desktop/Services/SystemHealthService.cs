@@ -127,7 +127,7 @@ namespace RafiqPOS.Services
             }
 
             // Database status
-            metrics.DatabaseStatus = File.Exists(_dbPath) ? "سليمة (وضع WAL الفائق)" : "غير منشأة";
+            metrics.DatabaseStatus = File.Exists(_dbPath) ? DatabaseService.GetHealth().ToSummaryText() : "غير منشأة";
 
             // 2. Check Backup Status (Task 138-1)
             metrics.LastBackupFormatted = "لم تؤخذ بعد";

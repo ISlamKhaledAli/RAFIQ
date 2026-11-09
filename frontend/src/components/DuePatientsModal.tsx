@@ -12,6 +12,8 @@ import {
 import type { PatientDueAlert } from '../types/patient';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
+import { AppButton } from './AppButton';
+import { formatPhoneDisplay } from '../utils/phoneFormat';
 interface DuePatientsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,7 +54,7 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
                 <h3 className="t-modal-title text-ink dark:text-ink-dark">
                   المرضى المستحقين لصرف العلاج الشهري
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-warn text-white dark:bg-warn-bright dark:text-surface-dark">
+                <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark">
                   {alerts.length} مريض
                 </span>
               </div>
@@ -62,13 +64,7 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
-          >
-            <X className="w-4.5 h-4.5" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Quick Summary Pill Bar */}
@@ -116,7 +112,7 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
                             فات موعد الصرف
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-warn text-white dark:bg-warn-bright dark:text-surface-dark">
+                          <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark">
                             مستحق الآن
                           </span>
                         )}
@@ -125,24 +121,26 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
                       {patient.customerPhone && (
                         <div className="flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted font-mono mt-1">
                           <Phone className="w-3.5 h-3.5 text-brand" />
-                          <span>{patient.customerPhone}</span>
+                          <span>{formatPhoneDisplay(patient.customerPhone)}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Action button */}
                     {onOpenCustomerProfile && (
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="secondary"
+                        size="sm"
+                        icon={ChevronLeft}
+                        iconPosition="end"
+                        className="shrink-0"
                         onClick={() => {
                           onOpenCustomerProfile(patient.customerId, patient.customerName, patient.customerPhone);
                           onClose();
                         }}
-                        className="flex items-center gap-1 h-8 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-brand dark:text-brand-bright rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer shrink-0"
                       >
-                        <span>فتح الملف الطبي</span>
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                      </button>
+                        فتح الملف الطبي
+                      </AppButton>
                     )}
                   </div>
 

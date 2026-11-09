@@ -3,7 +3,6 @@ import type { FormEvent } from 'react';
 import { 
   Package, 
   Plus, 
-  Search, 
   X, 
   Check, 
   Tags,
@@ -44,6 +43,13 @@ import { MOVEMENTS_LOAD_LIMIT, buildMovementsRequest } from './products/stockMov
 import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult, BulkPriceRevertResult, StorageLocation, ProductBatch } from '../types/models';
 import type { ProductPharmaInfo } from '../types/pharma';
 import { normalizeArabicNumerals } from '../utils/money';
+import {
+  loadScannerSettings,
+  type BarcodeScannerSettings,
+  DEFAULT_SCANNER_SETTINGS,
+  physicalCodeToChar,
+  sanitizeScannedBarcode,
+} from '../utils/barcodeReader';
 import { exportProductsToExcel } from '../utils/excelImport';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { PaginationBar } from '../components/PaginationBar';
@@ -79,8 +85,14 @@ import { formatUnitArabic } from '../utils/units';
 import { BulkPriceAdjustmentModal } from './products/BulkPriceAdjustmentModal';
 import { StorageLocationsModal } from './products/StorageLocationsModal';
 import { SegmentedTabs, type SegmentedTabOption } from '../components/SegmentedTabs';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import { CustomSelect } from '../components/CustomSelect';
+import { ClearFiltersButton } from '../components/ClearFiltersButton';
 import { ToolsMenuGroup, ToolsMenuItem, ActiveFilterChip } from './products/ProductsToolbarParts';
+import { AppButton } from '../components/AppButton';
+import { SearchInput } from '../components/SearchInput';
+import { useDebouncedValue } from '../utils/useDebouncedValue';
+import { buttonClass, buttonIconClass, MENU_PANEL } from '../utils/buttonStyles';
 
 type StockStatusFilter = 'all' | 'lowStock' | 'outOfStock';
 
@@ -113,6 +125,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [scannerSettings, setScannerSettings] = useState<BarcodeScannerSettings>(DEFAULT_SCANNER_SETTINGS);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
@@ -213,6 +228,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         }
       })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    void loadScannerSettings().then(setScannerSettings);
   }, []);
 
   const isPharmacy = storeType === 'pharmacy' || isEnabled('feature_pharmacy');
@@ -407,6 +426,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   // Stock Movements & Inventory state (Stories 38 & 39 / Features #34 & #35)
   const activeSubView = (!isEnabled('feature_expiry_dates') && subView === 'batches') ? 'catalog' : (subView ?? 'catalog');
+  const motionPanel = useMotionPanel(activeSubView);
 
   const [selectedProdForMovements, setSelectedProdForMovements] = useState<Product | null>(null);
   const [selectedProdForAdjustment, setSelectedProdForAdjustment] = useState<Product | null>(null);
@@ -726,11 +746,172 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockStatusFilter, selectedCategoryFilter]);
 
-  const handleSearch = (e: FormEvent) => {
-    e.preventDefault();
+  // The box edits the draft; the query is applied after a short pause (live) or at once on Enter (barcode scanners end with Enter)
+  const debouncedSearchDraft = useDebouncedValue(searchDraft);
+  useEffect(() => {
+    setSearchQuery(debouncedSearchDraft);
     setCurrentPage(1);
-    void loadProducts(searchQuery, 1, pageSize);
+  }, [debouncedSearchDraft]);
+
+  // Every other writer of searchQuery (chips, reset, imports, filter requests) is mirrored back into the box
+  useEffect(() => {
+    setSearchDraft(searchQuery);
+  }, [searchQuery]);
+
+  const applySearch = (value: string) => {
+    setCurrentPage(1);
+    if (value !== searchQuery) {
+      setSearchQuery(value);
+      return;
+    }
+    void loadProducts(value, 1, pageSize);
   };
+
+  // Hardware Scanner & F2 Shortcut for Products Catalog
+  useEffect(() => {
+    if (!isActive || activeSubView !== 'catalog') return;
+
+    let scanBuffer = '';
+    let lastKeyTime = 0;
+    let scanStartTime = 0;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInputFocused = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
+      const isModalActive = Boolean(document.querySelector('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+
+      if (isModalActive) {
+        scanBuffer = '';
+        return;
+      }
+
+      // F2: Focus Search Bar
+      if (e.key === 'F2') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      // Scanner Burst Discrimination
+      if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+
+      const now = performance.now();
+      const timeDelta = lastKeyTime > 0 ? now - lastKeyTime : 0;
+      lastKeyTime = now;
+
+      const isSuffix = 
+        (scannerSettings.suffix === 'Enter' && e.key === 'Enter') ||
+        (scannerSettings.suffix === 'Tab' && e.key === 'Tab');
+
+      if (isSuffix) {
+        if (idleTimer) clearTimeout(idleTimer);
+        const totalElapsed = scanStartTime > 0 ? now - scanStartTime : timeDelta;
+        const avgDelta = scanBuffer.length > 1 ? totalElapsed / (scanBuffer.length - 1) : timeDelta;
+
+        const maxSuffixDelta = Math.max(scannerSettings.speedThresholdMs + 60, 200);
+        const isSpeedMatch = avgDelta <= (scannerSettings.speedThresholdMs + 35) && timeDelta <= maxSuffixDelta;
+        const isNotFocusedScanner = !isInputFocused && avgDelta <= Math.max(scannerSettings.speedThresholdMs + 45, 110);
+
+        if (scanBuffer.length >= scannerSettings.minBarcodeLength && (isSpeedMatch || isNotFocusedScanner)) {
+          const barcode = sanitizeScannedBarcode(scanBuffer, scannerSettings.prefix);
+          scanBuffer = '';
+          scanStartTime = 0;
+          e.preventDefault();
+          e.stopPropagation();
+
+          setSearchQuery(barcode);
+          setCurrentPage(1);
+          void loadProducts(barcode, 1, pageSize, stockStatusFilter, selectedCategoryFilter);
+          searchInputRef.current?.focus();
+          return;
+        }
+
+        scanBuffer = '';
+        scanStartTime = 0;
+        return;
+      }
+
+      const physicalChar = physicalCodeToChar(e.code, e.shiftKey);
+      const charToAdd = physicalChar || (e.key.length === 1 ? e.key : null);
+
+      if (charToAdd) {
+        if (timeDelta < scannerSettings.speedThresholdMs || scanBuffer.length === 0) {
+          if (scanBuffer.length === 0) {
+            scanStartTime = now;
+          }
+          scanBuffer += charToAdd;
+        } else {
+          scanBuffer = charToAdd;
+          scanStartTime = now;
+        }
+
+        if (scannerSettings.suffix === 'None') {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            if (scanBuffer.length >= scannerSettings.minBarcodeLength) {
+              const currentNow = performance.now();
+              const elapsed = scanStartTime > 0 ? currentNow - scanStartTime : 0;
+              const avg = scanBuffer.length > 1 ? elapsed / (scanBuffer.length - 1) : 0;
+              if (avg <= (scannerSettings.speedThresholdMs + 35)) {
+                const barcode = sanitizeScannedBarcode(scanBuffer, scannerSettings.prefix);
+                scanBuffer = '';
+                scanStartTime = 0;
+                setSearchQuery(barcode);
+                setCurrentPage(1);
+                void loadProducts(barcode, 1, pageSize, stockStatusFilter, selectedCategoryFilter);
+                searchInputRef.current?.focus();
+              }
+            }
+          }, scannerSettings.speedThresholdMs + 45);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    return () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
+    };
+  }, [isActive, activeSubView, scannerSettings, pageSize, stockStatusFilter, selectedCategoryFilter, loadProducts]);
+
+  // Keep search input focused on click in Products Catalog
+  useEffect(() => {
+    if (!isActive || activeSubView !== 'catalog') return;
+
+    const timer = setTimeout(() => {
+      const isModalActive = Boolean(document.querySelector('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+      if (!isModalActive) {
+        searchInputRef.current?.focus();
+      }
+    }, 100);
+
+    const handleWindowClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const isInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+      const isModal = Boolean(target.closest('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+      if (isInput || isModal) return;
+
+      setTimeout(() => {
+        const modalNow = Boolean(document.querySelector('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+        if (!modalNow && searchInputRef.current && document.activeElement !== searchInputRef.current) {
+          const currentActive = document.activeElement as HTMLElement | null;
+          const currentIsInput = currentActive instanceof HTMLInputElement || currentActive instanceof HTMLTextAreaElement;
+          if (!currentIsInput) {
+            searchInputRef.current.focus();
+          }
+        }
+      }, 50);
+    };
+
+    window.addEventListener('click', handleWindowClick);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handleWindowClick);
+    };
+  }, [isActive, activeSubView]);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -789,6 +970,21 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         const normalizedUnits = units.map(u => ({ ...u, unitName: formatUnitArabic(u.unitName) }));
         setProductUnits(normalizedUnits);
         setEditingProduct(prev => (prev && prev.id === productId ? { ...prev, units: normalizedUnits } : prev));
+
+        // Synchronize modal's pricePiasters and costPiasters with the configured display unit:
+        const targetDisplay = (displayUnitId ? normalizedUnits.find(u => u.id === displayUnitId) : null)
+          || (defaultSaleUnitId ? normalizedUnits.find(u => u.id === defaultSaleUnitId) : null)
+          || normalizedUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1)
+          || normalizedUnits.find(u => u.isBaseUnit);
+
+        if (targetDisplay) {
+          if (targetDisplay.sellPricePiasters > 0) {
+            setPricePiasters(targetDisplay.sellPricePiasters);
+          }
+          if (targetDisplay.costPricePiasters > 0) {
+            setCostPiasters(targetDisplay.costPricePiasters);
+          }
+        }
       }
       setUnitsLoadState('ready');
     }).catch(() => {
@@ -1094,10 +1290,22 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       const targetDisplayId = displayUnitId || defaultSaleUnitId;
       const hasMultipleUnits = productUnits && productUnits.length > 1;
+      const targetUnit = hasMultipleUnits
+        ? ((targetDisplayId ? productUnits.find(u => u.id === targetDisplayId) : null)
+           || productUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1)
+           || productUnits.find(u => u.isBaseUnit)
+           || productUnits[0])
+        : null;
+      const targetFactor = targetUnit && targetUnit.conversionFactor > 0 ? targetUnit.conversionFactor : 1;
+      const baseCostPiasters = targetFactor > 1 ? Math.round(costPiasters / targetFactor) : costPiasters;
+      const basePricePiasters = targetFactor > 1 ? Math.round(pricePiasters / targetFactor) : pricePiasters;
+
       const synchronizedUnits = productUnits.map(u => {
-        const isTarget = hasMultipleUnits
-          ? (targetDisplayId ? u.id === targetDisplayId : u.isBaseUnit)
-          : u.isBaseUnit;
+        const isTarget = targetUnit ? u.id === targetUnit.id : u.isBaseUnit;
+        const cleanBarcode = (primaryBarcode && u.barcode && u.barcode.trim() === primaryBarcode.trim())
+          ? (isTarget ? (primaryBarcode || u.barcode || '') : '')
+          : (u.barcode || '');
+
         if (isTarget) {
           return {
             ...u,
@@ -1107,14 +1315,26 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             unitName: formatUnitArabic(u.unitName.trim()) || (unit === 'kg' ? 'كيلو' : 'قطعة'),
             isDivisible: unit === 'kg' || u.isDivisible
           };
-        } else {
-          // If another unit in the product had the same barcode as primaryBarcode, clear it to prevent duplicate error
-          const cleanBarcode = (primaryBarcode && u.barcode && u.barcode.trim() === primaryBarcode.trim())
-            ? ''
-            : (u.barcode || '');
+        } else if (u.isBaseUnit) {
           return {
             ...u,
-            barcode: cleanBarcode
+            sellPricePiasters: basePricePiasters,
+            costPricePiasters: baseCostPiasters,
+            barcode: cleanBarcode,
+            unitName: formatUnitArabic(u.unitName.trim()) || (unit === 'kg' ? 'كيلو' : 'قطعة'),
+            isDivisible: unit === 'kg' || u.isDivisible
+          };
+        } else {
+          const factor = u.conversionFactor > 0 ? u.conversionFactor : 1;
+          const uCost = u.costPricePiasters > 0 ? u.costPricePiasters : Math.round(baseCostPiasters * factor);
+          const uSell = u.sellPricePiasters > 0 ? u.sellPricePiasters : Math.round(basePricePiasters * factor);
+          return {
+            ...u,
+            sellPricePiasters: uSell,
+            costPricePiasters: uCost,
+            barcode: cleanBarcode,
+            unitName: formatUnitArabic(u.unitName.trim()),
+            isDivisible: false
           };
         }
       });
@@ -1163,8 +1383,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         categoryId: categoryId || 'cat_general',
         internalCode: internalCode.trim(),
         taxCategoryCode: isEnabled('feature_taxes') ? taxCategoryCode.trim() : '',
-        pricePiasters,
-        costPiasters,
+        pricePiasters: basePricePiasters,
+        costPiasters: baseCostPiasters,
         stockQuantityMilli,
         originalStockQuantityMilli: editingId && editingProduct ? editingProduct.stockQuantityMilli : undefined,
         stockAdjustReason: isStockAdjustment ? effectiveStockAdjustReason : undefined,
@@ -1291,9 +1511,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-3.5 gap-3 overflow-hidden select-none">
+    <div {...motionPanel} className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-3.5 gap-3 overflow-hidden select-none">
       {/* 1. Header card: row 1 = title + count + actions, row 2 (catalog) = search + filters + active chips */}
-      <div className={`bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl px-4 flex flex-col gap-3 shrink-0 shadow-xs ${activeSubView === 'catalog' ? 'py-4' : 'min-h-[58px] py-2 justify-center'}`}>
+      <div className={`motion-static bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl px-4 flex flex-col gap-3 shrink-0 shadow-xs ${activeSubView === 'catalog' ? 'py-4' : 'min-h-[3.625rem] py-2 justify-center'}`}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <div className="flex items-center gap-3">
           {activeSubView === 'catalog' ? (
@@ -1347,19 +1567,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         <div className="flex items-center gap-2 flex-wrap">
           {activeSubView === 'catalog' ? (
             <>
-              {/* Senior Tools & Operations Dropdown */}
+            {/* Senior Tools & Operations Dropdown */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setIsToolsDropdownOpen((prev) => !prev)}
                   aria-haspopup="menu"
                   aria-expanded={isToolsDropdownOpen}
-                  className={`h-10 px-3.5 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-2xs cursor-pointer ${
-                    isToolsDropdownOpen ? 'border-brand dark:border-brand-bright ring-2 ring-brand/20 dark:ring-brand-bright/30 bg-surface-2 dark:bg-surface-dark-2' : 'border-line dark:border-line-dark'
+                  className={`${buttonClass({ variant: 'secondary', size: 'md' })} ${
+                    isToolsDropdownOpen ? '!border-brand dark:!border-brand-bright bg-surface-2 dark:bg-surface-dark-2' : ''
                   }`}
                   title="العمليات المتقدمة، الاستيراد والتصدير، والباركود"
                 >
-                  <Tag className="w-4 h-4 text-brand dark:text-brand-bright" />
+                  <Tag className={`${buttonIconClass('md')} text-brand dark:text-brand-bright`} />
                   <span>{isPharmacy ? 'أدوات وصيدلية المحل' : 'أدوات وبضاعة المحل'}</span>
                   <ChevronDown className={`w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted transition-transform duration-150 ${isToolsDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -1370,7 +1590,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       className="fixed inset-0 z-40" 
                       onClick={() => setIsToolsDropdownOpen(false)} 
                     />
-                    <div role="menu" className="absolute left-0 top-full mt-1.5 w-80 max-w-[calc(100vw-2rem)] max-h-[min(34rem,calc(100vh-11rem))] overflow-y-auto custom-scrollbar bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-card py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+                    <div role="menu" className={`${MENU_PANEL} absolute left-0 top-full mt-1.5 w-80 max-w-[calc(100vw-2rem)] max-h-[min(34rem,calc(100vh-11rem))] !overflow-y-auto custom-scrollbar !px-0 !py-1.5 !gap-0 z-50`}>
                       {/* Section 1: Excel & Files */}
                       {(canImportProducts || canExportProducts) && (
                         <ToolsMenuGroup title="الاستيراد والتصدير">
@@ -1452,7 +1672,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           {isEnabled('feature_item_modifiers') && hasPermission('modifiers.manage') && (
                             <ToolsMenuItem
                               icon={Sliders}
-                              label="مجموعات الإضافات وتخصيص الأصناف (Modifiers)"
+                              label="مجموعات الإضافات وتخصيص الأصناف"
                               onClick={() => {
                                 setIsToolsDropdownOpen(false);
                                 setShowModifierManagerModal(true);
@@ -1462,7 +1682,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           {isEnabled('feature_manufacturing_recipes') && (hasPermission('recipes.manage') || hasPermission('recipes.produce')) && (
                             <ToolsMenuItem
                               icon={FlaskConical}
-                              label="الرسبي والتصنيع وخصم الخامات (BOM / Recipes)"
+                              label="الرسبي والتصنيع وخصم الخامات"
                               onClick={() => {
                                 setIsToolsDropdownOpen(false);
                                 setShowRecipeManagerModal(true);
@@ -1539,7 +1759,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           {(isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy')) && hasPermission('pharma.ddi.manage') && (
                             <ToolsMenuItem
                               icon={ShieldAlert}
-                              label="دليل وقواعد التداخلات والتعارضات الدوائية (DDI)"
+                              label="دليل وقواعد التداخلات والتعارضات الدوائية"
                               onClick={() => {
                                 setIsToolsDropdownOpen(false);
                                 setShowDdiManagerModal(true);
@@ -1576,50 +1796,45 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => openHelpCenter('products')}
-                className="h-10 w-10 flex items-center justify-center bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-paid dark:text-paid-bright rounded-xl transition-colors shadow-2xs cursor-pointer shrink-0"
-                title="شرح ودليل إدارة الأصناف والمخزون والباركود"
-                aria-label="شرح ودليل إدارة الأصناف والمخزون والباركود"
-              >
-                <HelpCircle className="w-4 h-4" />
-              </button>
-
               {isClothing && isEnabled('feature_matrix_variants') && (
-                <button
-                  type="button"
+                <AppButton
+                  variant="soft"
+                  icon={Layers}
                   onClick={() => setShowVariantMatrixModal(true)}
-                  className="h-10 px-3.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand-soft/60 dark:hover:bg-brand-dark-soft/70 text-brand dark:text-brand-bright border border-brand/30 dark:border-brand-bright/40 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
+                  className="shrink-0"
                   title="إنشاء صنف أب مع جدول تركيبات المقاسات والألوان والباركود"
                 >
-                  <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span>مقاسات وألوان</span>
-                </button>
+                  مقاسات وألوان
+                </AppButton>
               )}
 
               {canManageCategories && (
-                <button
-                  type="button"
+                <AppButton
+                  variant="secondary"
+                  icon={Tags}
                   onClick={() => setShowCategoryModal(true)}
-                  className="h-10 px-3.5 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
+                  className="shrink-0"
                   title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
                 >
-                  <Tags className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span>إدارة الأقسام</span>
-                </button>
+                  إدارة الأقسام
+                </AppButton>
               )}
 
               {canCreateProduct && (
-                <button
-                  type="button"
-                  onClick={openAddModal}
-                  className="h-10 px-4 bg-brand hover:bg-brand-dark dark:hover:bg-brand-hover text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>{isPharmacy ? 'دواء جديد' : 'صنف جديد'}</span>
-                </button>
+                <AppButton variant="primary" icon={Plus} onClick={openAddModal} className="shrink-0">
+                  {isPharmacy ? 'دواء جديد' : 'صنف جديد'}
+                </AppButton>
               )}
+
+              <button
+                type="button"
+                onClick={() => openHelpCenter('products')}
+                className={`${buttonClass({ variant: 'secondary', size: 'md', iconOnly: true, ariaLabel: 'شرح ودليل إدارة الأصناف والمخزون والباركود' })} shrink-0`}
+                title="شرح ودليل إدارة الأصناف والمخزون والباركود"
+                aria-label="شرح ودليل إدارة الأصناف والمخزون والباركود"
+              >
+                <HelpCircle className={`${buttonIconClass('md', true)} text-paid dark:text-paid-bright`} />
+              </button>
             </>
           ) : null}
         </div>
@@ -1628,94 +1843,79 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {activeSubView === 'catalog' && (
         <>
           {/* Row 2: search + stock status + category */}
-          <div className="flex flex-wrap items-center gap-3">
-            <form onSubmit={handleSearch} className="flex items-center gap-2 flex-1 min-w-[12rem]">
-              <div className="relative flex-1 h-11 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:ring-2 focus-within:ring-brand/20 dark:focus-within:ring-brand-bright/30 focus-within:bg-surface dark:focus-within:bg-surface-dark transition-all">
-                <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted ml-2.5 shrink-0 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="اكتب اسم الصنف أو اضرب الباركود..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
-                  className="w-full bg-transparent border-none text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={clearSearchFilter}
-                    aria-label="مسح نص البحث"
-                    title="مسح نص البحث"
-                    className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              <button
-                type="submit"
-                className="h-11 px-5 bg-brand hover:bg-brand-dark dark:hover:bg-brand-hover text-white rounded-xl text-sm font-bold transition-colors shadow-xs cursor-pointer shrink-0"
-              >
-                بحث
-              </button>
-            </form>
-
-            <SegmentedTabs
-              ariaLabel="تصفية الأصناف حسب حالة المخزون"
-              value={stockStatusFilter}
-              onChange={(next) => {
-                setStockStatusFilter(next);
-                setCurrentPage(1);
-                if (next === 'all') onResetFilter?.();
-                void loadProducts(searchQuery, 1, pageSize, next, selectedCategoryFilter);
-              }}
-              options={STOCK_STATUS_TABS}
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+            <SearchInput
+              size="md"
+              value={searchDraft}
+              ref={searchInputRef}
+              onChange={(value) => setSearchDraft(normalizeArabicNumerals(value))}
+              onSubmit={applySearch}
+              onClear={clearSearchFilter}
+              placeholder="اكتب اسم الصنف أو اضرب الباركود..."
+              ariaLabel="بحث في كتالوج الأصناف والأسعار"
+              className="flex-1 min-w-[16rem]"
+              trailing={
+                <span className="px-2 py-0.5 text-xs font-mono font-bold bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted rounded-md border border-line dark:border-line-dark shrink-0">
+                  F2
+                </span>
+              }
             />
 
-            <CustomSelect
-              value={selectedCategoryFilter}
-              onChange={(next) => {
-                setSelectedCategoryFilter(next);
-                setCurrentPage(1);
-                void loadProducts(searchQuery, 1, pageSize, stockStatusFilter, next);
-              }}
-              options={categoryFilterOptions}
-              size="lg"
-              searchable={categories.length > 7}
-              className="w-44 shrink-0"
-            />
+
+            <div className="flex flex-wrap items-center gap-3">
+              <SegmentedTabs
+                size="compact"
+                ariaLabel="تصفية الأصناف حسب حالة المخزون"
+                value={stockStatusFilter}
+                onChange={(next) => {
+                  setStockStatusFilter(next);
+                  setCurrentPage(1);
+                  if (next === 'all') onResetFilter?.();
+                  void loadProducts(searchQuery, 1, pageSize, next, selectedCategoryFilter);
+                }}
+                options={STOCK_STATUS_TABS}
+              />
+
+              <CustomSelect
+                value={selectedCategoryFilter}
+                onChange={(next) => {
+                  setSelectedCategoryFilter(next);
+                  setCurrentPage(1);
+                  void loadProducts(searchQuery, 1, pageSize, stockStatusFilter, next);
+                }}
+                options={categoryFilterOptions}
+                size="lg"
+                searchable={categories.length > 7}
+                className="w-44 shrink-0"
+              />
+            </div>
           </div>
 
-          {/* Row 3: active filters as removable chips */}
-          {isCatalogFiltered && (
-            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-line dark:border-line-dark">
-              <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">الفلاتر المفعّلة:</span>
-              {searchQuery.trim() !== '' && (
-                <ActiveFilterChip label="بحث" value={searchQuery.trim()} onRemove={clearSearchFilter} />
-              )}
-              {stockStatusFilter !== 'all' && (
-                <ActiveFilterChip
-                  label="حالة المخزون"
-                  value={stockStatusFilter === 'lowStock' ? 'نواقص' : 'خلصان'}
-                  tone={stockStatusFilter === 'lowStock' ? 'warn' : 'danger'}
-                  onRemove={clearStockStatusFilter}
-                />
-              )}
-              {selectedCategoryFilter !== 'all' && (
-                <ActiveFilterChip
-                  label="القسم"
-                  value={categories.find((c) => c.id === selectedCategoryFilter)?.name ?? selectedCategoryFilter}
-                  onRemove={clearCategoryFilter}
-                />
-              )}
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="h-8 px-3 rounded-full text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark transition-colors cursor-pointer"
-              >
-                مسح الكل
-              </button>
-            </div>
-          )}
+          {/* Row 3: active filters as removable chips (always mounted so the header never changes height) */}
+          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-line dark:border-line-dark">
+            <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+              {isCatalogFiltered ? 'الفلاتر المفعّلة:' : 'الفلاتر المفعّلة: لا يوجد'}
+            </span>
+            {searchQuery.trim() !== '' && (
+              <ActiveFilterChip label="بحث" value={searchQuery.trim()} onRemove={clearSearchFilter} />
+            )}
+            {stockStatusFilter !== 'all' && (
+              <ActiveFilterChip
+                label="حالة المخزون"
+                value={stockStatusFilter === 'lowStock' ? 'نواقص' : 'خلصان'}
+                tone={stockStatusFilter === 'lowStock' ? 'warn' : 'danger'}
+                onRemove={clearStockStatusFilter}
+              />
+            )}
+            {selectedCategoryFilter !== 'all' && (
+              <ActiveFilterChip
+                label="القسم"
+                value={categories.find((c) => c.id === selectedCategoryFilter)?.name ?? selectedCategoryFilter}
+                onRemove={clearCategoryFilter}
+              />
+            )}
+            <ClearFiltersButton active={isCatalogFiltered} onClick={clearAllFilters} label="مسح الكل" shape="pill" />
+          </div>
         </>
       )}
       </div>
@@ -1727,29 +1927,29 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             <Check className="w-4 h-4 text-paid dark:text-paid-bright" />
             <span>{importSuccessAlert}</span>
             {bulkPriceUndoBatchId && (
-              <button
-                type="button"
+              <AppButton
+                variant="warningSoft"
+                size="xs"
+                icon={Undo2}
                 onClick={() => void handleUndoBulkPrice()}
                 disabled={isRevertingBulkPrice}
-                className="mr-3 px-2.5 py-1 rounded-lg bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright hover:bg-warn hover:text-white dark:hover:text-white border border-warn/40 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="mr-3"
                 title="تراجع فوري عن تعديل الأسعار الأخير وإعادة الأسعار السابقة"
               >
-                <Undo2 className={`w-3.5 h-3.5 ${isRevertingBulkPrice ? 'animate-spin' : ''}`} />
-                <span>{isRevertingBulkPrice ? 'جاري التراجع...' : 'تراجع عن تعديل الأسعار الآن'}</span>
-              </button>
+                {isRevertingBulkPrice ? 'جاري التراجع...' : 'تراجع عن تعديل الأسعار الآن'}
+              </AppButton>
             )}
           </div>
-          <button
-            type="button"
+          <AppButton
+            variant="subtle"
+            size="xs"
+            icon={X}
             onClick={() => {
               setImportSuccessAlert(null);
               setBulkPriceUndoBatchId(null);
             }}
-            className="text-paid dark:text-paid-bright hover:text-paid-hover dark:hover:text-ink-dark p-1 cursor-pointer"
             aria-label="إغلاق التنبيه"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          />
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { AppButton } from '../../components/AppButton';
 import type { FormEvent } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import type { QuickItem } from '../../types/models';
@@ -41,13 +42,7 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
             <Sparkles className="w-4 h-4 text-brand dark:text-brand-bright" />
             <span>تحديد سعر البيع: {openPriceItem.name}</span>
           </h3>
-          <button 
-            type="button"
-            onClick={requestClose}
-            className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark p-1 rounded cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} onClick={requestClose} aria-label="إغلاق" />
         </div>
         <form onSubmit={onConfirm}>
           <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">
@@ -69,20 +64,18 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
             className="w-full text-center text-2xl font-mono font-bold text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand dark:border-brand-bright rounded p-3 mb-4 focus:outline-none"
           />
           <div className="flex gap-2">
-            <button
+            <AppButton
               type="submit"
+              variant="primary"
+              size="lg"
               disabled={!openPriceInputEgp || parseFloat(openPriceInputEgp) <= 0}
-              className="flex-1 py-2.5 bg-brand hover:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white font-bold rounded transition-colors"
+              className="flex-1"
             >
               تأكيد وإضافة للسلة
-            </button>
-            <button
-              type="button"
-              onClick={requestClose}
-              className="px-4 py-2.5 bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-line-dark text-ink dark:text-ink-dark font-semibold rounded transition-colors cursor-pointer"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="lg" onClick={requestClose}>
               إلغاء
-            </button>
+            </AppButton>
           </div>
         </form>
       </div>

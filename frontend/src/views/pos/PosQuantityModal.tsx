@@ -1,5 +1,6 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { AppButton } from '../../components/AppButton';
+import { X, Minus, Plus } from 'lucide-react';
 import { normalizeArabicNumerals } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { RequiredMark } from '../../components/RequiredMark';
@@ -46,17 +47,11 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
         <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
           <div>
             <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">تعديل كمية الصنف</h3>
-            <p className="text-xs font-bold text-brand dark:text-brand-bright m-0 truncate max-w-[260px]">
+            <p className="text-xs font-bold text-brand dark:text-brand-bright m-0 truncate max-w-[16.25rem]">
               {quantityModalItem.name}
             </p>
           </div>
-          <button 
-            type="button"
-            onClick={requestClose}
-            className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark p-1 rounded hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} onClick={requestClose} aria-label="إغلاق" />
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -64,16 +59,16 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
             الكمية المطلوبة (عدد القطع): <RequiredMark />
           </label>
           <div className="flex items-center gap-2 mb-3">
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="lg"
+              icon={Minus}
+              aria-label="إنقاص الكمية"
               onClick={() => {
                 const curr = parseFloat(quantityInputVal) || 1;
                 if (curr > 1) setQuantityInputVal(String(curr - 1));
               }}
-              className="w-11 h-11 rounded-lg bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft/40 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg flex items-center justify-center shadow-2xs"
-            >
-              -
-            </button>
+            />
             <input
               type="text"
               autoFocus
@@ -84,48 +79,36 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
                   setQuantityInputVal(norm);
                 }
               }}
-              className="flex-1 h-11 text-center text-3xl font-mono font-bold text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand/50 dark:border-brand-bright/50 focus:border-brand dark:focus:border-brand-bright rounded-lg text-ink dark:text-ink-dark focus:outline-none shadow-inner"
+              className="flex-1 min-w-0 h-11 text-center text-3xl font-mono font-bold text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand/50 dark:border-brand-bright/50 focus:border-brand dark:focus:border-brand-bright rounded-lg text-ink dark:text-ink-dark focus:outline-none shadow-inner"
             />
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="lg"
+              icon={Plus}
+              aria-label="زيادة الكمية"
               onClick={() => {
                 const curr = parseFloat(quantityInputVal) || 0;
                 setQuantityInputVal(String(curr + 1));
               }}
-              className="w-11 h-11 rounded-lg bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft/40 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg flex items-center justify-center shadow-2xs"
-            >
-              +
-            </button>
+            />
           </div>
 
           {/* Quick Quantity Buttons */}
           <div className="grid grid-cols-4 gap-1.5 mb-4">
             {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setQuantityInputVal(String(n))}
-                className="h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft/40 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
-              >
+              <AppButton key={n} variant="secondary" size="sm" onClick={() => setQuantityInputVal(String(n))}>
                 {n}
-              </button>
+              </AppButton>
             ))}
           </div>
 
           <div className="flex gap-2">
-            <button
-              type="submit"
-              className="flex-1 h-10 bg-brand hover:bg-brand-hover text-white font-bold rounded-lg transition-colors shadow-xs"
-            >
+            <AppButton type="submit" variant="primary" size="md" className="flex-1">
               تأكيد الكمية (Enter)
-            </button>
-            <button
-              type="button"
-              onClick={requestClose}
-              className="px-4 h-10 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-semibold rounded-lg transition-colors cursor-pointer"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="md" onClick={requestClose}>
               إلغاء (Esc)
-            </button>
+            </AppButton>
           </div>
         </form>
       </div>

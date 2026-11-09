@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import {
   Building2,
   Plus,
-  Search,
   Phone,
   Banknote,
   Receipt,
@@ -18,9 +17,14 @@ import { formatMoney } from './types';
 import { normalizeArabicNumerals, normalizeArabicText } from '../../utils/money';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
+import { AppButton } from '../../components/AppButton';
+import { SearchInput } from '../../components/SearchInput';
+import { MENU_PANEL, MENU_ITEM, MENU_ITEM_DANGER, MENU_ITEM_ICON, MENU_ITEM_ICON_DANGER, MENU_DIVIDER, TABLE_ACTION_TRIGGER } from '../../utils/buttonStyles';
+import { remToPx } from '../../utils/textScale';
 
 interface SuppliersTabProps {
   suppliers: Supplier[];
@@ -102,11 +106,11 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
     }
 
     const rect = e.currentTarget.getBoundingClientRect();
-    const menuEstimatedHeight = 220;
+    const menuEstimatedHeight = remToPx(13.75);
     const spaceBelow = window.innerHeight - rect.bottom;
     const openUpwards = spaceBelow < menuEstimatedHeight && rect.top > menuEstimatedHeight;
 
-    const menuWidth = 220;
+    const menuWidth = remToPx(13.75);
     let left = rect.left;
     if (left + menuWidth > window.innerWidth - 12) {
       left = window.innerWidth - menuWidth - 12;
@@ -160,17 +164,15 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
     <div className="flex-1 flex flex-col gap-4 overflow-hidden">
       {/* Top Toolbar */}
       <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 flex items-center justify-between gap-4 shrink-0 shadow-2xs">
-        <div className="flex-1 flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="ابحث بالاسم أو الشركة أو رقم الهاتف..."
-              value={supplierSearchQuery}
-              onChange={(e) => setSupplierSearchQuery(e.target.value)}
-              className="w-full h-10 pr-9 pl-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
-            />
-          </div>
+        <div className="flex-1 flex items-center gap-x-8 gap-y-3">
+          <SearchInput
+            size="md"
+            value={supplierSearchQuery}
+            onChange={setSupplierSearchQuery}
+            placeholder="ابحث بالاسم أو الشركة أو رقم الهاتف..."
+            ariaLabel="بحث في الموردين"
+            className="flex-1 max-w-md"
+          />
 
           <div className="h-10 px-3 flex items-center gap-2.5 shrink-0 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
             <label
@@ -190,14 +192,9 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onOpenAddSupplier}
-          className="h-10 px-4 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
-        >
-          <Plus className="w-4 h-4" />
-          <span>إضافة مورد جديد</span>
-        </button>
+        <AppButton variant="primary" size="md" icon={Plus} onClick={onOpenAddSupplier}>
+          إضافة مورد جديد
+        </AppButton>
       </div>
 
       {/* Suppliers Table */}
@@ -241,7 +238,7 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                   {sup.phone ? (
                     <span className="flex items-center gap-1">
                       <Phone className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>{sup.phone}</span>
+                      <span>{formatPhoneDisplay(sup.phone)}</span>
                     </span>
                   ) : (
                     '—'
@@ -274,7 +271,7 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
 
                 <div className="col-span-1 text-center">
                   {sup.isActive ? (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/30">
                       نشط
                     </span>
                   ) : (
@@ -288,24 +285,14 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                   <button
                     type="button"
                     onClick={(e) => handleToggleMenu(sup, e)}
-                    className={`h-7 px-2.5 rounded-lg border text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer select-none ${
-                      activeMenu?.supplier.id === sup.id
-                        ? 'bg-brand dark:bg-brand-dark-soft dark:text-brand-bright text-white border-brand dark:border-brand-bright ring-2 ring-brand/20 shadow-xs dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
-                        : 'bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright hover:border-brand/40 dark:hover:border-brand-bright/40'
-                    }`}
+                    aria-expanded={activeMenu?.supplier.id === sup.id}
+                    aria-haspopup="menu"
+                    className={TABLE_ACTION_TRIGGER}
                     title="قائمة إجراءات وخيارات المورد"
                   >
-                    <MoreHorizontal
-                      className={`w-3.5 h-3.5 transition-colors ${
-                        activeMenu?.supplier.id === sup.id ? 'text-white dark:text-brand-bright' : 'text-brand dark:text-brand-bright'
-                      }`}
-                    />
+                    <MoreHorizontal className="w-3.5 h-3.5" />
                     <span>إجراءات</span>
-                    <ChevronDown
-                      className={`w-3 h-3 transition-transform duration-150 ${
-                        activeMenu?.supplier.id === sup.id ? 'rotate-180 text-white dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'
-                      }`}
-                    />
+                    <ChevronDown className="w-3 h-3" />
                   </button>
                 </div>
               </div>
@@ -335,20 +322,15 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
               top: activeMenu.top,
               left: activeMenu.left,
               transform: activeMenu.openUpwards ? 'translateY(-100%)' : 'none',
-              width: '220px',
+              width: '13.75rem',
               zIndex: 9999,
             }}
             onWheel={(e) => e.stopPropagation()}
-            className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl overflow-hidden animate-fade-in text-right font-sans select-none"
+            className={`${MENU_PANEL} font-sans`}
             dir="rtl"
           >
-            {/* Supplier Info Header */}
-            <div className="p-2.5 bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark">
-              <div className="font-bold text-xs text-ink dark:text-ink-dark truncate">{activeMenu.supplier.name}</div>
-            </div>
-
             {/* Menu Items */}
-            <div className="p-1.5 flex flex-col gap-0.5">
+            <div className="flex flex-col gap-0.5">
               {/* 1. Payment */}
               <button
                 type="button"
@@ -357,11 +339,11 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                   setActiveMenu(null);
                   onOpenPayment(s);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-ink dark:text-ink-dark hover:text-paid dark:hover:text-paid-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                className={MENU_ITEM}
               >
-                <div className="w-6 h-6 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright group-hover:bg-paid dark:group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                <span className={MENU_ITEM_ICON}>
                   <Banknote className="w-3.5 h-3.5" />
-                </div>
+                </span>
                 <span className="flex-1 min-w-0 truncate">سداد دفعة للمورد</span>
               </button>
 
@@ -373,11 +355,11 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                   setActiveMenu(null);
                   onOpenStatement(s);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                className={MENU_ITEM}
               >
-                <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand dark:group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                <span className={MENU_ITEM_ICON}>
                   <Receipt className="w-3.5 h-3.5" />
-                </div>
+                </span>
                 <span className="flex-1 min-w-0 truncate">كشف حساب المورد</span>
               </button>
 
@@ -389,16 +371,16 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                   setActiveMenu(null);
                   onOpenEditSupplier(s);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                className={MENU_ITEM}
               >
-                <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-soft/20 group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
+                <span className={MENU_ITEM_ICON}>
                   <Edit2 className="w-3.5 h-3.5" />
-                </div>
+                </span>
                 <span className="flex-1 min-w-0 truncate">تعديل بيانات المورد</span>
               </button>
 
               {/* Divider */}
-              <div className="my-0.5 border-t border-line dark:border-line-dark" />
+              <div className={MENU_DIVIDER} />
 
               {/* 4. Archive / Restore */}
               {activeMenu.supplier.isActive ? (
@@ -409,12 +391,12 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                     setActiveMenu(null);
                     onRequestArchiveSupplier(s);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink dark:text-ink-dark hover:text-danger dark:hover:text-danger-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className={MENU_ITEM_DANGER}
                 >
-                  <div className="w-6 h-6 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright group-hover:bg-danger group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <span className={MENU_ITEM_ICON_DANGER}>
                     <Archive className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="flex-1 min-w-0 truncate text-danger dark:text-danger-bright">أرشفة المورد</span>
+                  </span>
+                  <span className="flex-1 min-w-0 truncate">أرشفة المورد</span>
                 </button>
               ) : (
                 <button
@@ -424,12 +406,12 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                     setActiveMenu(null);
                     onRestoreSupplier(s.id);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className={MENU_ITEM}
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand dark:group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <span className={MENU_ITEM_ICON}>
                     <RotateCcw className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="flex-1 min-w-0 truncate text-brand dark:text-brand-bright">استعادة المورد النشط</span>
+                  </span>
+                  <span className="flex-1 min-w-0 truncate">استعادة المورد النشط</span>
                 </button>
               )}
             </div>

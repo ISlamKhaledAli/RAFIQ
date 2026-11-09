@@ -102,7 +102,8 @@ describe('Onboarding & Production Readiness Verification', () => {
     const wizardContent = fs.readFileSync(wizardModalPath, 'utf8');
     const appContent = fs.readFileSync(appPath, 'utf8');
     assert.ok(fs.existsSync(guidedTourModalPath), 'GuidedTourModal.tsx must exist');
-    const tourContent = fs.readFileSync(guidedTourModalPath, 'utf8');
+    const tourStepsPath = path.resolve('src', 'utils', 'tourSteps.ts');
+    const tourContent = fs.readFileSync(guidedTourModalPath, 'utf8') + fs.readFileSync(tourStepsPath, 'utf8');
 
     // Upon wizard completion, must set rafiq_first_run_completed and rafiq_show_guided_tour
     assert.ok(wizardContent.includes("localStorage.setItem('rafiq_first_run_completed', 'true')"), 
@@ -118,9 +119,9 @@ describe('Onboarding & Production Readiness Verification', () => {
     assert.ok(appContent.includes("localStorage.getItem('rafiq_show_guided_tour') === 'true'"), 
       'App.tsx must launch GuidedTourModal if rafiq_show_guided_tour is set');
 
-    // GuidedTourModal features 5 steps and keyboard tips
-    assert.ok(tourContent.includes('TOUR_STEPS'), 'GuidedTourModal must contain structured tour steps');
-    assert.ok(tourContent.includes('شاشة البيع السريع ونقطة البيع'), 'Tour Step 1 must cover POS screen');
+    // The tour keeps structured steps (content lives in utils/tourSteps.ts) and keyboard tips
+    assert.ok(tourContent.includes('TOUR_STEP_DEFINITIONS'), 'GuidedTourModal must contain structured tour steps');
+    assert.ok(tourContent.includes('البيع من شاشة الكاشير'), 'Tour must cover the POS screen');
     assert.ok(tourContent.includes('F2') || tourContent.includes('F12'), 'Tour must contain keyboard shortcut guidance');
   });
 

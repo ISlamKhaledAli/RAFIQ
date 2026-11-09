@@ -7,7 +7,6 @@ import {
   Clock, 
   HardDrive,
   FileArchive,
-  RefreshCw,
   FolderOpen,
   Lock,
   X
@@ -15,6 +14,8 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RequiredMark } from './RequiredMark';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
 
 export interface DatabaseIntegrityStatus {
   isValid: boolean;
@@ -101,7 +102,7 @@ export const DatabaseRecoveryModal = ({
       onClick={canDismiss ? handleBackdropClick : undefined}
     >
       <div 
-        className="w-full max-w-xl bg-surface dark:bg-surface-dark rounded-[8px] shadow-2xl border border-red-300 dark:border-danger-bright/30 overflow-hidden flex flex-col text-right"
+        className="w-full max-w-xl bg-surface dark:bg-surface-dark rounded-[8px] shadow-2xl border border-danger/30 dark:border-danger-bright/30 overflow-hidden flex flex-col text-right"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. Modal Top Banner */}
@@ -124,8 +125,9 @@ export const DatabaseRecoveryModal = ({
 
           {!status.isCorrupt && onDismiss && (
             <button
+              type="button"
               onClick={requestClose}
-              className="text-white hover:text-white text-xs px-2.5 py-1 rounded hover:bg-white/10 flex items-center gap-1 cursor-pointer"
+              className="h-8 text-white text-xs px-2.5 rounded-lg hover:bg-white/10 flex items-center gap-1"
             >
               <X className="w-3.5 h-3.5" />
               <span>إغلاق</span>
@@ -134,7 +136,8 @@ export const DatabaseRecoveryModal = ({
         </div>
 
         {/* 2. Content Body */}
-        <div className="p-5 flex flex-col gap-4 text-xs text-ink dark:text-ink-dark overflow-y-auto max-h-[80vh]">
+        <MotionHeight className="overflow-y-auto max-h-[80vh]">
+        <div className="p-5 flex flex-col gap-4 text-xs text-ink dark:text-ink-dark">
           {/* Explanation Banner */}
           <div className="p-3.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-[6px] text-danger dark:text-danger-bright leading-relaxed font-sans">
             <span className="font-bold block mb-1">تفاصيل الحالة الفنية:</span>
@@ -146,7 +149,7 @@ export const DatabaseRecoveryModal = ({
                 </div>
               </>
             ) : (
-              'استرجاع النسخة الاحتياطية هيرجع كل البيانات للوقت اللي اتسجلت فيه النسخة دي.'
+              'استرجاع النسخة الاحتياطية هيرجع كل البيانات للوقت اللي اتسجلت فيه النسخة دي، وأي مبيعات أو تعديلات اتسجلت بعد الوقت ده هتختفي من النظام. بتتحفظ نسخة أمان من بياناتك الحالية تلقائياً قبل الاستبدال، ولو الاسترجاع فشل بيرجع النظام زي ما كان، وبعد النجاح البرنامج بيعيد التحميل.'
             )}
           </div>
 
@@ -182,7 +185,7 @@ export const DatabaseRecoveryModal = ({
           <div className="p-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded flex flex-col gap-1.5">
             <label htmlFor="db-recovery-code" className="text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-              <span>أدخل كود استرجاع المالك (Recovery Code) لتأكيد الاسترجاع: <RequiredMark /></span>
+              <span>أدخل كود استرجاع المالك لتأكيد الاسترجاع: <RequiredMark /></span>
             </label>
             <input
               id="db-recovery-code"
@@ -191,7 +194,7 @@ export const DatabaseRecoveryModal = ({
               onChange={(e) => setRecoveryCode(e.target.value)}
               placeholder="RFK-XXXX-XXXX-XXXX"
               autoComplete="off"
-              className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] px-3 text-sm font-mono text-center tracking-widest text-ink focus:outline-none focus:border-brand"
+              className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[2.25rem] px-3 text-sm font-mono text-center tracking-widest text-ink focus:outline-none focus:border-brand"
               dir="ltr"
             />
             <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
@@ -205,10 +208,10 @@ export const DatabaseRecoveryModal = ({
               <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-2">
                 <span className="font-bold text-brand dark:text-brand-bright text-sm flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4" />
-                  <span>أحدث نسخة احتياطية سليمة ومضمونة:</span>
+                  <span>{isStandaloneDialog ? 'النسخة المختارة للاسترجاع:' : 'أحدث نسخة احتياطية سليمة ومضمونة:'}</span>
                 </span>
                 <span className="text-micro font-bold text-paid bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded border border-paid-border dark:border-paid-bright/30">
-                  تم التحقق من سلامتها
+                  {isStandaloneDialog ? 'هتتفحص قبل الاسترجاع' : 'تم التحقق من سلامتها'}
                 </span>
               </div>
 
@@ -223,29 +226,27 @@ export const DatabaseRecoveryModal = ({
                 </div>
               </div>
 
-              <div className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted break-all bg-surface-2 dark:bg-surface-dark-2 p-1.5 rounded border border-line dark:border-line-dark">
+              <div dir="ltr" className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted break-all text-left bg-surface-2 dark:bg-surface-dark-2 p-1.5 rounded border border-line dark:border-line-dark select-text">
                 {status.latestValidBackupFile}
               </div>
 
 
-              <button
-                type="button"
+              <AppButton
+                variant="primary"
+                size="lg"
+                fullWidth
+                icon={RotateCcw}
+                loading={restoring}
                 onClick={() => void handleRestore(status.latestValidBackupFile)}
-                disabled={restoring || !recoveryCode.trim()}
-                className="mt-1 h-[42px] bg-brand hover:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted dark:disabled:opacity-100 text-white rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm text-sm"
+                disabled={!recoveryCode.trim()}
+                className="mt-1"
               >
-                {restoring ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>بيتم فحص واسترجاع النسخة الاحتياطية دلوقتي...</span>
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw className="w-4 h-4" />
-                    <span>استرجاع النسخة السليمة دي دلوقتي</span>
-                  </>
-                )}
-              </button>
+                {restoring
+                  ? 'بيتم فحص واسترجاع النسخة الاحتياطية دلوقتي...'
+                  : isStandaloneDialog
+                    ? 'استرجاع النسخة دي دلوقتي'
+                    : 'استرجاع النسخة السليمة دي دلوقتي'}
+              </AppButton>
             </div>
           ) : (
             <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark text-center text-ink-muted dark:text-ink-dark-muted">
@@ -255,14 +256,15 @@ export const DatabaseRecoveryModal = ({
 
           {/* Manual File Path Option */}
           <div className="pt-2 border-t border-line dark:border-line-dark flex flex-col gap-2">
-            <button
-              type="button"
+            <AppButton
+              variant="subtle"
+              size="xs"
+              icon={FolderOpen}
               onClick={() => setUseCustomFile(!useCustomFile)}
-              className="text-brand dark:text-brand-bright hover:underline font-semibold text-xs flex items-center gap-1 self-start"
+              className="self-start"
             >
-              <FolderOpen className="w-3.5 h-3.5" />
-              <span>{useCustomFile ? 'إخفاء تحديد الملف يدوياً' : 'أو اختر ملف نسخة احتياطية من فلاشة يدوياً'}</span>
-            </button>
+              {useCustomFile ? 'إخفاء تحديد الملف يدوياً' : 'أو اختر ملف نسخة احتياطية من فلاشة يدوياً'}
+            </AppButton>
 
             {useCustomFile && (
               <div className="flex flex-col gap-2 mt-1">
@@ -271,21 +273,22 @@ export const DatabaseRecoveryModal = ({
                   value={customFile}
                   onChange={(e) => setCustomFile(e.target.value)}
                   placeholder="مثال: E:\RafiqBackups\rafiq_backup_20260924_120000.db"
-                  className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[38px] px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
+                  className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.375rem] px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
                 />
-                <button
-                  type="button"
+                <AppButton
+                  variant="secondary"
+                  icon={RotateCcw}
                   onClick={() => void handleRestore(customFile)}
                   disabled={restoring || !customFile.trim() || !recoveryCode.trim()}
-                  className="h-[36px] bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-2 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded font-bold flex items-center justify-center gap-1.5 transition-colors self-end px-4"
+                  className="self-end"
                 >
-                  <RotateCcw className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                  <span>استرجاع من الملف ده</span>
-                </button>
+                  استرجاع من الملف ده
+                </AppButton>
               </div>
             )}
           </div>
         </div>
+        </MotionHeight>
 
         {/* 3. Modal Footer */}
         <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted">
@@ -294,12 +297,9 @@ export const DatabaseRecoveryModal = ({
             <a href="tel:01097782965" className="font-mono font-bold text-paid hover:underline" dir="ltr">01097782965</a>
           </span>
           {!status.isCorrupt && onDismiss && !isStandaloneDialog && (
-            <button
-              onClick={onDismiss}
-              className="px-3 py-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2"
-            >
+            <AppButton variant="secondary" size="sm" onClick={onDismiss}>
               إلغاء
-            </button>
+            </AppButton>
           )}
         </div>
       </div>

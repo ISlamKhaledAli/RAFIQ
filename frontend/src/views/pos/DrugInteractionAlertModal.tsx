@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AppButton } from '../../components/AppButton';
 import {
   AlertTriangle,
   ShieldAlert,
@@ -57,7 +58,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
     if (!onSupervisorOverride) return;
 
     if (!canOverrideDirectly && !pin.trim()) {
-      setOverrideError('رمز PIN للمشرف مطلوب.');
+      setOverrideError('الرقم السري للمشرف مطلوب.');
       return;
     }
 
@@ -76,7 +77,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
         setOverrideReason('');
         onClose();
       } else {
-        setOverrideError('فشل التحقق من رمز PIN أو عدم كفاية الصلاحية.');
+        setOverrideError('فشل التحقق من الرقم السري أو عدم كفاية الصلاحية.');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء تجاوز التحذير.';
@@ -149,7 +150,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
             <div>
               <h2 id="ddi-modal-title" className="t-modal-title flex items-center gap-2">
                 {isSevere
-                  ? 'تحذير سريري حرج: تعارض دوائي مهدد للحياة (Hard Stop)'
+                  ? 'تحذير سريري حرج: تعارض دوائي مهدد للحياة'
                   : isModerate
                   ? 'تنبيه سريري: تعارض وتنافر دوائي يتطلب الفصل الزمني'
                   : 'إرشاد صيدلاني: تفاعل دوائي طفيف'}
@@ -163,6 +164,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+            aria-label="إغلاق النافذة"
             title="إغلاق النافذة"
           >
             <X className="w-5 h-5" />
@@ -248,36 +250,21 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                       <span className="text-ink dark:text-ink-dark font-medium">{conflict.alternativeAr}</span>
                     </div>
                     {onOpenAlternatives && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenAlternatives(conflict.productAId)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-medium hover:bg-brand-dark transition-colors cursor-pointer text-micro"
-                      >
-                        <RefreshCw className="w-3 h-3" />
+                      <AppButton variant="primary" size="xs" icon={RefreshCw} onClick={() => onOpenAlternatives(conflict.productAId)}>
                         عرض البدائل (F8)
-                      </button>
+                      </AppButton>
                     )}
                   </div>
                 )}
 
                 {/* 1-Click Action Buttons */}
                 <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-line/60 dark:border-line-dark/60">
-                  <button
-                    type="button"
-                    onClick={() => onRemoveProduct(conflict.productAId)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger/10 dark:hover:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
+                  <AppButton variant="dangerSoft" size="sm" icon={Trash2} onClick={() => onRemoveProduct(conflict.productAId)}>
                     حذف {conflict.productAName}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveProduct(conflict.productBId)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger/10 dark:hover:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
+                  </AppButton>
+                  <AppButton variant="dangerSoft" size="sm" icon={Trash2} onClick={() => onRemoveProduct(conflict.productBId)}>
                     حذف {conflict.productBName}
-                  </button>
+                  </AppButton>
                 </div>
               </div>
             ))}
@@ -300,13 +287,13 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                   {!canOverrideDirectly && (
                     <div>
                       <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                        رمز PIN للمشرف: <RequiredMark />
+                        الرقم السري للمشرف: <RequiredMark />
                       </label>
                       <input
                         type="password"
                         value={pin}
                         onChange={(e) => setPin(e.target.value)}
-                        placeholder="أدخل رمز PIN المشرف"
+                        placeholder="أدخل الرقم السري للمشرف"
                         className="w-full px-3 py-1.5 text-xs bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-danger dark:focus:border-danger-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                         disabled={isSubmittingOverride}
                       />
@@ -332,14 +319,15 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                 )}
 
                 <div className="flex justify-end pt-1">
-                  <button
+                  <AppButton
                     type="submit"
+                    variant="danger"
+                    size="md"
+                    icon={CheckCircle2}
                     disabled={isSubmittingOverride || (!canOverrideDirectly && !pin.trim())}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-danger text-white hover:bg-danger/90 disabled:opacity-50 transition-colors cursor-pointer"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
                     {isSubmittingOverride ? 'جاري التحقق...' : 'اعتماد التجاوز ومتابعة البيع'}
-                  </button>
+                  </AppButton>
                 </div>
               </form>
             </div>
@@ -354,26 +342,22 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
 
           <div className="flex items-center gap-2">
             {!isSevere && onAcknowledgeWarning && (
-              <button
-                type="button"
+              <AppButton
+                variant="success"
+                size="md"
+                icon={CheckCircle2}
                 onClick={() => {
                   onAcknowledgeWarning();
                   onClose();
                 }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-paid text-white hover:bg-paid/90 transition-colors cursor-pointer shadow-xs"
               >
-                <CheckCircle2 className="w-4 h-4" />
                 فهمت الإرشاد ومتابعة البيع
-              </button>
+              </AppButton>
             )}
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-xs font-bold bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" size="md" onClick={onClose}>
               {isSevere ? 'العودة لتعديل السلة' : 'إغلاق'}
-            </button>
+            </AppButton>
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { AppButton } from './AppButton';
 import { Scale, X, Check, Delete, RotateCcw } from 'lucide-react';
 import { formatArabicCurrency, calculateLineTotal, normalizeArabicNumerals } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -136,11 +137,11 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
   return (
     <div 
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150"
       dir="rtl"
     >
       <div 
-        className="w-full max-w-[480px] bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150"
+        className="w-full max-w-[30rem] bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150"
       >
         {/* Header */}
         <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 hairline-b flex items-center justify-between">
@@ -165,13 +166,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="w-8 h-8 rounded-full hover:bg-surface dark:hover:bg-surface-dark-3 border border-transparent hover:border-line dark:hover:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={requestClose} aria-label="إغلاق" />
         </div>
 
         {/* Modal Body */}
@@ -184,7 +179,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
               onClick={() => handleSwitchUnitMode('kg')}
               className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
                 unitMode === 'kg'
-                  ? 'bg-brand text-white shadow-xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
@@ -195,7 +190,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
               onClick={() => handleSwitchUnitMode('gram')}
               className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
                 unitMode === 'gram'
-                  ? 'bg-brand text-white shadow-xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
@@ -237,48 +232,24 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
 
           {/* Quick Preset Buttons for Retail Supermarket Weights */}
           <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => setPresetGrams(100)}
-              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
-            >
+            <AppButton variant="secondary" size="sm" onClick={() => setPresetGrams(100)}>
               100 جم
-            </button>
-            <button
-              type="button"
-              onClick={() => setPresetGrams(250)}
-              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="sm" onClick={() => setPresetGrams(250)}>
               250 جم (ربع)
-            </button>
-            <button
-              type="button"
-              onClick={() => setPresetGrams(500)}
-              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="sm" onClick={() => setPresetGrams(500)}>
               500 جم (نصف)
-            </button>
-            <button
-              type="button"
-              onClick={() => setPresetGrams(750)}
-              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="sm" onClick={() => setPresetGrams(750)}>
               750 جم (إلا ربع)
-            </button>
-            <button
-              type="button"
-              onClick={() => setPresetGrams(1000)}
-              className="px-3 py-1.5 rounded bg-brand/10 dark:bg-brand-bright/10 hover:bg-brand/20 dark:hover:bg-brand-bright/20 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-micro font-bold transition-colors"
-            >
+            </AppButton>
+            <AppButton variant="soft" size="sm" onClick={() => setPresetGrams(1000)}>
               1 كجم
-            </button>
-            <button
-              type="button"
-              onClick={() => setPresetGrams(2000)}
-              className="px-3 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="sm" onClick={() => setPresetGrams(2000)}>
               2 كجم
-            </button>
+            </AppButton>
           </div>
 
           {/* Interactive Touch / Click Keypad */}
@@ -288,7 +259,8 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
                 key={key}
                 type="button"
                 onClick={() => handleKeypadPress(key)}
-                className="h-[42px] bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 active:bg-brand/10 dark:active:bg-brand-bright/10 border border-line dark:border-line-dark rounded-lg text-base font-bold font-mono text-ink dark:text-ink-dark flex items-center justify-center transition-colors shadow-2xs"
+                aria-label={key === 'BACK' ? 'مسح آخر رقم' : undefined}
+                className="h-[2.625rem] bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 active:bg-brand/10 dark:active:bg-brand-bright/10 border border-line dark:border-line-dark rounded-lg text-base font-bold font-mono text-ink dark:text-ink-dark flex items-center justify-center transition-colors shadow-2xs"
               >
                 {key === 'BACK' ? <Delete className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted" /> : key}
               </button>
@@ -313,32 +285,17 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
 
         {/* Modal Footer */}
         <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 hairline-t flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => handleKeypadPress('C')}
-            className="px-3 py-2 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>مسح (C)</span>
-          </button>
+          <AppButton variant="secondary" size="sm" icon={RotateCcw} onClick={() => handleKeypadPress('C')}>
+            مسح (C)
+          </AppButton>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={requestClose}
-              className="px-4 py-2 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-semibold transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" size="md" onClick={requestClose}>
               إلغاء (Esc)
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={weightMilli <= 0}
-              className="px-5 py-2 rounded-lg bg-brand hover:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
-            >
-              <Check className="w-4 h-4" />
-              <span>تأكيد الوزن (Enter)</span>
-            </button>
+            </AppButton>
+            <AppButton variant="primary" size="md" icon={Check} onClick={handleConfirm} disabled={weightMilli <= 0}>
+              تأكيد الوزن (Enter)
+            </AppButton>
           </div>
         </div>
       </div>

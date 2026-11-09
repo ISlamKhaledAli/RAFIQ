@@ -6,6 +6,9 @@ import {
   Save,
   Server,
   Tag,
+  Printer,
+  ScrollText,
+  LayoutGrid,
   UtensilsCrossed,
   Gauge,
   Sliders
@@ -19,6 +22,7 @@ import { rafiqAlert } from '../../utils/dialogService';
 import { useFeatures } from '../../context/useFeatures';
 import { normalizeReportPaper, type ReportPaper } from '../../utils/printReport';
 import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
+import { AppButton } from '../../components/AppButton';
 import type { PrinterExtras } from './usePrinterExtras';
 
 interface PrinterSettingsTabProps {
@@ -56,6 +60,66 @@ interface PrinterSettingsTabProps {
   /** Goes on the save button's wrapper: the settings page scrolls to it and rings it when the user stays */
   saveBarRef: RefObject<HTMLDivElement | null>;
 }
+
+type LabelSizeOption = { value: string; hint: string } & (
+  | { kind: 'roll'; w: number; h: number }
+  | { kind: 'sheet'; cols: number; rows: number }
+);
+
+const LABEL_ROLL_OPTIONS: LabelSizeOption[] = [
+  { value: '38x25', kind: 'roll', w: 38, h: 25, hint: 'بكرة صغيرة قياسية: التجزئة والملابس واللعب' },
+  { value: '40x30', kind: 'roll', w: 40, h: 30, hint: 'بكرة رول متوسطة' },
+  { value: '50x25', kind: 'roll', w: 50, h: 25, hint: 'بكرة عريضة مدمجة' },
+  { value: '50x30', kind: 'roll', w: 50, h: 30, hint: 'بكرة عريضة قياسية' },
+  { value: '50x40', kind: 'roll', w: 50, h: 40, hint: 'استيكر رف ومخزن كبير' },
+];
+
+const LABEL_SHEET_OPTIONS: LabelSizeOption[] = [
+  { value: 'a4_24', kind: 'sheet', cols: 3, rows: 8, hint: '3 أعمدة × 8 صفوف في الورقة' },
+  { value: 'a4_40', kind: 'sheet', cols: 4, rows: 10, hint: '4 أعمدة × 10 صفوف في الورقة' },
+];
+
+/** Outline of one sticker drawn in the same proportions as the real size (roll) or the A4 grid (sheet) */
+const LabelSizePreview = ({ option }: { option: LabelSizeOption }) => {
+  if (option.kind === 'sheet') {
+    const pageW = 31;
+    const pageH = 42;
+    const gap = 1.2;
+    const cellW = (pageW - 4 - gap * (option.cols - 1)) / option.cols;
+    const cellH = (pageH - 4 - gap * (option.rows - 1)) / option.rows;
+    return (
+      <svg viewBox="0 0 56 44" className="w-14 h-11 shrink-0" aria-hidden="true">
+        <rect x={(56 - pageW) / 2} y={1} width={pageW} height={pageH} rx={1.5} className="fill-surface dark:fill-surface-dark stroke-current" strokeWidth={1.2} />
+        {Array.from({ length: option.rows * option.cols }, (_, i) => (
+          <rect
+            key={i}
+            x={(56 - pageW) / 2 + 2 + (i % option.cols) * (cellW + gap)}
+            y={3 + Math.floor(i / option.cols) * (cellH + gap)}
+            width={cellW}
+            height={cellH}
+            rx={0.6}
+            className="fill-current opacity-25"
+          />
+        ))}
+      </svg>
+    );
+  }
+  const scale = 0.85;
+  const w = option.w * scale;
+  const h = option.h * scale;
+  const x = (56 - w) / 2;
+  const y = (44 - h) / 2;
+  return (
+    <svg viewBox="0 0 56 44" className="w-14 h-11 shrink-0" aria-hidden="true">
+      <rect x={x} y={y} width={w} height={h} rx={2} className="fill-surface dark:fill-surface-dark stroke-current" strokeWidth={1.2} />
+      <rect x={x + 3} y={y + 3} width={w * 0.55} height={1.6} rx={0.8} className="fill-current opacity-40" />
+      {Array.from({ length: 9 }, (_, i) => (
+        <rect key={i} x={x + 3 + i * ((w - 6) / 9)} y={y + h * 0.4} width={i % 3 === 0 ? 1.6 : 0.9} height={h * 0.32} className="fill-current opacity-60" />
+      ))}
+      <rect x={x + w * 0.5} y={y + h - 4.2} width={w * 0.5 - 3} height={1.6} rx={0.8} className="fill-current opacity-40" />
+    </svg>
+  );
+};
 
 export const PrinterSettingsTab = ({
   printersList,
@@ -112,6 +176,12 @@ export const PrinterSettingsTab = ({
   const [drawerTesting, setDrawerTesting] = useState(false);
   const [drawerTestMessage, setDrawerTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [customPulse, setCustomPulse] = useState<string>(String(normalizeDrawerPulse(drawerPulseMs)));
+
+  // Same order the host uses when a sticker is printed: chosen sticker printer, then the receipt printer, then the Windows default
+  const labelPrinterSource = labelPrinter ? 'chosen' : selectedPrinter ? 'receipt' : 'windows';
+  const effectiveLabelPrinter = labelPrinter || selectedPrinter || printersList.find((p) => p.isDefault)?.name || '';
+  const effectiveLabelPrinterInfo = printersList.find((p) => p.name === effectiveLabelPrinter);
+  const labelSizeKnown = [...LABEL_ROLL_OPTIONS, ...LABEL_SHEET_OPTIONS].some((o) => o.value === labelPaperSize);
 
   useEffect(() => {
     if (drawerPulseMs) {
@@ -182,36 +252,28 @@ export const PrinterSettingsTab = ({
       {/* Top actions (page title and description live in the settings page header) */}
       <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-4 border-b border-line dark:border-line-dark pb-5">
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
+          <AppButton
+            variant="successSoft"
+            icon={Server}
             onClick={() => setIsHardwareModalOpen(true)}
-            className="h-10 px-4 rounded-lg bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid/30 dark:border-paid-bright/30 text-paid dark:text-paid-bright text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer"
             title="عرض قائمة الطابعات والأجهزة المعتمدة والمجربة مع طريقة إعدادها"
           >
-            <Server className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
-            <span>الأجهزة والطابعات المعتمدة</span>
-          </button>
+            الأجهزة والطابعات المعتمدة
+          </AppButton>
 
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            icon={Cpu}
+            loading={printersLoading}
             onClick={fetchPrinters}
-            disabled={printersLoading}
-            className="h-10 px-4 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer"
             title="إعادة فحص الطابعات المتصلة بالجهاز"
           >
-            <Cpu className={`w-3.5 h-3.5 ${printersLoading ? 'animate-spin' : ''}`} />
-            <span>تحديث وبحث الطابعات</span>
-          </button>
+            تحديث وبحث الطابعات
+          </AppButton>
 
-          <button
-            type="button"
-            onClick={onTestPrint}
-            disabled={testPrinting || !selectedPrinter}
-            className="h-10 px-5 rounded-lg bg-brand dark:bg-brand-dark hover:bg-brand-dark dark:hover:bg-brand disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-muted-dark text-white text-xs font-bold flex items-center gap-2 whitespace-nowrap shadow-xs transition-colors cursor-pointer"
-          >
-            <Zap className="w-3.5 h-3.5" />
-            <span>{testPrinting ? 'جاري إرسال التجربة...' : 'تجربة طباعة وصل (Test Print)'}</span>
-          </button>
+          <AppButton variant="primary" icon={Zap} loading={testPrinting} disabled={!selectedPrinter} onClick={onTestPrint}>
+            {testPrinting ? 'جاري إرسال التجربة...' : 'تجربة طباعة وصل'}
+          </AppButton>
         </div>
       </div>
 
@@ -297,6 +359,133 @@ export const PrinterSettingsTab = ({
               A4 هو المناسب للتقارير الكاملة. مقاس 80 أو 58 مم يؤثر فقط على التقارير القصيرة المضغوطة (كشف حساب الزبون، سند القبض، إيصال الخدمات الإلكترونية). التقارير ذات الجداول العريضة تُطبع دائماً على ورق A4.
             </p>
           </div>
+
+          {/* Barcode label printer and sticker size */}
+          <div className="p-5 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="flex items-start gap-3 flex-1 min-w-[16rem]">
+                <div className="w-8 h-8 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold shrink-0">
+                  <Tag className="w-4 h-4 text-brand dark:text-brand-bright" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="t-label text-ink dark:text-ink-dark m-0">طابعة استيكرات الباركود والأسعار</h4>
+                  <p className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 mt-1">تحديد طابعة استيكرات البضاعة ومقاس بكرة الباركود</p>
+                </div>
+              </div>
+
+              <AppButton variant="secondary" icon={Zap} loading={labelTestPrinting} disabled={printersList.length === 0} onClick={handleTestLabel}>
+                {labelTestPrinting ? 'جاري إرسال الاستيكر...' : 'طباعة استيكر تجريبي'}
+              </AppButton>
+            </div>
+
+            {labelTestMessage && (
+              <div className={`p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2 border ${
+                labelTestMessage.isError
+                  ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright'
+                  : 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright'
+              }`}>
+                {labelTestMessage.isError ? <Zap className="w-4 h-4 shrink-0" /> : <CheckCircle className="w-4 h-4 shrink-0" />}
+                <span>{labelTestMessage.text}</span>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">طابعة استيكرات الباركود</label>
+              <CustomSelect
+                value={labelPrinter}
+                onChange={(val) => setLabelPrinter(val)}
+                options={[
+                  { value: '', label: 'استخدام طابعة الإيصالات أو طابعة ويندوز الافتراضية' },
+                  ...printersList.map((p) => ({
+                    value: p.name,
+                    label: `${p.name} ${p.isDefault ? '(الافتراضية في ويندوز)' : ''}`,
+                  })),
+                ]}
+                size="lg"
+                placeholder="اختر طابعة الباركود (Zebra, Xprinter, TSC...)"
+              />
+              <div className="mt-2 p-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark flex items-center gap-3">
+                <div className="w-8 h-8 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark flex items-center justify-center shrink-0">
+                  <Printer className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-ink dark:text-ink-dark truncate">
+                    {effectiveLabelPrinter || 'لا توجد طابعة متاحة'}
+                  </div>
+                  <div className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                    {labelPrinterSource === 'chosen' && 'طابعة الاستيكرات المختارة'}
+                    {labelPrinterSource === 'receipt' && 'لم تُحدد طابعة استيكرات، فيُستخدم طابعة الإيصالات'}
+                    {labelPrinterSource === 'windows' && (effectiveLabelPrinter ? 'لم تُحدد طابعة، فيُستخدم الافتراضي في ويندوز' : 'اضغط تحديث وبحث الطابعات أعلى الصفحة')}
+                  </div>
+                </div>
+                {effectiveLabelPrinterInfo && (
+                  <span className={`px-2 py-0.5 rounded-md border text-micro font-bold whitespace-nowrap ${
+                    effectiveLabelPrinterInfo.isOnline
+                      ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright'
+                      : 'bg-warn-soft dark:bg-warn-dark-soft border-warn/30 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
+                  }`}>
+                    {effectiveLabelPrinterInfo.isOnline ? 'متصلة' : 'غير متصلة'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2.5">المقاس الافتراضي لاستيكر الباركود</label>
+              <div role="radiogroup" aria-label="المقاس الافتراضي لاستيكر الباركود" className="flex flex-col gap-3">
+                {[
+                  { id: 'roll', title: 'بكرة رول (استيكر منفصل)', icon: ScrollText, options: LABEL_ROLL_OPTIONS, grid: 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3 [&>*:last-child:nth-child(odd)]:col-span-2' },
+                  { id: 'sheet', title: 'ورق A4 استيكرات (شيت)', icon: LayoutGrid, options: LABEL_SHEET_OPTIONS, grid: 'grid-cols-2' },
+                ].map((group) => (
+                  <div key={group.id} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-1.5 text-micro font-bold text-ink-muted dark:text-ink-muted-dark">
+                      <group.icon className="w-3.5 h-3.5" />
+                      <span>{group.title}</span>
+                    </div>
+                    <div className={`grid gap-2 ${group.grid}`}>
+                      {group.options.map((opt) => {
+                        const isSelected = labelPaperSize === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            onClick={() => setLabelPaperSize(opt.value)}
+                            className={`relative p-2.5 rounded-lg border text-right flex items-center gap-2.5 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-brand/10 dark:bg-brand-dark-soft border-brand dark:border-brand-bright text-brand dark:text-brand-bright shadow-2xs ring-1 ring-brand/30'
+                                : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-line-hover text-ink-muted dark:text-ink-muted-dark'
+                            }`}
+                          >
+                            <LabelSizePreview option={opt} />
+                            <span className="min-w-0 flex-1 flex flex-col gap-0.5">
+                              <span className="flex items-center justify-between gap-1">
+                                <span className={`text-sm font-black tracking-tight tabular-nums ${isSelected ? '' : 'text-ink dark:text-ink-dark'}`}>
+                                  {opt.kind === 'roll' ? (
+                                    <><span dir="ltr">{opt.w}×{opt.h}</span> مم</>
+                                  ) : (
+                                    <>A4 · {opt.cols * opt.rows} استيكر</>
+                                  )}
+                                </span>
+                                {isSelected && <CheckCircle className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />}
+                              </span>
+                              <span className="text-micro leading-relaxed text-ink-muted dark:text-ink-muted-dark">{opt.hint}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {!labelSizeKnown && (
+                <p className="text-micro text-warn dark:text-warn-bright mt-2 m-0 leading-relaxed">
+                  المقاس المحفوظ حالياً ({labelPaperSize}) غير ضمن الخيارات أعلاه. اختر أحد المقاسات لاستبداله.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Right: Automation & Drawer Toggles */}
@@ -339,7 +528,7 @@ export const PrinterSettingsTab = ({
             }`}
           >
             <div className="flex flex-col gap-1">
-              <span className="font-bold text-ink dark:text-ink-dark text-xs">فتح درج النقدية والفلوس تلقائياً مع البيع (Cash Drawer)</span>
+              <span className="font-bold text-ink dark:text-ink-dark text-xs">فتح درج النقدية والفلوس تلقائياً مع البيع</span>
               <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                 إرسال نبضة فتح الدرج تلقائياً مع كل عملية بيع كاش
               </span>
@@ -372,16 +561,16 @@ export const PrinterSettingsTab = ({
                 </div>
               </div>
 
-              <button
-                type="button"
+              <AppButton
+                variant="secondary"
+                icon={Zap}
+                loading={drawerTesting}
+                disabled={!selectedPrinter}
                 onClick={() => void handleTestDrawer()}
-                disabled={drawerTesting || !selectedPrinter}
-                className="h-10 px-4 rounded-lg bg-surface dark:bg-surface-dark hover:bg-white dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
                 title="إرسال نبضة فورية لاختبار فتح الدرج بالقوة المحددة حالياً"
               >
-                <Zap className={'w-3.5 h-3.5 text-brand dark:text-brand-bright ' + (drawerTesting ? 'animate-spin' : '')} />
-                <span>{drawerTesting ? 'جاري الفتح...' : `تجربة النبضة الحالية (${formatDrawerPulse(normalizeDrawerPulse(drawerPulseMs))})`}</span>
-              </button>
+                {drawerTesting ? 'جاري الفتح...' : `تجربة النبضة الحالية (${formatDrawerPulse(normalizeDrawerPulse(drawerPulseMs))})`}
+              </AppButton>
             </div>
 
             {/* Presets Grid */}
@@ -415,8 +604,11 @@ export const PrinterSettingsTab = ({
                       </span>
                     </div>
 
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="secondary"
+                      size="sm"
+                      fullWidth
+                      icon={Zap}
                       onClick={(e) => {
                         e.stopPropagation();
                         setDrawerPulseMs?.(String(opt.ms));
@@ -424,12 +616,11 @@ export const PrinterSettingsTab = ({
                         void handleTestDrawer(String(opt.ms));
                       }}
                       disabled={drawerTesting || !selectedPrinter}
-                      className="mt-1 w-full h-8 px-2 rounded-md bg-surface-2 dark:bg-surface-dark-2 hover:bg-white dark:hover:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-ink dark:text-ink-dark text-micro font-bold flex items-center justify-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
+                      className="mt-1"
                       title={`تجربة فتح الدرج بنبضة ${formatDrawerPulse(opt.ms)} فوراً`}
                     >
-                      <Zap className="w-3 h-3 text-brand dark:text-brand-bright" />
-                      <span>تجربة</span>
-                    </button>
+                      تجربة
+                    </AppButton>
                   </div>
                 );
               })}
@@ -459,8 +650,9 @@ export const PrinterSettingsTab = ({
                       مللي ثانية
                     </span>
                   </div>
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="secondary"
+                    icon={Zap}
                     onClick={() => {
                       const safeVal = String(normalizeDrawerPulse(customPulse));
                       setCustomPulse(safeVal);
@@ -469,25 +661,22 @@ export const PrinterSettingsTab = ({
                       void handleTestDrawer(safeVal);
                     }}
                     disabled={drawerTesting || !selectedPrinter}
-                    className="h-10 px-4 rounded-lg bg-surface dark:bg-surface-dark hover:bg-white dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
                     title="تجربة الرقم المكتوب فوراً"
                   >
-                    <Zap className="w-3 h-3 text-brand dark:text-brand-bright" />
-                    <span>تجربة</span>
-                  </button>
-                  <button
-                    type="button"
+                    تجربة
+                  </AppButton>
+                  <AppButton
+                    variant="soft"
                     onClick={() => {
                       const safeVal = String(normalizeDrawerPulse(customPulse));
                       setCustomPulse(safeVal);
                       setDrawerPulseMs?.(safeVal);
                       if (onChangeDrawerPulse) onChangeDrawerPulse(safeVal);
                     }}
-                    className="h-10 px-4 rounded-lg bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 border border-brand/30 text-brand dark:text-brand-bright text-xs font-bold transition-colors cursor-pointer shadow-2xs"
                     title="تثبيت هذا الرقم كنبضة افتراضية"
                   >
                     تثبيت
-                  </button>
+                  </AppButton>
                 </div>
               </div>
 
@@ -532,96 +721,6 @@ export const PrinterSettingsTab = ({
         </div>
       </div>
 
-      {/* Feature #57: Barcode Label Printer Settings */}
-      <div className="border-t border-line dark:border-line-dark pt-6 flex flex-col gap-5">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold shrink-0">
-              <Tag className="w-4 h-4 text-brand dark:text-brand-bright" />
-            </div>
-            <div>
-              <h4 className="t-label text-ink dark:text-ink-dark m-0">طابعة استيكرات الباركود والأسعار</h4>
-              <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 mt-0.5">تحديد طابعة استيكرات البضاعة ومقاس بكرة الباركود (Roll & Sheet)</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleTestLabel}
-            disabled={labelTestPrinting || printersList.length === 0}
-            className="h-10 px-4 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50"
-          >
-            <Zap className={`w-3.5 h-3.5 text-brand dark:text-brand-bright ${labelTestPrinting ? 'animate-spin' : ''}`} />
-            <span>{labelTestPrinting ? 'جاري إرسال الاستيكر...' : 'طباعة استيكر تجريبي'}</span>
-          </button>
-        </div>
-
-        {labelTestMessage && (
-          <div className={`p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2 border ${
-            labelTestMessage.isError
-              ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright'
-              : 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright'
-          }`}>
-            <span>{labelTestMessage.text}</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <div>
-            <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">طابعة استيكرات الباركود</label>
-            <CustomSelect
-              value={labelPrinter}
-              onChange={(val) => setLabelPrinter(val)}
-              options={[
-                { value: '', label: 'استخدام طابعة الإيصالات أو طابعة ويندوز الافتراضية' },
-                ...printersList.map((p) => ({
-                  value: p.name,
-                  label: `${p.name} ${p.isDefault ? '(الافتراضية في ويندوز)' : ''}`,
-                })),
-              ]}
-              size="lg"
-              placeholder="اختر طابعة الباركود (Zebra, Xprinter, TSC...)"
-            />
-          </div>
-
-          <div>
-            <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">المقاس الافتراضي لاستيكر الباركود</label>
-            <CustomSelect
-              value={labelPaperSize}
-              onChange={(val) => setLabelPaperSize(val)}
-              options={[
-                { value: '38x25', label: '38×25 مم (بكرة رول قياسية صغيرة - محلات التجزئة والملابس واللعب)' },
-                { value: '40x30', label: '40×30 مم (بكرة رول متوسطة)' },
-                { value: '50x25', label: '50×25 مم (بكرة رول عريضة مدمجة)' },
-                { value: '50x30', label: '50×30 مم (بكرة رول عريضة قياسية)' },
-                { value: '50x40', label: '50×40 مم (استيكر رف ومخزن كبير)' },
-                { value: 'a4_24', label: 'ورق A4 استيكرات (24 استيكر بالورقة: 3 أعمدة × 8 صفوف)' },
-                { value: 'a4_40', label: 'ورق A4 استيكرات (40 استيكر بالورقة: 4 أعمدة × 10 صفوف)' },
-              ]}
-              size="lg"
-              placeholder="اختر مقاس ورق الباركود..."
-            />
-          </div>
-        </div>
-
-        <div ref={saveBarRef} className="mt-2 flex flex-col gap-2 rounded-xl">
-          {dirty && (
-            <div role="status">
-              <UnsavedChangesChip />
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => void onSavePrinterSettings()}
-            disabled={saveLoading}
-            className="h-11 bg-brand dark:bg-brand-dark hover:bg-brand-dark dark:hover:bg-brand text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
-          >
-            <Save className="w-4 h-4" />
-            <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ وتفعيل كافة إعدادات الطابعات والاستيكرات'}</span>
-          </button>
-        </div>
-      </div>
-
       {/* Feature #198: Kitchen & Bar KOT Printer Routing */}
       {showKotPrinter && (
         <div className="border-t border-line dark:border-line-dark pt-6 flex flex-col gap-5">
@@ -631,7 +730,7 @@ export const PrinterSettingsTab = ({
                 <UtensilsCrossed className="w-4 h-4 text-brand dark:text-brand-bright" />
               </div>
               <div>
-                <h4 className="t-label text-ink dark:text-ink-dark m-0">توجيه طابعات المطبخ والبار (Kitchen & Bar KOT)</h4>
+                <h4 className="t-label text-ink dark:text-ink-dark m-0">توجيه طابعات المطبخ والبار</h4>
                 <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 mt-0.5">
                   طباعة بون التحضير للمطبخ والبار بدون أسعار وبخط واضح مع توجيه كل قسم للطابعة المناسبة
                 </p>
@@ -639,14 +738,14 @@ export const PrinterSettingsTab = ({
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-ink dark:text-ink-dark">طباعة KOT تلقائياً مع الفاتورة:</span>
+              <span className="text-xs font-bold text-ink dark:text-ink-dark">طباعة تذكرة المطبخ تلقائياً مع الفاتورة:</span>
               <ToggleSwitch checked={kotAutoPrintOnSale} onChange={(next) => setKotAutoPrintOnSale(next)} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div>
-              <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">طابعة المطبخ الساخن (Kitchen Printer)</label>
+              <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">طابعة المطبخ الساخن</label>
               <CustomSelect
                 value={kotKitchenPrinter}
                 onChange={(val) => setKotKitchenPrinter(val)}
@@ -662,7 +761,7 @@ export const PrinterSettingsTab = ({
             </div>
 
             <div>
-              <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">طابعة البار والمشروبات (Bar Printer)</label>
+              <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">طابعة البار والمشروبات</label>
               <CustomSelect
                 value={kotBarPrinter}
                 onChange={(val) => setKotBarPrinter(val)}
@@ -680,7 +779,7 @@ export const PrinterSettingsTab = ({
 
           {kotCategoryRoutes.length > 0 && (
             <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-lg border border-line dark:border-line-dark space-y-3">
-              <div className="text-xs font-bold text-ink dark:text-ink-dark">توجيه الأقسام (Categories Routing):</div>
+              <div className="text-xs font-bold text-ink dark:text-ink-dark">توجيه الأقسام:</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {kotCategoryRoutes.map((cat, idx) => (
                   <div key={cat.categoryId} className="p-3 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-center justify-between gap-3">
@@ -696,7 +795,7 @@ export const PrinterSettingsTab = ({
                         options={[
                           { value: 'kitchen', label: 'المطبخ' },
                           { value: 'bar', label: 'البار' },
-                          { value: 'none', label: 'بدون KOT' },
+                          { value: 'none', label: 'بدون طباعة للمطبخ' },
                         ]}
                         size="sm"
                       />
@@ -708,6 +807,13 @@ export const PrinterSettingsTab = ({
           )}
         </div>
       )}
+
+      <div ref={saveBarRef} className="flex flex-col gap-2 rounded-xl">
+        <UnsavedChangesChip dirty={dirty} />
+        <AppButton variant="primary" size="lg" fullWidth icon={Save} loading={saveLoading} onClick={() => void onSavePrinterSettings()}>
+          {saveLoading ? 'جاري الحفظ...' : 'حفظ وتفعيل كافة إعدادات الطابعات والاستيكرات'}
+        </AppButton>
+      </div>
 
       <CertifiedHardwareModal
         isOpen={isHardwareModalOpen}

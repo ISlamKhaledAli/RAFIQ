@@ -5,6 +5,7 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { ProductPriceHistory } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { DateFilterControl } from './DateFilterControl';
+import { AppButton } from './AppButton';
 import {
   type DateFilterValue,
   DEFAULT_DATE_FILTER,
@@ -123,13 +124,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
               <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">{productName}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 border border-transparent hover:border-line dark:hover:border-line-dark transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={requestClose} aria-label="إغلاق" />
         </div>
 
         {/* Period filter */}
@@ -140,7 +135,10 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
             size="md"
             selectWidthClass="w-44 sm:w-48"
           />
-          <div className="text-micro font-semibold text-ink-muted dark:text-ink-dark-muted font-mono">
+          <div
+            className="w-64 shrink-0 truncate text-micro font-semibold text-ink-muted dark:text-ink-dark-muted font-mono"
+            title={isDateActive ? periodLabel : undefined}
+          >
             {history.length} تعديل{isDateActive ? ` في الفترة: ${periodLabel}` : ' مسجل'}
           </div>
         </div>
@@ -167,13 +165,9 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
               </p>
               <p className="text-micro text-ink-muted dark:text-ink-dark-muted">سيتم تسجيل أي تعديل تقوم به على سعر البيع أو التكلفة تلقائياً هنا مع التاريخ والوقت والمستخدم المسؤول.</p>
               {isDateActive && (
-                <button
-                  type="button"
-                  onClick={() => setDateFilter({ ...DEFAULT_DATE_FILTER })}
-                  className="mt-1 h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
-                >
+                <AppButton variant="soft" onClick={() => setDateFilter({ ...DEFAULT_DATE_FILTER })} className="mt-1">
                   عرض كل الفترات
-                </button>
+                </AppButton>
               )}
             </div>
           ) : (
@@ -208,7 +202,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
 
                       return (
                         <tr key={item.id} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2 transition-colors">
-                          <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted font-mono text-micro whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted font-mono text-xs whitespace-nowrap">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                               {formatDate(item.createdAt)}
@@ -268,13 +262,13 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
                               </span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 text-ink dark:text-ink-dark text-micro whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-ink dark:text-ink-dark text-xs whitespace-nowrap">
                             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-medium">
                               <User className="w-3 h-3 text-brand dark:text-brand-bright shrink-0" />
                               <span>{item.userName || item.userId || 'المدير'}</span>
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted text-micro max-w-[240px] truncate" title={item.changeReason || ''}>
+                          <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted text-micro max-w-[15rem] truncate" title={item.changeReason || ''}>
                             {item.changeReason || 'تعديل يدوي'}
                           </td>
                         </tr>

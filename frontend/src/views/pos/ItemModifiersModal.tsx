@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { AppButton } from '../../components/AppButton';
 import { X, Sliders, Check, MessageSquare } from 'lucide-react';
 import type { ModifierGroup, ModifierOption, SaleItemModifier } from '../../types/cafe';
 import { formatArabicCurrency } from '../../utils/money';
@@ -120,8 +121,8 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none" dir="rtl">
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
+    <div className="motion-modal-backdrop fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none" dir="rtl">
+      <div className="motion-modal-panel bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
         {/* Header */}
         <div className="px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -137,13 +138,7 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {validationError && (
@@ -225,21 +220,12 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer transition-colors"
-            >
+            <AppButton variant="secondary" size="md" onClick={onClose}>
               إلغاء
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirm}
-              className="px-6 py-2.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black hover:opacity-95 flex items-center gap-1.5 cursor-pointer transition-opacity"
-            >
-              <Check className="w-4 h-4" />
-              <span>تأكيد وإضافة للسلة</span>
-            </button>
+            </AppButton>
+            <AppButton variant="primary" size="md" icon={Check} onClick={handleConfirm}>
+              تأكيد وإضافة للسلة
+            </AppButton>
           </div>
         </div>
       </div>

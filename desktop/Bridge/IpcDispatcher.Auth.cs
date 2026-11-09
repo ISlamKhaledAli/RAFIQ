@@ -133,7 +133,7 @@ namespace RafiqPOS.Bridge
                 case "auth:loginRootChallenge":
                     if (request.Payload == null)
                     {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "رمز تصريح Root مطلوب");
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "رمز تصريح المطور مطلوب");
                         return true;
                     }
                     JObject rootObj = request.Payload as JObject;

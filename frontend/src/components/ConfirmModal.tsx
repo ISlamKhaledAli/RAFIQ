@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { AlertTriangle, AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { AppButton } from './AppButton';
 
 export interface ConfirmModalProps {
   isOpen: boolean;
@@ -71,16 +72,11 @@ export const ConfirmModal = ({
       <Info className="w-4 h-4" />
     );
 
-  const confirmBtnClass =
-    effectiveVariant === 'danger'
-      ? 'bg-danger hover:bg-danger-hover active:bg-danger'
-      : effectiveVariant === 'paid'
-      ? 'bg-paid hover:bg-paid-hover active:bg-paid'
-      : 'bg-brand hover:bg-brand-hover active:bg-brand';
+  const confirmVariant = effectiveVariant === 'danger' ? 'danger' : effectiveVariant === 'paid' ? 'success' : 'primary';
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-[2px] animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150 select-none"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onCancel();
@@ -88,7 +84,7 @@ export const ConfirmModal = ({
       }}
     >
       <div 
-        className="w-full max-w-md bg-surface dark:bg-surface-dark hairline-all rounded-[8px] shadow-2xl overflow-hidden flex flex-col transform transition-all"
+        className="w-full max-w-md bg-surface dark:bg-surface-dark hairline-all rounded-[8px] shadow-xl overflow-hidden flex flex-col transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150"
         role="dialog"
         aria-modal="true"
       >
@@ -101,13 +97,7 @@ export const ConfirmModal = ({
             <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">{title}</h3>
           </div>
 
-          <button
-            type="button"
-            onClick={onCancel}
-            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={onCancel} />
         </div>
 
         {/* Content Body */}
@@ -128,22 +118,13 @@ export const ConfirmModal = ({
 
         {/* Action Buttons Footer */}
         <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 hairline-t flex items-center justify-end gap-2.5">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="h-[38px] px-4 rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-xs font-semibold transition-colors cursor-pointer"
-          >
+          <AppButton variant="secondary" onClick={onCancel}>
             {cancelText}
-          </button>
+          </AppButton>
 
-          <button
-            type="button"
-            autoFocus
-            onClick={onConfirm}
-            className={`h-[38px] px-5 rounded text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer ${confirmBtnClass}`}
-          >
+          <AppButton variant={confirmVariant} autoFocus onClick={onConfirm}>
             {confirmText}
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>

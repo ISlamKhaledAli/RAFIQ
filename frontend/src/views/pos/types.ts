@@ -10,6 +10,8 @@ export interface CartItem extends SaleItem {
   isDivisible?: boolean;
   isControlled?: boolean;
   controlledSchedule?: string | null;
+  /** Pre-normalized combined search string for O(1) character lookup (60fps search on low-end CPUs) */
+  _normSearchText?: string;
   controlledDispense?: ControlledDrugDispense;
   consumesIngredientsOnSale?: boolean;
 }
@@ -44,5 +46,7 @@ export interface SmartCatalogItem {
   consumesIngredientsOnSale?: boolean;
   isControlled?: boolean;
   controlledSchedule?: string | null;
+  /** Pre-normalized combined search string for O(1) character lookup (60fps search on low-end CPUs) */
+  _normSearchText?: string;
 }
 

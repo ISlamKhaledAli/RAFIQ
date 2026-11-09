@@ -21,13 +21,13 @@ DESKTOP_DIR = os.path.join(BASE_DIR, 'desktop')
 INSTALLER_DIR = os.path.join(BASE_DIR, 'installer')
 
 print("=========================================================")
-print("  رفيق POS — بناء وتوزيع الهوية البصرية المعتمدة (Concept 2)")
+print("  Rafiq POS - Branding Assets Build & Deploy (Concept 2)")
 print("=========================================================")
 
 # 1. تحميل صورة الماستر للشعار المعتمد (Corporate Swiss)
 master_path = os.path.join(BRANDING_DIR, 'concept_2_corporate_swiss.jpg')
 if not os.path.exists(master_path):
-    print("خطأ: لم يتم العثور على concept_2_corporate_swiss.jpg")
+    print("ERROR: concept_2_corporate_swiss.jpg not found.")
     sys.exit(1)
 
 src = Image.open(master_path).convert('RGB')
@@ -51,7 +51,7 @@ full_img = Image.fromarray(full_rgba, 'RGBA')
 # -------------------------------------------------------------
 # أ) تفريغ فائق النعومة بدقة 4x (4x Supersampling Anti-Aliasing)
 # -------------------------------------------------------------
-print("جاري المعالجة بدقة فائقة 4x Supersampling لمنع أي هبوط في الجودة...")
+print("Processing with 4x supersampling anti-aliasing...")
 
 # رفع دقة المصدر إلى 4096x4096 للحصول على حواف فائقة الحدة بنظام Sub-pixel
 src_4k = src.resize((4096, 4096), Image.Resampling.LANCZOS)
@@ -113,7 +113,7 @@ canvas_logo.paste(scaled_logo_emblem, ((1024 - nw_l) // 2, (1024 - nh_l) // 2), 
 
 logo_path = os.path.join(BRANDING_DIR, 'logo.png')
 canvas_logo.save(logo_path, optimize=True)
-print("✔ [1/6] تم حفظ الشعار المفرغ بدقة فائقة 1024x1024: branding/logo.png")
+print("[1/6] Saved transparent logo 1024x1024: branding/logo.png")
 
 # -------------------------------------------------------------
 # ج) الشعار الأبيض النقي بدقة 1024x1024 بدون أي ظل ضبابي
@@ -127,7 +127,7 @@ canvas_logo_white = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0))
 canvas_logo_white.paste(logo_white_exact, ((1024 - nw_l) // 2, (1024 - nh_l) // 2), logo_white_exact)
 logo_white_path = os.path.join(BRANDING_DIR, 'logo_white.png')
 canvas_logo_white.save(logo_white_path, optimize=True)
-print("✔ [2/6] تم حفظ الشعار الأبيض النقي بدقة فائقة: branding/logo_white.png")
+print("[2/6] Saved pure white logo 1024x1024: branding/logo_white.png")
 
 # -------------------------------------------------------------
 # د) بناء كارت أيقونة التطبيق بدقة فائقة (Squircle App Icon - 512x512)
@@ -185,7 +185,7 @@ app_icon.paste(scaled_icon_emblem, (ix, iy), scaled_icon_emblem)
 
 app_icon_512_path = os.path.join(BRANDING_DIR, 'app_icon_512.png')
 app_icon.save(app_icon_512_path, optimize=True)
-print(f"✔ [3/6] تم حفظ كارت الأيقونة المتمركز تماماً 512x512 (الهوامش: {ix-20}px متطابقة)")
+print(f"[3/6] Saved centered squircle icon 512x512 (margins: {ix-20}px): branding/app_icon_512.png")
 
 # -------------------------------------------------------------
 # هـ) توليد ملف الأيقونة لويندوز فائق النقاء (Pure Multi-Layer PNG ICO)
@@ -228,13 +228,13 @@ for stream in png_streams:
 app_ico_path = os.path.join(BRANDING_DIR, 'app.ico')
 with open(app_ico_path, 'wb') as f_ico:
     f_ico.write(ico_buf.getvalue())
-print("✔ [4/6] تم حفظ الأيقونة متعددة المقاسات النقية 100% PNG: branding/app.ico")
+print("[4/6] Saved multi-resolution PNG ICO: branding/app.ico")
 
 # -------------------------------------------------------------
 # و) استخراج النصوص الأصيلة وبناء الشعار الكامل بدقة Ultra-HD
 # -------------------------------------------------------------
-# اقتصاص النصوص من صورة الـ 4K بدقة عالية جداً
-typo_crop = full_img_4k.crop((860, 2300, 3280, 3040))
+# اقتصاص عنوان الشعار (RAFIQ رفيق) بدقة متناهية من صورة الـ 4K بدون تشويه
+typo_crop = full_img_4k.crop((900, 2400, 3200, 2820))
 typo_arr = np.array(typo_crop, dtype=float)
 tr, tg, tb, ta = typo_arr[:,:,0], typo_arr[:,:,1], typo_arr[:,:,2], typo_arr[:,:,3]
 is_typo_grid = (ta > 0) & (np.abs(tr - tg) < 14) & (np.abs(tg - tb) < 14) & (tr > 150)
@@ -289,7 +289,7 @@ canvas_fw.paste(typo_uhd_white, (40 + target_emblem_w + gap_uhd, ty_pos), typo_u
 
 logo_full_white_path = os.path.join(BRANDING_DIR, 'logo_full_white.png')
 canvas_fw.save(logo_full_white_path, optimize=True)
-print(f"✔ [5/6] تم حفظ الشعار الكامل بدقة Ultra-HD ({canvas_full.width}x{canvas_full.height}): branding/logo_full.png و logo_full_white.png")
+print(f"[5/6] Saved Ultra-HD full logo ({canvas_full.width}x{canvas_full.height}): branding/logo_full.png & logo_full_white.png")
 
 # -------------------------------------------------------------
 # و) التوزيع الفوري على كافة موديولات النظام
@@ -321,7 +321,7 @@ if os.path.exists(desktop_release):
         shutil.copyfile(logo_full_white_path, os.path.join(release_dist, 'logo_full_white.png'))
         shutil.copyfile(app_ico_path, os.path.join(release_dist, 'favicon.ico'))
 
-print("✔ [6/6] تم توزيع كافة الأصول بنجاح على Frontend, Desktop, Installer.")
+print("[6/6] Assets distributed to Frontend, Desktop, and Installer.")
 
 # -------------------------------------------------------------
 # ز) بناء وتحديث جرافيكس برنامج التثبيت (1x و 2x High-DPI)
@@ -332,9 +332,9 @@ try:
     res = subprocess.run([sys.executable, installer_script], check=True, capture_output=True, text=True, encoding='utf-8')
     for line in res.stdout.strip().splitlines():
         print(f"   {line}")
-    print("✔ [7/7] تم بناء جرافيكس معالج التثبيت بدقة فائقة 1x و 2x High-DPI بنجاح.")
+    print("[7/7] Installer graphics (1x & 2x High-DPI) built successfully.")
 except Exception as e:
-    print(f"تنبيه: تعذر استدعاء build_installer_graphics: {e}")
+    print(f"WARN: Could not execute build_installer_graphics: {e}")
 
-print("=== اكتمل بناء الهوية المعتمدة بنجاح تام وبأعلى معايير النقاء ===")
+print("=== Completed branding assets build successfully ===")
 

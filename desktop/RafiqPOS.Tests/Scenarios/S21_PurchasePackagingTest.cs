@@ -174,5 +174,113 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.AreEqual(5000, second.QuantityMilli);
             Assert.AreEqual(17000, ProductRepo.GetById(prod.Id).StockQuantityMilli);
         }
+
+        [Test]
+        public void MultiUnit_Buying_Box_Updates_Single_Piece_And_Box_Proportionally()
+        {
+            var prod = CreateTestProduct("سجائر تارجت أزرق", 200, 175, 0, "6224001222047");
+
+            // Setup product units: base unit (سيجارة, factor=1) and package unit (علبة, factor=20)
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand(@"
+                    INSERT INTO product_units (id, product_id, unit_name, conversion_factor, is_base_unit, sell_price_piasters, cost_price_piasters, is_divisible, sort_order, created_at, updated_at)
+                    VALUES ('u_cig', @pid, 'سيجارة', 1, 1, 200, 175, 0, 0, datetime('now'), datetime('now')),
+                           ('u_box', @pid, 'علبة', 20, 0, 4000, 3500, 0, 1, datetime('now'), datetime('now'));", conn))
+                {
+                    cmd.Parameters.AddWithValue("@pid", prod.Id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // Buy 1 box (20 pieces) at 36.17 EGP (3617 piasters) with new box sell price 40.00 EGP (4000 piasters)
+            // Single unit cost = round(3617 / 20) = 181 piasters. Single unit sell = round(4000 / 20) = 200 piasters.
+            CreateFromUiPayload(@"{
+              ""purchase"": {
+                ""supplierId"": null, ""supplierInvoiceNumber"": null, ""invoiceDate"": ""2026-11-08T10:00:00.000Z"",
+                ""totalCostPiasters"": 3617, ""discountPiasters"": 0, ""netCostPiasters"": 3617,
+                ""paidAmountPiasters"": 3617, ""payInFull"": true, ""remainingAmountPiasters"": 0,
+                ""paymentStatus"": ""PAID"", ""paymentSource"": ""external_cash"", ""status"": ""COMPLETED"", ""notes"": null,
+                ""items"": [{
+                  ""productId"": """ + prod.Id + @""", ""productName"": ""سجائر تارجت أزرق"", ""barcode"": ""6224001222047"",
+                  ""quantityMilli"": 20000, ""bonusQuantityMilli"": 0, ""unitCostPiasters"": 181, ""totalCostPiasters"": 3617,
+                  ""previousCostPiasters"": 175, ""newSellingPricePiasters"": 200, ""publicPricePiasters"": 4000,
+                  ""unitId"": ""u_box"", ""unitName"": ""علبة"", ""conversionFactor"": 20, ""packageCostPiasters"": 3617
+                }]
+              },
+              ""costingMethod"": ""LATEST""
+            }");
+
+            // Verify product table: holds base unit values
+            var after = ProductRepo.GetById(prod.Id);
+            Assert.AreEqual(20000, after.StockQuantityMilli, "20 سيجارة في المخزن");
+            Assert.AreEqual(181, after.CostPiasters, "تكلفة السيجارة الواحدة = 1.81 ج.م");
+            Assert.AreEqual(200, after.PricePiasters, "سعر بيع السيجارة الواحدة = 2.00 ج.م");
+
+            // Verify product_units: base unit updated proportionally
+            Assert.AreEqual(181, Scalar("SELECT cost_price_piasters FROM product_units WHERE product_id = @p AND is_base_unit = 1;", prod.Id));
+            Assert.AreEqual(200, Scalar("SELECT sell_price_piasters FROM product_units WHERE product_id = @p AND is_base_unit = 1;", prod.Id));
+
+            // Verify product_units: box unit holds exact box cost and public sell price
+            Assert.AreEqual(3617, Scalar("SELECT cost_price_piasters FROM product_units WHERE product_id = @p AND is_base_unit = 0 AND conversion_factor = 20;", prod.Id), "تكلفة العلبة 36.17 ج.م بالضبط");
+            Assert.AreEqual(4000, Scalar("SELECT sell_price_piasters FROM product_units WHERE product_id = @p AND is_base_unit = 0 AND conversion_factor = 20;", prod.Id), "سعر بيع العلبة 40.00 ج.م");
+        }
+
+        [Test]
+        public void MultiUnit_Buying_Single_Piece_Scales_Box_Without_Overwriting()
+        {
+            var prod = CreateTestProduct("سجائر تارجت أزرق", 200, 175, 0, "6224001222047");
+
+            // Setup product units: base unit (سيجارة, factor=1) and package unit (علبة, factor=20)
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand(@"
+                    INSERT INTO product_units (id, product_id, unit_name, conversion_factor, is_base_unit, sell_price_piasters, cost_price_piasters, is_divisible, sort_order, created_at, updated_at)
+                    VALUES ('u_cig', @pid, 'سيجارة', 1, 1, 200, 175, 0, 0, datetime('now'), datetime('now')),
+                           ('u_box', @pid, 'علبة', 20, 0, 4000, 3500, 0, 1, datetime('now'), datetime('now'));", conn))
+                {
+                    cmd.Parameters.AddWithValue("@pid", prod.Id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // Buy 20 single cigarettes (loose / فرط) at 2.00 EGP (200 piasters) each, with new cigarette sell price 2.50 EGP (250 piasters)
+            // Notice: conversionFactor is 1. Box cost scales to 200 * 20 = 4000. Box sell scales to 250 * 20 = 5000.
+            CreateFromUiPayload(@"{
+              ""purchase"": {
+                ""supplierId"": null, ""supplierInvoiceNumber"": null, ""invoiceDate"": ""2026-11-08T10:00:00.000Z"",
+                ""totalCostPiasters"": 4000, ""discountPiasters"": 0, ""netCostPiasters"": 4000,
+                ""paidAmountPiasters"": 4000, ""payInFull"": true, ""remainingAmountPiasters"": 0,
+                ""paymentStatus"": ""PAID"", ""paymentSource"": ""external_cash"", ""status"": ""COMPLETED"", ""notes"": null,
+                ""items"": [{
+                  ""productId"": """ + prod.Id + @""", ""productName"": ""سجائر تارجت أزرق"", ""barcode"": ""6224001222047"",
+                  ""quantityMilli"": 20000, ""bonusQuantityMilli"": 0, ""unitCostPiasters"": 200, ""totalCostPiasters"": 4000,
+                  ""previousCostPiasters"": 175, ""newSellingPricePiasters"": 250, ""publicPricePiasters"": 5000,
+                  ""unitId"": ""u_cig"", ""unitName"": ""سيجارة"", ""conversionFactor"": 1, ""packageCostPiasters"": 4000
+                }]
+              },
+              ""costingMethod"": ""LATEST""
+            }");
+
+            // Verify product table: holds base unit values
+            var after = ProductRepo.GetById(prod.Id);
+            Assert.AreEqual(20000, after.StockQuantityMilli, "20 سيجارة في المخزن");
+            Assert.AreEqual(200, after.CostPiasters, "تكلفة السيجارة الواحدة = 2.00 ج.م");
+            Assert.AreEqual(250, after.PricePiasters, "سعر بيع السيجارة الواحدة = 2.50 ج.م");
+
+            // Verify product_units: base unit updated to single piece values
+            Assert.AreEqual(200, Scalar("SELECT cost_price_piasters FROM product_units WHERE product_id = @p AND is_base_unit = 1;", prod.Id));
+            Assert.AreEqual(250, Scalar("SELECT sell_price_piasters FROM product_units WHERE product_id = @p AND is_base_unit = 1;", prod.Id));
+
+            // CRITICAL TEST: Box unit MUST NOT be overwritten to 250 piasters!
+            // It must scale reversely to 250 * 20 = 5000 piasters (50.00 EGP), and cost 200 * 20 = 4000 piasters (40.00 EGP).
+            long boxCost = Scalar("SELECT cost_price_piasters FROM product_units WHERE product_id = @p AND is_base_unit = 0 AND conversion_factor = 20;", prod.Id);
+            long boxSell = Scalar("SELECT sell_price_piasters FROM product_units WHERE product_id = @p AND is_base_unit = 0 AND conversion_factor = 20;", prod.Id);
+
+            Assert.AreEqual(4000, boxCost, "تكلفة العلبة تم ضربها عكسياً (2.00 × 20 = 40.00 ج.م)");
+            Assert.AreEqual(5000, boxSell, "سعر بيع العلبة تم ضربه عكسياً (2.50 × 20 = 50.00 ج.م) ولم يُدهس بسعر السيجارة (2.50)");
+        }
     }
 }

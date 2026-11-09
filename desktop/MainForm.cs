@@ -1195,7 +1195,7 @@ namespace RafiqPOS
             if (!Directory.Exists(distFolder) || !File.Exists(Path.Combine(distFolder, "index.html")))
             {
                 ShowFatalError(
-                    "ملفات واجهة النظام غير موجودة (Dist Missing)",
+                    "ملفات واجهة النظام غير موجودة",
                     "لم يتم العثور على ملفات الواجهة (index.html) في المسار:\n" + distFolder,
                     "يرجى تشغيل أمر بناء الواجهة 'npm run build' في مجلد frontend أو إعادة تثبيت البرنامج."
                 );
@@ -1228,7 +1228,7 @@ namespace RafiqPOS
                 {
                     Logger.Error("مشغل WebView2 الثابت (Fixed 109) غير موجود في: " + fixed109Folder, null);
                     ShowFatalError(
-                        "مشغل العرض المدمج لويندوز 7 غير موجود (WebView2 Fixed 109 Missing)",
+                        "مشغل العرض المدمج لويندوز 7 غير موجود",
                         "لم يتم العثور على الملف msedgewebview2.exe في المسار:\n" + fixed109Folder + "\n\nنظام التشغيل: " + osFriendlyName,
                         "1. أعد تشغيل ملف تثبيت رفيق الرسمي (Setup) لإصلاح التثبيت؛ فهو يحتوي على مشغل العرض المخصص لويندوز 7 و 8.\n" +
                         "2. تأكد أن برنامج الحماية (Antivirus) لم يحذف أو يعزل ملفات المجلد runtimes\\fixed109.\n" +
@@ -1248,7 +1248,7 @@ namespace RafiqPOS
                 {
                     Logger.Error("لا يوجد مشغل WebView2 على النظام ولا المشغل المدمج في: " + fixed109Folder, null);
                     ShowFatalError(
-                        "مشغل العرض غير موجود (WebView2 Runtime Missing)",
+                        "مشغل العرض غير موجود",
                         "مشغل Microsoft Edge WebView2 غير مثبت على النظام، ولم يتم العثور على المشغل المدمج في:\n" + fixed109Folder + "\n\nنظام التشغيل: " + osFriendlyName,
                         "1. أعد تشغيل ملف تثبيت رفيق الرسمي (Setup) لإصلاح التثبيت؛ فهو يحتوي على مشغل عرض يعمل بدون إنترنت.\n" +
                         "2. أو قم بتثبيت Microsoft Edge WebView2 Runtime على هذا الجهاز.\n" +
@@ -1280,13 +1280,16 @@ namespace RafiqPOS
 
                 string userDataFolder = Path.Combine(baseDataFolder, "webview_profile");
 
-                // تحسينات سرعة التشغيل الصارمة لويندوز 7 والعمل بدون إنترنت وحماية استقرار معالج الرسوميات (DWM & GPU) عند تشغيل برامج أخرى بجانب التطبيق
+                // تحسينات سرعة التشغيل الصارمة لويندوز 7 والعمل بدون إنترنت وحماية استقرار معالج الرسوميات (DWM & GPU) ومنع التقطيع واللاج عند فتح القوائم والنوافذ
                 string browserArgs = "--no-proxy-server " +
                                      "--disable-background-networking " +
                                      "--disable-component-update " +
                                      "--disable-domain-reliability " +
                                      "--disable-sync " +
-                                     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider " +
+                                     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,CalculateNativeWinOcclusion,InterestFeedContentSuggestions " +
+                                     "--disable-background-timer-throttling " +
+                                     "--disable-backgrounding-occluded-windows " +
+                                     "--disable-renderer-backgrounding " +
                                      "--disable-gpu-watchdog " +
                                      "--no-first-run " +
                                      "--autoplay-policy=no-user-gesture-required";
@@ -1415,7 +1418,7 @@ namespace RafiqPOS
                 }
 
                 ShowFatalError(
-                    "تعذر تشغيل محرك العرض (WebView2 Error)",
+                    "تعذر تشغيل محرك العرض",
                     wvEx.Message,
                     advice
                 );
@@ -1581,33 +1584,146 @@ namespace RafiqPOS
             return _isKioskFullscreen;
         }
 
-        public void ShowPrintDialog(string dialogKind)
+        /// <summary>
+        /// يفتح نافذة طباعة WebView2 على واجهة المستخدم ويعيد النتيجة الحقيقية: عند الفشل يحصل المستدعي على رسالة عربية
+        /// ليحوّل إلى الحفظ كملف، بدل أن يظن أن الطباعة بدأت.
+        /// </summary>
+        public bool TryShowPrintDialog(string dialogKind, out string error)
         {
-            if (this.InvokeRequired)
+            error = null;
+            string failure = null;
+            if (!this.IsHandleCreated || this.IsDisposed)
             {
-                this.BeginInvoke(new Action<string>(ShowPrintDialog), dialogKind);
-                return;
+                error = "النافذة الرئيسية غير جاهزة لعرض الطباعة.";
+                return false;
             }
 
             try
             {
-                if (_webView != null && _webView.CoreWebView2 != null)
+                this.Invoke(new Action(delegate
                 {
-                    CoreWebView2PrintDialogKind kind = string.Equals(dialogKind, "system", StringComparison.OrdinalIgnoreCase)
-                        ? CoreWebView2PrintDialogKind.System
-                        : CoreWebView2PrintDialogKind.Browser;
+                    try
+                    {
+                        if (_webView == null || _webView.CoreWebView2 == null)
+                        {
+                            failure = "مشغل العرض غير جاهز بعد، حاول بعد لحظات.";
+                            return;
+                        }
 
-                    _webView.CoreWebView2.ShowPrintUI(kind);
-                    Logger.Info("تم إظهار نافذة طباعة التقرير بنجاح عبر ShowPrintUI: " + kind);
-                }
-                else
-                {
-                    Logger.Warn("تعذر إظهار نافذة الطباعة لأن مشغل العرض غير جاهز بعد.");
-                }
+                        CoreWebView2PrintDialogKind kind = string.Equals(dialogKind, "system", StringComparison.OrdinalIgnoreCase)
+                            ? CoreWebView2PrintDialogKind.System
+                            : CoreWebView2PrintDialogKind.Browser;
+
+                        _webView.CoreWebView2.ShowPrintUI(kind);
+                        Logger.Info("تم إظهار نافذة طباعة التقرير بنجاح عبر ShowPrintUI: " + kind);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error("خطأ أثناء استدعاء ShowPrintUI: ", ex);
+                        failure = "تعذر فتح نافذة الطباعة: " + ex.Message;
+                    }
+                }));
+            }
+            catch (Exception invokeEx)
+            {
+                Logger.Error("تعذر تمرير أمر الطباعة إلى واجهة المستخدم: ", invokeEx);
+                failure = "تعذر فتح نافذة الطباعة.";
+            }
+
+            error = failure;
+            return failure == null;
+        }
+
+        /// <summary>
+        /// يحوّل الصفحة الحالية إلى PDF بنفس تنسيق الطباعة (@media print و @page) عبر Page.printToPDF،
+        /// ويعمل من أي خيط: التنفيذ على واجهة المستخدم والانتظار بمهلة على الخيط المستدعي.
+        /// </summary>
+        public byte[] RenderPagePdf(bool landscape, int timeoutMs, out string error)
+        {
+            error = null;
+            if (!this.IsHandleCreated || this.IsDisposed)
+            {
+                error = "النافذة الرئيسية غير جاهزة لإنشاء ملف PDF.";
+                return null;
+            }
+
+            var completion = new System.Threading.Tasks.TaskCompletionSource<byte[]>();
+            try
+            {
+                this.BeginInvoke(new Action(delegate { StartPagePdfRender(landscape, completion); }));
             }
             catch (Exception ex)
             {
-                Logger.Error("خطأ أثناء استدعاء ShowPrintUI: ", ex);
+                error = "تعذر بدء إنشاء ملف PDF: " + ex.Message;
+                return null;
+            }
+
+            bool finished;
+            try
+            {
+                finished = completion.Task.Wait(timeoutMs);
+            }
+            catch (AggregateException agg)
+            {
+                error = "تعذر إنشاء ملف PDF: " + agg.GetBaseException().Message;
+                return null;
+            }
+
+            if (!finished)
+            {
+                error = "انتهت مهلة إنشاء ملف PDF.";
+                return null;
+            }
+            return completion.Task.Result;
+        }
+
+        private void StartPagePdfRender(bool landscape, System.Threading.Tasks.TaskCompletionSource<byte[]> completion)
+        {
+            try
+            {
+                if (_webView == null || _webView.CoreWebView2 == null)
+                {
+                    completion.TrySetException(new InvalidOperationException("مشغل العرض غير جاهز بعد."));
+                    return;
+                }
+
+                // preferCSSPageSize: مقاس الورق والهوامش من قاعدة @page التي حقنتها الواجهة (A4 أو 80mm أو 58mm)
+                string parameters = JsonConvert.SerializeObject(new
+                {
+                    landscape = landscape,
+                    printBackground = true,
+                    preferCSSPageSize = true,
+                    displayHeaderFooter = false
+                });
+
+                _webView.CoreWebView2.CallDevToolsProtocolMethodAsync("Page.printToPDF", parameters).ContinueWith(
+                    delegate(System.Threading.Tasks.Task<string> done)
+                    {
+                        if (done.IsFaulted)
+                        {
+                            completion.TrySetException(done.Exception.GetBaseException());
+                            return;
+                        }
+                        try
+                        {
+                            Newtonsoft.Json.Linq.JObject json = Newtonsoft.Json.Linq.JObject.Parse(done.Result);
+                            string base64 = json["data"] != null ? json["data"].ToString() : null;
+                            if (string.IsNullOrEmpty(base64))
+                            {
+                                completion.TrySetException(new InvalidOperationException("لم يُرجع المشغل محتوى PDF."));
+                                return;
+                            }
+                            completion.TrySetResult(Convert.FromBase64String(base64));
+                        }
+                        catch (Exception parseEx)
+                        {
+                            completion.TrySetException(parseEx);
+                        }
+                    });
+            }
+            catch (Exception ex)
+            {
+                completion.TrySetException(ex);
             }
         }
 

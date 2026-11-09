@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode } from 'react';
 import { AlertTriangle, Lock } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { RequiredMark } from '../../components/RequiredMark';
+import MotionHeight from '../../components/MotionHeight';
 import { normalizeReceiptText, RECEIPT_TEXT_MAX_CHARS } from '../../utils/receiptLayout';
 
 type IconType = ComponentType<{ className?: string }>;
@@ -9,14 +10,6 @@ type IconType = ComponentType<{ className?: string }>;
 /** Shared look of every text field on the store settings screens (44px high). */
 export const FIELD_INPUT_CLASS =
   'w-full h-11 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg px-3 text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-muted-dark/70 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors';
-
-/** Shared 44px buttons of the settings and root screens. */
-export const PRIMARY_BUTTON_CLASS =
-  'h-11 px-5 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-muted-dark disabled:cursor-not-allowed text-white dark:text-surface-dark rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors cursor-pointer';
-export const SECONDARY_BUTTON_CLASS =
-  'h-11 px-4 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-60 disabled:cursor-not-allowed text-ink dark:text-ink-dark rounded-lg text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer';
-export const DANGER_BUTTON_CLASS =
-  'h-11 px-5 bg-danger hover:bg-danger-hover disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer';
 
 interface ReceiptTextFieldProps {
   label: string;
@@ -136,7 +129,8 @@ export const ToggleRow = ({ icon: Icon, title, description, checked, onChange, w
           <Icon className="w-4 h-4" />
         </div>
       )}
-      <div className="flex flex-col gap-1.5 min-w-0">
+      <MotionHeight className="min-w-0">
+      <div className="flex flex-col gap-1.5">
         <span className="t-label text-ink dark:text-ink-dark">{title}</span>
         <span className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">{description}</span>
         {warning && (
@@ -146,6 +140,7 @@ export const ToggleRow = ({ icon: Icon, title, description, checked, onChange, w
           </span>
         )}
       </div>
+      </MotionHeight>
     </div>
     <div className="shrink-0 pt-1">
       {lockedLabel ? (

@@ -23,7 +23,7 @@ const cashier = { id: 'usr_c', username: 'c1', role: 'cashier', isOwner: false }
 
 describe('roleLabels: labels and tiers', () => {
   it('labels each tier correctly', () => {
-    assert.equal(getRoleLabel(root), 'المطور (Root)');
+    assert.equal(getRoleLabel(root), 'المطور');
     assert.equal(getRoleLabel(owner), 'المالك');
     assert.equal(getRoleLabel(manager), 'مدير');
     assert.equal(getRoleLabel(cashier), 'كاشير');
@@ -32,7 +32,7 @@ describe('roleLabels: labels and tiers', () => {
   it('never labels anyone below the owner as the owner', () => {
     for (const u of [manager, manager2, cashier, { role: 'cashier', isOwner: false }, { role: 'admin' }, null, undefined]) {
       assert.notEqual(getRoleLabel(u), 'المالك');
-      assert.notEqual(getRoleLabel(u), 'المطور (Root)');
+      assert.notEqual(getRoleLabel(u), 'المطور');
     }
     // only an explicit isOwner === true earns the owner label
     assert.equal(getRoleLabel({ role: 'admin', isOwner: undefined }), 'مدير');

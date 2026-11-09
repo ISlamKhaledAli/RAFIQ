@@ -118,7 +118,7 @@ describe('payment dialog uses design tokens only', () => {
     assert.match(modalSrc, /h-\[min\(46rem,100%\)\] flex flex-col overflow-hidden/);
     assert.match(modalSrc, /flex-1 min-h-0 overflow-y-auto/);
     assert.match(modalSrc, /h-\[4\.5rem\][^"]*hairline-t[^"]*shrink-0/);
-    assert.match(modalSrc, /h-12 min-w-72 px-6 rounded-lg/);
+    assert.match(modalSrc, /<AppButton variant="primary" size="lg"[\s\S]*?className="h-12 min-w-72"/);
   });
 });
 

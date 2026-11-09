@@ -7,9 +7,9 @@ import {
   Receipt,
   X,
   Printer,
-  Search,
   AlertCircle,
   CheckCircle2,
+  Download,
   User,
   Ban,
   RotateCcw,
@@ -20,12 +20,14 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { openHelpCenter } from '../utils/helpService';
+import { saveReceiptImageWithNotice } from '../utils/reportNotice';
 import type { Sale, Return } from '../types/models';
 import { formatArabicCurrency, totalSaleDiscountPiasters } from '../utils/money';
 import { normalizeInvoiceSearchText } from '../utils/receiptLayout';
 import { VoidInvoiceModal } from '../components/VoidInvoiceModal';
 import { ReturnModal } from '../components/ReturnModal';
 import { DateFilterControl } from '../components/DateFilterControl';
+import { ClearFiltersButton } from '../components/ClearFiltersButton';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -34,8 +36,11 @@ import { useSmoothLoading } from '../utils/useSmoothLoading';
 import { useAuth } from '../context/useAuth';
 import { useDateFilter, useToday, isDateFilterActive, describeDateFilter, getDateFilterKey } from '../utils/dateFilter';
 import { formatUnitArabic } from '../utils/units';
+import { formatPhoneDisplay } from '../utils/phoneFormat';
 import { buildSalesHistoryQuery, summarizeSales, SALES_HISTORY_LIMIT, type SalesStatusFilter } from '../utils/salesHistoryFilter';
 
+import { AppButton } from '../components/AppButton';
+import { SearchInput } from '../components/SearchInput';
 export interface SalesHistoryViewProps {
   isActive?: boolean;
 }
@@ -53,6 +58,24 @@ const formatCashierName = (cashierName?: string | null, cashierId?: string | nul
   return cashierId;
 };
 
+const DETAILS_PAYMENT_LABEL: Record<string, string> = {
+  cash: 'كاش',
+  credit: 'شكك (على النوتة)',
+  instapay: 'إنستاباي',
+  vodafone_cash: 'محفظة إلكترونية',
+};
+
+const DetailRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="flex items-center justify-between gap-3 min-h-9 min-w-0">
+    <span className="text-xs font-semibold text-ink-muted dark:text-ink-dark-muted shrink-0">{label}</span>
+    <div className="min-w-0 text-sm font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 flex-wrap justify-end">{children}</div>
+  </div>
+);
+
+const DETAILS_CHIP_BASE = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border shrink-0';
+const DETAILS_CHIP_PAID = `${DETAILS_CHIP_BASE} bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright border-paid/20 dark:border-paid/30`;
+const DETAILS_CHIP_WARN = `${DETAILS_CHIP_BASE} bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn/20 dark:border-warn-bright/30`;
+const DETAILS_CHIP_DANGER = `${DETAILS_CHIP_BASE} bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30`;
 export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = true }) => {
   const { hasPermission } = useAuth();
   const canReturn = hasPermission('returns.create');
@@ -84,6 +107,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
   const loadSeqRef = useRef(0);
   const [reprintFeedback, setReprintFeedback] = useState<string | null>(null);
   const [isReprinting, setIsReprinting] = useState(false);
+  const [reprintFailed, setReprintFailed] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [saleReturns, setSaleReturns] = useState<Return[]>([]);
@@ -282,6 +306,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     if (!selectedSale || isReprinting || loadingDetails) return;
     setIsReprinting(true);
     setReprintFeedback(null);
+    setReprintFailed(false);
     try {
       const res = await invoke<{ success: boolean; message: string }>('printer:printReceipt', {
         saleId: selectedSale.id,
@@ -294,7 +319,8 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر إرسال أمر الطباعة';
-      setReprintFeedback('تنبيه: ' + msg);
+      setReprintFeedback('تعذرت الطباعة: ' + msg);
+      setReprintFailed(true);
     } finally {
       setIsReprinting(false);
     }
@@ -428,51 +454,37 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
             <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mt-0.5">شغال أوفلاين بدون نت</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              icon={HelpCircle}
               onClick={() => openHelpCenter('sales')}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-paid dark:text-brand-bright flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
               title="دليل وشروحات المبيعات والورديات والإغلاق اليومي"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
+              aria-label="دليل وشروحات المبيعات والورديات والإغلاق اليومي"
+            />
           </div>
         </div>
       </div>
 
       {/* 2. Comprehensive Search & Filter Toolbar */}
-      <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 shrink-0 shadow-xs">
+      <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-x-8 gap-y-2 sm:gap-y-2.5 shrink-0 shadow-xs">
         {/* Search input with Enter key trigger */}
-        <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-lg relative">
-          <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={(e) => e.currentTarget.select()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                void handleSearchInvoice();
-              }
-            }}
-            placeholder="امسح باركود الفاتورة (RFQ-INV-...) أو ابحث بالرقم أو العميل..."
-            className="w-full h-9 pr-9 pl-8 text-xs bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none focus:ring-2 focus:ring-paid/20 focus:border-paid dark:focus:border-brand-bright transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSearchError(null);
-              }}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-              title="مسح البحث"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+        <SearchInput
+          ref={searchInputRef}
+          size="sm"
+          value={searchQuery}
+          onChange={setSearchQuery}
+          onFocus={(e) => e.currentTarget.select()}
+          onSubmit={() => void handleSearchInvoice()}
+          onClear={() => {
+            setSearchQuery('');
+            setSearchError(null);
+          }}
+          placeholder="امسح باركود الفاتورة (RFQ-INV-...) أو ابحث بالرقم أو العميل..."
+          ariaLabel="بحث في فواتير البيع"
+          className="flex-1 min-w-[220px] max-w-lg"
+        />
 
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
         {/* Date Filter Control */}
         <DateFilterControl
           value={dateFilter}
@@ -484,66 +496,57 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         {/* Status Filter Pills */}
         <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark text-xs">
           <button
+            type="button"
             onClick={() => setStatusFilter('all')}
             className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               statusFilter === 'all' 
-                ? 'bg-brand-dark dark:bg-brand text-white shadow-xs' 
+                ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs' 
                 : 'text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
             }`}
           >
             الكل
           </button>
           <button
+            type="button"
             onClick={() => setStatusFilter('completed')}
             className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               statusFilter === 'completed' 
-                ? 'bg-paid dark:bg-paid text-white shadow-xs' 
+                ? 'bg-paid text-white dark:bg-paid-dark-soft dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40 shadow-xs' 
                 : 'text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-brand-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
             }`}
           >
             فواتير سليمة
           </button>
           <button
+            type="button"
             onClick={() => setStatusFilter('cancelled')}
             className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               statusFilter === 'cancelled' 
-                ? 'bg-danger text-white shadow-xs' 
+                ? 'bg-danger text-white dark:bg-danger-dark-soft dark:text-danger-bright dark:ring-1 dark:ring-inset dark:ring-danger-bright/40 shadow-xs' 
                 : 'text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
             }`}
           >
             فواتير ملغية
           </button>
           <button
+            type="button"
             onClick={() => setStatusFilter('refunded')}
             className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               statusFilter === 'refunded' 
-                ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs' 
-                : 'text-ink-muted dark:text-ink-dark-muted hover:text-warn dark:hover:text-warn-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
+                ? 'bg-warn-bright text-ink dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs' 
+                : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-warn-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
             }`}
           >
             فيها مرتجع
           </button>
         </div>
 
-        {anyFilterActive && (
-          <button
-            type="button"
-            onClick={resetAllFilters}
-            className="h-8 px-2.5 flex items-center gap-1.5 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
-            title="إلغاء البحث والفترة والحالة والرجوع لكل الفواتير"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>مسح التصفية</span>
-          </button>
-        )}
-
-        {sales.length >= SALES_HISTORY_LIMIT && (
-          <div className="w-full flex items-center gap-1.5 text-xs text-warn dark:text-warn-bright font-semibold bg-warn-soft dark:bg-warn-dark-soft p-2 rounded-xl border border-warn/20 dark:border-warn-bright/30">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{`المعروض أحدث ${SALES_HISTORY_LIMIT} فاتورة فقط. حدد فترة أضيق عشان تشوف الباقي.`}</span>
-          </div>
-        )}
-
+        <ClearFiltersButton
+          active={anyFilterActive}
+          onClick={resetAllFilters}
+          title="إلغاء البحث والفترة والحالة والرجوع لكل الفواتير"
+        />
+        </div>
         {searchError && (
           <div className="w-full flex items-center gap-1.5 text-xs text-danger dark:text-danger-bright font-semibold bg-danger-soft dark:bg-danger-dark-soft p-2 rounded-xl border border-danger/20 dark:border-danger-bright/30">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -551,6 +554,13 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
           </div>
         )}
       </div>
+
+      {sales.length >= SALES_HISTORY_LIMIT && (
+        <div className="flex items-center gap-1.5 text-xs text-warn dark:text-warn-bright font-semibold bg-warn-soft dark:bg-warn-dark-soft p-2 rounded-xl border border-warn/20 dark:border-warn-bright/30 shrink-0">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{`المعروض أحدث ${SALES_HISTORY_LIMIT} فاتورة فقط. حدد فترة أضيق عشان تشوف الباقي.`}</span>
+        </div>
+      )}
 
       {/* 3. Invoices Ledger Table */}
       <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col overflow-hidden shadow-xs">
@@ -562,7 +572,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
           <span className="col-span-2 text-center">طريقة الدفع والحالة</span>
           <span className="col-span-1 text-center">الخصم (ج.م)</span>
           <span className="col-span-2 text-left pl-2">الإجمالي (ج.م)</span>
-          <span className="col-span-1 text-center">تفاصيل</span>
+          <span className="col-span-1 text-center">إجراء</span>
         </div>
 
         {/* Table Body */}
@@ -584,14 +594,9 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 {searchQuery ? 'اتأكد من رقم الفاتورة أو اسم الزبون واضغط Enter' : anyFilterActive ? 'جرب فترة تانية أو ألغي التصفية' : 'روح لشاشة الكاشير عشان تفتح فاتورة وتبيع'}
               </p>
               {anyFilterActive && (
-                <button
-                  type="button"
-                  onClick={resetAllFilters}
-                  className="mt-1 h-8 px-3 flex items-center gap-1.5 rounded-xl bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>مسح التصفية وعرض كل الفواتير</span>
-                </button>
+                <AppButton variant="primary" size="sm" icon={RotateCcw} className="mt-1" onClick={resetAllFilters}>
+                  مسح التصفية وعرض كل الفواتير
+                </AppButton>
               )}
             </div>
           ) : (
@@ -654,24 +659,56 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   </span>
 
                   {/* Total Piasters */}
-                  <span className={`col-span-2 text-left pl-2 font-mono font-bold text-xs tabular-nums ${
-                    isCancelled ? 'text-ink-muted dark:text-ink-dark-muted line-through' : 'text-paid dark:text-paid-bright'
-                  }`}>
-                    {formatArabicCurrency(sale.totalPiasters, false)}
-                  </span>
+                  {(() => {
+                    const refunded = sale.refundedPiasters || 0;
+                    const hasRefund = isRefunded || refunded > 0;
+                    const netTotal = isRefunded && sale.status === 'refunded' && refunded === 0
+                      ? 0
+                      : Math.max(0, sale.totalPiasters - refunded);
+
+                    if (isCancelled) {
+                      return (
+                        <span className="col-span-2 text-left pl-2 font-mono font-bold text-xs tabular-nums text-ink-muted dark:text-ink-dark-muted line-through">
+                          {formatArabicCurrency(sale.totalPiasters, false)}
+                        </span>
+                      );
+                    }
+
+                    if (hasRefund && (refunded > 0 || sale.status === 'refunded')) {
+                      return (
+                        <div className="col-span-2 text-left pl-2 font-mono tabular-nums leading-tight">
+                          <span className="block line-through text-ink-muted/60 dark:text-ink-dark-muted/60 text-micro">
+                            {formatArabicCurrency(sale.totalPiasters, false)}
+                          </span>
+                          <span className={`block font-bold text-xs ${netTotal > 0 ? 'text-paid dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
+                            {formatArabicCurrency(netTotal, false)}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <span className="col-span-2 text-left pl-2 font-mono font-bold text-xs tabular-nums text-paid dark:text-paid-bright">
+                        {formatArabicCurrency(sale.totalPiasters, false)}
+                      </span>
+                    );
+                  })()}
 
                   {/* Action View */}
                   <div className="col-span-1 flex justify-center">
-                    <button
+                    <AppButton
+                      variant="secondary"
+                      size="xs"
+                      icon={Receipt}
                       onClick={(e) => {
                         e.stopPropagation();
                         void handleOpenDetails(sale);
                       }}
-                      className="w-7 h-7 rounded-lg bg-surface dark:bg-surface-dark-3 hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-brand-bright border border-line dark:border-line-dark flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                       title="عرض بنود وتفاصيل الفاتورة"
+                      aria-label="عرض بنود وتفاصيل الفاتورة"
                     >
-                      <Receipt className="w-3.5 h-3.5" />
-                    </button>
+                      تفاصيل
+                    </AppButton>
                   </div>
                 </div>
               );
@@ -694,33 +731,52 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
       {/* 4. Full Invoice Details Modal */}
       {selectedSale && (
         <div onClick={handleSaleDetailsBackdropClick} className="fixed inset-0 bg-ink/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col select-none max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-4xl bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col select-none max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-brand dark:text-brand-bright" />
-                <h3 className="t-card-title text-ink dark:text-ink-dark m-0">
-                  تفاصيل وبيانات فاتورة #{selectedSale.invoiceNumber}
-                </h3>
+            <div className="h-14 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 sm:px-6 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20 flex items-center justify-center shrink-0">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">
+                      تفاصيل وبيانات فاتورة #{selectedSale.invoiceNumber}
+                    </h3>
+                    {selectedSale.status === 'cancelled' ? (
+                      <span className={DETAILS_CHIP_DANGER}>
+                        <Ban className="w-3 h-3" />
+                        <span>ملغية</span>
+                      </span>
+                    ) : selectedSale.status === 'refunded' || selectedSale.status === 'partially_refunded' || saleReturns.length > 0 ? (
+                      <span className={DETAILS_CHIP_WARN}>
+                        <RotateCcw className="w-3 h-3" />
+                        <span>فيها مرتجع</span>
+                      </span>
+                    ) : (
+                      <span className={DETAILS_CHIP_PAID}>
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>سليمة</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-ink-muted dark:text-ink-dark-muted tabular-nums leading-tight mt-0.5">
+                    {selectedSale.createdAt ? new Date(selectedSale.createdAt).toLocaleString('ar-EG-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={() => void requestCloseSaleDetails()}
-                className="text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright p-1 rounded transition-colors cursor-pointer"
-                title="إغلاق"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} onClick={() => void requestCloseSaleDetails()} title="إغلاق" aria-label="إغلاق" />
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 min-h-0 p-4 sm:p-5 flex flex-col gap-4 overflow-y-auto custom-scrollbar font-sans text-xs">
+            <div className="flex-1 min-h-0 p-5 sm:p-6 flex flex-col gap-5 overflow-y-auto custom-scrollbar font-sans text-sm">
               {/* Cancelled Banner if applicable */}
               {selectedSale.status === 'cancelled' && (
-                <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 rounded-xl p-3 flex items-start gap-2.5 text-danger dark:text-danger-bright shrink-0">
-                  <Ban className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 rounded-xl p-4 flex items-start gap-3 text-danger dark:text-danger-bright shrink-0">
+                  <Ban className="w-5 h-5 shrink-0 mt-0.5" />
                   <div>
-                    <div className="font-bold text-xs">الفاتورة دي ملغية وبضاعتها رجعت للمخزن</div>
-                    <div className="text-micro mt-0.5 text-danger/90 dark:text-danger-bright/90">
+                    <div className="font-bold text-sm">الفاتورة دي ملغية وبضاعتها رجعت للمخزن</div>
+                    <div className="text-xs mt-1 text-danger/90 dark:text-danger-bright/90">
                       {selectedSale.notes || 'اتلغت ورجعت البضاعة للرصيد عشان الحسابات تظبط.'}
                     </div>
                   </div>
@@ -729,83 +785,78 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
               {/* Refunded Banner if applicable */}
               {(selectedSale.status === 'refunded' || saleReturns.length > 0) && (
-                <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl p-3 text-ink dark:text-ink-dark flex flex-col gap-2 shadow-2xs shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-surface dark:bg-surface-dark-2 text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
-                        <RotateCcw className="w-4 h-4" />
+                <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl p-4 text-ink dark:text-ink-dark flex flex-col gap-2 shadow-2xs shrink-0">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-surface dark:bg-surface-dark-2 text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
+                        <RotateCcw className="w-5 h-5" />
                       </div>
                       <div>
-                        <div className="font-bold text-xs flex items-center gap-2">
+                        <div className="font-bold text-sm flex items-center gap-2 flex-wrap">
                           <span>اتسجل مرتجع بضاعة على الفاتورة دي</span>
-                          <span className="text-micro px-2 py-0.5 rounded-full bg-surface dark:bg-surface-dark-2 text-warn dark:text-warn-bright font-bold border border-warn/20 dark:border-warn-bright/30">
+                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-surface dark:bg-surface-dark-2 text-warn dark:text-warn-bright font-bold border border-warn/20 dark:border-warn-bright/30">
                             {saleReturns.length} {saleReturns.length === 1 ? 'وصل مرتجع' : 'وصولات مرتجع'}
                           </span>
                         </div>
-                        <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-medium mt-0.5">
+                        <div className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium mt-1">
                           إجمالي الفلوس اللي رجعت للزبون: <strong className="font-bold font-mono text-warn dark:text-warn-bright">{formatArabicCurrency(totalRefundedPiasters)}</strong>
                         </div>
                       </div>
                     </div>
 
                     {saleReturns.length > 0 && (
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="secondary"
+                        size="sm"
+                        icon={showReturnsBreakdown ? ChevronUp : ChevronDown}
+                        iconPosition="end"
                         onClick={() => setShowReturnsBreakdown(!showReturnsBreakdown)}
-                        className="px-2.5 py-1 text-micro font-bold bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                       >
-                        <span>{showReturnsBreakdown ? 'إخفاء تفاصيل المرتجع' : 'عرض تفاصيل المرتجع'}</span>
-                        {showReturnsBreakdown ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                      </button>
+                        {showReturnsBreakdown ? 'إخفاء تفاصيل المرتجع' : 'عرض تفاصيل المرتجع'}
+                      </AppButton>
                     )}
                   </div>
                 </div>
               )}
 
               {/* Meta Grid */}
-              <div className="grid grid-cols-2 gap-2.5 bg-canvas dark:bg-canvas-dark p-3 rounded-xl border border-line/70 dark:border-line-dark/70 text-xs shrink-0">
-                <div>
-                  <span className="text-ink-muted dark:text-ink-dark-muted text-micro">وقت الفاتورة: </span>
-                  <span className="text-ink dark:text-ink-dark font-bold tabular-nums font-mono text-micro">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 bg-canvas dark:bg-canvas-dark px-4 py-3 rounded-xl border border-line/70 dark:border-line-dark/70 shrink-0">
+                <DetailRow label="وقت الفاتورة">
+                  <span className="tabular-nums font-mono">
                     {selectedSale.createdAt ? new Date(selectedSale.createdAt).toLocaleString('ar-EG-u-nu-latn') : '—'}
                   </span>
-                </div>
-                <div>
-                  <span className="text-ink-muted dark:text-ink-dark-muted text-micro">طريقة الدفع: </span>
-                  <span className="text-ink dark:text-ink-dark font-bold">
-                    {selectedSale.paymentMethod === 'cash' ? 'كاش' : selectedSale.paymentMethod === 'credit' ? 'شكك (على النوتة)' : selectedSale.paymentMethod === 'instapay' ? 'انستاباي (InstaPay)' : selectedSale.paymentMethod === 'vodafone_cash' ? 'محفظة إلكترونية' : 'إلكتروني'}
+                </DetailRow>
+                <DetailRow label="طريقة الدفع">
+                  <span className={selectedSale.paymentMethod === 'credit' ? DETAILS_CHIP_WARN : DETAILS_CHIP_PAID}>
+                    {DETAILS_PAYMENT_LABEL[selectedSale.paymentMethod] || 'إلكتروني'}
                   </span>
-                </div>
-                <div>
-                  <span className="text-ink-muted dark:text-ink-dark-muted text-micro">الزبون: </span>
-                  <span className="text-ink dark:text-ink-dark font-bold">
-                    {selectedSale.customerName || 'زبون عادي (كاش)'}
-                  </span>
+                </DetailRow>
+                <DetailRow label="الزبون">
+                  <span>{selectedSale.customerName || 'زبون عادي (كاش)'}</span>
                   {selectedSale.customerPhone && (
-                    <span className="text-ink-muted dark:text-ink-dark-muted text-micro font-mono mr-1">({selectedSale.customerPhone})</span>
+                    <span dir="ltr" className="text-ink-muted dark:text-ink-dark-muted text-xs font-mono">{formatPhoneDisplay(selectedSale.customerPhone)}</span>
                   )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-ink-muted dark:text-ink-dark-muted text-micro">الكاشير: </span>
-                  <span className="text-ink dark:text-ink-dark font-bold inline-flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded-md border border-line dark:border-line-dark text-xs">
-                    <User className="w-3 h-3 text-paid dark:text-brand-bright shrink-0" />
+                </DetailRow>
+                <DetailRow label="الكاشير">
+                  <span className="inline-flex items-center gap-1.5 bg-surface-2 dark:bg-surface-dark-2 px-2.5 py-1 rounded-lg border border-line dark:border-line-dark">
+                    <User className="w-3.5 h-3.5 text-paid dark:text-brand-bright shrink-0" />
                     <span>{formatCashierName(selectedSale.cashierName, selectedSale.cashierId)}</span>
                   </span>
-                </div>
+                </DetailRow>
               </div>
 
               {/* Items Breakdown Table */}
-              <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden bg-surface dark:bg-surface-dark shadow-2xs shrink-0">
-                <div className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 py-2.5 text-micro font-bold text-ink-muted dark:text-ink-dark-muted grid grid-cols-12 gap-2 select-none">
+              <div className="border border-line dark:border-line-dark rounded-xl overflow-clip bg-surface dark:bg-surface-dark shadow-2xs shrink-0">
+                <div className="sticky -top-5 sm:-top-6 z-10 h-11 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 text-xs font-bold text-ink-muted dark:text-ink-dark-muted grid grid-cols-12 gap-3 items-center select-none">
                   <span className="col-span-5">اسم الصنف</span>
                   <span className="col-span-2 text-center">العدد / الوزن</span>
                   <span className="col-span-2 text-center">سعر البيع</span>
-                  <span className="col-span-3 text-left pl-1">الإجمالي</span>
+                  <span className="col-span-3 text-left">الإجمالي</span>
                 </div>
 
                 <div className="divide-y divide-line/60 dark:divide-line-dark/60">
                   {loadingDetails ? (
-                    <div className="p-4 text-center text-ink-muted dark:text-ink-dark-muted flex items-center justify-center gap-2">
+                    <div className="p-5 text-sm text-center text-ink-muted dark:text-ink-dark-muted flex items-center justify-center gap-2">
                       <RefreshCw className="w-4 h-4 animate-spin text-brand dark:text-brand-bright" />
                       <span>بنحمّل أصناف الفاتورة...</span>
                     </div>
@@ -818,17 +869,17 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       const netLineTotal = Math.round(remainingQty * item.unitPricePiasters);
 
                       return (
-                        <div key={item.id || idx} className={`px-4 py-3 text-xs grid grid-cols-12 items-center gap-2 transition-colors ${
+                        <div key={item.id || idx} className={`min-h-12 px-4 py-2.5 text-sm grid grid-cols-12 items-center gap-3 transition-colors ${
                           retInfo ? 'bg-warn-soft/40 dark:bg-warn-dark-soft/40' : 'hover:bg-canvas/50 dark:hover:bg-surface-dark-2/50'
                         }`}>
                           <div className="col-span-5 min-w-0">
-                            <div className="font-bold text-ink dark:text-ink-dark leading-snug break-words" title={item.productName}>
+                            <div className="text-sm font-semibold text-ink dark:text-ink-dark leading-snug break-words" title={item.productName}>
                               {item.productName}
                             </div>
-                            <div className="flex items-center flex-wrap gap-1.5 text-micro text-ink-muted dark:text-ink-dark-muted mt-1">
-                              {item.barcode && <span className="font-mono tabular-nums text-micro text-ink-muted/80 dark:text-ink-dark-muted/80">{item.barcode}</span>}
+                            <div className="flex items-center flex-wrap gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted mt-1 empty:hidden">
+                              {item.barcode && <span className="font-mono tabular-nums text-xs text-ink-muted/80 dark:text-ink-dark-muted/80">{item.barcode}</span>}
                               {retInfo && (
-                                <span className="inline-flex items-center text-warn dark:text-warn-bright font-bold bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 px-2 py-0.5 rounded-full text-micro">
+                                <span className="inline-flex items-center text-warn dark:text-warn-bright font-bold bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 px-2 py-0.5 rounded-full text-xs">
                                   رجع منه {retInfo.returnedPieces} {unitStr}
                                   {retInfo.hasDamaged && ' (تالف)'}
                                 </span>
@@ -839,33 +890,33 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                           <div className="col-span-2 text-center font-mono tabular-nums text-ink dark:text-ink-dark">
                             {retInfo ? (
                               <div className="flex flex-col items-center gap-0.5">
-                                <span className="line-through text-ink-muted/60 dark:text-ink-dark-muted/60 text-micro leading-tight">{origQty} {unitStr}</span>
-                                <span className="font-bold text-paid dark:text-brand-bright text-xs leading-tight">{remainingQty} {unitStr}</span>
+                                <span className="line-through text-ink-muted/60 dark:text-ink-dark-muted/60 text-xs leading-tight"><span dir="ltr">{origQty}</span> {unitStr}</span>
+                                <span className="font-bold text-paid dark:text-brand-bright text-sm leading-tight"><span dir="ltr">{remainingQty}</span> {unitStr}</span>
                               </div>
                             ) : (
-                              <span className="font-bold text-xs">{origQty} {unitStr}</span>
+                              <span className="font-bold text-sm"><span dir="ltr">{origQty}</span> {unitStr}</span>
                             )}
                           </div>
 
-                          <div className="col-span-2 text-center font-mono tabular-nums text-ink dark:text-ink-dark font-semibold text-xs">
+                          <div className="col-span-2 text-center font-mono tabular-nums text-ink dark:text-ink-dark font-semibold text-sm">
                             {formatArabicCurrency(item.unitPricePiasters)}
                           </div>
 
-                          <div className="col-span-3 text-left pl-1 font-mono tabular-nums">
+                          <div className="col-span-3 text-left font-mono tabular-nums">
                             {retInfo ? (
                               <div className="flex flex-col items-end gap-0.5">
-                                <span className="line-through text-ink-muted/60 dark:text-ink-dark-muted/60 text-micro leading-tight">{formatArabicCurrency(item.totalPiasters)}</span>
-                                <span className="font-black text-brand dark:text-brand-bright text-xs leading-tight">{formatArabicCurrency(netLineTotal)}</span>
+                                <span className="line-through text-ink-muted/60 dark:text-ink-dark-muted/60 text-xs leading-tight">{formatArabicCurrency(item.totalPiasters)}</span>
+                                <span className="font-black text-brand dark:text-brand-bright text-sm leading-tight">{formatArabicCurrency(netLineTotal)}</span>
                               </div>
                             ) : (
-                              <span className="font-black text-brand dark:text-brand-bright text-xs">{formatArabicCurrency(item.totalPiasters)}</span>
+                              <span className="font-black text-brand dark:text-brand-bright text-sm">{formatArabicCurrency(item.totalPiasters)}</span>
                             )}
                           </div>
                         </div>
                       );
                     })
                   ) : (
-                    <div className="p-3 text-center text-ink-muted dark:text-ink-dark-muted text-xs">
+                    <div className="p-4 text-center text-ink-muted dark:text-ink-dark-muted text-sm">
                       أصناف الفاتورة محفوظة ومسجلة في السيستم
                     </div>
                   )}
@@ -874,65 +925,65 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
               {/* Detailed Returns Log Section */}
               {showReturnsBreakdown && saleReturns.length > 0 && (
-                <div className="border border-warn/20 dark:border-warn-bright/30 bg-warn-soft/40 dark:bg-surface-dark-2 rounded-xl overflow-hidden flex flex-col gap-2.5 p-3.5 shrink-0">
-                  <div className="flex items-center gap-2 border-b border-warn/20 dark:border-warn-bright/30 pb-2.5">
-                    <RotateCcw className="w-4 h-4 text-warn dark:text-warn-bright" />
-                    <span className="font-bold text-xs text-ink dark:text-ink-dark">
+                <div className="border border-warn/20 dark:border-warn-bright/30 bg-warn-soft/40 dark:bg-surface-dark-2 rounded-xl overflow-hidden flex flex-col gap-3 p-4 shrink-0">
+                  <div className="flex items-center gap-2 border-b border-warn/20 dark:border-warn-bright/30 pb-3">
+                    <RotateCcw className="w-5 h-5 text-warn dark:text-warn-bright" />
+                    <span className="font-bold text-sm text-ink dark:text-ink-dark">
                       سجل عمليات المرتجع التابعة للفاتورة
                     </span>
                   </div>
 
-                  <div className="flex flex-col gap-2.5">
+                  <div className="flex flex-col gap-3">
                     {saleReturns.map((ret, idx) => (
-                      <div key={ret.id || idx} className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 flex flex-col gap-2 shadow-2xs text-xs">
+                      <div key={ret.id || idx} className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 flex flex-col gap-2.5 shadow-2xs text-sm">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark">
                             <span className="font-mono">وصل مرتجع #{ret.returnNumber}</span>
-                            <span className="text-micro px-2 py-0.5 rounded-full font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
+                            <span className={DETAILS_CHIP_WARN}>
                               {ret.refundMethod === 'credit' ? 'خصم من حسابه الشكك' : 'كاش من الدرج'}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-black text-warn dark:text-warn-bright text-sm">
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-black text-warn dark:text-warn-bright text-base tabular-nums">
                               {formatArabicCurrency(ret.totalPiasters)}
                             </span>
                             {canReprint && (
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="secondary"
+                              size="sm"
+                              icon={Printer}
                               onClick={() => void handlePrintReturnReceipt(ret.id)}
-                              className="h-6.5 px-2.5 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface-3 dark:hover:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark rounded-lg text-micro font-bold flex items-center gap-1 transition-colors cursor-pointer"
                               title="طباعة إيصال هذا المرتجع"
                             >
-                              <Printer className="w-3 h-3" />
-                              <span>طباعة وصل</span>
-                            </button>
+                              إيصال المرتجع
+                            </AppButton>
                             )}
                           </div>
                         </div>
 
-                        <div className="text-micro text-ink-muted dark:text-ink-dark-muted flex items-center flex-wrap gap-3">
+                        <div className="text-xs text-ink-muted dark:text-ink-dark-muted flex items-center flex-wrap gap-x-4 gap-y-1">
                           <span>التاريخ: {ret.createdAt ? new Date(ret.createdAt).toLocaleString('ar-EG-u-nu-latn') : '—'}</span>
                           {ret.reason && <span>السبب: <strong className="text-ink dark:text-ink-dark">{ret.reason}</strong></span>}
                         </div>
 
                         {/* Returned Items in this receipt */}
                         {ret.items && ret.items.length > 0 && (
-                          <div className="bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg p-2 flex flex-col gap-1.5 text-xs">
+                          <div className="bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg p-2 flex flex-col gap-1.5 text-sm">
                             {ret.items.map((ritem, rIdx) => (
-                              <div key={ritem.id || rIdx} className="flex justify-between items-center py-1.5 px-2.5 rounded-md bg-surface dark:bg-surface-dark-3 border border-line/60 dark:border-line-dark/60 text-ink dark:text-ink-dark">
-                                <span className="font-medium text-ink dark:text-ink-dark flex items-center gap-1.5 flex-wrap">
+                              <div key={ritem.id || rIdx} className="flex justify-between items-center gap-3 min-h-9 py-1.5 px-3 rounded-md bg-surface dark:bg-surface-dark-3 border border-line/60 dark:border-line-dark/60 text-ink dark:text-ink-dark">
+                                <span className="font-medium text-ink dark:text-ink-dark flex items-center gap-1.5 flex-wrap min-w-0">
                                   <span className="w-1.5 h-1.5 rounded-full bg-warn dark:bg-warn-bright shrink-0" />
-                                  <span className="font-bold">{ritem.productName}</span>
-                                  <span className="text-ink-muted dark:text-ink-dark-muted font-mono font-bold text-micro">
+                                  <span className="font-semibold">{ritem.productName}</span>
+                                  <span className="text-ink-muted dark:text-ink-dark-muted font-mono font-bold text-xs">
                                     × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {formatUnitArabic(ritem.unit)}
                                   </span>
                                   {ritem.isDamaged && (
-                                    <span className="text-danger font-bold text-micro bg-danger/10 px-1.5 py-0.2 rounded border border-danger/20">
+                                    <span className="text-danger dark:text-danger-bright font-bold text-xs bg-danger-soft dark:bg-danger-dark-soft px-2 py-0.5 rounded-full border border-danger/20 dark:border-danger-bright/30">
                                       تالف
                                     </span>
                                   )}
                                 </span>
-                                <span className="font-mono font-bold text-amber-900 dark:text-warn-bright shrink-0">
+                                <span className="font-mono font-bold text-warn dark:text-warn-bright shrink-0 tabular-nums">
                                   {formatArabicCurrency(ritem.totalPiasters)}
                                 </span>
                               </div>
@@ -946,45 +997,45 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               )}
 
               {/* Financial Totals */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3.5 shadow-2xs flex flex-col gap-2 text-xs shrink-0">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-2xs flex flex-col text-sm shrink-0 overflow-hidden divide-y divide-line/60 dark:divide-line-dark/60">
                 {(totalSaleDiscountPiasters(selectedSale) > 0 || selectedSale.taxPiasters > 0) && (
-                  <div className="flex justify-between text-ink-muted dark:text-ink-dark-muted">
+                  <div className="flex items-center justify-between min-h-10 px-4 text-ink-muted dark:text-ink-dark-muted">
                     <span>إجمالي الأصناف قبل الخصم:</span>
                     <span className="text-ink dark:text-ink-dark font-mono font-bold tabular-nums">{formatArabicCurrency(selectedSale.subtotalPiasters)}</span>
                   </div>
                 )}
                 {totalSaleDiscountPiasters(selectedSale) > 0 && (
-                  <div className="flex justify-between text-danger font-semibold">
+                  <div className="flex items-center justify-between min-h-10 px-4 text-danger dark:text-danger-bright font-semibold">
                     <span>الخصم:</span>
                     <span className="font-mono tabular-nums">−{formatArabicCurrency(totalSaleDiscountPiasters(selectedSale))}</span>
                   </div>
                 )}
                 {selectedSale.taxPiasters > 0 && (
-                  <div className="flex justify-between text-ink-muted dark:text-ink-dark-muted">
+                  <div className="flex items-center justify-between min-h-10 px-4 text-ink-muted dark:text-ink-dark-muted">
                     <span>الضريبة:</span>
                     <span className="font-mono tabular-nums">{formatArabicCurrency(selectedSale.taxPiasters)}</span>
                   </div>
                 )}
                 {totalRefundedPiasters > 0 && (
-                  <div className="flex justify-between text-ink dark:text-ink-dark font-bold pt-1.5 border-t border-line/60 dark:border-line-dark/60">
+                  <div className="flex items-center justify-between min-h-10 px-4 text-ink dark:text-ink-dark font-bold">
                     <span>إجمالي الفاتورة:</span>
                     <span className="text-ink dark:text-ink-dark font-mono font-bold tabular-nums">{formatArabicCurrency(selectedSale.totalPiasters)}</span>
                   </div>
                 )}
 
                 {totalRefundedPiasters > 0 && (
-                  <div className="flex justify-between text-warn dark:text-warn-bright font-bold bg-warn-soft dark:bg-warn-dark-soft px-2.5 py-1.5 rounded-lg border border-warn/20 dark:border-warn-bright/30">
+                  <div className="flex items-center justify-between min-h-10 px-4 text-warn dark:text-warn-bright font-bold bg-warn-soft dark:bg-warn-dark-soft">
                     <span>فلوس المرتجع اللي رجعت:</span>
                     <span className="tabular-nums font-mono font-bold">−{formatArabicCurrency(totalRefundedPiasters)}</span>
                   </div>
                 )}
 
-                <div className="flex justify-between font-black text-base text-brand dark:text-brand-bright pt-2 border-t border-line dark:border-line-dark">
-                  <span>{totalRefundedPiasters > 0 ? 'الصافي بعد المرتجع:' : 'المطلوب دفعه:'}</span>
-                  <span className="tabular-nums font-mono">{formatArabicCurrency(netSalePiasters)}</span>
+                <div className="flex items-center justify-between min-h-14 px-4 py-2 text-brand dark:text-brand-bright bg-brand-soft dark:bg-surface-dark-3">
+                  <span className="font-black text-base">{totalRefundedPiasters > 0 ? 'الصافي بعد المرتجع:' : 'المطلوب دفعه:'}</span>
+                  <span className="t-kpi font-mono">{formatArabicCurrency(netSalePiasters)}</span>
                 </div>
 
-                <div className="flex justify-between text-ink-muted dark:text-ink-dark-muted text-micro pt-1.5 border-t border-line/60 dark:border-line-dark/60">
+                <div className="flex items-center justify-between min-h-10 px-4 text-ink-muted dark:text-ink-dark-muted">
                   <span>الفلوس اللي دفعها الزبون:</span>
                   <span className="text-ink dark:text-ink-dark font-semibold font-mono tabular-nums">{formatArabicCurrency(selectedSale.paidPiasters)}</span>
                 </div>
@@ -992,56 +1043,64 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
               {/* Reprint feedback toast */}
               {reprintFeedback && (
-                <div className="bg-brand-soft dark:bg-surface-dark-3 border border-brand/30 dark:border-brand-bright/30 rounded-xl p-2.5 text-xs text-brand dark:text-brand-bright font-semibold flex items-center gap-2 shrink-0">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-brand dark:text-brand-bright" />
+                <div className={`rounded-xl p-3 text-sm font-semibold flex items-center gap-2 shrink-0 border ${reprintFailed ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn-border dark:border-warn-bright/30 text-warn dark:text-warn-bright' : 'bg-brand-soft dark:bg-surface-dark-3 border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright'}`}>
+                  {reprintFailed ? <AlertCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
                   <span>{reprintFeedback}</span>
                 </div>
               )}
             </div>
 
             {/* Modal Footer Controls */}
-            <div className="h-[52px] bg-surface-2 dark:bg-surface-dark-2 hairline-t dark:border-line-dark px-4 flex items-center justify-between shrink-0">
+            <div className="h-16 bg-surface-2 dark:bg-surface-dark-2 hairline-t dark:border-line-dark px-5 sm:px-6 flex items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-3">
                 {selectedSale.status !== 'cancelled' && (canReturn || canCancelInvoice) && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     {canReturn && (
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="warning"
+                      icon={RotateCcw}
                       onClick={() => setShowReturnModal(true)}
-                      className="h-[32px] px-3 bg-warn-soft dark:bg-warn-dark-soft hover:bg-warn/20 dark:hover:bg-warn-dark-soft/80 text-warn dark:text-warn-bright border border-warn/30 dark:border-warn-bright/40 rounded text-micro font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                       title="تسجيل مرتجع جزئي أو كلي لهذه الفاتورة"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>مرتجع بضاعة</span>
-                    </button>
+                      مرتجع بضاعة
+                    </AppButton>
                     )}
                     {canCancelInvoice && (
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="danger"
+                      icon={Ban}
                       onClick={() => setShowCancelModal(true)}
-                      className="h-[32px] px-3 bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright border border-danger/30 dark:border-danger-bright/40 rounded text-micro font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                       title="إلغاء الفاتورة بالكامل وإرجاع الأصناف للمخزون"
                     >
-                      <Ban className="w-3.5 h-3.5" />
-                      <span>إلغاء الفاتورة</span>
-                    </button>
+                      إلغاء الفاتورة
+                    </AppButton>
                     )}
                   </div>
                 )}
               </div>
 
               <div className="flex items-center gap-2">
-                {canReprint && (
-                <button
-                  type="button"
-                  onClick={() => void handleReprint()}
-                  disabled={isReprinting || loadingDetails}
-                  className="h-[36px] px-4 bg-brand hover:bg-brand-hover text-white rounded text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-                  title="طباعة إيصال يحمل علامة نسخة طبق الأصل وتوثيقه في السجل"
+                {canReprint && reprintFailed && (
+                <AppButton
+                  variant="secondary"
+                  icon={Download}
+                  onClick={() => void saveReceiptImageWithNotice(selectedSale.id, selectedSale.invoiceNumber || '---')}
+                  title="حفظ نفس الإيصال كصورة في مجلد التقارير بدل الطباعة"
                 >
-                  <Printer className={`w-4 h-4 ${isReprinting ? 'animate-spin' : ''}`} />
-                  <span>{isReprinting ? 'جاري الطباعة...' : 'طباعة وصل تاني'}</span>
-                </button>
+                  حفظ كصورة
+                </AppButton>
+                )}
+                {canReprint && (
+                <AppButton
+                  variant="primary"
+                  icon={Printer}
+                  onClick={() => void handleReprint()}
+                  loading={isReprinting}
+                  disabled={loadingDetails}
+                  title="طباعة نسخة طبق الأصل من فاتورة البيع وتوثيقها في السجل"
+                >
+                  {isReprinting ? 'جاري الطباعة...' : 'طباعة نسخة الفاتورة'}
+                </AppButton>
                 )}
               </div>
             </div>

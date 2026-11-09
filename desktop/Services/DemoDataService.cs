@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Text;
+using Newtonsoft.Json;
 using RafiqPOS.Models;
 using RafiqPOS.Repositories;
 
@@ -12,41 +14,120 @@ namespace RafiqPOS.Services
         public int DemoProductsCount { get; set; }
         public int DemoSalesCount { get; set; }
         public int DemoCustomersCount { get; set; }
+        // Demo rows that a clean-up would delete, and the ones it must keep because real records already use them
+        public int RemovableProductsCount { get; set; }
+        public int KeptProductsCount { get; set; }
+        public int RemovableCustomersCount { get; set; }
+        public int KeptCustomersCount { get; set; }
+        public int RealProductsCount { get; set; }
+        public int RealCustomersCount { get; set; }
+        public int RealSalesCount { get; set; }
+        public int PlannedProductsCount { get; set; }
+        public int PlannedCustomersCount { get; set; }
+        public bool CanLoad { get; set; }
+        public string LoadBlockedReason { get; set; }
     }
 
     public class LoadDemoDataResult
     {
         public bool Success { get; set; }
+        public string Code { get; set; }
         public string Message { get; set; }
         public int ProductsAdded { get; set; }
+        public int ProductsSkipped { get; set; }
         public int CustomersAdded { get; set; }
-        public int SalesAdded { get; set; }
     }
 
     public class ClearDemoDataResult
     {
         public bool Success { get; set; }
+        public string Code { get; set; }
         public string Message { get; set; }
         public int DeletedProducts { get; set; }
         public int DeletedSales { get; set; }
         public int DeletedCustomers { get; set; }
+        public int KeptProducts { get; set; }
+        public int KeptCustomers { get; set; }
     }
 
+    /// <summary>
+    /// Demo products/customers for training. Every demo row carries the id prefix demo_ (benchmark rows use stress_),
+    /// which reports, closing and the drawer already exclude. The loader never creates sales, debts or wallet money.
+    /// </summary>
     public class DemoDataService
     {
-        private const string DEMO_PREFIX = "demo_";
+        // GS1 prefix 299 is reserved for in-store use, so a demo barcode can never equal a manufacturer barcode
+        private const string DEMO_BARCODE_PREFIX = "299";
         private readonly string _connectionString;
         private readonly SettingsRepository _settingsRepo;
         private readonly AuditLogRepository _auditRepo;
+        private readonly Func<BackupResult> _preChangeBackup;
 
         public DemoDataService(string connectionString, SettingsRepository settingsRepo, AuditLogRepository auditRepo)
+            : this(connectionString, settingsRepo, auditRepo, null)
+        {
+        }
+
+        public DemoDataService(string connectionString, SettingsRepository settingsRepo, AuditLogRepository auditRepo, Func<BackupResult> preChangeBackup)
         {
             this._connectionString = connectionString;
             this._settingsRepo = settingsRepo;
             this._auditRepo = auditRepo;
+            this._preChangeBackup = preChangeBackup;
+        }
+
+        private class DemoCustomerSeed
+        {
+            public string Id;
+            public string Name;
+            public string Phone;
+            public long CreditLimitPiasters;
+        }
+
+        private class RefColumn
+        {
+            public string Table;
+            public string Column;
+            public string ExtraWhere;
+        }
+
+        private class DemoScan
+        {
+            public List<string> RemovableProductIds = new List<string>();
+            public List<string> KeptProductIds = new List<string>();
+            public List<string> RemovableCustomerIds = new List<string>();
+            public List<string> KeptCustomerIds = new List<string>();
+            public List<string> SaleIds = new List<string>();
+
+            public bool IsEmpty
+            {
+                get
+                {
+                    return RemovableProductIds.Count == 0 && KeptProductIds.Count == 0
+                        && RemovableCustomerIds.Count == 0 && KeptCustomerIds.Count == 0 && SaleIds.Count == 0;
+                }
+            }
+        }
+
+        private static string IsDemoSql(string column)
+        {
+            return "(substr(COALESCE(" + column + ", ''), 1, 5) = 'demo_' OR substr(COALESCE(" + column + ", ''), 1, 7) = 'stress_')";
+        }
+
+        private static List<DemoCustomerSeed> GetDemoCustomers()
+        {
+            var list = new List<DemoCustomerSeed>();
+            list.Add(new DemoCustomerSeed { Id = "demo_cust_1", Name = "عميل تجريبي - أحمد محمود", Phone = "01099887766", CreditLimitPiasters = 50000 });
+            list.Add(new DemoCustomerSeed { Id = "demo_cust_2", Name = "عميلة تجريبية - أم كريم", Phone = "01122334455", CreditLimitPiasters = 30000 });
+            return list;
         }
 
         public DemoStatusResult GetStatus()
+        {
+            return GetStatus(null);
+        }
+
+        public DemoStatusResult GetStatus(string storeType)
         {
             var status = new DemoStatusResult();
 
@@ -54,30 +135,64 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
-                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';", conn))
-                {
-                    status.DemoProductsCount = Convert.ToInt32(cmd.ExecuteScalar());
-                }
+                DemoScan scan = ScanDemoRows(conn, null);
+                status.RemovableProductsCount = scan.RemovableProductIds.Count;
+                status.KeptProductsCount = scan.KeptProductIds.Count;
+                status.RemovableCustomersCount = scan.RemovableCustomerIds.Count;
+                status.KeptCustomersCount = scan.KeptCustomerIds.Count;
+                status.DemoProductsCount = scan.RemovableProductIds.Count + scan.KeptProductIds.Count;
+                status.DemoCustomersCount = scan.RemovableCustomerIds.Count + scan.KeptCustomerIds.Count;
+                status.DemoSalesCount = scan.SaleIds.Count;
 
-                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sales WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';", conn))
-                {
-                    status.DemoSalesCount = Convert.ToInt32(cmd.ExecuteScalar());
-                }
-
-                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM customers WHERE id LIKE 'demo_%';", conn))
-                {
-                    status.DemoCustomersCount = Convert.ToInt32(cmd.ExecuteScalar());
-                }
+                status.RealProductsCount = CountWhere(conn, null, "products", "NOT " + IsDemoSql("id"));
+                status.RealCustomersCount = CountWhere(conn, null, "customers", "NOT " + IsDemoSql("id") + " AND id <> 'cust_general_cash'");
+                status.RealSalesCount = CountWhere(conn, null, "sales", "NOT " + IsDemoSql("id"));
             }
 
-            status.HasDemoData = status.DemoProductsCount > 0 || status.DemoSalesCount > 0;
+            status.HasDemoData = status.DemoProductsCount > 0 || status.DemoSalesCount > 0 || status.DemoCustomersCount > 0;
+            status.PlannedProductsCount = GetDemoProductsForStoreType(NormalizeStoreType(storeType)).Count;
+            status.PlannedCustomersCount = GetDemoCustomers().Count;
+
+            string code;
+            string blockReason = LoadBlockReason(status.RealSalesCount, status.HasDemoData, out code);
+            status.CanLoad = blockReason == null;
+            status.LoadBlockedReason = blockReason;
             return status;
+        }
+
+        private static string NormalizeStoreType(string storeType)
+        {
+            return string.IsNullOrWhiteSpace(storeType) ? "supermarket" : storeType;
+        }
+
+        private static string LoadBlockReason(int realSalesCount, bool hasDemoData, out string code)
+        {
+            if (realSalesCount > 0)
+            {
+                code = "REAL_SALES_EXIST";
+                return string.Format("لا يمكن تحميل بضاعة تجريبية لأن النظام يحتوي على {0} فاتورة حقيقية. البضاعة التجريبية تدخل في مخزون المحل وتقاريره، لذلك لا تُحمَّل إلا على نظام لم تُسجَّل عليه أي مبيعات.", realSalesCount);
+            }
+            if (hasDemoData)
+            {
+                code = "ALREADY_LOADED";
+                return "البيانات التجريبية محمّلة بالفعل في النظام. امسحها أولاً إذا أردت تحميلها من جديد.";
+            }
+            code = null;
+            return null;
         }
 
         public LoadDemoDataResult LoadDemoData(string storeType)
         {
+            return LoadDemoData(storeType, false);
+        }
+
+        public LoadDemoDataResult LoadDemoData(string storeType, bool acknowledgeRealData)
+        {
             var result = new LoadDemoDataResult();
+            string type = NormalizeStoreType(storeType);
             string now = DateTime.UtcNow.ToString("o");
+            List<Product> demoProducts = GetDemoProductsForStoreType(type);
+            List<DemoCustomerSeed> demoCustomers = GetDemoCustomers();
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -86,16 +201,44 @@ namespace RafiqPOS.Services
                 {
                     try
                     {
-                        // Clean existing demo data first to prevent duplicate keys
-                        ExecuteClearDemoDataInternal(conn, trans);
+                        // The checks run inside the transaction so they cannot go stale before the inserts
+                        DemoScan existing = ScanDemoRows(conn, trans);
+                        bool hasDemo = !existing.IsEmpty;
+                        int realSales = CountWhere(conn, trans, "sales", "NOT " + IsDemoSql("id"));
+                        string blockCode;
+                        string blockReason = LoadBlockReason(realSales, hasDemo, out blockCode);
+                        if (blockReason != null)
+                        {
+                            trans.Rollback();
+                            result.Success = false;
+                            result.Code = blockCode;
+                            result.Message = blockReason;
+                            return result;
+                        }
 
-                        // 1. Seed Demo Products based on storeType
-                        var demoProducts = GetDemoProductsForStoreType(storeType ?? "supermarket");
-                        int prodsCount = 0;
+                        int realProducts = CountWhere(conn, trans, "products", "NOT " + IsDemoSql("id"));
+                        int realCustomers = CountWhere(conn, trans, "customers", "NOT " + IsDemoSql("id") + " AND id <> 'cust_general_cash'");
+                        if ((realProducts > 0 || realCustomers > 0) && !acknowledgeRealData)
+                        {
+                            trans.Rollback();
+                            result.Success = false;
+                            result.Code = "CONFIRM_REQUIRED";
+                            result.Message = string.Format("يوجد في النظام {0} صنف و{1} زبون حقيقيون. البضاعة التجريبية ستُضاف بجانبهم وتظهر معهم في البيع والمخزن. أكّد صراحة أنك تريد ذلك.", realProducts, realCustomers);
+                            return result;
+                        }
 
+                        int prodsAdded = 0;
+                        int prodsSkipped = 0;
                         for (int i = 0; i < demoProducts.Count; i++)
                         {
-                            var dp = demoProducts[i];
+                            Product dp = demoProducts[i];
+                            // A real product (or a kept demo product) with the same id or barcode is never overwritten, merged or re-stocked
+                            if (ProductIdOrBarcodeExists(conn, trans, dp.Id, dp.Barcode))
+                            {
+                                prodsSkipped++;
+                                continue;
+                            }
+
                             using (var cmd = new SQLiteCommand(@"
                                 INSERT INTO products (
                                     id, name, normalized_name, barcode, price_piasters, cost_piasters,
@@ -121,20 +264,18 @@ namespace RafiqPOS.Services
                                 cmd.ExecuteNonQuery();
                             }
 
-                            // Secondary barcode
                             using (var bcmd = new SQLiteCommand(@"
-                                INSERT OR IGNORE INTO product_barcodes (id, product_id, barcode, created_at)
+                                INSERT INTO product_barcodes (id, product_id, barcode, created_at)
                                 VALUES (@bid, @pid, @barcode, @now);
                             ", conn, trans))
                             {
-                                bcmd.Parameters.AddWithValue("@bid", "demo_bcode_" + i);
+                                bcmd.Parameters.AddWithValue("@bid", "demo_bcode_" + dp.Id);
                                 bcmd.Parameters.AddWithValue("@pid", dp.Id);
                                 bcmd.Parameters.AddWithValue("@barcode", dp.Barcode);
                                 bcmd.Parameters.AddWithValue("@now", now);
                                 bcmd.ExecuteNonQuery();
                             }
 
-                            // Initial Stock Movement
                             using (var smCmd = new SQLiteCommand(@"
                                 INSERT INTO stock_movements (
                                     id, product_id, movement_type, quantity_milli,
@@ -145,7 +286,7 @@ namespace RafiqPOS.Services
                                 );
                             ", conn, trans))
                             {
-                                smCmd.Parameters.AddWithValue("@smid", "demo_sm_" + i);
+                                smCmd.Parameters.AddWithValue("@smid", "demo_sm_" + dp.Id);
                                 smCmd.Parameters.AddWithValue("@pid", dp.Id);
                                 smCmd.Parameters.AddWithValue("@qty", dp.StockQuantityMilli);
                                 smCmd.Parameters.AddWithValue("@cost", dp.CostPiasters);
@@ -153,78 +294,58 @@ namespace RafiqPOS.Services
                                 smCmd.ExecuteNonQuery();
                             }
 
-                            prodsCount++;
+                            prodsAdded++;
                         }
 
-                        // 2. Seed Demo Customers
-                        using (var cCmd1 = new SQLiteCommand(@"
-                            INSERT INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, is_archived, created_at)
-                            VALUES ('demo_cust_1', 'عميل تجريبي - أحمد محمود', '01099887766', 0, 50000, 0, @now);
-                        ", conn, trans))
+                        int customersAdded = 0;
+                        for (int c = 0; c < demoCustomers.Count; c++)
                         {
-                            cCmd1.Parameters.AddWithValue("@now", now);
-                            cCmd1.ExecuteNonQuery();
+                            DemoCustomerSeed seed = demoCustomers[c];
+                            using (var cCmd = new SQLiteCommand(@"
+                                INSERT INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, is_archived, created_at)
+                                SELECT @id, @name, @phone, 0, @limit, 0, @now
+                                WHERE NOT EXISTS (SELECT 1 FROM customers WHERE id = @id);
+                            ", conn, trans))
+                            {
+                                cCmd.Parameters.AddWithValue("@id", seed.Id);
+                                cCmd.Parameters.AddWithValue("@name", seed.Name);
+                                cCmd.Parameters.AddWithValue("@phone", seed.Phone);
+                                cCmd.Parameters.AddWithValue("@limit", seed.CreditLimitPiasters);
+                                cCmd.Parameters.AddWithValue("@now", now);
+                                customersAdded += cCmd.ExecuteNonQuery();
+                            }
                         }
 
-                        using (var cCmd2 = new SQLiteCommand(@"
-                            INSERT INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, is_archived, created_at)
-                            VALUES ('demo_cust_2', 'عميلة تجريبية - أم كريم', '01122334455', 0, 30000, 0, @now);
-                        ", conn, trans))
+                        WriteAudit(conn, trans, "DEMO_DATA_LOADED", type, new
                         {
-                            cCmd2.Parameters.AddWithValue("@now", now);
-                            cCmd2.ExecuteNonQuery();
-                        }
-
-                        // 3. Seed Sample Demo Sale
-                        using (var saleCmd = new SQLiteCommand(@"
-                            INSERT INTO sales (
-                                id, invoice_number, subtotal_piasters, discount_piasters,
-                                tax_piasters, total_piasters, paid_piasters,
-                                payment_method, customer_id, status, created_at
-                            ) VALUES (
-                                'demo_sale_1', 99901, 7700, 0,
-                                0, 7700, 7700,
-                                'cash', NULL, 'completed', @now
-                            );
-                        ", conn, trans))
-                        {
-                            saleCmd.Parameters.AddWithValue("@now", now);
-                            saleCmd.ExecuteNonQuery();
-                        }
-
-                        using (var itemCmd = new SQLiteCommand(@"
-                            INSERT INTO sale_items (
-                                id, sale_id, product_id, product_name, barcode, quantity_milli,
-                                unit_price_piasters, unit_cost_piasters, total_piasters
-                            ) VALUES (
-                                'demo_item_1', 'demo_sale_1', 'demo_prod_1', 'لبن جهينة كامل الدسم 1 لتر (تجريبي)', '62211001',
-                                1000, 4200, 3400, 4200
-                            ), (
-                                'demo_item_2', 'demo_sale_1', 'demo_prod_2', 'أرز مصري فاخر 1 كجم (تجريبي)', '62211002',
-                                1000, 3500, 2800, 3500
-                            );
-                        ", conn, trans))
-                        {
-                            itemCmd.ExecuteNonQuery();
-                        }
+                            storeType = type,
+                            productsAdded = prodsAdded,
+                            productsSkipped = prodsSkipped,
+                            customersAdded = customersAdded,
+                            mixedWithRealData = realProducts > 0 || realCustomers > 0
+                        });
 
                         trans.Commit();
 
-                        _settingsRepo.Set("has_demo_data", "1");
-                        LogAudit("DEMO_DATA_LOADED", "DEMO", storeType ?? "supermarket", string.Format("تم تحميل {0} منتج تجريبي وعميلين وفاتورة تجريبية بنجاح", prodsCount));
+                        SetDemoFlag(prodsAdded > 0 || customersAdded > 0);
 
                         result.Success = true;
-                        result.Message = string.Format("تم تحميل {0} صنف تجريبي وعميلين للتدريب بنجاح.", prodsCount);
-                        result.ProductsAdded = prodsCount;
-                        result.CustomersAdded = 2;
-                        result.SalesAdded = 1;
+                        result.ProductsAdded = prodsAdded;
+                        result.ProductsSkipped = prodsSkipped;
+                        result.CustomersAdded = customersAdded;
+                        result.Message = string.Format("تمت إضافة {0} صنف تجريبي و{1} زبون تجريبي، ولم تُنشأ أي فواتير أو ديون أو أرصدة.", prodsAdded, customersAdded);
+                        if (prodsSkipped > 0)
+                        {
+                            result.Message += string.Format(" وتم تخطي {0} صنف لأن الكود أو الباركود موجود مسبقاً ولم يُلمس.", prodsSkipped);
+                        }
                         return result;
                     }
                     catch (Exception ex)
                     {
                         trans.Rollback();
                         result.Success = false;
-                        result.Message = "فشل تحميل البيانات التجريبية: " + ex.Message;
+                        result.Code = "DEMO_LOAD_FAILED";
+                        result.Message = "فشل تحميل البيانات التجريبية ولم يتغير شيء في النظام: " + ex.Message;
                         return result;
                     }
                 }
@@ -235,87 +356,444 @@ namespace RafiqPOS.Services
         {
             var res = new ClearDemoDataResult();
 
-            using (var conn = new SQLiteConnection(_connectionString))
+            try
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                DemoScan preview;
+                using (var scanConn = new SQLiteConnection(_connectionString))
                 {
+                    scanConn.Open();
+                    preview = ScanDemoRows(scanConn, null);
+                }
+
+                if (preview.IsEmpty)
+                {
+                    res.Success = true;
+                    res.Message = "لا توجد بيانات تجريبية في النظام لمسحها.";
+                    return res;
+                }
+
+                // A verified copy of the whole database is taken before anything is deleted
+                if (_preChangeBackup != null)
+                {
+                    BackupResult backup = null;
                     try
                     {
-                        var counts = ExecuteClearDemoDataInternal(conn, trans);
-                        trans.Commit();
-
-                        _settingsRepo.Set("has_demo_data", "0");
-                        LogAudit("DEMO_DATA_CLEARED", "DEMO", "SYSTEM", string.Format("تم مسح كافة البيانات التجريبية بأمان ({0} منتج، {1} فاتورة)", counts.Products, counts.Sales));
-
-                        res.Success = true;
-                        res.Message = string.Format("تم مسح كافة البيانات التجريبية بنجاح! تم حذف {0} صنف تجريبي، و {1} فاتورة، و {2} عميل.", counts.Products, counts.Sales, counts.Customers);
-                        res.DeletedProducts = counts.Products;
-                        res.DeletedSales = counts.Sales;
-                        res.DeletedCustomers = counts.Customers;
-                        return res;
+                        backup = _preChangeBackup();
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        trans.Rollback();
+                        backup = null;
+                    }
+                    if (backup == null || !backup.Success || !backup.IsVerified)
+                    {
                         res.Success = false;
-                        res.Message = "فشل مسح البيانات التجريبية: " + ex.Message;
+                        res.Code = "BACKUP_FAILED";
+                        res.Message = "تم إيقاف المسح ولم يتغير شيء: تعذر أخذ نسخة احتياطية موثقة من البيانات الحالية أولاً.";
                         return res;
                     }
                 }
+
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            DemoScan scan = ScanDemoRows(conn, trans);
+                            int deletedProducts = 0;
+                            int deletedCustomers = 0;
+                            var keptProducts = new List<string>(scan.KeptProductIds);
+                            var keptCustomers = new List<string>(scan.KeptCustomerIds);
+
+                            // Fake sales left by older versions and the benchmark; real sales never match the demo prefixes
+                            if (scan.SaleIds.Count > 0)
+                            {
+                                ExecuteSql(conn, trans, "DELETE FROM return_items WHERE return_id IN (SELECT id FROM returns WHERE " + IsDemoSql("sale_id") + " OR " + IsDemoSql("id") + ");");
+                                ExecuteSql(conn, trans, "DELETE FROM returns WHERE " + IsDemoSql("sale_id") + " OR " + IsDemoSql("id") + ";");
+                                ExecuteSql(conn, trans, "DELETE FROM payments WHERE " + IsDemoSql("sale_id") + ";");
+                                ExecuteSql(conn, trans, "DELETE FROM sale_items WHERE " + IsDemoSql("sale_id") + ";");
+                                ExecuteSql(conn, trans, "DELETE FROM customer_ledger WHERE " + IsDemoSql("sale_id") + ";");
+                                ExecuteSql(conn, trans, "DELETE FROM sales WHERE " + IsDemoSql("id") + ";");
+                                ExecuteSql(conn, trans, "UPDATE counters SET current_value = COALESCE((SELECT MAX(invoice_number) FROM sales), 0) WHERE name = 'invoice_number';");
+                            }
+
+                            for (int c = 0; c < scan.RemovableCustomerIds.Count; c++)
+                            {
+                                string customerId = scan.RemovableCustomerIds[c];
+                                if (TryDeleteInSavepoint(conn, trans, customerId, new string[] { "DELETE FROM customers WHERE id = @id;" }))
+                                {
+                                    deletedCustomers++;
+                                }
+                                else
+                                {
+                                    keptCustomers.Add(customerId);
+                                }
+                            }
+
+                            for (int p = 0; p < scan.RemovableProductIds.Count; p++)
+                            {
+                                string productId = scan.RemovableProductIds[p];
+                                bool deleted = TryDeleteInSavepoint(conn, trans, productId, new string[]
+                                {
+                                    "DELETE FROM stock_movements WHERE product_id = @id;",
+                                    "DELETE FROM product_price_history WHERE product_id = @id;",
+                                    "DELETE FROM product_barcodes WHERE product_id = @id;",
+                                    "DELETE FROM quick_items WHERE product_id = @id;",
+                                    "DELETE FROM product_units WHERE product_id = @id;",
+                                    "DELETE FROM product_batches WHERE product_id = @id;",
+                                    "DELETE FROM product_pharma_info WHERE product_id = @id;",
+                                    "DELETE FROM product_ingredients WHERE product_id = @id;",
+                                    "DELETE FROM product_variants WHERE parent_product_id = @id OR variant_product_id = @id;",
+                                    "DELETE FROM products WHERE id = @id;"
+                                });
+                                if (deleted)
+                                {
+                                    deletedProducts++;
+                                }
+                                else
+                                {
+                                    keptProducts.Add(productId);
+                                }
+                            }
+
+                            // Kept rows stay for the real records that use them: the product leaves the sale screen, the customer is archived
+                            for (int k = 0; k < keptProducts.Count; k++)
+                            {
+                                ExecuteSqlWithId(conn, trans, "UPDATE products SET is_active = 0, updated_at = datetime('now') WHERE id = @id;", keptProducts[k]);
+                            }
+                            for (int k = 0; k < keptCustomers.Count; k++)
+                            {
+                                ExecuteSqlWithId(conn, trans, "UPDATE customers SET is_archived = 1 WHERE id = @id;", keptCustomers[k]);
+                            }
+
+                            ExecuteSql(conn, trans, "DELETE FROM categories WHERE " + IsDemoSql("id") + " AND NOT EXISTS (SELECT 1 FROM products WHERE products.category_id = categories.id);");
+
+                            WriteAudit(conn, trans, "DEMO_DATA_CLEARED", "SYSTEM", new
+                            {
+                                deletedProducts = deletedProducts,
+                                deletedSales = scan.SaleIds.Count,
+                                deletedCustomers = deletedCustomers,
+                                keptProducts = keptProducts.Count,
+                                keptCustomers = keptCustomers.Count
+                            });
+
+                            trans.Commit();
+
+                            SetDemoFlag(keptProducts.Count > 0 || keptCustomers.Count > 0);
+
+                            res.Success = true;
+                            res.DeletedProducts = deletedProducts;
+                            res.DeletedSales = scan.SaleIds.Count;
+                            res.DeletedCustomers = deletedCustomers;
+                            res.KeptProducts = keptProducts.Count;
+                            res.KeptCustomers = keptCustomers.Count;
+                            res.Message = BuildClearMessage(res);
+                            return res;
+                        }
+                        catch (Exception ex)
+                        {
+                            trans.Rollback();
+                            res.Success = false;
+                            res.Code = "DEMO_CLEAR_FAILED";
+                            res.Message = "فشل مسح البيانات التجريبية ولم يتغير شيء في النظام: " + ex.Message;
+                            return res;
+                        }
+                    }
+                }
+            }
+            catch (Exception outerEx)
+            {
+                res.Success = false;
+                res.Code = "DEMO_CLEAR_FAILED";
+                res.Message = "فشل مسح البيانات التجريبية ولم يتغير شيء في النظام: " + outerEx.Message;
+                return res;
             }
         }
 
-        private struct ClearCounts
+        private static string BuildClearMessage(ClearDemoDataResult res)
         {
-            public int Products;
-            public int Sales;
-            public int Customers;
+            var sb = new StringBuilder();
+            sb.Append(string.Format("تم أخذ نسخة احتياطية موثقة ثم مسح {0} صنف و{1} فاتورة تجريبية و{2} زبون تجريبي.", res.DeletedProducts, res.DeletedSales, res.DeletedCustomers));
+            if (res.KeptProducts > 0)
+            {
+                sb.Append(string.Format(" بقي {0} صنف تجريبي لأن فواتير أو حركات مخزن حقيقية استخدمته، وتم إيقافه فلا يظهر في البيع.", res.KeptProducts));
+            }
+            if (res.KeptCustomers > 0)
+            {
+                sb.Append(string.Format(" بقي {0} زبون تجريبي لأن له فواتير أو حركات حساب حقيقية، وتمت أرشفته.", res.KeptCustomers));
+            }
+            return sb.ToString();
         }
 
-        private ClearCounts ExecuteClearDemoDataInternal(SQLiteConnection conn, SQLiteTransaction trans)
+        private DemoScan ScanDemoRows(SQLiteConnection conn, SQLiteTransaction trans)
         {
-            var counts = new ClearCounts();
+            var scan = new DemoScan();
+            List<RefColumn> productRefs = BuildReferenceColumns(conn, trans, true);
+            List<RefColumn> customerRefs = BuildReferenceColumns(conn, trans, false);
 
-            // Count items before deleting
-            using (var pCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';", conn, trans))
+            foreach (string productId in ReadStrings(conn, trans, "SELECT id FROM products WHERE " + IsDemoSql("id") + ";"))
             {
-                counts.Products = Convert.ToInt32(pCmd.ExecuteScalar());
-            }
-            using (var sCmd = new SQLiteCommand("SELECT COUNT(*) FROM sales WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';", conn, trans))
-            {
-                counts.Sales = Convert.ToInt32(sCmd.ExecuteScalar());
-            }
-            using (var cCmd = new SQLiteCommand("SELECT COUNT(*) FROM customers WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';", conn, trans))
-            {
-                counts.Customers = Convert.ToInt32(cCmd.ExecuteScalar());
-            }
-
-            // Safe atomic cascaded delete strictly for demo and stress benchmark entities (Task 113-2 / Audit F-017)
-            string sqlDelete = @"
-                DELETE FROM stock_movements WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR reference_id LIKE 'demo_%' OR reference_id LIKE 'stress_%';
-                DELETE FROM product_price_history WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
-                DELETE FROM product_barcodes WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
-                DELETE FROM return_items WHERE return_id IN (SELECT id FROM returns WHERE sale_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR id LIKE 'demo_%' OR id LIKE 'stress_%');
-                DELETE FROM returns WHERE sale_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR id LIKE 'demo_%' OR id LIKE 'stress_%';
-                DELETE FROM sale_items WHERE sale_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
-                DELETE FROM sales WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';
-                DELETE FROM customer_ledger WHERE customer_id LIKE 'demo_%' OR customer_id LIKE 'stress_%' OR sale_id LIKE 'demo_%' OR sale_id LIKE 'stress_%';
-                DELETE FROM customers WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';
-                DELETE FROM quick_items WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
-                DELETE FROM categories WHERE id LIKE 'demo_%';
-                DELETE FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';
-                UPDATE counters SET current_value = COALESCE((SELECT MAX(invoice_number) FROM sales), 0) WHERE name = 'invoice_number';
-                UPDATE counters SET current_value = COALESCE((SELECT MAX(return_number) FROM returns), 0) WHERE name = 'return_number';
-                UPDATE counters SET current_value = COALESCE((SELECT MAX(invoice_number) FROM purchases), 0) WHERE name = 'purchase_invoice';
-            ";
-
-            using (var delCmd = new SQLiteCommand(sqlDelete, conn, trans))
-            {
-                delCmd.ExecuteNonQuery();
+                if (HasReference(conn, trans, productRefs, productId))
+                {
+                    scan.KeptProductIds.Add(productId);
+                }
+                else
+                {
+                    scan.RemovableProductIds.Add(productId);
+                }
             }
 
-            return counts;
+            var withBalance = new HashSet<string>(ReadStrings(conn, trans, "SELECT id FROM customers WHERE " + IsDemoSql("id") + " AND balance_piasters <> 0;"));
+            foreach (string customerId in ReadStrings(conn, trans, "SELECT id FROM customers WHERE " + IsDemoSql("id") + ";"))
+            {
+                if (withBalance.Contains(customerId) || HasReference(conn, trans, customerRefs, customerId))
+                {
+                    scan.KeptCustomerIds.Add(customerId);
+                }
+                else
+                {
+                    scan.RemovableCustomerIds.Add(customerId);
+                }
+            }
+
+            scan.SaleIds.AddRange(ReadStrings(conn, trans, "SELECT id FROM sales WHERE " + IsDemoSql("id") + ";"));
+            return scan;
+        }
+
+        // Tables that point at products or customers are discovered from the schema, so a table added later also protects the demo row
+        private static List<RefColumn> BuildReferenceColumns(SQLiteConnection conn, SQLiteTransaction trans, bool forProducts)
+        {
+            var refs = new List<RefColumn>();
+            List<string> tables = ReadStrings(conn, trans, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';");
+
+            for (int t = 0; t < tables.Count; t++)
+            {
+                string table = tables[t];
+                if (!IsSafeIdentifier(table) || IsOwnedByDemoRow(table, forProducts))
+                {
+                    continue;
+                }
+
+                var columns = new List<string>();
+                using (var cmd = new SQLiteCommand("PRAGMA table_info(" + table + ");", conn, trans))
+                using (var rd = cmd.ExecuteReader())
+                {
+                    while (rd.Read())
+                    {
+                        columns.Add(Convert.ToString(rd["name"]));
+                    }
+                }
+
+                for (int c = 0; c < columns.Count; c++)
+                {
+                    string column = columns[c];
+                    bool matches = forProducts
+                        ? (column == "product_id" || column.EndsWith("_product_id", StringComparison.Ordinal))
+                        : column == "customer_id";
+                    if (!matches)
+                    {
+                        continue;
+                    }
+                    refs.Add(new RefColumn { Table = table, Column = column, ExtraWhere = GetReferenceFilter(table, forProducts) });
+                }
+            }
+            return refs;
+        }
+
+        // Rows deleted together with the demo row itself, so they never count as a real use
+        private static bool IsOwnedByDemoRow(string table, bool forProducts)
+        {
+            if (!forProducts)
+            {
+                return false;
+            }
+            return table == "product_barcodes" || table == "product_price_history" || table == "quick_items"
+                || table == "product_units" || table == "product_batches" || table == "product_pharma_info"
+                || table == "product_ingredients" || table == "product_variants";
+        }
+
+        // Only rows that belong to a demo sale, return or seed movement are ignored; everything else is real activity
+        private static string GetReferenceFilter(string table, bool forProducts)
+        {
+            if (forProducts)
+            {
+                if (table == "sale_items") return " AND NOT " + IsDemoSql("sale_id");
+                if (table == "return_items") return " AND NOT " + IsDemoSql("return_id");
+                if (table == "stock_movements") return " AND NOT " + IsDemoSql("id") + " AND NOT " + IsDemoSql("reference_id") + " AND movement_type NOT IN ('INITIAL', 'INITIAL_OPENING') AND COALESCE(reference_type, '') != 'DEMO' AND UPPER(COALESCE(reference_id, '')) NOT LIKE 'DEMO%'";
+                return "";
+            }
+            if (table == "sales") return " AND NOT " + IsDemoSql("id");
+            if (table == "customer_ledger") return " AND NOT " + IsDemoSql("sale_id");
+            return "";
+        }
+
+        private static bool HasReference(SQLiteConnection conn, SQLiteTransaction trans, List<RefColumn> refs, string id)
+        {
+            for (int i = 0; i < refs.Count; i++)
+            {
+                string sql = "SELECT 1 FROM \"" + refs[i].Table + "\" WHERE \"" + refs[i].Column + "\" = @id" + refs[i].ExtraWhere + " LIMIT 1;";
+                using (var cmd = new SQLiteCommand(sql, conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+                    if (cmd.ExecuteScalar() != null)
+                    {
+                        Console.WriteLine("[WHY_KEPT] id=" + id + " table=" + refs[i].Table + " col=" + refs[i].Column + " where=" + refs[i].ExtraWhere);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static bool IsSafeIdentifier(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+            for (int i = 0; i < name.Length; i++)
+            {
+                char ch = name[i];
+                if (!(char.IsLetterOrDigit(ch) || ch == '_'))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static List<string> ReadStrings(SQLiteConnection conn, SQLiteTransaction trans, string sql)
+        {
+            var list = new List<string>();
+            using (var cmd = new SQLiteCommand(sql, conn, trans))
+            using (var rd = cmd.ExecuteReader())
+            {
+                while (rd.Read())
+                {
+                    list.Add(rd.GetString(0));
+                }
+            }
+            return list;
+        }
+
+        // table and condition are always code constants, never user input
+        private static int CountWhere(SQLiteConnection conn, SQLiteTransaction trans, string table, string condition)
+        {
+            using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM " + table + " WHERE " + condition + ";", conn, trans))
+            {
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+        }
+
+        private static bool ProductIdOrBarcodeExists(SQLiteConnection conn, SQLiteTransaction trans, string id, string barcode)
+        {
+            using (var cmd = new SQLiteCommand("SELECT 1 FROM products WHERE id = @id OR barcode = @barcode LIMIT 1;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@barcode", barcode);
+                if (cmd.ExecuteScalar() != null)
+                {
+                    return true;
+                }
+            }
+            using (var cmd = new SQLiteCommand("SELECT 1 FROM product_barcodes WHERE barcode = @barcode LIMIT 1;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@barcode", barcode);
+                return cmd.ExecuteScalar() != null;
+            }
+        }
+
+        private static void ExecuteSql(SQLiteConnection conn, SQLiteTransaction trans, string sql)
+        {
+            using (var cmd = new SQLiteCommand(sql, conn, trans))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void ExecuteSqlWithId(SQLiteConnection conn, SQLiteTransaction trans, string sql, string id)
+        {
+            using (var cmd = new SQLiteCommand(sql, conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@id", id);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        // A foreign key that the schema scan did not foresee keeps the row instead of failing the whole clean-up
+        private static bool TryDeleteInSavepoint(SQLiteConnection conn, SQLiteTransaction trans, string id, string[] statements)
+        {
+            ExecuteSql(conn, trans, "SAVEPOINT demo_row;");
+            try
+            {
+                for (int i = 0; i < statements.Length; i++)
+                {
+                    ExecuteSqlWithId(conn, trans, statements[i], id);
+                }
+                ExecuteSql(conn, trans, "RELEASE demo_row;");
+                return true;
+            }
+            catch (SQLiteException)
+            {
+                ExecuteSql(conn, trans, "ROLLBACK TO demo_row;");
+                ExecuteSql(conn, trans, "RELEASE demo_row;");
+                return false;
+            }
+        }
+
+        private void WriteAudit(SQLiteConnection conn, SQLiteTransaction trans, string action, string entityId, object details)
+        {
+            if (_auditRepo == null)
+            {
+                return;
+            }
+            UserDto actor = SecurityService.CurrentUser;
+            _auditRepo.Log(conn, trans, new AuditLog
+            {
+                UserId = actor != null ? actor.Id : "system",
+                Action = action,
+                EntityType = "DEMO",
+                EntityId = entityId,
+                DetailsJson = JsonConvert.SerializeObject(details)
+            });
+        }
+
+        // The flag is only a convenience mirror of the real rows, so failing to write it must not undo a committed change
+        private void SetDemoFlag(bool hasDemo)
+        {
+            try
+            {
+                _settingsRepo.Set("has_demo_data", hasDemo ? "1" : "0");
+            }
+            catch (Exception)
+            {
+                // Mirror only
+            }
+        }
+
+        private static string ToInStoreEan13(string seed)
+        {
+            var digits = new StringBuilder();
+            for (int i = 0; i < seed.Length; i++)
+            {
+                if (char.IsDigit(seed[i]))
+                {
+                    digits.Append(seed[i]);
+                }
+            }
+            string tail = digits.ToString();
+            tail = tail.Length >= 9 ? tail.Substring(tail.Length - 9) : tail.PadLeft(9, '0');
+
+            string body = DEMO_BARCODE_PREFIX + tail;
+            int sum = 0;
+            for (int i = 0; i < body.Length; i++)
+            {
+                int d = body[i] - '0';
+                sum += (i % 2 == 0) ? d : d * 3;
+            }
+            int check = (10 - (sum % 10)) % 10;
+            return body + check.ToString();
         }
 
         private static List<Product> GetDemoProductsForStoreType(string storeType)
@@ -369,6 +847,13 @@ namespace RafiqPOS.Services
                 list.Add(new Product { Id = "demo_prod_2", Name = "شراب قطن فاخر (تجريبي)", Barcode = "62255002", PricePiasters = 2500, CostPiasters = 1200, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
                 list.Add(new Product { Id = "demo_prod_3", Name = "حزام جلد كلاسيك (تجريبي)", Barcode = "62255003", PricePiasters = 8500, CostPiasters = 5000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
             }
+            else if (storeType == "toys_kids")
+            {
+                list.Add(new Product { Id = "demo_prod_1", Name = "سيارة لعبة معدنية صغيرة (تجريبي)", Barcode = "62266001", PricePiasters = 5500, CostPiasters = 3500, StockQuantityMilli = 30000, MinStockQuantityMilli = 5000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_2", Name = "عروسة قماش وسط (تجريبي)", Barcode = "62266002", PricePiasters = 9500, CostPiasters = 6500, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_3", Name = "مكعبات تركيب ملونة 50 قطعة (تجريبي)", Barcode = "62266003", PricePiasters = 12000, CostPiasters = 8000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_4", Name = "كرة بلاستيك ملونة (تجريبي)", Barcode = "62266004", PricePiasters = 3000, CostPiasters = 1800, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            }
             else if (storeType == "pharmacy")
             {
                 list.Add(new Product { Id = "demo_prod_1", Name = "بنادول إكسترا أحمر 12 قرص (تجريبي)", Barcode = "62211001", PricePiasters = 4200, CostPiasters = 3400, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
@@ -400,29 +885,12 @@ namespace RafiqPOS.Services
                 list.Add(new Product { Id = "demo_prod_8", Name = "مياه بركة معدنية 1.5 لتر (تجريبي)", Barcode = "6229007788990", PricePiasters = 800, CostPiasters = 550, StockQuantityMilli = 55000, MinStockQuantityMilli = 12000, Unit = "piece" });
             }
 
+            // The catalog codes only seed a unique in-store EAN-13, so a demo product never collides with a real one
+            for (int i = 0; i < list.Count; i++)
+            {
+                list[i].Barcode = ToInStoreEan13(list[i].Barcode);
+            }
             return list;
-        }
-
-        private void LogAudit(string action, string entityType, string entityId, string details)
-        {
-            try
-            {
-                if (_auditRepo != null)
-                {
-                    _auditRepo.Log(new AuditLog
-                    {
-                        UserId = "system",
-                        Action = action,
-                        EntityType = entityType,
-                        EntityId = entityId,
-                        DetailsJson = details
-                    });
-                }
-            }
-            catch
-            {
-                // Non-blocking
-            }
         }
     }
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { KeyRound, Copy, Check, Printer, ShieldAlert, ShieldCheck, FileText } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { AppButton } from './AppButton';
 import { printCompactReport } from '../utils/printReport';
 import { encodeInvoiceBarcode, layoutReceiptBarcode, RECEIPT_DPI } from '../utils/receiptLayout';
 import type { ReceiptPaperWidth } from '../utils/receiptLayout';
@@ -147,7 +148,12 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
     if (isPrinting) return;
 
     if (printMode === 'a4') {
-      void printCompactReport('a4');
+      // The recovery code is a secret: this sheet is never saved to a file, so a failure is only reported
+      try {
+        await printCompactReport('a4');
+      } catch (err: unknown) {
+        setPrintStatus({ ok: false, msg: 'تعذر فتح نافذة الطباعة: ' + ((err as Error)?.message || 'خطأ غير معروف') });
+      }
       return;
     }
 
@@ -232,7 +238,7 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
               <KeyRound className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-ink dark:text-ink-dark">كود استرجاع النسخ الاحتياطية (Recovery Code)</h2>
+              <h2 className="text-base font-bold text-ink dark:text-ink-dark">كود استرجاع النسخ الاحتياطية</h2>
               <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">مفتاح الأمان الرئيسي المشفر لاسترجاع البيانات على أي جهاز</p>
             </div>
           </div>
@@ -242,7 +248,8 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
             <button
               type="button"
               onClick={() => setPrintMode('thermal')}
-              className={`px-2.5 py-1 rounded font-semibold text-micro transition-colors cursor-pointer ${
+              aria-pressed={printMode === 'thermal'}
+              className={`px-2.5 py-1 rounded font-semibold text-micro ${
                 printMode === 'thermal'
                   ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -253,7 +260,8 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
             <button
               type="button"
               onClick={() => setPrintMode('a4')}
-              className={`px-2.5 py-1 rounded font-semibold text-micro transition-colors cursor-pointer ${
+              aria-pressed={printMode === 'a4'}
+              className={`px-2.5 py-1 rounded font-semibold text-micro ${
                 printMode === 'a4'
                   ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -272,35 +280,20 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="px-3 py-1.5 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:scale-95"
-              title="نسخ كود الاسترجاع للحافظة"
-            >
-              {copied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
-                  <span className="text-paid dark:text-paid-bright">تم النسخ</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-                  <span>نسخ الكود</span>
-                </>
-              )}
-            </button>
+            <AppButton variant="secondary" size="sm" icon={copied ? Check : Copy} onClick={handleCopy} title="نسخ كود الاسترجاع للحافظة">
+              {copied ? 'تم النسخ' : 'نسخ الكود'}
+            </AppButton>
 
-            <button
-              type="button"
+            <AppButton
+              variant="primary"
+              size="sm"
+              icon={Printer}
               onClick={handlePrint}
               disabled={isPrinting}
-              className="px-4 py-1.5 bg-brand hover:bg-brand-hover dark:bg-brand-bright dark:text-surface-dark text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               title="طباعة إيصال الأمان على الطابعة الحرارية مباشرة (F9)"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>{isPrinting ? 'جاري الطباعة...' : 'طباعة كارت الأمان (F9)'}</span>
-            </button>
+              {isPrinting ? 'جاري الطباعة...' : 'طباعة كارت الأمان (F9)'}
+            </AppButton>
           </div>
         </div>
 
@@ -354,7 +347,7 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
               {storeSettings.storeName}
             </div>
             <div className="text-center text-micro text-neutral-700 mt-0.5">
-              نظام رفيق لإدارة المتاجر ونقاط البيع (Rafiq POS)
+              نظام رفيق لإدارة المتاجر ونقاط البيع
             </div>
             {storeSettings.phone && (
               <div className="text-center text-micro text-neutral-600 mt-0.5" dir="ltr">
@@ -471,7 +464,7 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
               type="checkbox"
               checked={hasAcknowledged}
               onChange={(e) => setHasAcknowledged(e.target.checked)}
-              className="mt-0.5 rounded border-line dark:border-line-dark text-brand focus:ring-brand h-4 w-4 cursor-pointer"
+              className="mt-0.5 cursor-pointer"
             />
             <span className="text-xs text-ink dark:text-ink-dark leading-relaxed text-right select-none">
               أقر بأنني قمت بطباعة وحفظ كود الاسترجاع في مكان خارجي آمن ومستقل، وأدرك تماماً أنه لن يمكن استرجاع البيانات أو فك تشفير النسخ على أي جهاز آخر بدونه.
@@ -484,19 +477,9 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
               <span>لا يمكن إغلاق هذه النافذة إلا بعد تأكيد حفظ الكود</span>
             </div>
 
-            <button
-              type="button"
-              disabled={!hasAcknowledged || isSubmitting}
-              onClick={handleConfirm}
-              className={`px-6 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                hasAcknowledged && !isSubmitting
-                  ? 'bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-hover text-white shadow-md active:scale-95'
-                  : 'bg-line dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted cursor-not-allowed opacity-60'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>{isSubmitting ? 'جاري التأكيد...' : 'نسخت الكود واحتفظت به'}</span>
-            </button>
+            <AppButton variant="primary" icon={ShieldCheck} disabled={!hasAcknowledged || isSubmitting} onClick={handleConfirm}>
+              {isSubmitting ? 'جاري التأكيد...' : 'نسخت الكود واحتفظت به'}
+            </AppButton>
           </div>
         </div>
       </div>

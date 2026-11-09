@@ -170,6 +170,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // 3. Sales totals (Excluding cancelled and demo sales - strictly isolating cash, card, and credit)
                 string salesSql = @"
@@ -836,6 +840,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
                 using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM shifts WHERE status = 'open' AND business_date = @bdate;", conn))
                 {
                     cmd.Parameters.AddWithValue("@bdate", businessDate);
@@ -950,6 +958,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
                 using (var trans = conn.BeginTransaction())
                 {
                     try
@@ -1008,6 +1020,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
                 // Find any date prior to currentBusinessDate that had sales but was never closed
                 string sql = @"
                     SELECT 

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { Barcode, Search, Loader2, Layers } from 'lucide-react';
+import { AppButton } from '../../components/AppButton';
 import type { Product } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { usePermissions } from '../../utils/usePermission';
@@ -96,48 +97,46 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="h-11 px-4 bg-brand hover:bg-brand-hover text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all shrink-0 shadow-2xs active:scale-[0.98] cursor-pointer"
-        >
-          <Search className="w-4 h-4 stroke-[2.5]" />
-          <span>إضافة</span>
-        </button>
+        <AppButton type="submit" variant="primary" size="lg" icon={Search} disabled={loading} className="shrink-0">
+          إضافة
+        </AppButton>
 
         {canConfigureScanner && (
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="lg"
+            icon={Barcode}
             onClick={onOpenScannerModal}
-            className="h-11 px-2.5 sm:px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
+            aria-label="فحص القارئ"
             title="فحص وضبط قارئ الباركود (F8) - للمالك والمدير فقط"
+            className="shrink-0"
           >
-            <Barcode className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
             <span className="hidden md:inline">فحص القارئ</span>
-          </button>
+          </AppButton>
         )}
       </form>
 
       {/* Live name search: only what a cashier needs to pick an item (name, price, availability) */}
       {isSearchDropdownOpen && liveSearchResults.length > 0 && (
         <div
-          className="absolute left-3 right-3 top-[64px] z-50 bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xl overflow-hidden max-h-[360px] flex flex-col animate-in fade-in zoom-in-95 duration-100"
+          className="absolute left-3 right-3 top-[64px] z-50 bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xl overflow-hidden max-h-[22.5rem] flex flex-col animate-in fade-in zoom-in-95 duration-100"
         >
           <div className="px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between gap-2 text-xs font-semibold text-ink-muted dark:text-ink-dark-muted select-none">
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-bold text-ink dark:text-ink-dark shrink-0">نتائج البحث ({liveSearchResults.length})</span>
               <span className="text-micro truncate">الأسهم ↑ ↓ للتنقل، Enter للإضافة</span>
             </div>
-            <button
-              type="button"
+            <AppButton
+              variant="subtle"
+              size="xs"
+              className="-my-1.5 shrink-0"
               onClick={() => {
                 setIsSearchDropdownOpen(false);
                 setLiveSearchResults([]);
               }}
-              className="hover:text-ink dark:hover:text-ink-dark text-xs font-bold cursor-pointer shrink-0"
             >
               إغلاق (Esc)
-            </button>
+            </AppButton>
           </div>
 
           <div ref={listRef} role="listbox" className="overflow-y-auto divide-y divide-line/40 dark:divide-line-dark/60">

@@ -132,6 +132,37 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.IsTrue(SecurityService.VerifyUserPin(AdminId, "7418"));
         }
 
+        [Test]
+        public void Fix1_ResetWithRecovery_AcceptsSignedCloudflareRecoveryToken()
+        {
+            var payload = new Newtonsoft.Json.Linq.JObject();
+            payload["iss"] = "rafiq-license-server";
+            payload["sub"] = "RECOVERY-TEST";
+            payload["fp"] = EncryptionService.GenerateDeviceFingerprint();
+            payload["shop"] = "Test Shop";
+            payload["type"] = "lifetime";
+            payload["kind"] = "pin_reset";
+            payload["iat"] = RafiqPOS.Common.LicenseTokenVerifier.ToUnix(DateTime.UtcNow);
+            payload["exp"] = RafiqPOS.Common.LicenseTokenVerifier.ToUnix(DateTime.UtcNow.AddHours(24));
+            payload["jti"] = Guid.NewGuid().ToString();
+
+            string signedToken = RafiqPOS.Common.LicenseTokenVerifier.SignWithEphemeralTestKey(payload);
+            string fullRecoveryCode = "RFQ-REC-" + signedToken;
+
+            // Reset lockout before test
+            SettingsRepo.Set("security_recovery_lockout_until", "");
+            SettingsRepo.Set("security_recovery_failed_attempts", "0");
+
+            var ok = Dispatch("security:resetWithRecovery", new { recoveryCode = fullRecoveryCode, newPin = "9821" });
+            Assert.IsTrue(ok.Success, "كود الاسترجاع الرقمي RFQ-REC- يعيد تعيين رقم المالك بنجاح");
+            Assert.IsTrue(SecurityService.VerifyUserPin(AdminId, "9821"));
+
+            // Re-using the same single-use token must fail
+            SettingsRepo.Set("security_recovery_lockout_until", "");
+            var reuse = Dispatch("security:resetWithRecovery", new { recoveryCode = fullRecoveryCode, newPin = "1122" });
+            Assert.IsFalse(reuse.Success, "إعادة استخدام كود الاسترجاع المستهلك ذو الـ JTI لمرة واحدة يجب أن يفشل");
+        }
+
         // ---------- Fix 2: privilege escalation through user management ----------
 
         [Test]

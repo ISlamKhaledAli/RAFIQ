@@ -9,10 +9,12 @@ import {
   FileText,
   Check,
   X,
-  Search,
   Package,
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
 import { extractProducts, type Product } from '../types/models';
 import { formatUnitArabic, type ShortageEntry } from '../types/shortage';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -178,7 +180,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-lg bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col select-none">
+      <div className="w-full max-w-2xl max-h-[90vh] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col select-none">
         {/* Header */}
         <div className="h-14 px-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
@@ -194,256 +196,247 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={onClose} />
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSave} className="p-5 flex flex-col gap-4 overflow-y-auto max-h-[75vh]">
-          {error && (
-            <div className="p-3 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+        <form onSubmit={handleSave} className="flex-1 min-h-0 flex flex-col">
+          <MotionHeight className="flex-1 min-h-0 overflow-y-auto p-5">
+          <div className="flex flex-col gap-4">
+            {error && (
+              <div className="p-3 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-          {/* Product Name with Auto-Suggest */}
-          <div className="relative">
-            <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-              اسم الصنف أو الدواء المطلوب <RequiredMark />
-            </label>
+            {/* Product Name with Auto-Suggest */}
             <div className="relative">
-              <input
+              <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                اسم الصنف أو الدواء المطلوب <RequiredMark />
+              </label>
+              <SearchInput
                 ref={inputRef}
-                type="text"
+                size="md"
+                searchButton={false}
                 value={productName}
-                onChange={(e) => handleNameChange(e.target.value)}
+                onChange={handleNameChange}
                 placeholder="اكتب اسم الصنف أو ابحث في الكتالوج..."
-                className="w-full h-10 px-3 pr-9 pl-24 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-semibold text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
+                ariaLabel="اسم الصنف الناقص"
+                trailing={
+                  isSearching ? (
+                    <span className="shrink-0 text-micro text-brand dark:text-brand-bright font-bold animate-pulse">جاري البحث...</span>
+                  ) : undefined
+                }
               />
-              <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-3 pointer-events-none" />
-              {isSearching && (
-                <div className="absolute left-3 top-3 text-micro text-brand dark:text-brand-bright font-bold animate-pulse pointer-events-none">
-                  جاري البحث...
+
+              {/* Suggestions list */}
+              {searchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                  <div className="p-1.5 text-micro font-bold text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark">
+                    أصناف مطابقة من الكتالوج:
+                  </div>
+                  {searchResults.map((prod) => (
+                    <button
+                      key={prod.id}
+                      type="button"
+                      onClick={() => handleSelectProduct(prod)}
+                      className="w-full text-right px-3 py-2 text-xs cursor-pointer hover:bg-brand-soft/40 dark:hover:bg-brand-dark-soft/40 border-b border-line/40 dark:border-line-dark/40 last:border-0 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                        <span className="font-bold text-ink dark:text-ink-dark">{prod.name}</span>
+                      </div>
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">
+                        رصيد: {prod.stockQuantityMilli / 1000} {formatUnitArabic(prod.unit)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {selectedProduct && (
+                <div className="mt-1.5 px-3 py-1.5 rounded-lg bg-brand-soft/50 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 flex items-center justify-between text-micro">
+                  <span className="text-brand dark:text-brand-bright font-bold">
+                    مرتبط بالصنف: {selectedProduct.name}
+                  </span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-mono">
+                    الرصيد الحالي: {selectedProduct.stockQuantityMilli / 1000} {formatUnitArabic(selectedProduct.unit)}
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Suggestions list */}
-            {searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
-                <div className="p-1.5 text-micro font-bold text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark">
-                  أصناف مطابقة من الكتالوج:
-                </div>
-                {searchResults.map((prod) => (
+            {/* Requested Quantity & Urgency */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                  الكمية المطلوبة (بالوحدة)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold font-mono text-center text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                  درجة الأهمية والاستعجال
+                </label>
+                <div className="grid grid-cols-3 gap-1 h-10 p-1 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
                   <button
-                    key={prod.id}
                     type="button"
-                    onClick={() => handleSelectProduct(prod)}
-                    className="w-full text-right px-3 py-2 text-xs hover:bg-brand-soft/40 dark:hover:bg-brand-dark-soft/40 border-b border-line/40 dark:border-line-dark/40 last:border-0 flex items-center justify-between"
+                    onClick={() => setUrgency('normal')}
+                    aria-pressed={urgency === 'normal'}
+                    className={`flex items-center justify-center gap-1 rounded-lg text-micro font-bold cursor-pointer ${
+                      urgency === 'normal'
+                        ? 'bg-paid text-white dark:bg-paid-dark-soft dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40 shadow-2xs'
+                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright hover:bg-paid-soft/50 dark:hover:bg-paid-dark-soft/50'
+                    }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                      <span className="font-bold text-ink dark:text-ink-dark">{prod.name}</span>
-                    </div>
-                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">
-                      رصيد: {prod.stockQuantityMilli / 1000} {formatUnitArabic(prod.unit)}
-                    </span>
+                    <Clock className="w-3 h-3" />
+                    <span>عادي</span>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setUrgency('urgent')}
+                    aria-pressed={urgency === 'urgent'}
+                    className={`flex items-center justify-center gap-1 rounded-lg text-micro font-bold cursor-pointer ${
+                      urgency === 'urgent'
+                        ? 'bg-warn-bright text-ink dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-2xs'
+                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-warn-bright hover:bg-warn-soft/50 dark:hover:bg-warn-dark-soft/50'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    <span>عاجل</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUrgency('critical')}
+                    aria-pressed={urgency === 'critical'}
+                    className={`flex items-center justify-center gap-1 rounded-lg text-micro font-bold cursor-pointer ${
+                      urgency === 'critical'
+                        ? 'bg-danger text-white dark:bg-danger-dark-soft dark:text-danger-bright dark:ring-1 dark:ring-inset dark:ring-danger-bright/40 shadow-2xs'
+                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft/50 dark:hover:bg-danger-dark-soft/50'
+                    }`}
+                  >
+                    <Flame className="w-3 h-3" />
+                    <span>حرج</span>
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
 
-            {selectedProduct && (
-              <div className="mt-1.5 px-3 py-1.5 rounded-lg bg-brand-soft/50 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 flex items-center justify-between text-micro">
-                <span className="text-brand dark:text-brand-bright font-bold">
-                  مرتبط بالصنف: {selectedProduct.name}
-                </span>
-                <span className="text-ink-muted dark:text-ink-dark-muted font-mono">
-                  الرصيد الحالي: {selectedProduct.stockQuantityMilli / 1000} {formatUnitArabic(selectedProduct.unit)}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Requested Quantity & Urgency */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* Source Selector */}
             <div>
               <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                الكمية المطلوبة (بالوحدة)
+                مصدر طلب النواقص
               </label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold font-mono text-center text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                درجة الأهمية والاستعجال
-              </label>
-              <div className="grid grid-cols-3 gap-1 h-10 p-1 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
-                <button
-                  type="button"
-                  onClick={() => setUrgency('normal')}
-                  className={`flex items-center justify-center gap-1 rounded-lg text-micro font-bold transition-all ${
-                    urgency === 'normal'
-                      ? 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark shadow-2xs border border-line dark:border-line-dark'
-                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                  }`}
-                >
-                  <Clock className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                  <span>عادي</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUrgency('urgent')}
-                  className={`flex items-center justify-center gap-1 rounded-lg text-micro font-bold transition-all ${
-                    urgency === 'urgent'
-                      ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-2xs'
-                      : 'text-warn dark:text-warn-bright hover:bg-warn-soft/50 dark:hover:bg-warn-dark-soft/50'
-                  }`}
-                >
-                  <AlertTriangle className="w-3 h-3" />
-                  <span>عاجل</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUrgency('critical')}
-                  className={`flex items-center justify-center gap-1 rounded-lg text-micro font-bold transition-all ${
-                    urgency === 'critical'
-                      ? 'bg-danger text-white shadow-2xs'
-                      : 'text-danger dark:text-danger-bright hover:bg-danger-soft/50 dark:hover:bg-danger-dark-soft/50'
-                  }`}
-                >
-                  <Flame className="w-3 h-3" />
-                  <span>حرج</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Source Selector */}
-          <div>
-            <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-              مصدر طلب النواقص
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setSource('manual_pos')}
-                className={`flex items-center justify-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  source === 'manual_pos'
-                    ? 'border-brand bg-brand-soft/40 dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
-                    : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
-                }`}
-              >
-                <ClipboardList className="w-3.5 h-3.5" />
-                <span>ملاحظة كاشير / جرد رف</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSource('customer_request')}
-                className={`flex items-center justify-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  source === 'customer_request'
-                    ? 'border-brand bg-brand-soft/40 dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
-                    : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
-                }`}
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>طلب عميل (زبون بالصيدلية/المحل)</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Conditional Customer Info vs Cashier Auto-Identity */}
-          {source === 'customer_request' ? (
-            <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2.5 animate-in fade-in">
-              <div className="text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                <span>بيانات العميل للاتصال به عند توافر الصنف</span>
-              </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="اسم العميل"
-                    className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                  />
-                  <User className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2 pointer-events-none" />
-                </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="رقم الهاتف"
-                    className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                  />
-                  <Phone className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2 pointer-events-none" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSource('manual_pos')}
+                  aria-pressed={source === 'manual_pos'}
+                  className={`flex items-center justify-center gap-2 h-10 px-3 rounded-xl border text-xs font-bold cursor-pointer ${
+                    source === 'manual_pos'
+                      ? 'border-brand bg-brand-soft/40 dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
+                      : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
+                  }`}
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  <span>ملاحظة كاشير / جرد رف</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSource('customer_request')}
+                  aria-pressed={source === 'customer_request'}
+                  className={`flex items-center justify-center gap-2 h-10 px-3 rounded-xl border text-xs font-bold cursor-pointer ${
+                    source === 'customer_request'
+                      ? 'border-brand bg-brand-soft/40 dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
+                      : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>طلب عميل (زبون بالمحل)</span>
+                </button>
               </div>
             </div>
-          ) : (
-            <div className="p-3 rounded-xl bg-brand-soft/40 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 flex items-center justify-between text-xs animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-                <span className="font-bold text-brand dark:text-brand-bright">
-                  تسجيل كاشير: سيتم توثيق القيد باسم الكاشير المسجل حالياً تلقائياً
+
+            {/* Conditional Customer Info vs Cashier Auto-Identity */}
+            {source === 'customer_request' ? (
+              <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2.5 animate-in fade-in">
+                <div className="text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                  <span>بيانات العميل للاتصال به عند توافر الصنف</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="اسم العميل"
+                      className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                    />
+                    <User className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2 pointer-events-none" />
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="رقم الهاتف"
+                      className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                    />
+                    <Phone className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-brand-soft/40 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 flex items-center justify-between text-xs animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                  <span className="font-bold text-brand dark:text-brand-bright">
+                    تسجيل كاشير: سيتم توثيق القيد باسم الكاشير المسجل حالياً تلقائياً
+                  </span>
+                </div>
+                <span className="font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-3 px-2 py-0.5 rounded border border-line dark:border-line-dark shadow-2xs">
+                  {currentUser?.displayName || currentUser?.username || 'الكاشير'}
                 </span>
               </div>
-              <span className="font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-3 px-2 py-0.5 rounded border border-line dark:border-line-dark shadow-2xs">
-                {currentUser?.displayName || currentUser?.username || 'الكاشير'}
-              </span>
-            </div>
-          )}
+            )}
 
-          {/* Notes */}
-          <div>
-            <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-              ملاحظات إضافية (التركيز، الشركة، البديل المقترح...)
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="أي تفاصيل تساعد مسؤول المشتريات أثناء عمل الطلبية..."
-                className="w-full h-9 px-3 pr-8 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
-              />
-              <FileText className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2.5 pointer-events-none" />
+            {/* Notes */}
+            <div>
+              <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                ملاحظات إضافية (التركيز، الشركة، البديل المقترح...)
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="أي تفاصيل تساعد مسؤول المشتريات أثناء عمل الطلبية..."
+                  className="w-full h-9 px-3 pr-8 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
+                />
+                <FileText className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2.5 pointer-events-none" />
+              </div>
             </div>
           </div>
+          </MotionHeight>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-line dark:border-line-dark">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="h-9 px-4 rounded-xl border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-            >
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
+            <AppButton variant="secondary" size="md" onClick={onClose} disabled={saving}>
               إلغاء
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="h-9 px-5 rounded-xl bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
-            >
-              <Check className="w-4 h-4" />
-              <span>{saving ? 'جاري الحفظ...' : 'تسجيل في النواقص'}</span>
-            </button>
+            </AppButton>
+            <AppButton type="submit" variant="primary" size="md" icon={Check} disabled={saving}>
+              {saving ? 'جاري الحفظ...' : 'تسجيل في النواقص'}
+            </AppButton>
           </div>
         </form>
       </div>

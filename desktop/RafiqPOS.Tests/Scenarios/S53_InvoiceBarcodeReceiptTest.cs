@@ -175,7 +175,7 @@ namespace RafiqPOS.Tests.Scenarios
 
             SettingsRepo.Set("receipt_show_invoice_number", "0");
             Assert.Less(BlackPixels(sale), shown, "the number line is gone");
-            AssertBarcodeDrawn(sale, "80mm", false, value, 576, 5, 68);
+            AssertBarcodeDrawn(sale, "80mm", false, value, 576, 2, 68);
 
             sale.Id = PreBillId;
             int preBillHidden = BlackPixels(sale);
@@ -194,7 +194,7 @@ namespace RafiqPOS.Tests.Scenarios
             SettingsRepo.Set("receipt_show_paid", "0");
             int fullyPaidHidden = RenderedHeight(sale);
             Assert.Less(fullyPaidHidden, fullyPaidShown, "the whole payments block is gone");
-            AssertBarcodeDrawn(sale, "80mm", false, PrinterService.FormatInvoiceBarcodeValue(sale.InvoiceNumber), 576, 5, 68);
+            AssertBarcodeDrawn(sale, "80mm", false, PrinterService.FormatInvoiceBarcodeValue(sale.InvoiceNumber), 576, 2, 68);
 
             SetPayments(sale, total - 2000);
             int partlyPaidHidden = RenderedHeight(sale);

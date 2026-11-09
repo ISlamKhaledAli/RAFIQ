@@ -681,7 +681,7 @@ namespace RafiqPOS.Services
             {
                 if (string.IsNullOrEmpty(fallbackRecoveryCode))
                 {
-                    throw new CryptographicException("هذه النسخة مأخوذة من جهاز آخر أو تغيرت بيئة النظام. يرجى إدخال كود استرجاع الطوارئ (Recovery Code) للمتابعة.");
+                    throw new CryptographicException("هذه النسخة مأخوذة من جهاز آخر أو تغيرت بيئة النظام. يرجى إدخال كود استرجاع الطوارئ للمتابعة.");
                 }
                 else
                 {

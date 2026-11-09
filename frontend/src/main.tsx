@@ -17,10 +17,14 @@ import { FeaturesProvider } from './context/FeaturesProvider'
 import { AuthProvider } from './context/AuthContext'
 import { UnsavedChangesProvider } from './context/UnsavedChangesProvider'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { applyTextScale, loadTextScale } from './utils/textScale'
+import { watchTextScaleViewport } from './utils/textScale'
+import { startMotion } from './utils/motion'
+import { invoke } from './bridge/ipc'
 
-// Apply the saved text size before the first render so there is no size flash.
-applyTextScale(document.documentElement, loadTextScale(localStorage))
+// Apply the saved text size before the first render so there is no size flash; it is re-clamped when the window is resized.
+watchTextScaleViewport(window, document.documentElement, localStorage)
+// Animations stay off unless root turned them on: cached value first, then the host's answer (readable before login).
+void startMotion(() => invoke('settings:getStoreProfile'), document.documentElement, localStorage)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

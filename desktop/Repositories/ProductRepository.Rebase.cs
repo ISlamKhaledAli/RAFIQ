@@ -93,7 +93,7 @@ namespace RafiqPOS.Repositories
                     long heldCount = Convert.ToInt64(heldCmd.ExecuteScalar());
                     if (heldCount > 0)
                     {
-                        throw new InvalidOperationException("لا يمكن إعادة تأسيس الصنف لوجود فواتير معلقة (Held Sales) تحتوي عليه في الوردية الحالية. يرجى استرجاعها وإتمامها أو إلغاؤها أولاً لحماية سلامة البيانات.");
+                        throw new InvalidOperationException("لا يمكن إعادة تأسيس الصنف لوجود فواتير معلقة تحتوي عليه في الوردية الحالية. يرجى استرجاعها وإتمامها أو إلغاؤها أولاً لحماية سلامة البيانات.");
                     }
                 }
 
@@ -240,19 +240,21 @@ namespace RafiqPOS.Repositories
                             upProd.ExecuteNonQuery();
                         }
 
-                        // Record stock movement (UNIT_REBASE)
+                        // Record stock movement (UNIT_REBASE) with the stock delta to preserve double-entry parity
+                        long rebaseDeltaMilli = newStockMilli - oldStockMilli;
                         using (var smCmd = new SQLiteCommand(@"
                             INSERT INTO stock_movements (
                                 id, product_id, movement_type, quantity_milli, reference_id, reference_type,
                                 unit_cost_piasters, note, batch_number, created_at
                             ) VALUES (
-                                @id, @pid, 'UNIT_REBASE', 0, @pid, 'UNIT_REBASE',
+                                @id, @pid, 'UNIT_REBASE', @qtyDelta, @pid, 'UNIT_REBASE',
                                 @cost, @note, NULL, @now
                             );
                         ", conn, trans))
                         {
                             smCmd.Parameters.AddWithValue("@id", "sm_" + Guid.NewGuid().ToString("N"));
                             smCmd.Parameters.AddWithValue("@pid", productId);
+                            smCmd.Parameters.AddWithValue("@qtyDelta", rebaseDeltaMilli);
                             smCmd.Parameters.AddWithValue("@cost", newBaseCostPrice);
                             smCmd.Parameters.AddWithValue("@note", string.Format("إعادة تأسيس الوحدة الأساسية للصنف من '{0}' إلى '{1}' بمعامل {2}. الرصيد تحول من {3} إلى {4}", oldUnitName, cleanNewBase, rebaseFactor, oldStockMilli / 1000, newStockMilli / 1000));
                             smCmd.Parameters.AddWithValue("@now", now);

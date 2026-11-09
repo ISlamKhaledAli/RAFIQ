@@ -1,5 +1,7 @@
 import { normalizeArabicNumerals } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useFormBaseline } from '../../hooks/useFormBaseline';
+import { AppButton } from '../../components/AppButton';
 
 export interface BulkMinStockModalProps {
   isOpen: boolean;
@@ -20,7 +22,9 @@ export const BulkMinStockModal: React.FC<BulkMinStockModalProps> = ({
   bulkUpdating,
   onConfirm,
 }) => {
-  const isDirty = bulkMinStockValue > 0;
+  // The value is kept by the parent between openings, so "dirty" is measured from the value it opened with
+  const openedMinStockValue = useFormBaseline(isOpen, bulkMinStockValue);
+  const isDirty = bulkMinStockValue !== openedMinStockValue;
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -52,27 +56,18 @@ export const BulkMinStockModal: React.FC<BulkMinStockModalProps> = ({
             type="text"
             value={bulkMinStockValue}
             onChange={(e) => setBulkMinStockValue(parseInt(normalizeArabicNumerals(e.target.value), 10) || 0)}
-            className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[38px] px-3 font-mono text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+            className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.375rem] px-3 font-mono text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
             autoFocus
           />
         </div>
 
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-line dark:border-line-dark">
-          <button
-            type="button"
-            onClick={requestClose}
-            className="px-3.5 h-[34px] rounded border border-line dark:border-line-dark text-xs font-semibold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-          >
+          <AppButton variant="secondary" onClick={requestClose}>
             إلغاء
-          </button>
-          <button
-            type="button"
-            disabled={bulkUpdating}
-            onClick={onConfirm}
-            className="px-4 h-[34px] bg-brand hover:bg-brand-hover text-white rounded text-xs font-bold shadow-xs transition-colors"
-          >
+          </AppButton>
+          <AppButton variant="primary" disabled={bulkUpdating} onClick={onConfirm}>
             {bulkUpdating ? 'جاري الحفظ...' : 'تطبيق حد النواقص'}
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>

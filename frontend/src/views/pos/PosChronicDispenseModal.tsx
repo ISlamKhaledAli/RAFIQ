@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { AppButton } from '../../components/AppButton';
 import {
   HeartPulse,
   Pill,
-  Search,
   X,
   AlertTriangle,
   Loader2,
@@ -10,11 +10,13 @@ import {
   Phone,
   PackageCheck,
 } from 'lucide-react';
+import { SearchInput } from '../../components/SearchInput';
 import { invoke } from '../../bridge/ipc';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { RequiredMark } from '../../components/RequiredMark';
 import type { Customer, Product } from '../../types/models';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
 import type { ChronicMedication, PatientDueAlert, CustomerPatientInfo } from '../../types/patient';
 
 interface PosChronicDispenseModalProps {
@@ -208,13 +210,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
-          >
-            <X className="w-4.5 h-4.5" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Modal Body */}
@@ -228,17 +224,12 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
               </span>
               <div className="flex items-center gap-2 flex-wrap">
                 {dueAlerts.map((a) => (
-                  <button
-                    key={a.customerId}
-                    type="button"
-                    onClick={() => setActiveCustomerId(a.customerId)}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-xs font-bold text-ink dark:text-ink-dark shadow-2xs cursor-pointer transition-all hover:scale-102"
-                  >
+                  <AppButton key={a.customerId} variant="secondary" size="sm" onClick={() => setActiveCustomerId(a.customerId)}>
                     <span>{a.customerName}</span>
-                    <span className="text-micro px-1.5 py-0.2 rounded-full bg-warn text-white dark:bg-warn-bright dark:text-surface-dark font-mono font-bold">
+                    <span className="text-micro px-1.5 py-0.5 rounded-full bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark font-mono font-bold">
                       {a.medicationsCount} دواء
                     </span>
-                  </button>
+                  </AppButton>
                 ))}
               </div>
             </div>
@@ -250,16 +241,13 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
               <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                 اختيار المريض / العميل <RequiredMark />
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="ابحث بالاسم أو رقم الهاتف..."
-                  value={customerSearch}
-                  onChange={(e) => setCustomerSearch(normalizeArabicNumerals(e.target.value))}
-                  className="w-full h-9 px-3 pr-8 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs focus:outline-none focus:border-brand"
-                />
-                <Search className="w-3.5 h-3.5 text-ink-muted absolute right-3 top-2.5 pointer-events-none" />
-              </div>
+              <SearchInput
+                size="sm"
+                value={customerSearch}
+                onChange={(value) => setCustomerSearch(normalizeArabicNumerals(value))}
+                placeholder="ابحث بالاسم أو رقم الهاتف..."
+                ariaLabel="بحث عن عميل"
+              />
 
               {/* Customer Dropdown */}
               {customerSearch.trim() && (
@@ -274,7 +262,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                       className="p-2 hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer text-xs flex items-center justify-between border-b border-line/40 dark:border-line-dark/40 last:border-b-0"
                     >
                       <span className="font-bold text-ink dark:text-ink-dark">{c.name}</span>
-                      <span className="font-mono text-ink-muted dark:text-ink-dark-muted text-micro">{c.phone || '---'}</span>
+                      <span className="font-mono text-ink-muted dark:text-ink-dark-muted text-micro">{formatPhoneDisplay(c.phone) || '---'}</span>
                     </div>
                   ))}
                 </div>
@@ -304,7 +292,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                   {activeCustomer.phone && (
                     <div className="flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted font-mono mt-0.5">
                       <Phone className="w-3 h-3" />
-                      <span>{activeCustomer.phone}</span>
+                      <span>{formatPhoneDisplay(activeCustomer.phone)}</span>
                     </div>
                   )}
                   {patientProfile?.allergies && (
@@ -357,21 +345,12 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                   حدد الأدوية المراد صرفها للمريض في هذه الفاتورة:
                 </span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={selectAll}
-                    className="text-brand dark:text-brand-bright hover:underline cursor-pointer"
-                  >
+                  <AppButton variant="soft" size="xs" onClick={selectAll}>
                     تحديد الكل
-                  </button>
-                  <span>•</span>
-                  <button
-                    type="button"
-                    onClick={deselectAll}
-                    className="text-ink-muted dark:text-ink-dark-muted hover:underline cursor-pointer"
-                  >
+                  </AppButton>
+                  <AppButton variant="subtle" size="xs" onClick={deselectAll}>
                     إلغاء التحديد
-                  </button>
+                  </AppButton>
                 </div>
               </div>
 
@@ -395,7 +374,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => {}}
-                          className="w-4 h-4 rounded text-brand cursor-pointer pointer-events-none"
+                          className="cursor-pointer pointer-events-none"
                         />
                         <div>
                           <span className="font-bold text-xs text-ink dark:text-ink-dark block">
@@ -438,23 +417,13 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-9 px-4 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" size="md" onClick={onClose}>
               إلغاء
-            </button>
+            </AppButton>
 
-            <button
-              type="button"
-              onClick={handleConfirmLoad}
-              disabled={selectedCount === 0 || !activeCustomer}
-              className="flex items-center gap-1.5 h-9 px-5 bg-brand hover:bg-brand-hover text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
-            >
-              <PackageCheck className="w-4 h-4" />
-              <span>تحميل الأدوية في السلة</span>
-            </button>
+            <AppButton variant="primary" size="md" icon={PackageCheck} onClick={handleConfirmLoad} disabled={selectedCount === 0 || !activeCustomer}>
+              تحميل الأدوية في السلة
+            </AppButton>
           </div>
         </div>
       </div>

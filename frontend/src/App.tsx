@@ -55,6 +55,8 @@ import {
   CompactAlertTickerBar 
 } from './components/NotificationCenter';
 import { useSystemNotifications } from './utils/useSystemNotifications';
+import { useExitTransition, useExitValue } from './hooks/useExitTransition';
+import SidebarGroupPanel from './components/SidebarGroupPanel';
 import { useTheme } from './context/useTheme';
 import { invoke } from './bridge/ipc';
 import { useDataSubscription, emitDataChanged } from './utils/eventBus';
@@ -99,6 +101,8 @@ import { useLeaveGuard } from './context/useUnsavedChanges';
 import { LoginScreen } from './views/LoginScreen';
 import { ForcedPinChangeForm } from './components/ForcedPinChangeForm';
 import { ExitAppButton } from './components/ExitAppButton';
+import { AppButton } from './components/AppButton';
+import { buttonClass } from './utils/buttonStyles';
 import { requiresForcedPinChange } from './utils/pinPolicy';
 import {
   INITIAL_PRODUCT_FILTER_REQUEST,
@@ -145,7 +149,7 @@ const HeaderClock: FC = memo(() => {
   useEffect(() => {
     const update = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString('en-US', {
+      setTime(now.toLocaleTimeString('ar-EG-u-nu-latn', {
         hour12: true,
         hour: '2-digit',
         minute: '2-digit',
@@ -252,6 +256,7 @@ export default function App() {
 
   const [isUniversalRefreshing, setIsUniversalRefreshing] = useState(false);
   const [refreshToastMsg, setRefreshToastMsg] = useState<string | null>(null);
+  const refreshToast = useExitValue(refreshToastMsg);
 
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements' | 'batches'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
@@ -344,6 +349,9 @@ export default function App() {
       return false;
     }
   });
+  // With motion on the full rows stay mounted while the sidebar narrows (labels fade), then the icon rail takes over
+  const sidebarBody = useExitTransition(!isSidebarCollapsed);
+  const showSidebarRail = isSidebarCollapsed && !sidebarBody.mounted;
   const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
   const [clockWarning, setClockWarning] = useState<string | null>(null);
   const [backupWarning, setBackupWarning] = useState<string | null>(null);
@@ -1087,7 +1095,7 @@ export default function App() {
     { id: 'insurance' as TabType, label: 'التأمين الطبي والتعاقدات', icon: Building2, shortcut: 'Alt+8' },
     { id: 'dashboard' as TabType, label: 'المتابعة والتقارير', icon: BarChart3, shortcut: 'Alt+9' },
     { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: '' },
-    { id: 'root' as TabType, label: 'لوحة المطور (Root)', icon: Wrench, shortcut: '' },
+    { id: 'root' as TabType, label: 'لوحة المطور', icon: Wrench, shortcut: '' },
   ];
 
   const canAccessEpayTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage') || hasPermission('epay.fund');
@@ -1274,14 +1282,9 @@ export default function App() {
           <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-3 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2">
             <h2 className="t-modal-title text-ink dark:text-ink-dark">تحديث أمني إلزامي: تعيين رقم سري جديد</h2>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void logout()}
-                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-high focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:focus-visible:ring-brand-bright transition-colors cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>تسجيل الخروج</span>
-              </button>
+              <AppButton variant="secondary" size="sm" icon={LogOut} onClick={() => void logout()}>
+                تسجيل الخروج
+              </AppButton>
               <ExitAppButton compact onExit={() => void handleExitApp()} />
             </div>
           </div>
@@ -1314,7 +1317,7 @@ export default function App() {
 
   // Top bar menus. Every capability removed from the bar has a home here (the F1/F5/F11 shortcuts are unchanged).
   const userMenuItems: HeaderMenuItem[] = [
-    { id: 'shortcuts', label: 'اختصارات الكيبورد', icon: Keyboard, hint: 'F1 في الكاشير', onSelect: () => setIsShortcutsModalOpen(true) },
+    { id: 'shortcuts', label: 'اختصارات الكيبورد', icon: Keyboard, hint: 'F1', onSelect: () => setIsShortcutsModalOpen(true) },
     { id: 'help', label: 'مركز المساعدة والدعم', icon: HelpCircle, onSelect: () => openHelpCenterModal() },
     { id: 'logout', label: 'تسجيل الخروج', icon: LogOut, tone: 'danger', separatorBefore: true, onSelect: handleLogoutClick },
   ];
@@ -1327,25 +1330,26 @@ export default function App() {
       ? [{ id: 'updates', label: 'تحديثات رفيق', icon: DownloadCloud, onSelect: () => setIsAppUpdateModalOpen(true) } satisfies HeaderMenuItem]
       : []),
   ];
-  const SingleMoreIcon = moreMenuItems[0].icon;
-  const moreTriggerClassName =
-    'w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer';
+  const moreTriggerClassName = buttonClass({ variant: 'secondary', size: 'sm', iconOnly: true, ariaLabel: 'المزيد من الأدوات' });
 
   return (
     <div className="flex flex-col h-screen w-screen bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-hidden relative">
       {/* Floating Refresh Toast Feedback */}
-      {refreshToastMsg && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-paid text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2 pointer-events-none">
+      {refreshToast.value && (
+        <div
+          className="motion-exit-toast fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-paid text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2 pointer-events-none"
+          data-exiting={refreshToast.exiting || undefined}
+        >
           <CheckCircle2 className="w-4 h-4 text-white" />
-          <span>{refreshToastMsg}</span>
+          <span>{refreshToast.value}</span>
         </div>
       )}
       {/* 1. TOP BAR (52px professional high, hairline-b, Spans across top) */}
-      <header className="h-[52px] w-full bg-surface dark:bg-surface-dark hairline-b flex items-center justify-between px-3 sm:px-4 shrink-0 z-20 shadow-2xs">
+      <header className="h-[3.25rem] w-full bg-surface dark:bg-surface-dark hairline-b flex items-center justify-between px-3 sm:px-4 shrink-0 z-20 shadow-2xs">
         {/* Right Side: Store Title & Status Badges */}
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           <div
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-surface-dark-2 border border-[#DCE1DC] dark:border-line-dark flex items-center justify-center p-1 shadow-2xs shrink-0 select-none"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-center p-1 shadow-2xs shrink-0 select-none"
             title={APP_TITLE}
           >
             <img 
@@ -1357,7 +1361,7 @@ export default function App() {
           <div className="min-w-0">
             <h1 className="text-sm sm:text-base font-extrabold text-ink dark:text-ink-dark leading-tight m-0 truncate">{APP_TITLE}</h1>
             {shopSubtitle ? (
-              <p className="text-micro sm:text-micro font-medium text-ink-muted dark:text-ink-dark-muted m-0 truncate max-w-[150px] sm:max-w-[240px]" title={shopSubtitle}>{shopSubtitle}</p>
+              <p className="text-micro sm:text-micro font-medium text-ink-muted dark:text-ink-dark-muted m-0 truncate max-w-[9.375rem] sm:max-w-[15rem]" title={shopSubtitle}>{shopSubtitle}</p>
             ) : (
               <p className="text-micro sm:text-micro font-medium text-ink-muted dark:text-ink-dark-muted m-0 truncate">نظام نقاط البيع وإدارة المتاجر والمحلات</p>
             )}
@@ -1383,7 +1387,7 @@ export default function App() {
             }
           >
             <Clock className={`w-3.5 h-3.5 shrink-0 ${activeShift && activeShift.status !== 'closed' ? 'text-paid dark:text-paid-bright' : 'text-warn dark:text-warn-bright'}`} />
-            <span className="truncate max-w-[110px]">
+            <span className="truncate max-w-[6.875rem]">
               {activeShift && activeShift.status !== 'closed'
                 ? `وردية #${activeShift.shiftNumber ?? (activeShift as any).ShiftNumber ?? 1}`
                 : 'فتح وردية'}
@@ -1419,56 +1423,46 @@ export default function App() {
           />
 
           {/* Refresh all data (F5) */}
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="sm"
+            icon={RefreshCw}
+            loading={isUniversalRefreshing}
             onClick={() => void handleUniversalRefresh()}
             aria-label="تحديث البيانات"
-            aria-busy={isUniversalRefreshing}
-            className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
             title="تحديث البيانات (F5)"
-          >
-            <RefreshCw className={`w-4 h-4 ${isUniversalRefreshing ? 'animate-spin text-brand dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
-          </button>
+          />
 
           {/* Fullscreen Kiosk Mode Toggle */}
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="sm"
+            icon={isFullscreen ? Minimize2 : Maximize2}
             onClick={handleToggleFullscreen}
-            className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            aria-label={isFullscreen ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'}
             title={isFullscreen ? 'الخروج من ملء الشاشة (F11 خارج شاشة البيع)' : 'ملء الشاشة بالكامل (F11 خارج شاشة البيع)'}
-          >
-            {isFullscreen ? (
-              <Minimize2 className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
-            ) : (
-              <Maximize2 className="w-4 h-4 text-paid dark:text-brand-bright" />
-            )}
-          </button>
+          />
 
           {/* Quick Theme Toggle (Light / Dark) */}
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="sm"
+            icon={isDark ? Sun : Moon}
             onClick={toggleTheme}
-            className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            aria-label={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
             title={isDark ? 'التبديل إلى الوضع النهاري (الفاتح)' : 'التبديل إلى الوضع الليلي (الداكن)'}
-          >
-            {isDark ? (
-              <Sun className="w-4 h-4 text-amber-500 dark:text-warn-bright" />
-            ) : (
-              <Moon className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
-            )}
-          </button>
+          />
 
           {/* More menu: shown only when it has several items; with a single item that item is shown directly */}
           {moreMenuItems.length === 1 ? (
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="sm"
+              icon={moreMenuItems[0].icon}
               onClick={moreMenuItems[0].onSelect}
-              className={moreTriggerClassName}
               title={moreMenuItems[0].label}
               aria-label={moreMenuItems[0].label}
-            >
-              <SingleMoreIcon className="w-4 h-4" />
-            </button>
+            />
           ) : (
             <HeaderMenu
               ariaLabel="المزيد من الأدوات"
@@ -1492,7 +1486,7 @@ export default function App() {
                 <span className={`w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0 ${getRoleAvatarClasses(headerAccess.kind)}`}>
                   {currentUser.displayName ? currentUser.displayName.slice(0, 1) : 'U'}
                 </span>
-                <span className={`font-bold text-sm hidden md:inline truncate max-w-[110px] ${getRoleNameClasses(headerAccess.kind)}`}>{currentUser.displayName}</span>
+                <span className={`font-bold text-sm hidden md:inline truncate max-w-[6.875rem] ${getRoleNameClasses(headerAccess.kind)}`}>{currentUser.displayName}</span>
                 <ChevronDown className="w-3.5 h-3.5 shrink-0 text-ink-muted dark:text-ink-dark-muted" />
               </>
             }
@@ -1531,16 +1525,18 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden">
         {/* Navigation Sidebar (RTL Right side, Perfectly Balanced: 64px collapsed / 256px expanded) */}
         <aside 
-          className={`${
-            isSidebarCollapsed ? 'w-[64px] px-1.5 py-2.5 items-center' : 'w-[256px] p-2.5'
-          } bg-surface dark:bg-surface-dark hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden shadow-2xs`}
+          data-rail={showSidebarRail || undefined}
+          data-sidebar-exiting={sidebarBody.exiting || undefined}
+          className={`${isSidebarCollapsed ? 'w-[64px]' : 'w-[256px]'} ${
+            showSidebarRail ? 'px-1.5 py-2.5 items-center' : 'p-2.5'
+          } motion-sidebar bg-surface dark:bg-surface-dark hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden shadow-2xs`}
         >
           {/* Top Header of Sidebar: Title + Toggle Icon Button */}
           <div className={`w-full flex items-center mb-1.5 pb-1.5 border-b border-line dark:border-line-dark shrink-0 ${
-            isSidebarCollapsed ? 'justify-center' : 'justify-between px-1'
+            showSidebarRail ? 'justify-center' : 'justify-between px-1'
           }`}>
-            {!isSidebarCollapsed && (
-              <span className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
+            {!showSidebarRail && (
+              <span className="motion-sidebar-label text-micro font-medium text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
                 القوائم الرئيسية
               </span>
             )}
@@ -1582,7 +1578,7 @@ export default function App() {
               const isSettingsItem = item.id === 'settings';
               const isRootItem = item.id === 'root';
 
-              if (isSidebarCollapsed) {
+              if (showSidebarRail) {
                 return (
                   <button
                     key={item.id}
@@ -1600,7 +1596,7 @@ export default function App() {
                       });
                     }}
                     title={item.label}
-                    className={`relative w-full h-[42px] rounded-xl flex items-center justify-center transition-all duration-150 group cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                    className={`relative w-full h-[2.625rem] rounded-xl flex items-center justify-center transition-all duration-150 group cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                       isActive
                         ? 'bg-brand-dark dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright shadow-xs'
                         : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white'
@@ -1676,7 +1672,7 @@ export default function App() {
                         handleNavClick(item.id);
                       }
                     }}
-                    className={`w-full relative flex items-center justify-between px-3 h-[41px] rounded-xl text-sm transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                    className={`w-full relative flex items-center justify-between px-3 h-[2.5625rem] rounded-xl text-sm transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                       isActive
                         ? 'bg-brand-dark dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-xs'
                         : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1684,23 +1680,21 @@ export default function App() {
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:dark:text-white'}`} />
-                      <span className="truncate whitespace-nowrap" title={item.label}>{item.label}</span>
+                      <span className="motion-sidebar-label truncate whitespace-nowrap" title={item.label}>{item.label}</span>
                     </div>
 
                     {(isEpayItem || isWalletsItem || isInsuranceItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem || isRootItem) && (
-                      <span className={`shrink-0 ${isActive ? 'text-white/80 dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/70'}`}>
-                        {(isEpayItem ? isEpayMenuExpanded : isWalletsItem ? isWalletsMenuExpanded : isInsuranceItem ? isInsuranceMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isRootItem ? isRootMenuExpanded : isSettingsMenuExpanded) ? (
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        ) : (
-                          <ChevronLeft className="w-3.5 h-3.5" />
-                        )}
+                      <span className={`motion-sidebar-label shrink-0 ${isActive ? 'text-white/80 dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/70'}`}>
+                        <ChevronLeft
+                          className={`motion-chevron w-3.5 h-3.5 ${(isEpayItem ? isEpayMenuExpanded : isWalletsItem ? isWalletsMenuExpanded : isInsuranceItem ? isInsuranceMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isRootItem ? isRootMenuExpanded : isSettingsMenuExpanded) ? '-rotate-90' : ''}`}
+                        />
                       </span>
                     )}
                   </button>
 
                   {/* Sub-tree for Epay (SuperPay / Terminals / POS / Analytics) */}
-                  {isEpayItem && isEpayMenuExpanded && (
-                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                  {isEpayItem && (
+                    <SidebarGroupPanel open={isEpayMenuExpanded && !isSidebarCollapsed}>
                       {epayTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = effectiveActiveTab === 'epay' && epaySubTab === sub.id;
@@ -1712,7 +1706,7 @@ export default function App() {
                               e.currentTarget.blur();
                               navigateTo('epay', () => setEpaySubTab(sub.id));
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1725,12 +1719,12 @@ export default function App() {
                           </button>
                         );
                       })}
-                    </div>
+                    </SidebarGroupPanel>
                   )}
 
                   {/* Sub-tree for Wallets & InstaPay */}
-                  {isWalletsItem && isWalletsMenuExpanded && (
-                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                  {isWalletsItem && (
+                    <SidebarGroupPanel open={isWalletsMenuExpanded && !isSidebarCollapsed}>
                       {walletsTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = effectiveActiveTab === 'wallets' && walletsSubTab === sub.id;
@@ -1742,7 +1736,7 @@ export default function App() {
                               e.currentTarget.blur();
                               navigateTo('wallets', () => setWalletsSubTab(sub.id));
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1755,12 +1749,12 @@ export default function App() {
                           </button>
                         );
                       })}
-                    </div>
+                    </SidebarGroupPanel>
                   )}
 
                   {/* Sub-tree for Health Insurance & Corporate Contracts */}
-                  {isInsuranceItem && isInsuranceMenuExpanded && (
-                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                  {isInsuranceItem && (
+                    <SidebarGroupPanel open={isInsuranceMenuExpanded && !isSidebarCollapsed}>
                       {insuranceTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = effectiveActiveTab === 'insurance' && insuranceSubTab === sub.id;
@@ -1772,7 +1766,7 @@ export default function App() {
                               e.currentTarget.blur();
                               navigateTo('insurance', () => setInsuranceSubTab(sub.id));
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1785,12 +1779,12 @@ export default function App() {
                           </button>
                         );
                       })}
-                    </div>
+                    </SidebarGroupPanel>
                   )}
 
                   {/* Sub-tree for Dashboard & Executive Analytics */}
-                  {isDashboardItem && isDashboardMenuExpanded && (
-                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                  {isDashboardItem && (
+                    <SidebarGroupPanel open={isDashboardMenuExpanded && !isSidebarCollapsed}>
                       {dashboardTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = effectiveActiveTab === 'dashboard' && dashboardSubTab === sub.id;
@@ -1802,7 +1796,7 @@ export default function App() {
                               e.currentTarget.blur();
                               navigateTo('dashboard', () => setDashboardSubTab(sub.id));
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1815,16 +1809,16 @@ export default function App() {
                           </button>
                         );
                       })}
-                    </div>
+                    </SidebarGroupPanel>
                   )}
 
                   {/* Sub-tree for Products & Inventory */}
-                  {isProductsItem && isProductsMenuExpanded && (
-                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                  {isProductsItem && (
+                    <SidebarGroupPanel open={isProductsMenuExpanded && !isSidebarCollapsed}>
                       <button
                         type="button"
                         onClick={() => navigateTo('products', () => setProductsSubView('catalog'))}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'products' && productsSubView === 'catalog'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1839,7 +1833,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => navigateTo('products', () => setProductsSubView('movements'))}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'products' && productsSubView === 'movements'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1855,7 +1849,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => navigateTo('products', () => setProductsSubView('batches'))}
-                          className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                          className={`w-full flex items-center justify-between px-2.5 h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                             effectiveActiveTab === 'products' && productsSubView === 'batches'
                               ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                               : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1867,17 +1861,17 @@ export default function App() {
                           </div>
                         </button>
                       )}
-                    </div>
+                    </SidebarGroupPanel>
                   )}
 
                   {/* Sub-tree for Purchases & Suppliers */}
-                  {isPurchasesItem && isPurchasesMenuExpanded && (
-                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                  {isPurchasesItem && (
+                    <SidebarGroupPanel open={isPurchasesMenuExpanded && !isSidebarCollapsed}>
                       {hasPermission('purchases.create') && (
 <button
                         type="button"
                         onClick={() => navigateTo('purchases', () => setPurchasesSubView('new_invoice'))}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'new_invoice'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1895,7 +1889,7 @@ export default function App() {
 <button
                         type="button"
                         onClick={() => navigateTo('purchases', () => setPurchasesSubView('shortages'))}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'shortages'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1913,7 +1907,7 @@ export default function App() {
 <button
                         type="button"
                         onClick={() => navigateTo('purchases', () => setPurchasesSubView('invoices'))}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'invoices'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1931,7 +1925,7 @@ export default function App() {
 <button
                         type="button"
                         onClick={() => navigateTo('purchases', () => setPurchasesSubView('suppliers'))}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'suppliers'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1944,12 +1938,12 @@ export default function App() {
                         </div>
                       </button>
                       )}
-                    </div>
+                    </SidebarGroupPanel>
                   )}
 
                   {/* Sub-tree for the root-only developer console */}
-                  {isRootItem && isRootMenuExpanded && (
-                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                  {isRootItem && (
+                    <SidebarGroupPanel open={isRootMenuExpanded && !isSidebarCollapsed}>
                       {rootTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = activeTab === 'root' && effectiveRootSubTab === sub.id;
@@ -1962,7 +1956,7 @@ export default function App() {
                               e.currentTarget.blur();
                               navigateTo('root', () => setRootSubTab(sub.id));
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1978,12 +1972,12 @@ export default function App() {
                           </button>
                         );
                       })}
-                    </div>
+                    </SidebarGroupPanel>
                   )}
 
                   {/* Sub-tree for Settings */}
-                  {isSettingsItem && isSettingsMenuExpanded && (
-                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                  {isSettingsItem && (
+                    <SidebarGroupPanel open={isSettingsMenuExpanded && !isSidebarCollapsed}>
                       {settingsTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = activeTab === 'settings' && settingsSubTab === sub.id;
@@ -1995,7 +1989,7 @@ export default function App() {
                               e.currentTarget.blur();
                               navigateTo('settings', () => setSettingsSubTab(sub.id));
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -2008,7 +2002,7 @@ export default function App() {
                           </button>
                         );
                       })}
-                    </div>
+                    </SidebarGroupPanel>
                   )}
                 </div>
               );
@@ -2022,14 +2016,14 @@ export default function App() {
               onClick={() => openHelpCenterModal()}
               title="مركز المساعدة والشروحات والدعم الفني"
               className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 ${
-                isSidebarCollapsed
-                  ? 'h-[40px] justify-center text-paid dark:text-brand-bright hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-transparent hover:border-paid/30'
-                  : 'px-3 h-[39px] text-xs text-paid dark:text-brand-bright hover:text-brand-dark dark:hover:text-white bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid-border dark:border-paid/30 shadow-2xs'
+                showSidebarRail
+                  ? 'h-[2.5rem] justify-center text-paid dark:text-brand-bright hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-transparent hover:border-paid/30'
+                  : 'px-3 h-[2.4375rem] text-xs text-paid dark:text-brand-bright hover:text-brand-dark dark:hover:text-white bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid-border dark:border-paid/30 shadow-2xs'
               }`}
             >
               <HelpCircle className="w-4.5 h-4.5 text-paid dark:text-brand-bright shrink-0" />
-              {!isSidebarCollapsed && (
-                <span className="truncate whitespace-nowrap">مركز المساعدة والدعم</span>
+              {!showSidebarRail && (
+                <span className="motion-sidebar-label truncate whitespace-nowrap">مركز المساعدة والدعم</span>
               )}
             </button>
 
@@ -2039,14 +2033,14 @@ export default function App() {
               onClick={() => void handleExitApp()}
               title="إغلاق البرنامج والخروج بأمان"
               className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 ${
-                isSidebarCollapsed
-                  ? 'h-[40px] justify-center text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-transparent hover:border-danger/30 dark:hover:border-danger-bright/30'
-                  : 'px-3 h-[39px] text-xs text-danger dark:text-danger-bright hover:text-danger-ink dark:hover:text-white bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 border border-danger/20 dark:border-danger-bright/30 shadow-2xs'
+                showSidebarRail
+                  ? 'h-[2.5rem] justify-center text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-transparent hover:border-danger/30 dark:hover:border-danger-bright/30'
+                  : 'px-3 h-[2.4375rem] text-xs text-danger dark:text-danger-bright hover:text-danger-ink dark:hover:text-white bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 border border-danger/20 dark:border-danger-bright/30 shadow-2xs'
               }`}
             >
               <Power className="w-4.5 h-4.5 text-danger dark:text-danger-bright shrink-0" />
-              {!isSidebarCollapsed && (
-                <span className="truncate whitespace-nowrap">إغلاق البرنامج</span>
+              {!showSidebarRail && (
+                <span className="motion-sidebar-label truncate whitespace-nowrap">إغلاق البرنامج</span>
               )}
             </button>
           </div>
@@ -2069,7 +2063,7 @@ export default function App() {
           )}
 
           {/* POS View is always mounted, kept alive, and instant */}
-          <div className={`h-full w-full ${effectiveActiveTab === 'pos' ? '' : 'hidden'}`}>
+          <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'pos' ? '' : 'hidden'}`}>
             <PosView 
               isActive={effectiveActiveTab === 'pos'} 
               onNavigateToEpay={() => navigateTo('epay', () => { setEpaySubTab('pos'); setIsEpayMenuExpanded(true); })} 
@@ -2079,7 +2073,7 @@ export default function App() {
 
           {/* E-Payment Terminals & Services View (SuperPay / Fawry / Aman) */}
           {canAccessEpay && visitedTabs.has('epay') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'epay' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'epay' ? '' : 'hidden'}`}>
               <EpayView 
                 activeSubTab={epaySubTab}
                 isActive={effectiveActiveTab === 'epay'}
@@ -2090,7 +2084,7 @@ export default function App() {
 
           {/* Digital Accounts & Wallets View (Vodafone Cash / InstaPay) */}
           {canAccessWallets && visitedTabs.has('wallets') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'wallets' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'wallets' ? '' : 'hidden'}`}>
               <WalletsView 
                 isActive={effectiveActiveTab === 'wallets'}
                 activeSubTab={walletsSubTab}
@@ -2101,7 +2095,7 @@ export default function App() {
 
           {/* Health Insurance & Corporate Claims View */}
           {canAccessInsurance && visitedTabs.has('insurance') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'insurance' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'insurance' ? '' : 'hidden'}`}>
               <InsuranceContractsView 
                 isActive={effectiveActiveTab === 'insurance'} 
                 activeSubTab={insuranceSubTab}
@@ -2111,9 +2105,9 @@ export default function App() {
           )}
 
           {canAccessDashboard && visitedTabs.has('dashboard') && (
-            <div className={`h-full w-full overflow-hidden ${effectiveActiveTab === 'dashboard' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full overflow-hidden motion-panel ${effectiveActiveTab === 'dashboard' ? '' : 'hidden'}`}>
               {visitedDashboardSubTabs.has('today') && (
-                <div className={`h-full w-full ${dashboardSubTab === 'today' ? '' : 'hidden'}`}>
+                <div className={`h-full w-full motion-panel ${dashboardSubTab === 'today' ? '' : 'hidden'}`}>
                   <DashboardView 
                     isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'today'}
                     onNavigateToPos={() => navigateTo('pos')} 
@@ -2129,12 +2123,12 @@ export default function App() {
                 </div>
               )}
               {visitedDashboardSubTabs.has('revenue') && (
-                <div className={`h-full w-full ${dashboardSubTab === 'revenue' ? '' : 'hidden'}`}>
+                <div className={`h-full w-full motion-panel ${dashboardSubTab === 'revenue' ? '' : 'hidden'}`}>
                   <RevenueAnalyticsView isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'revenue'} />
                 </div>
               )}
               {visitedDashboardSubTabs.has('inventory') && (
-                <div className={`h-full w-full ${dashboardSubTab === 'inventory' ? '' : 'hidden'}`}>
+                <div className={`h-full w-full motion-panel ${dashboardSubTab === 'inventory' ? '' : 'hidden'}`}>
                   <InventoryAnalyticsView 
                     isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'inventory'}
                     onNavigateToProducts={openProductsWithFilter}
@@ -2151,7 +2145,7 @@ export default function App() {
                 </div>
               )}
               {visitedDashboardSubTabs.has('customers') && (
-                <div className={`h-full w-full ${dashboardSubTab === 'customers' ? '' : 'hidden'}`}>
+                <div className={`h-full w-full motion-panel ${dashboardSubTab === 'customers' ? '' : 'hidden'}`}>
                   <CustomerAnalyticsView 
                     isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'customers'}
                     onNavigateToCustomers={() => navigateTo('customers')} 
@@ -2162,13 +2156,13 @@ export default function App() {
           )}
 
           {visitedTabs.has('customers') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'customers' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'customers' ? '' : 'hidden'}`}>
               <CustomersView isActive={effectiveActiveTab === 'customers'} />
             </div>
           )}
 
           {canAccessProducts && visitedTabs.has('products') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'products' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'products' ? '' : 'hidden'}`}>
               <ProductsView 
                 isActive={effectiveActiveTab === 'products'}
                 subView={productsSubView} 
@@ -2182,7 +2176,7 @@ export default function App() {
           )}
 
           {canAccessPurchases && visitedTabs.has('purchases') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'purchases' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'purchases' ? '' : 'hidden'}`}>
               <PurchasesView 
                 isActive={effectiveActiveTab === 'purchases'}
                 subView={effectivePurchasesSubView}
@@ -2192,13 +2186,13 @@ export default function App() {
           )}
 
           {canAccessSales && visitedTabs.has('sales') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'sales' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'sales' ? '' : 'hidden'}`}>
               <SalesHistoryView isActive={effectiveActiveTab === 'sales'} />
             </div>
           )}
 
           {canAccessRoot && visitedTabs.has('root') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'root' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'root' ? '' : 'hidden'}`}>
               <RootConsoleView
                 activeSubTab={rootSubTab}
                 isActive={effectiveActiveTab === 'root'}
@@ -2209,7 +2203,7 @@ export default function App() {
           )}
 
           {canAccessSettings && visitedTabs.has('settings') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'settings' ? '' : 'hidden'}`}>
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'settings' ? '' : 'hidden'}`}>
               <SettingsView 
                 isActive={effectiveActiveTab === 'settings'}
                 activeSubTab={settingsSubTab} 

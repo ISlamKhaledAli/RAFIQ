@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Zap, CheckCircle2, XCircle, Clock, ShieldCheck, Play, X, Loader2, Barcode } from 'lucide-react';
+import { Zap, CheckCircle2, XCircle, Clock, ShieldCheck, Play, X, Barcode } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
 import type { SearchBenchmarkResult } from '../types/models';
 
 interface SearchBenchmarkModalProps {
@@ -62,25 +64,20 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
         
         {/* Header */}
         <div className="px-6 py-4 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark hairline-b flex items-center justify-between">
-          <button
-            onClick={requestClose}
-            className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark p-1 rounded hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={requestClose} />
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
               <Zap className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="t-modal-title text-ink dark:text-ink-dark">فحص سرعة البحث وقارئ الباركود (Benchmark)</h2>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted">قياس سرعة استجابة البحث على 5000 صنف وتوحيد الحروف العربي</p>
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">              فحص سرعة البحث وقارئ الباركود</h2>              <p className="text-xs text-ink-muted dark:text-ink-dark-muted">قياس سرعة استجابة البحث على 5000 صنف وتوحيد الحروف العربي</p>
             </div>
           </div>
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh] bg-surface dark:bg-surface-dark">
+        <MotionHeight className="overflow-y-auto max-h-[75vh] bg-surface dark:bg-surface-dark">
+        <div className="p-6 space-y-5">
           {/* Intro Card */}
           <div className="p-4 rounded-lg bg-surface-2/60 dark:bg-surface-dark-2 border border-line dark:border-line-dark hairline-all text-sm leading-relaxed text-ink-muted dark:text-ink-dark-muted">
             <p>
@@ -164,7 +161,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
               {/* Detailed Test Logs */}
               <div>
                 <h4 className="t-label text-ink-muted dark:text-ink-dark-muted mb-2">سجل الخطوات والفحص الآلي:</h4>
-                <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hairline-all rounded-lg p-3 space-y-1.5 max-h-[160px] overflow-y-auto text-micro font-mono text-ink dark:text-ink-dark">
+                <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hairline-all rounded-lg p-3 space-y-1.5 max-h-[10rem] overflow-y-auto text-micro font-mono text-ink dark:text-ink-dark">
                   {testLogs.map((log, idx) => (
                     <div key={idx} className="flex items-start gap-1.5">
                       <span className="text-ink-muted dark:text-ink-dark-muted">›</span>
@@ -176,33 +173,17 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
             </div>
           )}
         </div>
+        </MotionHeight>
 
         {/* Footer */}
         <div className="px-6 py-3.5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark hairline-t flex items-center justify-between">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-line dark:border-line-dark hairline-all text-sm font-bold text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
-          >
+          <AppButton variant="secondary" onClick={onClose}>
             إغلاق
-          </button>
+          </AppButton>
           
-          <button
-            onClick={handleRun}
-            disabled={running}
-            className="px-5 py-2 rounded-lg bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand disabled:opacity-50 text-white text-sm font-bold flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
-          >
-            {running ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>جاري توليد وفحص 5000 صنف...</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>{benchmarkResult ? 'إعادة تشغيل الفحص' : 'بدء فحص 5000 صنف دلوقتي'}</span>
-              </>
-            )}
-          </button>
+          <AppButton variant="primary" icon={Play} loading={running} onClick={handleRun}>
+            {running ? 'جاري توليد وفحص 5000 صنف...' : benchmarkResult ? 'إعادة تشغيل الفحص' : 'بدء فحص 5000 صنف دلوقتي'}
+          </AppButton>
         </div>
 
       </div>

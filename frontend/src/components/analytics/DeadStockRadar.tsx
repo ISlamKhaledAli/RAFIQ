@@ -11,15 +11,29 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
+import { normalizeArabicDigits } from '../../utils/numberEnforcer';
 import type { DeadStockReport, DeadStockItem } from '../../types/models';
+
+import { AppButton } from '../AppButton';
+import { formatUnitArabic } from '../../utils/units';
+import { SegmentedTabs, type SegmentedTabOption } from '../SegmentedTabs';
+
+const DEFAULT_DAYS = 30;
+const MIN_DAYS = 1;
+const MAX_DAYS = 3650;
+const DAY_PRESETS = [15, 30, 45, 60, 90, 180];
+const DAY_PRESET_OPTIONS: SegmentedTabOption<string>[] = DAY_PRESETS.map((days) => ({
+  value: String(days),
+  label: `${days} يوم`,
+}));
 
 export interface DeadStockRadarProps {
   onNavigateToProduct?: (productId: string) => void;
 }
 
 export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct }) => {
-  const [daysThreshold, setDaysThreshold] = useState<number>(30);
-  const [customInputVal, setCustomInputVal] = useState<string>('30');
+  const [daysThreshold, setDaysThreshold] = useState<number>(DEFAULT_DAYS);
+  const [customInputVal, setCustomInputVal] = useState<string>(String(DEFAULT_DAYS));
   const [report, setReport] = useState<DeadStockReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -43,10 +57,15 @@ export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct })
     void loadData();
   });
 
+  const applyDays = (days: number) => {
+    setDaysThreshold(days);
+    setCustomInputVal(String(days));
+  };
+
   const handleApplyCustomDays = () => {
     const parsed = parseInt(customInputVal, 10);
-    if (!isNaN(parsed) && parsed > 0 && parsed <= 9999) {
-      setDaysThreshold(parsed);
+    if (!isNaN(parsed) && parsed >= MIN_DAYS && parsed <= MAX_DAYS) {
+      applyDays(parsed);
     } else {
       setCustomInputVal(String(daysThreshold));
     }
@@ -59,60 +78,58 @@ export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct })
   return (
     <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs select-none">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-line/60 dark:border-line-dark/60">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright flex items-center justify-center font-bold">
+      <div className="flex flex-col gap-3 pb-3 border-b border-line/60 dark:border-line-dark/60">
+        <div className="flex items-start gap-2.5">
+          <div className="w-8 h-8 shrink-0 rounded-lg bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright flex items-center justify-center font-bold">
             <PackageX className="w-4 h-4 text-danger dark:text-danger-bright" />
           </div>
-          <p className="text-sm font-bold text-ink dark:text-ink-dark">
-            أصناف متواجدة بالمخزن لم يتم بيع قطعة واحدة منها خلال الفترة المحددة
-          </p>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-ink dark:text-ink-dark">
+              أصناف في المخزن لم تُبع خلال آخر {daysThreshold} يوم
+            </p>
+            <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
+              تُحسب من تاريخ آخر بيع لكل صنف حتى اليوم، وتظهر الأصناف التي لم تُبع أبداً أيضاً
+            </p>
+          </div>
         </div>
 
-        {/* Days Threshold Pills with Custom Number Input */}
-        <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
-          <span className="text-xs text-ink-muted dark:text-ink-dark-muted ml-1">لم تباع منذ:</span>
-          {[15, 30, 45, 60, 90, 180].map((days) => (
-            <button
-              key={days}
-              type="button"
-              onClick={() => {
-                setDaysThreshold(days);
-                setCustomInputVal(String(days));
-              }}
-              className={`h-9 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                daysThreshold === days
-                  ? 'bg-danger dark:bg-danger text-white shadow-2xs'
-                  : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3'
-              }`}
-            >
-              {days} يوم
-            </button>
-          ))}
-
-          {/* Custom Days Input */}
-          <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded-lg border border-line dark:border-line-dark">
-            <span className="text-xs text-ink-muted dark:text-ink-dark-muted">مخصص:</span>
-            <input
-              type="number"
-              min={1}
-              max={9999}
-              value={customInputVal}
-              onChange={(e) => setCustomInputVal(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleApplyCustomDays();
-              }}
-              onBlur={handleApplyCustomDays}
-              className="w-12 h-6 text-center text-xs font-mono font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-              title="اكتب أي عدد أيام واضغط إنتر"
-            />
-            <span className="text-xs text-ink-muted dark:text-ink-dark-muted">يوم</span>
-          </div>
+        {/* Days threshold: anchored to today, so a number of days (not a from/to range) */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">لم تُبع منذ:</span>
+          <SegmentedTabs
+            size="compact"
+            ariaLabel="عدد الأيام دون بيع"
+            value={String(daysThreshold)}
+            onChange={(value) => applyDays(Number(value))}
+            options={DAY_PRESET_OPTIONS}
+          />
+          <label className="flex items-center gap-2">
+            <span className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">عدد مخصص:</span>
+            <span className="relative flex items-center">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                value={customInputVal}
+                onChange={(e) => setCustomInputVal(normalizeArabicDigits(e.target.value).replace(/\D/g, ''))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleApplyCustomDays();
+                }}
+                onBlur={handleApplyCustomDays}
+                aria-label={`عدد الأيام دون بيع (من ${MIN_DAYS} إلى ${MAX_DAYS})`}
+                title="اكتب عدد الأيام (من 1 إلى 3650) واضغط إنتر"
+                className="w-28 h-10 ps-3 pe-10 text-center text-sm font-mono font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+              />
+              <span className="absolute inset-y-0 end-3 flex items-center text-xs font-semibold text-ink-muted dark:text-ink-dark-muted pointer-events-none">
+                يوم
+              </span>
+            </span>
+          </label>
         </div>
       </div>
 
       {/* Summary KPI Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gapx-3.5 py-3.5 my-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-3.5">
         <div className="p-3 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 flex items-center justify-between">
           <div>
             <div className="text-xs text-danger dark:text-danger-bright font-semibold">إجمالي الأموال المجمدة على الرف</div>
@@ -145,6 +162,11 @@ export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct })
       </div>
 
       {/* Items Table */}
+      {!isLoading && count > items.length && (
+        <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-2">
+          يعرض الجدول أعلى {items.length} صنف قيمةً من أصل {count}، والإجمالي أعلاه يشمل الكل
+        </p>
+      )}
       {isLoading ? (
         <div className="py-8 text-center text-xs text-ink-muted dark:text-ink-dark-muted flex flex-col items-center justify-center gap-2">
           <RefreshCw className="w-5 h-5 animate-spin text-brand dark:text-brand-bright" />
@@ -160,49 +182,49 @@ export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct })
           <table className="w-full text-right text-sm">
             <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted sticky top-0 border-b border-line dark:border-line-dark text-xs">
               <tr>
-                <th className="px-3.5 py-3.5 font-bold">اسم السلعة والباركود</th>
-                <th className="px-3.5 py-3.5 font-bold">القسم</th>
-                <th className="px-3.5 py-3.5 font-bold">الرصيد المعطل</th>
-                <th className="px-3.5 py-3.5 font-bold">سعر التكلفة</th>
-                <th className="px-3.5 py-3.5 font-bold text-danger dark:text-danger-bright">السيولة المجمدة</th>
-                <th className="px-3.5 py-3.5 font-bold">أيام الركود</th>
-                <th className="px-3.5 py-3.5 font-bold text-center">إجراء</th>
+                <th className="px-3 py-3 font-bold whitespace-nowrap">اسم السلعة والباركود</th>
+                <th className="px-3 py-3 font-bold whitespace-nowrap">القسم</th>
+                <th className="px-3 py-3 font-bold whitespace-nowrap">الرصيد المعطل</th>
+                <th className="px-3 py-3 font-bold whitespace-nowrap">سعر التكلفة</th>
+                <th className="px-3 py-3 font-bold whitespace-nowrap text-danger dark:text-danger-bright">السيولة المجمدة</th>
+                <th className="px-3 py-3 font-bold whitespace-nowrap">أيام الركود</th>
+                <th className="px-3 py-3 font-bold whitespace-nowrap text-center">إجراء</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60 dark:divide-line-dark/60">
               {items.map((item: DeadStockItem) => (
                 <tr key={item.productId} className="hover:bg-surface-2 dark:hover:bg-surface-dark-2/50 transition-colors">
-                  <td className="px-3.5 py-3.5">
+                  <td className="px-3 py-3">
                     <div className="font-bold text-ink dark:text-ink-dark">{item.name}</div>
                     <div className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || 'بدون باركود'}</div>
                   </td>
-                  <td className="px-3.5 py-3.5 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
-                  <td className="px-3.5 py-3.5 font-mono font-bold text-ink dark:text-ink-dark">
-                    {(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {item.unit}
+                  <td className="px-3 py-3 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
+                  <td className="px-3 py-3 whitespace-nowrap font-mono font-bold text-ink dark:text-ink-dark">
+                    {(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {formatUnitArabic(item.unit)}
                   </td>
-                  <td className="px-3.5 py-3.5 font-mono text-ink dark:text-ink-dark">
+                  <td className="px-3 py-3 whitespace-nowrap font-mono text-ink dark:text-ink-dark">
                     {formatArabicCurrency(item.unitCostPiasters)}
                   </td>
-                  <td className="px-3.5 py-3.5 font-mono font-bold text-danger dark:text-danger-bright">
+                  <td className="px-3 py-3 whitespace-nowrap font-mono font-bold text-danger dark:text-danger-bright">
                     {formatArabicCurrency(item.tiedCapitalPiasters)}
                   </td>
-                  <td className="px-3.5 py-3.5">
-                    <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
+                  <td className="px-3 py-3">
+                    <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
                       {item.daysInactive >= 999 ? 'لم يُبع أبداً' : `${item.daysInactive} يوم`}
                     </span>
                   </td>
-                  <td className="px-3.5 py-3.5 text-center">
+                  <td className="px-3 py-3 text-center">
                     {onNavigateToProduct && (
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="secondary"
+                        size="xs"
+                        icon={Pencil}
                         onClick={() => onNavigateToProduct(item.productId)}
-                        className="px-3 py-2 rounded-lg bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-brand-soft/20 border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 text-xs font-bold text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs active:scale-95"
                         title="تعديل بيانات وسعر السلعة لتصريفها من المخزن"
                       >
-                        <Pencil className="w-3 h-3 text-brand dark:text-brand-bright" />
                         <span>تعديل</span>
                         <ChevronLeft className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      </button>
+                      </AppButton>
                     )}
                   </td>
                 </tr>

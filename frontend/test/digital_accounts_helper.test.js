@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   pickReceivingAccount,
-  formatAccountValue,
   rawAccountValue,
   isNumericAccountValue,
   receivingNumbers,
@@ -88,30 +87,16 @@ describe('pickReceivingAccount mirrors the host sale credit (is_default DESC, cr
   });
 });
 
-describe('account number formatting for reading and copying', () => {
-  it('groups an 11-digit Egyptian mobile as 4-3-4', () => {
-    assert.equal(formatAccountValue('01012345678'), '0101 234 5678');
-    assert.equal(formatAccountValue('01234567890'), '0123 456 7890');
-  });
-
+describe('account number normalisation for copying', () => {
   it('copies the raw digits: spaces and dashes are stripped from numbers', () => {
     assert.equal(rawAccountValue('0101 234 5678'), '01012345678');
-    assert.equal(rawAccountValue(' 0101-234-5678 '), '01012345678');
-    assert.equal(formatAccountValue('0101-234-5678'), '0101 234 5678');
+    assert.equal(rawAccountValue(' 010-1234-5678 '), '01012345678');
   });
 
   it('leaves InstaPay handles exactly as typed (trimmed only)', () => {
     assert.equal(rawAccountValue('  shop.market@instapay '), 'shop.market@instapay');
-    assert.equal(formatAccountValue('shop.market@instapay'), 'shop.market@instapay');
     assert.equal(isNumericAccountValue('shop@instapay'), false);
     assert.equal(isNumericAccountValue('0101 234 5678'), true);
-  });
-
-  it('does not regroup other digit lengths or non-mobile prefixes', () => {
-    assert.equal(formatAccountValue('9876543210123456'), '9876543210123456');
-    assert.equal(formatAccountValue('02123456789'), '02123456789');
-    assert.equal(formatAccountValue(''), '');
-    assert.equal(formatAccountValue(null), '');
   });
 });
 

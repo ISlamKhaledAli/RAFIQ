@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AppButton } from './AppButton';
 import {
   Truck,
   X,
@@ -156,13 +157,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">{product.name}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 border border-transparent hover:border-line dark:hover:border-line-dark transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={requestClose} />
         </div>
 
         {/* Content Form */}
@@ -299,7 +294,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
               type="checkbox"
               checked={updateProductCost}
               onChange={(e) => setUpdateProductCost(e.target.checked)}
-              className="w-4 h-4 rounded border-line dark:border-line-dark text-brand dark:text-brand-bright focus:ring-0 cursor-pointer"
+              className="cursor-pointer"
             />
             <span>تحديث سعر التكلفة الافتراضي للصنف في الكتالوج إلى {formatArabicCurrency(computedBaseCostPiasters)}</span>
           </label>
@@ -337,24 +332,13 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
 
         {/* Footer Actions */}
         <div className="px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
-          <button
-            type="button"
-            onClick={requestClose}
-            disabled={loading}
-            className="px-4 py-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 rounded text-xs font-bold transition-colors disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer"
-          >
+          <AppButton variant="secondary" size="md" onClick={requestClose} disabled={loading}>
             إلغاء (Esc)
-          </button>
+          </AppButton>
 
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={loading || !isValidQty}
-            className="px-5 py-2 bg-brand dark:bg-brand-bright hover:bg-brand-hover dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark rounded text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer"
-          >
-            <PackageCheck className="w-4 h-4" />
-            <span>{loading ? 'جارٍ الحفظ...' : 'تأكيد استلام البضاعة وإضافة المخزون'}</span>
-          </button>
+          <AppButton variant="primary" size="md" icon={PackageCheck} onClick={handleSubmit} disabled={loading || !isValidQty}>
+            {loading ? 'جارٍ الحفظ...' : 'تأكيد استلام البضاعة وإضافة المخزون'}
+          </AppButton>
         </div>
       </div>
     </div>

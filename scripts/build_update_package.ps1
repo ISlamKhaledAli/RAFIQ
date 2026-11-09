@@ -86,19 +86,19 @@ Write-Host " Version      : $Version" -ForegroundColor Yellow
 Write-Host " SHA-256 Hash : $($hashResult.Hash)" -ForegroundColor White
 Write-Host "==============================================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "[Next Steps to Publish - خطوات النشر على جيتهاب]:" -ForegroundColor White
-Write-Host " 1. افتح صفحة Releases في مستودع GitHub الخاص بك:"
+Write-Host "[Next Steps to Publish to GitHub]:" -ForegroundColor White
+Write-Host " 1. Open GitHub Releases page:"
 Write-Host "    https://github.com/ISlamKhaledAli/RAFIQ/releases/new" -ForegroundColor Cyan
-Write-Host " 2. في خانة Tag version اكتب: v$Version"
-Write-Host " 3. في خانة Release title اكتب: Rafiq POS Update v$Version"
-Write-Host " 4. اسحب وأفلت الملف المضغوط التالي:"
+Write-Host " 2. In Tag version enter: v$Version"
+Write-Host " 3. In Release title enter: Rafiq POS Update v$Version"
+Write-Host " 4. Drag and drop the following package archive:"
 Write-Host "    $packageZip" -ForegroundColor Yellow
-Write-Host " 5. اضغط 'Publish release'"
-Write-Host " 6. اضغط كليك يمين على ملف الـ ZIP المرفق واضغط 'Copy link address'"
-Write-Host " 7. افتح لوحة تحكم السيرفر (Cloudflare Worker Admin Portal):"
+Write-Host " 5. Click 'Publish release'"
+Write-Host " 6. Right-click the uploaded ZIP asset and select 'Copy link address'"
+Write-Host " 7. Open Cloudflare Worker Admin Portal:"
 Write-Host "    https://rafiq-license-server.khaledislam9003.workers.dev" -ForegroundColor Cyan
-Write-Host "    وادخل على 'إدارة التحديثات' -> 'نشر إصدار جديد'"
-Write-Host "    والصق رابط التنزيل (Download URL) ورقم الإصدار ($Version) والبصمة الرقمية:"
+Write-Host "    Go to 'Update Management' -> 'Publish New Release'"
+Write-Host "    Paste Download URL, Version ($Version), and SHA-256 Checksum:"
 Write-Host "    $($hashResult.Hash)" -ForegroundColor Green
 Write-Host "==============================================================================" -ForegroundColor Cyan
 Write-Host ""

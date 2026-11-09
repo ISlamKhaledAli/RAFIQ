@@ -602,6 +602,20 @@ namespace RafiqPOS.Repositories
                             ) VALUES (
                                 @id, @accId, 'funding', @amount, 0, @amount, @cashier, @source, 'completed', @notes, @now
                             );";
+                        string sourceDesc = "درج الكاشير";
+                        if (string.Equals(funding.FundingSource, "external_cash", StringComparison.OrdinalIgnoreCase))
+                        {
+                            sourceDesc = "كاش خارجي / صاحب المحل";
+                        }
+                        else if (string.Equals(funding.FundingSource, "bank_transfer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            sourceDesc = "تحويل بنكي مباشر";
+                        }
+
+                        string txNote = !string.IsNullOrWhiteSpace(notes)
+                            ? string.Format("تغذية رصيد ({0}): {1}", sourceDesc, notes)
+                            : string.Format("تغذية رصيد ({0})", sourceDesc);
+
                         using (var cmd = new SQLiteCommand(insertTxSql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
@@ -609,7 +623,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@amount", amountPiasters);
                             cmd.Parameters.AddWithValue("@cashier", (object)createdBy ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@source", funding.FundingSource);
-                            cmd.Parameters.AddWithValue("@notes", string.Format("تغذية رصيد: {0}", notes ?? ""));
+                            cmd.Parameters.AddWithValue("@notes", txNote);
                             cmd.Parameters.AddWithValue("@now", now);
                             cmd.ExecuteNonQuery();
                         }

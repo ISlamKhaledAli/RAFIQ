@@ -90,7 +90,7 @@ describe('digital payment dialog layout', () => {
     assert.match(src, /flex-1 min-h-0 overflow-y-auto/);
     const footer = src.slice(src.indexOf('Footer: always visible'));
     assert.match(footer, /shrink-0/);
-    assert.match(footer, /h-12 flex-1/);
+    assert.match(footer, /<AppButton variant="success" size="lg"[\s\S]*?className="h-12 flex-1"/);
   });
 
   it('keeps the money math: the confirmed amount is the net total, paid in full, no change', () => {

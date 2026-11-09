@@ -124,14 +124,30 @@ namespace RafiqPOS.Repositories
 
                 string whereClause = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses.ToArray()) : "";
 
+                string innerWhere = "";
+                if (!string.IsNullOrWhiteSpace(productId))
+                {
+                    innerWhere = "WHERE sm.product_id = @productId";
+                }
+
                 string sql = string.Format(@"
-                    SELECT sm.*, p.name AS product_name, p.barcode AS product_barcode, p.unit AS product_unit
-                    FROM stock_movements sm
-                    INNER JOIN products p ON sm.product_id = p.id
-                    {0}
-                    ORDER BY sm.created_at DESC
-                    LIMIT {1};
-                ", whereClause, limit > 0 ? limit : 200);
+                    WITH movements_with_balance AS (
+                        SELECT sm.rowid AS movement_rowid, sm.*, p.name AS product_name, p.barcode AS product_barcode, p.unit AS product_unit,
+                               SUM(CASE WHEN sm.movement_type != 'DAMAGED_RETURN' THEN sm.quantity_milli ELSE 0 END) OVER (
+                                   PARTITION BY sm.product_id
+                                   ORDER BY sm.created_at ASC, sm.rowid ASC
+                                   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                               ) AS balance_after_milli
+                        FROM stock_movements sm
+                        INNER JOIN products p ON sm.product_id = p.id
+                        {0}
+                    )
+                    SELECT *
+                    FROM movements_with_balance sm
+                    {1}
+                    ORDER BY sm.created_at DESC, sm.movement_rowid DESC
+                    LIMIT {2};
+                ", innerWhere, whereClause, limit > 0 ? limit : 200);
 
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -367,6 +383,19 @@ namespace RafiqPOS.Repositories
 
         private static StockMovement MapReaderToStockMovement(SQLiteDataReader reader)
         {
+            long? balanceAfter = null;
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), "balance_after_milli", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        balanceAfter = Convert.ToInt64(reader[i]);
+                    }
+                    break;
+                }
+            }
+
             return new StockMovement
             {
                 Id = reader["id"].ToString(),
@@ -381,7 +410,8 @@ namespace RafiqPOS.Repositories
                 UnitCostPiasters = Convert.ToInt64(reader["unit_cost_piasters"]),
                 Note = reader["note"] != DBNull.Value ? reader["note"].ToString() : null,
                 BatchNumber = reader["batch_number"] != DBNull.Value ? reader["batch_number"].ToString() : null,
-                CreatedAt = reader["created_at"].ToString()
+                CreatedAt = reader["created_at"].ToString(),
+                BalanceAfterMilli = balanceAfter
             };
         }
     }

@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 import {
   X,
   Bike,
@@ -25,6 +28,7 @@ import type {
   RiderSettlementSummary,
 } from '../../types/cafe';
 import type { Customer } from '../../types/models';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
 
 interface DeliveryCommandModalProps {
   isOpen: boolean;
@@ -52,6 +56,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
   onOrdersUpdated,
 }) => {
   const [activeTab, setActiveTab] = useState<'order_setup' | 'active_orders' | 'rider_settlement' | 'zones_riders'>(initialTab);
+  const motionPanel = useMotionPanel(activeTab);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [riders, setRiders] = useState<DeliveryRider[]>([]);
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
@@ -312,8 +317,8 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none" dir="rtl">
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
+    <div className="motion-modal-backdrop fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none" dir="rtl">
+      <div className="motion-modal-panel bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
         {/* Header */}
         <div className="px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -329,20 +334,8 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={fetchAllDeliveryData}
-              className="p-2 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <AppButton variant="secondary" size="sm" icon={RefreshCw} onClick={fetchAllDeliveryData} loading={loading} aria-label="تحديث" />
+            <AppButton variant="secondary" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
           </div>
         </div>
 
@@ -421,7 +414,8 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
         )}
 
         {/* Tab Content */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <MotionHeight className="p-6 overflow-y-auto flex-1">
+        <div {...motionPanel}>
           {activeTab === 'order_setup' && (
             <form onSubmit={handleConfirmOrderDeliveryInfo} className="max-w-3xl mx-auto space-y-4">
               <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
@@ -518,7 +512,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                       { value: '', label: '-- تحديد الطيار لاحقاً بعد التحضير --' },
                       ...riders.map((r) => ({
                         value: r.id,
-                        label: `${r.name}${r.phone ? ` (${r.phone})` : ''}`,
+                        label: `${r.name}${r.phone ? ` (${formatPhoneDisplay(r.phone)})` : ''}`,
                       })),
                     ]}
                   />
@@ -537,20 +531,12 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
               </div>
 
               <div className="pt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer transition-colors"
-                >
+                <AppButton variant="secondary" size="md" onClick={onClose}>
                   إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black hover:opacity-95 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>اعتماد بيانات التوصيل وإضافة الرسوم للفاتورة</span>
-                </button>
+                </AppButton>
+                <AppButton type="submit" variant="primary" size="md" icon={CheckCircle2}>
+                  اعتماد بيانات التوصيل وإضافة الرسوم للفاتورة
+                </AppButton>
               </div>
             </form>
           )}
@@ -598,7 +584,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                             فاتورة #{ord.invoiceNumber} {ord.orderCallNumber > 0 ? `• نداء #${ord.orderCallNumber}` : ''}
                           </span>
                           <span className="font-black text-sm text-ink dark:text-ink-dark">{ord.customerName}</span>
-                          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">({ord.customerPhone})</span>
+                          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">({formatPhoneDisplay(ord.customerPhone)})</span>
                         </div>
                         <div className="text-xs text-ink dark:text-ink-dark font-bold">
                           العنوان: {ord.deliveryAddress}
@@ -689,17 +675,16 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                   </div>
 
                   {settlementSummary.unsettledOrdersCount > 0 && (
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="success"
+                      size="md"
+                      fullWidth
+                      icon={CheckCircle2}
                       disabled={loading}
                       onClick={handleExecuteRiderSettlement}
-                      className="w-full py-3 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>
-                        استلام النقدية وتصفية عهدة الطيار ({formatArabicCurrency(settlementSummary.netDrawerAmountPiasters)})
-                      </span>
-                    </button>
+                      استلام النقدية وتصفية عهدة الطيار ({formatArabicCurrency(settlementSummary.netDrawerAmountPiasters)})
+                    </AppButton>
                   )}
                 </div>
               )}
@@ -728,13 +713,9 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                     placeholder="الرسوم (ج.م)"
                     className="px-3 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
-                  <button
-                    type="submit"
-                    className="px-3 py-2 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>إضافة منطقة</span>
-                  </button>
+                  <AppButton type="submit" variant="primary" size="md" icon={Plus}>
+                    إضافة منطقة
+                  </AppButton>
                 </form>
 
                 <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -744,13 +725,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                         <span className="font-black text-ink dark:text-ink-dark">{z.name}</span>
                         <span className="text-brand dark:text-brand-bright font-black mr-2">{formatArabicCurrency(z.feePiasters)}</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteZone(z.id)}
-                        className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <AppButton variant="dangerSubtle" size="xs" icon={Trash2} onClick={() => handleDeleteZone(z.id)} aria-label="حذف المنطقة" />
                     </div>
                   ))}
                 </div>
@@ -783,13 +758,9 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                     placeholder="عمولة ثابتة للطلب (ج.م)"
                     className="px-3 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
-                  <button
-                    type="submit"
-                    className="px-3 py-2 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>إضافة طيار</span>
-                  </button>
+                  <AppButton type="submit" variant="primary" size="md" icon={Plus}>
+                    إضافة طيار
+                  </AppButton>
                 </form>
 
                 <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -797,20 +768,14 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                     <div key={r.id} className="p-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-center justify-between text-xs">
                       <div>
                         <span className="font-black text-ink dark:text-ink-dark">{r.name}</span>
-                        {r.phone && <span className="text-ink-muted dark:text-ink-dark-muted font-bold mr-2">({r.phone})</span>}
+                        {r.phone && <span className="text-ink-muted dark:text-ink-dark-muted font-bold mr-2">({formatPhoneDisplay(r.phone)})</span>}
                         {r.fixedFeePerOrderPiasters > 0 && (
                           <span className="text-brand dark:text-brand-bright font-bold mr-2">
                             • عمولة: {formatArabicCurrency(r.fixedFeePerOrderPiasters)}/طلب
                           </span>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteRider(r.id)}
-                        className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <AppButton variant="dangerSubtle" size="xs" icon={Trash2} onClick={() => handleDeleteRider(r.id)} aria-label="حذف الطيار" />
                     </div>
                   ))}
                 </div>
@@ -818,6 +783,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
             </div>
           )}
         </div>
+        </MotionHeight>
       </div>
     </div>
   );

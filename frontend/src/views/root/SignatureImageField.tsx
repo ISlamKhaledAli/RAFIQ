@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react';
-import { ImageOff, Loader2, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { ImageOff, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { AppButton } from '../../components/AppButton';
 import {
   MAX_SIGNATURE_IMAGES,
   parseSignatureImages,
@@ -21,12 +22,6 @@ interface SignatureImageFieldProps {
   onSelect: (index: number | null) => void;
 }
 
-const BUTTON_BASE =
-  'h-11 px-4 rounded-lg border text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
-const BUTTON_SELECTED =
-  'bg-paid-soft dark:bg-paid-dark-soft border-paid dark:border-paid-bright text-paid dark:text-paid-bright';
-const BUTTON_IDLE =
-  'bg-surface dark:bg-surface-dark border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3';
 const MAX_MESSAGE = `الحد الأقصى ${MAX_SIGNATURE_IMAGES} صور`;
 const TOO_BIG_MESSAGE = 'مجموع حجم الصور كبير. احذف صورة أو اختر صوراً أبسط.';
 
@@ -166,16 +161,14 @@ export const SignatureImageField = ({ value, onChange, builtIns, selectedIndex, 
                       <span>{isDefault ? 'الافتراضية' : `صورة ${index + 1}`}</span>
                       {isDefault && <span className="font-semibold">{countLabel(sizes[index])}</span>}
                     </span>
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="dangerSubtle"
+                      size="lg"
+                      icon={Trash2}
+                      aria-label="حذف الصورة"
                       onClick={() => removeAt(index)}
                       disabled={processing}
-                      aria-label="حذف الصورة"
-                      title="حذف الصورة"
-                      className="w-11 h-11 flex items-center justify-center text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft disabled:opacity-60 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    />
                   </div>
                 </li>
               );
@@ -183,35 +176,29 @@ export const SignatureImageField = ({ value, onChange, builtIns, selectedIndex, 
           </ul>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={processing}
-            className={`${BUTTON_BASE} ${BUTTON_IDLE}`}
-          >
-            {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            <span>{processing ? 'جاري تجهيز الصورة...' : 'إضافة صورة'}</span>
-          </button>
-          <button
-            type="button"
+          <AppButton variant="secondary" size="lg" icon={Upload} loading={processing} onClick={() => inputRef.current?.click()}>
+            {processing ? 'جاري تجهيز الصورة...' : 'إضافة صورة'}
+          </AppButton>
+          <AppButton
+            variant={onlyDefault ? 'successSoft' : 'secondary'}
+            size="lg"
+            icon={RotateCcw}
             onClick={() => reset([SIGNATURE_IMAGE_DEFAULT])}
             disabled={processing}
             aria-pressed={onlyDefault}
-            className={`${BUTTON_BASE} ${onlyDefault ? BUTTON_SELECTED : BUTTON_IDLE}`}
           >
-            <RotateCcw className="w-4 h-4" />
-            <span>إرجاع الافتراضية</span>
-          </button>
-          <button
-            type="button"
+            إرجاع الافتراضية
+          </AppButton>
+          <AppButton
+            variant={list.length === 0 ? 'successSoft' : 'secondary'}
+            size="lg"
+            icon={ImageOff}
             onClick={() => reset([])}
             disabled={processing}
             aria-pressed={list.length === 0}
-            className={`${BUTTON_BASE} ${list.length === 0 ? BUTTON_SELECTED : BUTTON_IDLE}`}
           >
-            <ImageOff className="w-4 h-4" />
-            <span>بدون صور</span>
-          </button>
+            بدون صور
+          </AppButton>
           <input
             ref={inputRef}
             type="file"

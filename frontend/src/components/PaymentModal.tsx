@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { AppButton } from './AppButton';
 import { Banknote, X, CheckCircle2 } from 'lucide-react';
 import type { Customer, SalePayment } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals, poundsToPiasters } from '../utils/money';
@@ -430,7 +431,7 @@ export const PaymentModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      className="motion-modal-backdrop fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 select-none"
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
     >
@@ -438,7 +439,7 @@ export const PaymentModal = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="payment-modal-title"
-        className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl h-[min(46rem,100%)] flex flex-col overflow-hidden text-ink dark:text-ink-dark"
+        className="motion-modal-panel bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl h-[min(46rem,100%)] flex flex-col overflow-hidden text-ink dark:text-ink-dark"
       >
         {/* Header (fixed) */}
         <div className="h-16 px-5 bg-surface-2 dark:bg-surface-dark-2 hairline-b flex items-center justify-between gap-3 shrink-0">
@@ -455,14 +456,7 @@ export const PaymentModal = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            aria-label="إغلاق"
-            className="w-10 h-10 rounded-lg hover:bg-surface dark:hover:bg-surface-dark-3 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="md" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" className="shrink-0" />
         </div>
 
         {/* Body: both columns fill the fixed height; scrolling is only a last resort on very short screens */}
@@ -523,13 +517,9 @@ export const PaymentModal = ({
 
         {/* Footer (fixed height): back, print switch, confirm */}
         <div className="h-[4.5rem] px-5 bg-surface-2 dark:bg-surface-dark-2 hairline-t flex items-center justify-between gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="h-12 px-5 rounded-lg text-sm font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark transition-colors cursor-pointer"
-          >
+          <AppButton variant="secondary" size="lg" className="h-12" onClick={() => void requestClose()}>
             رجوع لفاتورة البيع
-          </button>
+          </AppButton>
 
           <div className="flex items-center gap-4">
             {/* Capture: Enter on the focused switch confirms the sale like everywhere else; Space toggles it. */}
@@ -553,15 +543,9 @@ export const PaymentModal = ({
               />
             </div>
 
-            <button
-              type="button"
-              onClick={() => void handleConfirm()}
-              disabled={loading}
-              className="h-12 min-w-72 px-6 rounded-lg text-sm font-bold bg-brand hover:bg-brand-hover dark:bg-brand-container dark:hover:bg-brand text-white flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            >
-              <ConfirmIcon className="w-5 h-5 shrink-0" />
-              <span>{loading ? 'ثواني، بنكمل البيع...' : confirmLabel}</span>
-            </button>
+            <AppButton variant="primary" size="lg" icon={ConfirmIcon} onClick={() => void handleConfirm()} disabled={loading} className="h-12 min-w-72">
+              {loading ? 'ثواني، بنكمل البيع...' : confirmLabel}
+            </AppButton>
           </div>
         </div>
       </div>

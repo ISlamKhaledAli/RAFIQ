@@ -4,10 +4,10 @@ chcp 65001 > nul
 title Rafiq POS - Full Offline Setup Builder (Win 7 SP1 .. 11)
 cd /d "%~dp0"
 echo ========================================================
-echo   تشغيل بناء النسخة الشاملة الأوفلاين (Full Offline)
-echo   مخصصة لكافة الأنظمة من ويندوز 7 حتى 11 بدون إنترنت
+echo   Rafiq POS - Building Full Offline Edition
+echo   Designed for all systems from Windows 7 SP1 to 11
 echo ========================================================
 echo.
-call "%~dp0انشاء_ملف_التثبيت_Setup.bat" full %*
+call "%~dp0Build_Installer.bat" full %*
 exit /b %errorlevel%
 
