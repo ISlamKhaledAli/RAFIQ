@@ -31,7 +31,7 @@ export const ROOT_SUB_TAB_META: Record<RootSubTab, RootSubTabMeta> = {
     icon: SlidersHorizontal,
   },
   devices: {
-    navLabel: 'الماسح والحماية (PIN)',
+    navLabel: 'الماسح والحماية',
     title: 'الماسح والحماية بالرقم السري',
     subtitle: 'فحص قارئ الباركود وضبط الرقم السري الذي يحمي العمليات الحساسة',
     icon: ScanBarcode,

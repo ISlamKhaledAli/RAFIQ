@@ -1,12 +1,11 @@
 import React from 'react';
+import { AppButton } from '../../components/AppButton';
 import { PANEL_TOGGLE_BUTTON_CLASS, PANEL_TOGGLE_ICON_CLASS } from '../../utils/panelToggle';
 import { 
   Sparkles, 
   Flame,
   PanelLeftClose,
   Plus, 
-  Search, 
-  X, 
   Star, 
   Scale, 
   Package,
@@ -18,6 +17,7 @@ import {
   ClipboardList,
   ShieldAlert,
 } from 'lucide-react';
+import { SearchInput } from '../../components/SearchInput';
 import type { ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
 import type { InsuranceClaimLine } from '../../types/insurance';
@@ -148,8 +148,9 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   return (
     <section
       className={`${
-        isCollapsed ? 'flex-none w-[3.625rem] min-w-[3.625rem]' : 'flex-1 min-w-[300px] p-2.5 sm:p-3'
-      } h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs`}
+        isCollapsed ? 'flex-none w-[3.625rem] min-w-[3.625rem]' : 'flex-1 min-w-[18.75rem] p-2.5 sm:p-3'
+      } h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 motion-resize motion-catalog shadow-2xs`}
+      data-collapsed={isCollapsed}
     >
       {isCollapsed && (
         // Collapsed: only the title as vertical text, the whole strip expands the panel (same as the categories rail)
@@ -159,7 +160,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
           aria-expanded={false}
           aria-label="توسيع أصناف المحل"
           title="توسيع أصناف المحل"
-          className="flex-1 w-full min-h-0 flex items-center justify-center cursor-pointer hover:bg-brand-soft dark:hover:bg-surface-dark-3 transition-colors"
+          className="motion-swap-in flex-1 w-full min-h-0 flex items-center justify-center cursor-pointer hover:bg-brand-soft dark:hover:bg-surface-dark-3 transition-colors"
         >
           <span
             style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
@@ -170,7 +171,8 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
         </button>
       )}
 
-      <div className={isCollapsed ? 'hidden' : 'contents'}>
+      {/* Motion off: display none / contents. Motion on (index.css): a box that fades and is inert while collapsed */}
+      <div className={isCollapsed ? 'hidden motion-catalog-body' : 'contents motion-catalog-body'} inert={isCollapsed}>
       {/* Section Header */}
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2 pb-2 border-b border-line dark:border-line-dark shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -182,80 +184,76 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0">
           {onOpenInsuranceModal && isEnabled('feature_insurance') && (
-            <button
-              type="button"
+            <AppButton
+              variant={activeInsuranceClaim ? 'successSoft' : 'soft'}
+              size="xs"
+              icon={Building2}
               onClick={onOpenInsuranceModal}
               disabled={isCartEmpty}
-              className={`flex items-center gap-1 text-micro font-bold px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap border disabled:opacity-50 disabled:cursor-not-allowed ${
-                activeInsuranceClaim
-                  ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/30 hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80'
-                  : 'bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright border-line dark:border-line-dark hover:border-brand/30'
-              }`}
               title={isCartEmpty ? "يرجى إضافة أدوية للسلة أولاً لتطبيق التأمين" : activeInsuranceClaim ? "تعديل روشتة التأمين المطبقة" : "تطبيق روشتة تأمين طبي للشركات والتعاقدات"}
             >
-              <Building2 className="w-3.5 h-3.5 shrink-0" />
-              <span>{activeInsuranceClaim ? 'تأمين (مُفعّل)' : 'تأمين'}</span>
-            </button>
+              {activeInsuranceClaim ? 'تأمين (مُفعّل)' : 'تأمين'}
+            </AppButton>
           )}
 
           {onOpenChronicDispense && isEnabled('feature_patient_profiles') && (
-            <button
-              type="button"
+            <AppButton
+              variant="successSoft"
+              size="xs"
+              icon={HeartPulse}
               onClick={onOpenChronicDispense}
-              className="flex items-center gap-1 text-micro font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid/20 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
               title="صرف أدوية الأمراض المزمنة للمرضى المسجلين بنقرة واحدة"
             >
-              <HeartPulse className="w-3.5 h-3.5 shrink-0 text-paid dark:text-paid-bright" />
-              <span>علاج شهري</span>
-            </button>
+              علاج شهري
+            </AppButton>
           )}
 
           {isEnabled('feature_matrix_variants') && onOpenVariantMatrixModal && (
-            <button
-              type="button"
+            <AppButton
+              variant="soft"
+              size="xs"
+              icon={Layers}
               onClick={onOpenVariantMatrixModal}
-              className="flex items-center gap-1 text-micro font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-brand-dark-soft px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95"
               title="إضافة منتج بمقاسات وألوان متعددة للملابس والأحذية"
             >
-              <Layers className="w-3.5 h-3.5" />
-              <span>مقاسات وألوان</span>
-            </button>
+              مقاسات وألوان
+            </AppButton>
           )}
           {onOpenQuickShortage && (
-            <button
-              type="button"
+            <AppButton
+              variant="primary"
+              size="xs"
+              icon={ClipboardList}
               onClick={onOpenQuickShortage}
-              className="flex items-center gap-1 text-micro font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/30 hover:bg-warn-border/40 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
               title="تسجيل النواقص السريع في كشكول النواقص (Ctrl+Q)"
             >
-              <ClipboardList className="w-3.5 h-3.5 shrink-0 text-warn dark:text-warn-bright" />
-              <span>تسجيل نواقص</span>
-            </button>
+              تسجيل نواقص
+            </AppButton>
           )}
 
           {onOpenDdiManager && (isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy')) && (
-            <button
-              type="button"
+            <AppButton
+              variant="soft"
+              size="xs"
+              icon={ShieldAlert}
               onClick={onOpenDdiManager}
-              className="flex items-center gap-1 text-micro font-bold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand/40 hover:bg-brand-soft/80 dark:hover:bg-brand-dark-soft/80 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
               title="إدارة وتعديل قاعدة بيانات التعارضات والتداخلات الدوائية"
             >
-              <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-brand dark:text-brand-bright" />
-              <span>تداخلات دوائية</span>
-            </button>
+              تداخلات دوائية
+            </AppButton>
           )}
 
-          <button
-            type="button"
+          <AppButton
+            variant="soft"
+            size="xs"
+            icon={Plus}
             onClick={onOpenQuickFastItemModal}
-            className="flex items-center gap-1 text-micro font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid/20 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95"
             title="إضافة صنف سريع يظهر في أزرار المحل بدون مخزن"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>صنف سريع</span>
-          </button>
+            صنف سريع
+          </AppButton>
 
           <button
             type="button"
@@ -273,25 +271,15 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
       {/* Search & Category Filter Row */}
       <div className="flex flex-col gap-1.5 mb-2 shrink-0">
         {/* Quick Catalog Search Bar */}
-        <div className="relative w-full">
-          <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={catalogSearchQuery}
-            onChange={(e) => setCatalogSearchQuery(e.target.value)}
-            placeholder="بحث سريع في الأصناف المعروضة..."
-            className="w-full h-8 pr-8 pl-7 text-xs bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand/30 outline-none transition-all placeholder:text-ink-muted/70 dark:placeholder:text-ink-dark-muted/70 text-ink dark:text-ink-dark font-medium shadow-2xs"
-          />
-          {catalogSearchQuery && (
-            <button
-              type="button"
-              onClick={() => setCatalogSearchQuery('')}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark p-0.5 rounded cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+        <SearchInput
+          size="sm"
+          searchButton={false}
+          value={catalogSearchQuery}
+          onChange={setCatalogSearchQuery}
+          placeholder="بحث سريع في الأصناف المعروضة..."
+          ariaLabel="بحث سريع في أصناف المحل"
+          className="w-full"
+        />
 
         {activeCatalogTab === '__POPULAR__' && (
           <p className="flex items-start gap-1.5 text-xs font-medium leading-relaxed text-ink-muted dark:text-ink-dark-muted">
@@ -480,7 +468,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 })()}
 
                 {item.hasVariants ? (
-                  <span className="shrink-0 text-micro font-bold text-purple-700 dark:text-brand-bright bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition-all">
+                  <span className="min-w-0 text-micro font-bold text-purple-700 dark:text-brand-bright bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition-all">
                     <Layers className="w-2.5 h-2.5 text-purple-600 dark:text-brand-bright group-hover:text-white transition-colors shrink-0" />
                     <span className="truncate max-w-[4rem]">{terminology.pickVariantPrompt}</span>
                   </span>
@@ -496,13 +484,14 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
 
         {displayedCatalogItems.length > visibleCount && (
           <div className="col-span-2 pt-1 pb-1">
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="md"
+              fullWidth
               onClick={() => setVisibleCount((prev) => Math.min(prev + 40, displayedCatalogItems.length))}
-              className="w-full py-2 bg-surface dark:bg-surface-dark hover:bg-paid-soft dark:hover:bg-surface-dark-3 text-paid dark:text-paid-bright border border-paid-border dark:border-line-dark rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-98 flex items-center justify-center gap-1.5"
             >
-              <span>عرض المزيد (+{displayedCatalogItems.length - visibleCount} صنف)</span>
-            </button>
+              عرض المزيد (+{displayedCatalogItems.length - visibleCount} صنف)
+            </AppButton>
           </div>
         )}
 

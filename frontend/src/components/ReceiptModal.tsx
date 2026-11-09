@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Printer, X, CheckCircle, AlertTriangle, Loader2, RotateCcw } from 'lucide-react';
+import { Printer, X, CheckCircle, AlertTriangle, RotateCcw, Download } from 'lucide-react';
 import type { Sale } from '../types/models';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { ReceiptPaper } from './ReceiptPaper';
 import { buildReceiptModel } from '../utils/receiptLayout';
+import { saveReceiptImageWithNotice } from '../utils/reportNotice';
 import { BUILT_IN_SIGNATURE_IMAGES } from '../utils/signatureDefaults';
 import type { ReceiptPaperWidth } from '../utils/receiptLayout';
 
+import { AppButton } from './AppButton';
 interface ReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -173,7 +175,7 @@ export function ReceiptModal({
               onClick={() => setPaperWidth('80mm')}
               className={`px-2.5 py-0.5 rounded transition-all ${
                 !is57mm 
-                  ? 'bg-brand text-white shadow-xs font-bold' 
+                ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs font-bold' 
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
@@ -184,7 +186,7 @@ export function ReceiptModal({
               onClick={() => setPaperWidth('57mm')}
               className={`px-2.5 py-0.5 rounded transition-all ${
                 is57mm 
-                  ? 'bg-brand text-white shadow-xs font-bold' 
+                ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs font-bold' 
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
@@ -192,13 +194,7 @@ export function ReceiptModal({
             </button>
           </div>
 
-          <button 
-            onClick={onClose}
-            className="w-7 h-7 rounded hover:bg-surface dark:hover:bg-surface-dark-2 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors"
-            title="إغلاق (Esc)"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} onClick={onClose} title="إغلاق (Esc)" aria-label="إغلاق" />
         </div>
 
         {/* Paper Out / Hardware Error Banner */}
@@ -231,51 +227,41 @@ export function ReceiptModal({
 
           <div className="flex items-center gap-2">
             {onOpenReturn && sale && sale.status !== 'cancelled' && (
-              <button
-                type="button"
+              <AppButton
+                variant="warningSoft"
+                icon={RotateCcw}
                 onClick={() => {
                   onClose();
                   onOpenReturn(sale);
                 }}
                 disabled={isPrinting}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded bg-warn-soft dark:bg-warn-dark-soft hover:bg-warn/20 text-warn dark:text-warn-bright border border-warn/30 text-xs font-bold transition-all shadow-2xs active:scale-[0.98] cursor-pointer"
                 title="بدء عملية استرجاع أو استبدال أصناف من هذه الفاتورة (F11)"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>عمل مرتجع للفاتورة</span>
-              </button>
+                عمل مرتجع للفاتورة
+              </AppButton>
             )}
-            <button
-              onClick={onClose}
-              disabled={isPrinting}
-              className="px-4 py-2 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-semibold disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-colors"
-            >
+            {printStatus && !printStatus.ok && (
+              <AppButton
+                variant="secondary"
+                icon={Download}
+                onClick={() => void saveReceiptImageWithNotice(sale.id, sale.invoiceNumber || '---')}
+                disabled={isPrinting}
+                title="حفظ نفس الإيصال كصورة في مجلد التقارير بدل الطباعة"
+              >
+                حفظ كصورة
+              </AppButton>
+            )}
+            <AppButton variant="secondary" onClick={onClose} disabled={isPrinting}>
               إغلاق (Esc)
-            </button>
-            <button
+            </AppButton>
+            <AppButton
+              variant={printStatus && !printStatus.ok ? 'warning' : 'primary'}
+              icon={printStatus && !printStatus.ok ? RotateCcw : Printer}
               onClick={handlePrint}
-              disabled={isPrinting}
-              className={`flex items-center gap-2 px-5 py-2 rounded text-white text-xs font-bold shadow-sm disabled:opacity-60 transition-all ${
-                printStatus && !printStatus.ok
-                  ? 'bg-warn hover:bg-warn/90 dark:bg-warn-bright dark:text-surface-dark dark:hover:bg-warn-bright/90'
-                  : 'bg-brand hover:bg-brand-hover'
-              }`}
+              loading={isPrinting}
             >
-              {isPrinting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : printStatus && !printStatus.ok ? (
-                <RotateCcw className="w-4 h-4" />
-              ) : (
-                <Printer className="w-4 h-4" />
-              )}
-              <span>
-                {isPrinting 
-                  ? 'جاري إرسال الأمر...' 
-                  : printStatus && !printStatus.ok 
-                  ? 'إعادة المحاولة (F9)' 
-                  : 'طباعة الإيصال (F9)'}
-              </span>
-            </button>
+              {isPrinting ? 'جاري إرسال الأمر...' : printStatus && !printStatus.ok ? 'إعادة المحاولة (F9)' : 'طباعة الإيصال (F9)'}
+            </AppButton>
           </div>
         </div>
       </div>

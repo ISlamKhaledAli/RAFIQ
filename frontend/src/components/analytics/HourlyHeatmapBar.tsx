@@ -42,7 +42,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
 
   if (isLoading) {
     return (
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col items-center justify-center min-h-[220px] animate-pulse">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col items-center justify-center min-h-[13.75rem] animate-pulse">
         <Clock className="w-7 h-7 text-paid dark:text-paid-bright animate-spin mb-2" />
         <span className="text-xs font-bold text-ink dark:text-ink-dark">جاري قراءة وتوزيع مبيعات الـ 24 ساعة...</span>
         <span className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">يتم تجميع الفواتير وحساب ساعة الذروة والضغط</span>
@@ -100,7 +100,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
             const isSelected = activePoint?.hour === item.hour;
 
             // Height scaling between 12px (min) and 92px (max)
-            const heightPx = hasSales ? Math.max(16, Math.round(ratio * 92)) : 8;
+            const heightRem = (hasSales ? Math.max(16, Math.round(ratio * 92)) : 8) / 16;
 
             // Color gradations according to volume
             let barBg = 'bg-surface-2 dark:bg-surface-dark-2 group-hover:bg-line-hover dark:group-hover:bg-line-dark';
@@ -127,7 +127,8 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
                 onClick={() => setSelectedHour(item.hour)}
                 onMouseEnter={() => setSelectedHour(item.hour)}
                 title={`${item.hourLabel}: ${formatArabicCurrency(item.salesPiasters)} (${item.invoicesCount} فاتورة)`}
-                className="group relative flex flex-col items-center justify-end h-full w-full focus:outline-none cursor-pointer p-0.5 rounded transition-all"
+                aria-label={`${item.hourLabel}: ${formatArabicCurrency(item.salesPiasters)} (${item.invoicesCount} فاتورة)`}
+                className="group relative flex flex-col items-center justify-end h-full w-full cursor-pointer p-0.5 rounded transition-all focus-visible:!ring-2 focus-visible:!ring-brand dark:focus-visible:!ring-brand-bright"
               >
                 {/* Peak flame marker */}
                 {isPeak && (
@@ -140,7 +141,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
                 <div className="w-full h-full flex flex-col justify-end items-center bg-surface-2/60 dark:bg-surface-dark-2/60 rounded-t-sm">
                   <div
                     className={`w-full rounded-t-sm transition-all duration-300 ${barBg}`}
-                    style={{ height: `${heightPx}px` }}
+                    style={{ height: `${heightRem}rem` }}
                   />
                 </div>
 

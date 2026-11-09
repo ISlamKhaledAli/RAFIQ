@@ -9,7 +9,6 @@ import {
   Settings,
   Scale,
   Package,
-  Search,
   Boxes,
   Plus,
   Minus,
@@ -19,6 +18,7 @@ import {
   CheckCircle2,
   Layers,
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
 import { extractProducts, type QuickItem, type Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
@@ -27,12 +27,11 @@ import { SegmentedTabs, type SegmentedTabOption } from './SegmentedTabs';
 import { ToggleSwitch } from './ToggleSwitch';
 import { useFeatures } from '../context/useFeatures';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import {
   QUICK_FIELD_LG,
-  QUICK_BTN_LG,
-  QUICK_BTN_SECONDARY,
-  QUICK_BTN_PRIMARY,
-  QUICK_BTN_ICON_LG,
   FieldLabel,
   FormSection,
   ExtrasSection,
@@ -108,15 +107,9 @@ const CategoryField = ({ value, onChange, options, isCustom, setIsCustom, custom
         <div className="flex-1 min-w-0">
           <CustomSelect value={value} onChange={onChange} size="lg" options={options} />
         </div>
-        <button
-          type="button"
-          onClick={() => setIsCustom(true)}
-          className={`${QUICK_BTN_LG} ${QUICK_BTN_SECONDARY}`}
-          title="كتابة قسم جديد"
-        >
-          <Plus className="w-4 h-4" />
-          <span>جديد</span>
-        </button>
+        <AppButton variant="secondary" size="lg" icon={Plus} onClick={() => setIsCustom(true)} title="كتابة قسم جديد">
+          جديد
+        </AppButton>
       </div>
     ) : (
       <div className="flex gap-2">
@@ -128,17 +121,18 @@ const CategoryField = ({ value, onChange, options, isCustom, setIsCustom, custom
           onChange={(e) => setCustomValue(e.target.value)}
           className={QUICK_FIELD_LG}
         />
-        <button
-          type="button"
+        <AppButton
+          variant="secondary"
+          size="lg"
+          icon={X}
           onClick={() => {
             setIsCustom(false);
             setCustomValue('');
           }}
-          className={QUICK_BTN_ICON_LG}
+          className="shrink-0"
+          aria-label="الرجوع للأقسام الحالية"
           title="الرجوع للأقسام الحالية"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        />
       </div>
     )}
   </div>
@@ -160,21 +154,19 @@ const ProductSearchBox = ({ label, required = false, placeholder, query, onQuery
   <div className="relative">
     <label className="block">
       <FieldLabel required={required}>{label}</FieldLabel>
-      <div className="relative">
-        <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          placeholder={placeholder}
-          className={`${QUICK_FIELD_LG} pr-10`}
-        />
-        {searching && (
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-ink-muted dark:text-ink-dark-muted font-bold animate-pulse">
-            جاري البحث...
-          </span>
-        )}
-      </div>
+      <SearchInput
+        size="md"
+        searchButton={false}
+        value={query}
+        onChange={onQueryChange}
+        placeholder={placeholder}
+        ariaLabel={label}
+        trailing={
+          searching ? (
+            <span className="shrink-0 text-xs text-ink-muted dark:text-ink-dark-muted font-bold animate-pulse">جاري البحث...</span>
+          ) : undefined
+        }
+      />
     </label>
 
     {results.length > 0 && (
@@ -214,6 +206,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
   const { isEnabled } = useFeatures();
   // Mode selection: warehouse (default & primary) | bundle (combos like Ramadan box) | service (standalone/bags)
   const [mode, setMode] = useState<QuickMode>('warehouse');
+  const motionPanel = useMotionPanel(mode);
 
   // Warehouse Mode State
   const [searchQuery, setSearchQuery] = useState('');
@@ -590,19 +583,14 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-10 h-10 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 flex items-center justify-center transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" title="إغلاق" />
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
+          <MotionHeight className="flex-1 min-h-0 overflow-y-auto p-5">
+          <div className="flex flex-col gap-4">
             <SegmentedTabs ariaLabel="نوع الصنف السريع" fullWidth value={mode} onChange={handleModeChange} options={MODE_OPTIONS} />
+            <div {...motionPanel} className="flex flex-col gap-4">
 
             {/* Matrix variants shortcut (Feature #114) */}
             {isEnabled('feature_matrix_variants') && onOpenVariantMatrixModal && (
@@ -616,17 +604,18 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     <div className="text-xs text-ink-muted dark:text-ink-dark-muted">مصفوفة سريعة (مقاس × لون) بباركود لكل خيار</div>
                   </div>
                 </div>
-                <button
-                  type="button"
+                <AppButton
+                  variant="secondary"
+                  size="lg"
+                  icon={Plus}
                   onClick={() => {
                     onClose();
                     onOpenVariantMatrixModal();
                   }}
-                  className={`${QUICK_BTN_LG} ${QUICK_BTN_SECONDARY} shrink-0`}
+                  className="shrink-0"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>مصفوفة مقاسات</span>
-                </button>
+                  مصفوفة مقاسات
+                </AppButton>
               </div>
             )}
 
@@ -658,18 +647,18 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                             الرصيد المتاح: {selectedProduct.stockQuantityMilli / 1000} {selectedProduct.unit === 'kg' ? 'كجم' : 'قطعة'}
                           </div>
                         </div>
-                        <button
-                          type="button"
+                        <AppButton
+                          variant="secondary"
                           onClick={() => {
                             setSelectedProduct(null);
                             setName('');
                             setPriceEgp('');
                             setOriginalPriceEgp('');
                           }}
-                          className="h-10 px-4 rounded-lg text-sm font-bold border border-current/30 hover:bg-surface/50 dark:hover:bg-surface-dark/50 cursor-pointer shrink-0"
+                          className="shrink-0"
                         >
                           تغيير
-                        </button>
+                        </AppButton>
                       </div>
                     </InlineNotice>
                   )}
@@ -786,37 +775,35 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                             </span>
                           </div>
                           <div className="flex items-center rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 shrink-0">
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="subtle"
+                              icon={Minus}
                               onClick={() => updateBundleItemQuantity(item.product.id, -1)}
-                              className="w-10 h-10 flex items-center justify-center text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-r-lg cursor-pointer"
+                              aria-label="إنقاص الكمية"
                               title="إنقاص الكمية"
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
+                            />
                             <span className="w-10 text-center font-mono font-extrabold text-sm tabular-nums text-ink dark:text-ink-dark">
                               {item.quantity}
                             </span>
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="subtle"
+                              icon={Plus}
                               onClick={() => updateBundleItemQuantity(item.product.id, 1)}
-                              className="w-10 h-10 flex items-center justify-center text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-l-lg cursor-pointer"
+                              aria-label="زيادة الكمية"
                               title="زيادة الكمية"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
+                            />
                           </div>
                           <span className="min-w-[6rem] text-left font-mono font-black text-sm tabular-nums text-ink dark:text-ink-dark shrink-0">
                             {((item.product.pricePiasters * item.quantity) / 100).toFixed(2)} ج.م
                           </span>
-                          <button
-                            type="button"
+                          <AppButton
+                            variant="dangerSubtle"
+                            icon={Trash2}
                             onClick={() => removeProductFromBundle(item.product.id)}
-                            className="w-10 h-10 shrink-0 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+                            className="shrink-0"
+                            aria-label="حذف من العرض"
                             title="حذف من العرض"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          />
                         </li>
                       ))}
                     </ul>
@@ -849,9 +836,9 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     <FieldLabel>نماذج جاهزة</FieldLabel>
                     <div className="flex flex-wrap gap-2">
                       {QUICK_PRESETS.map((preset) => (
-                        <button
+                        <AppButton
                           key={preset.label}
-                          type="button"
+                          variant="secondary"
                           onClick={() => {
                             setName(preset.label);
                             if (preset.isOpenPrice) {
@@ -863,13 +850,12 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                             }
                             setUnit((preset.unit as 'piece' | 'kg') || 'piece');
                           }}
-                          className="h-10 px-3.5 text-sm font-bold rounded-lg bg-surface dark:bg-surface-dark-3 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 transition-colors active:scale-95 inline-flex items-center gap-1.5 cursor-pointer"
                         >
                           <span>{preset.label}</span>
                           {!preset.isOpenPrice && preset.price && (
                             <span className="font-mono tabular-nums text-paid dark:text-paid-bright">{preset.price}</span>
                           )}
-                        </button>
+                        </AppButton>
                       ))}
                     </div>
                   </div>
@@ -906,7 +892,9 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                 </ExtrasSection>
               </>
             )}
+            </div>
           </div>
+          </MotionHeight>
 
           {error && (
             <div className="px-5 pt-3 pb-1 shrink-0" role="alert">
@@ -919,42 +907,26 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
           {/* Footer */}
           <div className="px-5 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between gap-3 flex-wrap shrink-0">
             {onOpenFullManager ? (
-              <button
-                type="button"
+              <AppButton
+                variant="subtle"
+                size="lg"
+                icon={Settings}
                 onClick={() => {
                   onClose();
                   onOpenFullManager();
                 }}
-                className="h-11 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-bold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
               >
-                <Settings className="w-4 h-4" />
-                <span>إدارة وترتيب الأزرار السريعة</span>
-              </button>
+                إدارة وترتيب الأزرار السريعة
+              </AppButton>
             ) : <span />}
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void requestClose()}
-                disabled={loading}
-                className={`${QUICK_BTN_LG} ${QUICK_BTN_SECONDARY}`}
-              >
+              <AppButton variant="secondary" size="lg" onClick={() => void requestClose()} disabled={loading}>
                 إلغاء
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className={`${QUICK_BTN_LG} ${QUICK_BTN_PRIMARY} px-6`}
-              >
-                {loading ? (
-                  <span>جاري الحفظ...</span>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4 stroke-[2.5]" />
-                    <span>{mode === 'bundle' ? 'حفظ العرض' : 'حفظ وإضافة'}</span>
-                  </>
-                )}
-              </button>
+              </AppButton>
+              <AppButton type="submit" variant="primary" size="lg" icon={Check} loading={loading}>
+                {loading ? 'جاري الحفظ...' : mode === 'bundle' ? 'حفظ العرض' : 'حفظ وإضافة'}
+              </AppButton>
             </div>
           </div>
         </form>

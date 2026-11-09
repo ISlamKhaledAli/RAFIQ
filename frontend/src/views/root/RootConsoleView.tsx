@@ -6,6 +6,7 @@ import { getAllowedRootSubTabs, resolveRootSubTab, type RootSubTab } from '../..
 import type { SystemInfo } from '../../App';
 import { useFeatures } from '../../context/useFeatures';
 import { ROOT_SUB_TAB_META } from './rootSubTabMeta';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 import { RootStatusPage } from './RootStatusPage';
 import { RootReceiptPage } from './RootReceiptPage';
 import { RootFeaturesPage } from './RootFeaturesPage';
@@ -30,6 +31,7 @@ export const RootConsoleView = ({ activeSubTab, isActive, sysInfo, onNavigateToT
 
   const allowed = getAllowedRootSubTabs({ isRoot, canViewAudit: hasPermission('audit_log.view') });
   const subTab = resolveRootSubTab(activeSubTab, allowed);
+  const motionPanel = useMotionPanel(subTab ?? '');
   if (subTab === null) return null;
 
   const meta = ROOT_SUB_TAB_META[subTab];
@@ -41,14 +43,14 @@ export const RootConsoleView = ({ activeSubTab, isActive, sysInfo, onNavigateToT
   }
 
   return (
-    <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-4 sm:p-5 gap-5 overflow-y-auto select-none">
-      <header className="min-h-[4.5rem] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl px-5 py-3.5 flex items-center gap-4 shrink-0">
+    <div {...motionPanel} className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-4 sm:p-5 gap-5 overflow-y-auto select-none">
+      <header className="motion-static min-h-[4.5rem] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl px-5 py-3.5 flex items-center gap-4 shrink-0">
         <div className="w-11 h-11 rounded-xl bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30 flex items-center justify-center shrink-0">
           <TabIcon className="w-5 h-5" />
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">لوحة المطور (Root)</span>
+            <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">لوحة المطور</span>
             <span aria-hidden="true" className="text-ink-muted dark:text-ink-muted-dark font-bold">/</span>
             <h2 className="t-page-title text-ink dark:text-ink-dark leading-tight m-0">{meta.title}</h2>
           </div>

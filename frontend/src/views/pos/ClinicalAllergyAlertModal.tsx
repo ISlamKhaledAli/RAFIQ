@@ -1,4 +1,5 @@
 import React from 'react';
+import { AppButton } from '../../components/AppButton';
 import {
   AlertTriangle,
   ShieldAlert,
@@ -65,6 +66,7 @@ export const ClinicalAllergyAlertModal: React.FC<ClinicalAllergyAlertModalProps>
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+            aria-label="إغلاق التنبيه"
             title="إغلاق التنبيه"
           >
             <X className="w-5 h-5" />
@@ -107,15 +109,16 @@ export const ClinicalAllergyAlertModal: React.FC<ClinicalAllergyAlertModalProps>
                   </div>
                 </div>
 
-                <button
-                  type="button"
+                <AppButton
+                  variant="danger"
+                  size="xs"
+                  icon={Trash2}
                   onClick={() => onRemoveItem(conflict.productId)}
-                  className="px-3 py-1.5 rounded-lg bg-danger hover:bg-danger/90 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 transition-transform active:scale-95 shadow-xs cursor-pointer"
                   title="حذف هذا الدواء المتعارض من السلة"
+                  className="shrink-0"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>إزالة الصنف</span>
-                </button>
+                  إزالة الصنف
+                </AppButton>
               </div>
             ))}
           </div>
@@ -123,22 +126,13 @@ export const ClinicalAllergyAlertModal: React.FC<ClinicalAllergyAlertModalProps>
 
         {/* Footer Actions */}
         <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-3 rounded-xl transition-colors cursor-pointer"
-          >
+          <AppButton variant="subtle" size="md" onClick={onClose}>
             تجاوز ومتابعة بحذر (مسؤولية الصيدلي)
-          </button>
+          </AppButton>
 
-          <button
-            type="button"
-            onClick={onRemoveAllConflicts}
-            className="px-4 py-2 text-xs font-bold bg-danger hover:bg-danger/90 text-white rounded-xl flex items-center gap-1.5 transition-transform active:scale-95 shadow-sm cursor-pointer"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>إزالة كافة الأصناف المتعارضة</span>
-          </button>
+          <AppButton variant="danger" size="md" icon={CheckCircle2} onClick={onRemoveAllConflicts}>
+            إزالة كافة الأصناف المتعارضة
+          </AppButton>
         </div>
       </div>
     </div>

@@ -160,7 +160,8 @@ namespace RafiqPOS.Bridge
             if (!result.Success)
             {
                 string message = string.IsNullOrWhiteSpace(result.Message) ? "فشل أمر الطباعة." : result.Message;
-                return BridgeResponse.Fail(requestId, "PRINT_FAILED", message, new { printerUsed = result.PrinterUsed });
+                string code = string.IsNullOrEmpty(result.ErrorCode) ? "PRINT_FAILED" : result.ErrorCode;
+                return BridgeResponse.Fail(requestId, code, message, new { printerUsed = result.PrinterUsed });
             }
             return BridgeResponse.Ok(requestId, result);
         }
@@ -255,7 +256,7 @@ namespace RafiqPOS.Bridge
                 }
                 else if (string.IsNullOrWhiteSpace(clientSale.Id))
                 {
-                    return BridgeResponse.Fail(request.Id, "INVALID_SALE", "لا يمكن طباعة فاتورة غير محفوظة. أرسل رقم الفاتورة (saleId) لطباعتها من قاعدة البيانات.");
+                    return BridgeResponse.Fail(request.Id, "INVALID_SALE", "لا يمكن طباعة فاتورة غير محفوظة. أرسل رقم الفاتورة لطباعتها من قاعدة البيانات.");
                 }
                 else
                 {

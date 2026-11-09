@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 
 namespace RafiqPOS.Models
@@ -60,29 +61,56 @@ namespace RafiqPOS.Models
                 switch (MovementType.ToUpperInvariant())
                 {
                     case "INITIAL":
+                    case "INITIAL_OPENING":
+                    case "OPENING_BALANCE":
                         return "رصيد افتتاحي";
                     case "SALE":
                         return "مبيعات كاشير";
+                    case "SALE_CANCEL":
+                        return "إلغاء فاتورة بيع";
                     case "PURCHASE":
                         return "استلام مشتريات";
+                    case "PURCHASE_RETURN":
+                        return "مرتجع مشتريات";
                     case "ADJUSTMENT":
+                    case "INVENTORY_ADJUSTMENT":
                         return "تسوية جردية";
                     case "RETURN":
                     case "REFUND":
                         return "مرتجع مبيعات";
                     case "DAMAGED_RETURN":
-                    case "DAMAGE":
                         return "مرتجع تالف";
+                    case "DAMAGE":
+                        return "تالف";
+                    case "EXPIRED_WRITE_OFF":
+                        return "إعدام منتهي الصلاحية";
+                    case "UNIT_REBASE":
+                        return "إعادة ضبط الوحدات";
+                    case "PRODUCTION_CONSUMPTION":
+                        return "استهلاك خامات إنتاج";
+                    case "PRODUCTION_OUTPUT":
+                        return "ناتج إنتاج";
                     case "RECIPE_SALE_CONSUMPTION":
-                        return "استهلاك تصنيع";
+                        return "استهلاك مكونات وصفة";
                     case "RECIPE_SALE_REVERSAL":
-                        return "إلغاء استهلاك";
-                    case "SALE_CANCEL":
-                        return "إلغاء بيع";
+                        return "عكس استهلاك وصفة";
+                    case "IN":
+                        return "إضافة مخزون";
+                    case "OUT":
+                        return "صرف مخزون";
                     default:
-                        return MovementType;
+                        return "حركة مخزون";
                 }
             }
+        }
+
+        // Legacy notes may carry English unit/adjustment tokens; used for exports only, never written back
+        public static string LocalizeNote(string note)
+        {
+            if (string.IsNullOrEmpty(note)) return note;
+            string result = note.Replace("[SURPLUS]", "[فائض جردي]").Replace("[SHORTAGE]", "[عجز جردي]");
+            result = Regex.Replace(result, @"\((piece|pieces|pcs|pc|unit|item)\)", "(قطعة)", RegexOptions.IgnoreCase);
+            return Regex.Replace(result, @"\(kg\)", "(كجم)", RegexOptions.IgnoreCase);
         }
 
         [JsonProperty("quantityFormatted")]

@@ -6,7 +6,6 @@ import {
   Trash2,
   Printer,
   ClipboardList,
-  Search,
   X,
   AlertCircle,
   Snowflake,
@@ -14,14 +13,18 @@ import {
   CheckCircle2,
   FileSpreadsheet
 } from 'lucide-react';
+import { SearchInput } from '../../components/SearchInput';
 import type { StorageLocation, LocationInventoryDraft } from '../../types/models';
 import { CustomSelect } from '../../components/CustomSelect';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { useAuth } from '../../context/useAuth';
 import { invoke } from '../../bridge/ipc';
-import { printReport } from '../../utils/printReport';
+import { usePrintReport } from '../../hooks/usePrintReport';
+import { announceReportOutcome } from '../../utils/reportNotice';
+import { describeError } from '../../utils/printReport';
 import { formatUnitArabic } from '../../utils/units';
 import { RequiredMark } from '../../components/RequiredMark';
+import { AppButton } from '../../components/AppButton';
 
 interface StorageLocationsModalProps {
   isOpen: boolean;
@@ -30,11 +33,11 @@ interface StorageLocationsModalProps {
 }
 
 const LOCATION_TYPES = [
-  { value: 'shelf', label: 'رف تخزين (Shelf)' },
-  { value: 'rack', label: 'استاند / قسم كامل (Rack)' },
-  { value: 'drawer', label: 'درج أدوية (Drawer)' },
-  { value: 'fridge', label: 'ثلاجة أدوية / سلسلة تبريد (Fridge)' },
-  { value: 'warehouse', label: 'مستودع / مخزن خلفي (Warehouse)' },
+  { value: 'shelf', label: 'رف تخزين' },
+  { value: 'rack', label: 'استاند / قسم كامل' },
+  { value: 'drawer', label: 'درج أدوية' },
+  { value: 'fridge', label: 'ثلاجة أدوية / سلسلة تبريد' },
+  { value: 'warehouse', label: 'مستودع / مخزن خلفي' },
 ];
 
 export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
@@ -173,16 +176,16 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
     }
   };
 
-  const handlePrintBarcode = (loc: StorageLocation) => {
+  const handlePrintBarcode = async (loc: StorageLocation) => {
     try {
-      void invoke('barcode:printLabel', {
+      await invoke('barcode:printLabel', {
         barcode: loc.code,
         title: loc.name,
         priceFormatted: loc.type === 'fridge' ? 'سلسلة تبريد' : 'رف تخزين',
         barcodeType: 'shelf_tag'
       });
     } catch (err) {
-      console.error('خطأ في إرسال أمر طباعة باركود الرف:', err);
+      announceReportOutcome({ status: 'failed', message: 'تعذرت طباعة باركود الرف: ' + describeError(err) });
     }
   };
 
@@ -200,9 +203,11 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
     }
   };
 
-  const handlePrintDraftSheet = () => {
-    void printReport({ kind: 'a4only' });
-  };
+  const { print: handlePrintDraftSheet, printing: isPrintingDraftSheet } = usePrintReport({
+    reportName: 'كشف جرد الرف',
+    kind: 'a4only',
+    hasData: Boolean(draftSheet && draftSheet.items.length > 0),
+  });
 
   const filteredLocations = useMemo(() => {
     return locations.filter((loc) => {
@@ -244,12 +249,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark rounded-lg transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Content Body */}
@@ -331,26 +331,17 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                     type="checkbox"
                     checked={isActive}
                     onChange={(e) => setIsActive(e.target.checked)}
-                    className="rounded border-line dark:border-line-dark text-brand focus:ring-brand w-4 h-4"
                   />
                   <span>الموقع نشط ومتاح للتسكين</span>
                 </label>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-3 py-1.5 text-xs font-medium text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded border border-line dark:border-line-dark cursor-pointer"
-                  >
+                  <AppButton variant="secondary" onClick={resetForm}>
                     إلغاء
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-4 py-1.5 bg-brand hover:bg-brand-dark text-white rounded text-xs font-bold transition-colors disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer shadow-xs"
-                  >
+                  </AppButton>
+                  <AppButton type="submit" variant="primary" disabled={saving}>
                     {saving ? 'جاري الحفظ...' : editingId ? 'تحديث الموقع' : 'إضافة الموقع'}
-                  </button>
+                  </AppButton>
                 </div>
               </div>
             </form>
@@ -358,17 +349,15 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
 
           {/* Top Actions & Filters */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2 w-full sm:w-auto flex-1">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="w-4 h-4 absolute right-3 top-2.5 text-ink-muted dark:text-ink-dark-muted" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="بحث بالكود أو الاسم..."
-                  className="w-full pr-9 pl-3 py-1.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded text-xs text-ink dark:text-ink-dark focus:ring-1 focus:ring-brand"
-                />
-              </div>
+            <div className="flex items-center gap-x-8 gap-y-3 w-full sm:w-auto flex-1">
+              <SearchInput
+                size="sm"
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="بحث بالكود أو الاسم..."
+                ariaLabel="بحث في أماكن التخزين"
+                className="flex-1 max-w-sm"
+              />
 
               <div className="w-48">
                 <CustomSelect
@@ -384,14 +373,9 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
             </div>
 
             {canManage && !isEditing && (
-              <button
-                type="button"
-                onClick={handleStartAdd}
-                className="w-full sm:w-auto px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>إضافة موقع / رف جديد</span>
-              </button>
+              <AppButton variant="primary" icon={Plus} onClick={handleStartAdd} className="w-full sm:w-auto">
+                إضافة موقع / رف جديد
+              </AppButton>
             )}
           </div>
 
@@ -471,48 +455,48 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                         <td className="p-3">
                           <div className="flex items-center justify-center gap-1.5">
                             {/* Draft Inventory Button (Task 185-5) */}
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="subtle"
+                              size="xs"
+                              icon={ClipboardList}
                               onClick={() => handleOpenDraftInventory(loc)}
                               disabled={loadingDraft}
                               title="استخراج مسودة كشف جرد الرف"
-                              className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft/50 dark:hover:bg-brand-soft/10 rounded transition-colors cursor-pointer"
-                            >
-                              <ClipboardList className="w-4 h-4" />
-                            </button>
+                              aria-label="استخراج مسودة كشف جرد الرف"
+                            />
 
                             {/* Print Shelf Tag Barcode */}
-                            <button
-                              type="button"
-                              onClick={() => handlePrintBarcode(loc)}
-                              title="طباعة باركود الرف (Shelf Tag)"
-                              className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright hover:bg-paid-soft/50 dark:hover:bg-paid-soft/10 rounded transition-colors cursor-pointer"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
+                            <AppButton
+                              variant="subtle"
+                              size="xs"
+                              icon={Printer}
+                              onClick={() => void handlePrintBarcode(loc)}
+                              title="طباعة باركود الرف"
+                              aria-label="طباعة باركود الرف"
+                            />
 
                             {/* Edit */}
                             {canManage && (
-                              <button
-                                type="button"
+                              <AppButton
+                                variant="subtle"
+                                size="xs"
+                                icon={Edit2}
                                 onClick={() => handleStartEdit(loc)}
                                 title="تعديل بيانات الموقع"
-                                className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-colors cursor-pointer"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
+                                aria-label="تعديل بيانات الموقع"
+                              />
                             )}
 
                             {/* Delete/Deactivate */}
                             {canManage && (
-                              <button
-                                type="button"
+                              <AppButton
+                                variant="dangerSubtle"
+                                size="xs"
+                                icon={Trash2}
                                 onClick={() => handleDelete(loc)}
                                 title="تعطيل الموقع"
-                                className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft/50 dark:hover:bg-danger-soft/10 rounded transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                                aria-label="تعطيل الموقع"
+                              />
                             )}
                           </div>
                         </td>
@@ -551,12 +535,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setDraftSheet(null)}
-                className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} onClick={() => setDraftSheet(null)} aria-label="إغلاق" />
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -564,14 +543,9 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                 <span className="text-xs font-semibold text-brand-dark dark:text-brand-bright">
                   إجمالي الأصناف المسكنة في هذا الموقع: {draftSheet.items.length} صنف
                 </span>
-                <button
-                  type="button"
-                  onClick={handlePrintDraftSheet}
-                  className="px-3 py-1.5 bg-brand hover:bg-brand-dark text-white rounded text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>طباعة كشف الجرد الورقي</span>
-                </button>
+                <AppButton variant="primary" size="sm" icon={Printer} onClick={handlePrintDraftSheet} loading={isPrintingDraftSheet}>
+                  طباعة كشف الجرد الورقي
+                </AppButton>
               </div>
 
               <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden">

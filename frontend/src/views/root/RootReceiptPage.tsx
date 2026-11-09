@@ -16,7 +16,8 @@ import {
   resolveReceiptSignature,
 } from '../../utils/receiptLayout';
 import { BUILT_IN_SIGNATURE_IMAGES } from '../../utils/signatureDefaults';
-import { PRIMARY_BUTTON_CLASS, ReceiptTextField, SettingsCard, ToggleRow } from '../settings/settingsParts';
+import { AppButton } from '../../components/AppButton';
+import { ReceiptTextField, SettingsCard, ToggleRow } from '../settings/settingsParts';
 import { SignatureImageField } from './SignatureImageField';
 
 const DEFAULT_LOGO_URL = '/receipt_logo_square.png';
@@ -171,7 +172,7 @@ export const RootReceiptPage = ({ isActive, onDiscard }: RootReceiptPageProps) =
   } else if (signatureError) {
     statusNode = <span className="text-danger dark:text-danger-bright font-semibold">قصّر نص التوقيع ثم احفظ</span>;
   } else if (dirty) {
-    statusNode = <UnsavedChangesChip />;
+    statusNode = null;
   } else if (saved) {
     statusNode = (
       <span className="flex items-center gap-2 text-paid dark:text-paid-bright font-bold">
@@ -216,13 +217,17 @@ export const RootReceiptPage = ({ isActive, onDiscard }: RootReceiptPageProps) =
         </SettingsCard>
 
         <div ref={saveBarRef} className="sticky bottom-0 z-10 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-md rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm" role="status">
-            {statusNode}
+          <div className="text-sm inline-grid items-center">
+            <div className="col-start-1 row-start-1">
+              <UnsavedChangesChip dirty={dirty && !saving && !signatureError} />
+            </div>
+            <div className="col-start-1 row-start-1" role="status">
+              {statusNode}
+            </div>
           </div>
-          <button type="submit" disabled={saving || !!signatureError || !dirty} className={PRIMARY_BUTTON_CLASS}>
-            <Save className="w-4 h-4" />
-            <span>حفظ التوقيع</span>
-          </button>
+          <AppButton type="submit" variant="primary" size="lg" icon={Save} disabled={saving || !!signatureError || !dirty}>
+            حفظ التوقيع
+          </AppButton>
         </div>
       </form>
 

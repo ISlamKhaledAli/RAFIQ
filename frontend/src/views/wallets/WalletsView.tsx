@@ -5,9 +5,9 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   PlusCircle,
+  Plus,
   TrendingUp,
   Receipt,
-  Search,
   CheckCircle2,
   AlertTriangle,
   RotateCcw,
@@ -19,6 +19,7 @@ import {
   Coins,
   DollarSign,
   Phone,
+  AtSign,
   User,
   Hash,
   Landmark,
@@ -28,12 +29,19 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription, emitDataChanged } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
+import { isNumericAccountValue, receivingNumbers } from '../../utils/digitalAccounts';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
 import { rafiqConfirm } from '../../utils/dialogService';
+import { isFormDirty } from '../../utils/dirtyForm';
 import { useAuth } from '../../context/useAuth';
 import { useFeatures } from '../../context/useFeatures';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
 import { DateFilterControl } from '../../components/DateFilterControl';
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
+import { SearchInput } from '../../components/SearchInput';
+import { ClearFiltersButton } from '../../components/ClearFiltersButton';
 import { PaginationBar } from '../../components/PaginationBar';
 import { RequiredMark } from '../../components/RequiredMark';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
@@ -57,6 +65,7 @@ import type {
   DigitalAnalyticsSummary,
   DigitalAccountType,
 } from '../../types/models';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 
 export type WalletsSubTab = 'transact' | 'accounts' | 'history' | 'analytics';
 
@@ -258,7 +267,7 @@ const getAccountDisplayInfo = (acc?: DigitalAccount | null) => {
       (b) => b.code === acc.provider || `instapay_${b.code}` === acc.provider
     );
     return {
-      name: bank ? bank.name : 'حساب إنستاباي (InstaPay)',
+      name: bank ? bank.name : 'حساب إنستاباي',
       badge: bank ? `إنستاباي • ${bank.badge}` : 'إنستاباي',
       border: 'border-violet-500/30',
       bgSoft: 'bg-violet-50 dark:bg-violet-950/25',
@@ -288,6 +297,79 @@ const getAccountDisplayInfo = (acc?: DigitalAccount | null) => {
     isBank: false,
   };
 };
+
+interface AccountIdentityRow {
+  key: string;
+  label: string;
+  display: string;
+  kind: 'phone' | 'address';
+}
+
+// Phone and InstaPay address are told to the customer, so each one that exists gets its own labelled row (phone first).
+// The host aliases phone and identifier to one value when only one was typed; receivingNumbers collapses that.
+const getAccountIdentityRows = (acc: DigitalAccount): AccountIdentityRow[] => {
+  const { primary, secondary } = receivingNumbers(acc);
+  const isInstapay = acc.accountType === 'instapay';
+  const values = [primary, secondary].filter((v) => v !== '');
+  values.sort((a, b) => Number(isNumericAccountValue(b)) - Number(isNumericAccountValue(a)));
+  let hasPhoneRow = false;
+  return values.map((raw) => {
+    if (isNumericAccountValue(raw)) {
+      const label = hasPhoneRow ? 'رقم الحساب' : isInstapay ? 'رقم الهاتف' : 'رقم المحفظة';
+      hasPhoneRow = true;
+      return { key: `phone-${raw}`, label, display: formatPhoneDisplay(raw), kind: 'phone' as const };
+    }
+    return {
+      key: `address-${raw}`,
+      label: isInstapay ? 'عنوان إنستاباي' : 'معرف إضافي',
+      display: raw,
+      kind: 'address' as const,
+    };
+  });
+};
+
+interface AccountFormValues {
+  name: string;
+  holder: string;
+  isDefault: boolean;
+  type: DigitalAccountType;
+  provider: string;
+  phone: string;
+  identifier: string;
+  balance: number;
+  dailyLimit: number;
+  monthlyLimit: number;
+  notes: string;
+}
+
+// A new account opens as an InstaPay account of the National Bank of Egypt with these names and limits
+const NEW_ACCOUNT_FORM: AccountFormValues = {
+  name: 'إنستاباي - الأهلي المصري',
+  holder: '',
+  isDefault: false,
+  type: 'instapay',
+  provider: 'nbe',
+  phone: '',
+  identifier: '',
+  balance: 0,
+  dailyLimit: 7000000,
+  monthlyLimit: 40000000,
+  notes: '',
+};
+
+const accountToFormValues = (acc: DigitalAccount): AccountFormValues => ({
+  name: acc.name,
+  holder: acc.holderName || '',
+  isDefault: acc.isDefault === true,
+  type: acc.accountType,
+  provider: acc.provider,
+  phone: acc.phoneNumber || '',
+  identifier: acc.identifier || '',
+  balance: acc.balancePiasters,
+  dailyLimit: acc.dailyLimitPiasters || (acc.accountType === 'instapay' ? 7000000 : 6000000),
+  monthlyLimit: acc.monthlyLimitPiasters || (acc.accountType === 'instapay' ? 40000000 : 20000000),
+  notes: acc.notes || '',
+});
 
 export const WalletsView: React.FC<WalletsViewProps> = ({
   isActive = true,
@@ -334,6 +416,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     }
     return activeTabRaw;
   }, [activeTabRaw, canManageAccounts, canFund, canViewHistory, canViewAnalytics, hasAgencyKiosk]);
+  const motionPanel = useMotionPanel(currentTab);
 
   // Data State
   const [accounts, setAccounts] = useState<DigitalAccount[]>([]);
@@ -387,11 +470,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [accountFormDailyLimit, setAccountFormDailyLimit] = useState<number>(7000000);
   const [accountFormMonthlyLimit, setAccountFormMonthlyLimit] = useState<number>(40000000);
   const [accountFormNotes, setAccountFormNotes] = useState('');
+  // The values the account form was opened with; "dirty" is the difference from it
+  const [accountFormBaseline, setAccountFormBaseline] = useState<AccountFormValues>(NEW_ACCOUNT_FORM);
   // Funding Modal
   const [isFundingModalOpen, setIsFundingModalOpen] = useState(false);
   const [fundingAccountId, setFundingAccountId] = useState('');
   const [fundingAmountPiasters, setFundingAmountPiasters] = useState<number>(0);
   const [fundingSource, setFundingSource] = useState<'cash_drawer' | 'bank_transfer' | 'external_cash'>('cash_drawer');
+  const fundingPanel = useMotionPanel(fundingSource);
   const [fundingNotes, setFundingNotes] = useState('');
   const [liveDrawerCashPiasters, setLiveDrawerCashPiasters] = useState<number | null>(null);
 
@@ -424,45 +510,36 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     confirmMessage: 'لقد قمت بإدخال بيانات لشحن الرصيد. هل أنت متأكد من الخروج وتجاهل العملية؟',
   });
 
-  const isAccountDirty = useCallback(() => {
-    if (editingAccount) {
-      return (
-        accountFormName !== editingAccount.name ||
-        accountFormHolder !== (editingAccount.holderName || '') ||
-        accountFormIsDefault !== (editingAccount.isDefault === true) ||
-        accountFormType !== editingAccount.accountType ||
-        accountFormProvider !== editingAccount.provider ||
-        accountFormPhone !== (editingAccount.phoneNumber || '') ||
-        accountFormIdentifier !== (editingAccount.identifier || '') ||
-        accountFormBalance !== editingAccount.balancePiasters ||
-        accountFormDailyLimit !== (editingAccount.dailyLimitPiasters || 7000000) ||
-        accountFormMonthlyLimit !== (editingAccount.monthlyLimitPiasters || 40000000) ||
-        accountFormNotes !== (editingAccount.notes || '')
-      );
-    }
-    return Boolean(
-      accountFormName.trim() ||
-      accountFormHolder.trim() ||
-      accountFormIsDefault ||
-      accountFormPhone.trim() ||
-      accountFormIdentifier.trim() ||
-      accountFormBalance > 0 ||
-      accountFormNotes.trim()
-    );
-  }, [
-    editingAccount,
-    accountFormName,
-    accountFormHolder,
-    accountFormIsDefault,
-    accountFormType,
-    accountFormProvider,
-    accountFormPhone,
-    accountFormIdentifier,
-    accountFormBalance,
-    accountFormDailyLimit,
-    accountFormMonthlyLimit,
-    accountFormNotes,
-  ]);
+  const isAccountDirty = useCallback(
+    () =>
+      isFormDirty<AccountFormValues>(accountFormBaseline, {
+        name: accountFormName,
+        holder: accountFormHolder,
+        isDefault: accountFormIsDefault,
+        type: accountFormType,
+        provider: accountFormProvider,
+        phone: accountFormPhone,
+        identifier: accountFormIdentifier,
+        balance: accountFormBalance,
+        dailyLimit: accountFormDailyLimit,
+        monthlyLimit: accountFormMonthlyLimit,
+        notes: accountFormNotes,
+      }),
+    [
+      accountFormBaseline,
+      accountFormName,
+      accountFormHolder,
+      accountFormIsDefault,
+      accountFormType,
+      accountFormProvider,
+      accountFormPhone,
+      accountFormIdentifier,
+      accountFormBalance,
+      accountFormDailyLimit,
+      accountFormMonthlyLimit,
+      accountFormNotes,
+    ],
+  );
 
   const { requestClose: requestCloseAccount, handleBackdropClick: handleAccountBackdropClick } = useModalDismiss({
     isOpen: isAccountModalOpen,
@@ -787,34 +864,20 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
   // Open Account Modal
   const handleOpenAccountModal = (acc?: DigitalAccount) => {
-    if (acc) {
-      setEditingAccount(acc);
-      setAccountFormName(acc.name);
-      setAccountFormHolder(acc.holderName || '');
-      setAccountFormIsDefault(acc.isDefault === true);
-      setAccountFormType(acc.accountType);
-      setAccountFormProvider(acc.provider);
-      setAccountFormPhone(acc.phoneNumber || '');
-      setAccountFormIdentifier(acc.identifier || '');
-      setAccountFormBalance(acc.balancePiasters);
-      setAccountFormDailyLimit(acc.dailyLimitPiasters || (acc.accountType === 'instapay' ? 7000000 : 6000000));
-      setAccountFormMonthlyLimit(acc.monthlyLimitPiasters || (acc.accountType === 'instapay' ? 40000000 : 20000000));
-      setAccountFormNotes(acc.notes || '');
-    } else {
-      setEditingAccount(null);
-      // Default to InstaPay with NBE (National Bank of Egypt)
-      setAccountFormType('instapay');
-      setAccountFormProvider('nbe');
-      setAccountFormName('إنستاباي - الأهلي المصري');
-      setAccountFormHolder('');
-      setAccountFormIsDefault(false);
-      setAccountFormPhone('');
-      setAccountFormIdentifier('');
-      setAccountFormBalance(0);
-      setAccountFormDailyLimit(7000000);
-      setAccountFormMonthlyLimit(40000000);
-      setAccountFormNotes('');
-    }
+    const values = acc ? accountToFormValues(acc) : NEW_ACCOUNT_FORM;
+    setEditingAccount(acc ?? null);
+    setAccountFormName(values.name);
+    setAccountFormHolder(values.holder);
+    setAccountFormIsDefault(values.isDefault);
+    setAccountFormType(values.type);
+    setAccountFormProvider(values.provider);
+    setAccountFormPhone(values.phone);
+    setAccountFormIdentifier(values.identifier);
+    setAccountFormBalance(values.balance);
+    setAccountFormDailyLimit(values.dailyLimit);
+    setAccountFormMonthlyLimit(values.monthlyLimit);
+    setAccountFormNotes(values.notes);
+    setAccountFormBaseline(values);
     setIsAccountModalOpen(true);
   };
 
@@ -1015,10 +1078,10 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   ];
 
   return (
-    <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
+    <div {...motionPanel} className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
       
       {/* 1. Standard Rafiq POS Top Header Bar */}
-      <header className="bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
+      <header className="motion-static bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid/30 flex items-center justify-center shrink-0 shadow-2xs">
             <Smartphone className="w-5 h-5 text-paid dark:text-paid-bright" />
@@ -1046,14 +1109,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         {/* Context-Aware Action Buttons - Only Relevant Actions per Tab */}
         {currentTab === 'accounts' && canManageAccounts && (
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleOpenAccountModal()}
-              className="h-9 px-3.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-bold hover:bg-brand-dark flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-98"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>إضافة محفظة / حساب بنكي</span>
-            </button>
+            <AppButton variant="primary" size="md" icon={PlusCircle} onClick={() => handleOpenAccountModal()}>
+              إضافة محفظة / حساب بنكي
+            </AppButton>
           </div>
         )}
       </header>
@@ -1073,14 +1131,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
             )}
             <span>{feedbackMsg.text}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setFeedbackMsg(null)}
-            className="p-1 hover:opacity-80 rounded-lg cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={() => setFeedbackMsg(null)} />
         </div>
       )}
 
@@ -1111,13 +1162,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 {accounts.length === 0 ? (
                   <div className="p-4 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl text-warn dark:text-warn-bright text-xs font-bold flex items-center justify-between">
                     <span>لا توجد محافظ أو حسابات إنستاباي مسجلة حالياً.</span>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAccountModal()}
-                      className="px-3 py-1.5 bg-warn hover:bg-warn/90 dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
-                    >
+                    <AppButton variant="warning" size="sm" onClick={() => handleOpenAccountModal()}>
                       إضافة حساب الآن
-                    </button>
+                    </AppButton>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1143,8 +1190,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted truncate max-w-[130px]">
-                              {acc.phoneNumber || acc.identifier || 'رقم الحساب'}
+                            <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted truncate max-w-[8.125rem]">
+                              {formatPhoneDisplay(acc.phoneNumber || acc.identifier) || 'رقم الحساب'}
                             </span>
                             <span className="text-xs font-black font-mono text-paid dark:text-paid-bright tabular-nums">
                               {formatArabicCurrency(acc.balancePiasters)}
@@ -1289,7 +1336,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 <div className="bg-paid-soft/50 dark:bg-paid-dark-soft/30 rounded-xl border border-paid-border dark:border-paid/30 p-3.5">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-black text-paid dark:text-paid-bright flex items-center gap-1.5">
-                      <TrendingUp className="w-4 h-4 text-paid dark:text-paid-bright" />
+                      <TrendingUp className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                       <span>ربح المحل / عمولة الوردية المكتسبة</span>
                     </label>
                     <span className="text-micro font-bold text-paid dark:text-paid-bright">
@@ -1344,7 +1391,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark flex flex-col gap-2">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-ink-muted dark:text-ink-dark-muted font-bold">الحساب النشط:</span>
-                      <span className="font-bold text-ink dark:text-white truncate max-w-[170px]">{selectedAccount.name}</span>
+                      <span className="font-bold text-ink dark:text-white truncate max-w-[10.625rem]">{selectedAccount.name}</span>
                     </div>
 
                     <div className="flex items-center justify-between text-xs">
@@ -1403,15 +1450,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   </div>
                 </div>
 
-                {/* Warning if balance is insufficient */}
-                {hasInsufficientBalance && (
-                  <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 rounded-xl text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
-                    <span>
-                      رصيد المحفظة الحالي ({formatArabicCurrency(selectedAccount?.balancePiasters || 0)}) غير كافٍ لإتمام العملية.
-                    </span>
-                  </div>
-                )}
+                {/* Warning if balance is insufficient: always mounted so the confirm button never moves */}
+                <div
+                  aria-hidden={!hasInsufficientBalance}
+                  className={`px-3 h-9 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 rounded-xl text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2 ${hasInsufficientBalance ? '' : 'invisible'}`}
+                >
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
+                  <span className="truncate">رصيد المحفظة غير كافٍ لإتمام العملية.</span>
+                </div>
 
                 {/* Auto print toggle card */}
                 <div
@@ -1452,34 +1498,25 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
                 {/* Primary Submit Button */}
                 <div ref={transactSaveBarRef} className="flex flex-col gap-2 rounded-xl">
-                {transactionDraftDirty && (
-                  <div role="status">
-                    <UnsavedChangesChip />
-                  </div>
-                )}
-                <button
-                  type="button"
+                <UnsavedChangesChip dirty={transactionDraftDirty} />
+                <AppButton
+                  variant={isCashOut ? 'danger' : 'success'}
+                  size="lg"
+                  fullWidth
+                  icon={CheckCircle2}
                   onClick={handleProcessTransaction}
                   disabled={actionLoading || amountPiasters <= 0 || hasInsufficientBalance}
-                  className={`h-12 w-full rounded-xl font-black text-sm text-white shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 disabled:pointer-events-none ${
-                    isCashOut
-                      ? 'bg-danger hover:bg-danger/90 dark:bg-danger-dark-fill dark:hover:bg-danger-dark-fill/90'
-                      : 'bg-paid hover:bg-paid-dark'
-                  }`}
                 >
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span>
-                    {actionLoading
-                      ? 'جاري حفظ المعاملة...'
-                      : autoPrintReceipt
-                        ? isCashOut
-                          ? 'تأكيد خصم المبلغ وحفظ الربح (مع طباعة الإيصال)'
-                          : 'تأكيد إضافة المبلغ وحفظ الربح (مع طباعة الإيصال)'
-                        : isCashOut
-                          ? 'تأكيد خصم المبلغ من المحفظة وحفظ الربح'
-                          : 'تأكيد إضافة المبلغ للمحفظة وحفظ الربح'}
-                  </span>
-                </button>
+                  {actionLoading
+                    ? 'جاري حفظ المعاملة...'
+                    : autoPrintReceipt
+                      ? isCashOut
+                        ? 'تأكيد خصم المبلغ وحفظ الربح (مع طباعة الإيصال)'
+                        : 'تأكيد إضافة المبلغ وحفظ الربح (مع طباعة الإيصال)'
+                      : isCashOut
+                        ? 'تأكيد خصم المبلغ من المحفظة وحفظ الربح'
+                        : 'تأكيد إضافة المبلغ للمحفظة وحفظ الربح'}
+                </AppButton>
                 </div>
               </div>
 
@@ -1495,14 +1532,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                         تمت المعاملة
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setLastProcessedTx(null)}
-                      className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg cursor-pointer"
-                      title="إخفاء"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                    <AppButton variant="subtle" size="xs" icon={X} aria-label="إخفاء" onClick={() => setLastProcessedTx(null)} />
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs bg-surface-2 dark:bg-surface-dark-2 p-2.5 rounded-xl font-mono">
@@ -1524,15 +1554,16 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="success"
+                    size="md"
+                    fullWidth
+                    icon={Printer}
                     onClick={() => void handlePrintWalletReceipt(lastProcessedTx)}
                     disabled={isPrintingWalletReceipt}
-                    className="w-full py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
                   >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>{isPrintingWalletReceipt ? 'جاري إرسال الإيصال للطابعة...' : 'طباعة إيصال المعاملة'}</span>
-                  </button>
+                    {isPrintingWalletReceipt ? 'جاري إرسال الإيصال للطابعة...' : 'طباعة إيصال المعاملة'}
+                  </AppButton>
                 </div>
               )}
 
@@ -1613,9 +1644,10 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 </p>
               </div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
               {accounts.map((acc) => {
                 const info = getAccountDisplayInfo(acc);
+                const identityRows = getAccountIdentityRows(acc);
                 const isLow = acc.balancePiasters < 50000;
                 const dailyLimit = acc.dailyLimitPiasters || (acc.accountType === 'instapay' ? 7000000 : 6000000);
                 const monthlyLimit = acc.monthlyLimitPiasters || (acc.accountType === 'instapay' ? 40000000 : 20000000);
@@ -1623,11 +1655,11 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 return (
                   <div
                     key={acc.id}
-                    className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 shadow-2xs flex flex-col justify-between gap-3.5 hover:shadow-xs transition-shadow"
+                    className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 shadow-2xs flex flex-col gap-3.5 hover:shadow-xs transition-shadow"
                   >
-                    <div>
-                      <div className="flex items-center justify-between mb-2.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-2.5">
+                        <div className="flex items-center flex-wrap gap-1.5 min-w-0">
                           <span className={`text-micro font-bold px-2.5 py-0.5 rounded-full border ${info.border} ${info.bgSoft} ${info.text} flex items-center gap-1`}>
                             {info.isBank ? <Landmark className="w-3 h-3" /> : <Smartphone className="w-3 h-3" />}
                             <span>{info.badge}</span>
@@ -1643,63 +1675,54 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1">
-                          {canFund && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenFundingModal(acc.id)}
-                              className="h-7 px-2.5 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright hover:bg-paid hover:text-white dark:hover:text-white text-micro font-bold transition-all cursor-pointer"
-                            >
-                              + شحن
-                            </button>
-                          )}
-                          {canManageAccounts && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenAccountModal(acc)}
-                                className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center justify-center transition-all cursor-pointer"
-                                title="تعديل بيانات الحساب"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteAccount(acc)}
-                                className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center justify-center transition-all cursor-pointer"
-                                title="حذف / أرشفة الحساب"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
                       </div>
 
-                      <h3 className="t-card-title text-ink dark:text-white mb-1">
+                      <h3 className="t-card-title text-ink dark:text-white mb-2 truncate" title={acc.name}>
                         {acc.name}
                       </h3>
-                      {acc.holderName && (
-                        <p className="text-xs font-bold text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5 min-w-0">
-                          <User className="w-3.5 h-3.5 shrink-0 text-ink-muted dark:text-ink-dark-muted" />
-                          <span className="truncate">{acc.holderName}</span>
-                        </p>
-                      )}
-                      <p className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted mb-3 truncate">
-                        {acc.identifier || acc.phoneNumber || 'بدون رقم مسجل'}
-                      </p>
-                      {canManageAccounts && acc.isDefault !== true && (
-                        <button
-                          type="button"
-                          onClick={() => void handleSetDefaultAccount(acc)}
-                          disabled={actionLoading}
-                          className="w-full h-8 mb-3 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 hover:border-brand dark:hover:border-brand-bright text-brand dark:text-brand-bright text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                          title="يظهر هذا الحساب للكاشير عند الدفع، ويُسجَّل فيه المبلغ المستلم"
-                        >
-                          <Star className="w-3.5 h-3.5 shrink-0" />
-                          <span>اجعله الرئيسي</span>
-                        </button>
-                      )}
+
+                      <div className="mb-3 rounded-xl border border-line dark:border-line-dark px-3 py-2 flex flex-col gap-1.5 min-w-0" data-testid="account-identity">
+                        {acc.holderName && (
+                          <div className="flex items-center justify-between gap-3 min-w-0" data-testid="account-holder-row">
+                            <span className="shrink-0 flex items-center gap-1.5 text-micro font-bold text-ink-muted dark:text-ink-dark-muted">
+                              <User className="w-3.5 h-3.5" />
+                              <span>اسم صاحب الحساب</span>
+                            </span>
+                            <span className="min-w-0 truncate text-sm font-bold text-ink dark:text-ink-dark" title={acc.holderName}>
+                              {acc.holderName}
+                            </span>
+                          </div>
+                        )}
+                        {identityRows.map((row) => (
+                          <div key={row.key} className="flex items-center justify-between gap-3 min-w-0" data-testid={`account-${row.kind}-row`}>
+                            <span className="shrink-0 flex items-center gap-1.5 text-micro font-bold text-ink-muted dark:text-ink-dark-muted">
+                              {row.kind === 'phone' ? <Phone className="w-3.5 h-3.5" /> : <AtSign className="w-3.5 h-3.5" />}
+                              <span>{row.label}</span>
+                            </span>
+                            <span
+                              dir="ltr"
+                              className={`min-w-0 text-left text-sm font-bold font-mono tabular-nums text-ink dark:text-ink-dark ${row.kind === 'phone' ? 'whitespace-nowrap' : 'break-all leading-snug'}`}
+                              title={row.display}
+                            >
+                              {row.display}
+                            </span>
+                          </div>
+                        ))}
+                        {identityRows.length === 0 && (
+                          <div className="flex items-center justify-between gap-2 min-w-0" data-testid="account-identity-empty">
+                            <span className="min-w-0 text-xs font-bold text-ink-muted dark:text-ink-dark-muted leading-snug">
+                              {acc.accountType === 'instapay'
+                                ? 'لم يُسجل رقم هاتف ولا عنوان إنستاباي بعد'
+                                : 'لم يُسجل رقم المحفظة بعد'}
+                            </span>
+                            {canManageAccounts && (
+                              <AppButton variant="soft" size="xs" icon={Plus} className="shrink-0" onClick={() => handleOpenAccountModal(acc)}>
+                                أضِف
+                              </AppButton>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark font-mono flex items-center justify-between">
                         <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-sans font-bold">
@@ -1717,6 +1740,51 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                       <span>حد يومي: {formatArabicCurrency(dailyLimit)}</span>
                       <span>حد شهري: {formatArabicCurrency(monthlyLimit)}</span>
                     </div>
+
+                    {(canFund || canManageAccounts) && (
+                      <div className="-mx-4 -mb-4 px-4 py-3 border-t border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 rounded-b-2xl flex flex-wrap items-center gap-2">
+                        {canFund && (
+                          <AppButton variant="successSoft" size="sm" icon={Plus} onClick={() => handleOpenFundingModal(acc.id)}>
+                            شحن
+                          </AppButton>
+                        )}
+                        {canManageAccounts && (
+                          <AppButton
+                            variant="secondary"
+                            size="sm"
+                            icon={Pencil}
+                            onClick={() => handleOpenAccountModal(acc)}
+                            title="تعديل بيانات الحساب"
+                          >
+                            تعديل
+                          </AppButton>
+                        )}
+                        {canManageAccounts && acc.isDefault !== true && (
+                          <AppButton
+                            variant="soft"
+                            size="sm"
+                            icon={Star}
+                            onClick={() => void handleSetDefaultAccount(acc)}
+                            disabled={actionLoading}
+                            title="يظهر هذا الحساب للكاشير عند الدفع، ويُسجَّل فيه المبلغ المستلم"
+                          >
+                            اجعله الرئيسي
+                          </AppButton>
+                        )}
+                        {canManageAccounts && (
+                          <AppButton
+                            variant="dangerSubtle"
+                            size="sm"
+                            icon={Trash2}
+                            className="ms-auto"
+                            onClick={() => handleDeleteAccount(acc)}
+                            title="حذف / أرشفة الحساب"
+                          >
+                            حذف
+                          </AppButton>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1733,67 +1801,63 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
             
             {/* Filter Bar */}
             <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-              <div className="flex items-center gap-3 flex-wrap flex-1">
-                <div className="relative min-w-[200px] flex-1 max-w-xs">
-                  <Search className="w-4 h-4 text-ink-muted absolute right-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={historySearch}
-                    onChange={(e) => setHistorySearch(e.target.value)}
-                    placeholder="بحث برقم الإيصال أو هاتف العميل..."
-                    className="w-full h-9 pr-9 pl-3 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl focus:border-brand outline-hidden"
-                  />
-                </div>
-
-                <div className="w-52">
-                  <CustomSelect
-                    value={filterAccount}
-                    onChange={(val) => setFilterAccount(val)}
-                    options={filterAccountOptions}
-                    size="sm"
-                  />
-                </div>
-
-                <div className="w-48">
-                  <CustomSelect
-                    value={filterType}
-                    onChange={(val) => setFilterType(val)}
-                    options={filterTypeOptions}
-                    size="sm"
-                  />
-                </div>
-
-                <DateFilterControl
-                  value={historyDateFilter}
-                  onChange={setHistoryDateFilter}
+              <div className="flex items-center gap-x-8 gap-y-3 flex-wrap flex-1">
+                <SearchInput
                   size="sm"
+                  value={historySearch}
+                  onChange={setHistorySearch}
+                  placeholder="بحث برقم الإيصال أو هاتف العميل..."
+                  ariaLabel="بحث في سجل عمليات المحافظ"
+                  className="min-w-[12.5rem] flex-1 max-w-sm"
                 />
 
-                {isHistoryFiltered && (
-                  <button
-                    type="button"
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="w-44">
+                    <CustomSelect
+                      value={filterAccount}
+                      onChange={(val) => setFilterAccount(val)}
+                      options={filterAccountOptions}
+                      size="sm"
+                    />
+                  </div>
+
+                  <div className="w-40">
+                    <CustomSelect
+                      value={filterType}
+                      onChange={(val) => setFilterType(val)}
+                      options={filterTypeOptions}
+                      size="sm"
+                    />
+                  </div>
+
+                  <DateFilterControl
+                    value={historyDateFilter}
+                    onChange={setHistoryDateFilter}
+                    size="sm"
+                    selectWidthClass="w-40"
+                  />
+
+                  <ClearFiltersButton
+                    active={isHistoryFiltered}
                     onClick={resetHistoryFilters}
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center gap-1.5 transition-colors cursor-pointer"
+                    label="إلغاء الفلترة"
                     title="إعادة تعيين الفلاتر"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>إلغاء الفلترة</span>
-                  </button>
-                )}
+                  />
+                </div>
               </div>
 
-              {totalPages <= 1 && (
-                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-mono">
-                  إجمالي السجلات: {totalCount}
+              <div className="w-40 shrink-0 flex flex-col items-end text-xs leading-4 font-bold">
+                <span className="text-ink-muted dark:text-ink-dark-muted font-mono min-h-4">
+                  {totalPages <= 1 ? `إجمالي السجلات: ${totalCount}` : ''}
                 </span>
-              )}
-            </div>
-
-            {isDateFilterActive(historyDateFilter) && (
-              <div className="text-xs font-bold text-brand-dark dark:text-brand-bright px-1">
-                الفترة المعروضة: {describeDateFilter(historyDateFilter)}
+                <span
+                  className="max-w-full truncate text-brand-dark dark:text-brand-bright"
+                  title={isDateFilterActive(historyDateFilter) ? describeDateFilter(historyDateFilter) : undefined}
+                >
+                  {`الفترة المعروضة: ${isDateFilterActive(historyDateFilter) ? describeDateFilter(historyDateFilter) : 'كل الفترات'}`}
+                </span>
               </div>
-            )}
+            </div>
 
             {isHistoryCapped && (
               <div className="text-xs font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 rounded-xl px-3 py-2">
@@ -1830,13 +1894,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                                   ? `لا توجد عمليات مطابقة في الفترة (${describeDateFilter(historyDateFilter)})`
                                   : 'لا توجد عمليات مسجلة مطابقة للبحث'}
                               </span>
-                              <button
-                                type="button"
-                                onClick={resetHistoryFilters}
-                                className="px-3 py-1.5 rounded-xl text-xs font-bold text-brand dark:text-brand-bright border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                              >
+                              <AppButton variant="secondary" size="sm" onClick={resetHistoryFilters}>
                                 عرض كل العمليات
-                              </button>
+                              </AppButton>
                             </div>
                           ) : (
                             'لا توجد عمليات مسجلة'
@@ -1891,7 +1951,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                                 <span className="whitespace-nowrap">{badgeLabel}</span>
                               </span>
                             </td>
-                            <td className="px-2.5 sm:px-3 font-bold text-ink dark:text-white whitespace-nowrap truncate max-w-[140px]" title={t.accountName || 'محفظة'}>
+                            <td className="px-2.5 sm:px-3 font-bold text-ink dark:text-white whitespace-nowrap truncate max-w-[8.75rem]" title={t.accountName || 'محفظة'}>
                               {t.accountName || 'محفظة'}
                             </td>
                             <td className="px-2.5 sm:px-3 font-mono font-bold text-ink dark:text-white whitespace-nowrap">
@@ -1903,7 +1963,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                             <td className="px-2.5 sm:px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
                               {t.balanceAfterFormatted}
                             </td>
-                            <td className="px-2.5 sm:px-3 text-ink-muted dark:text-ink-dark-muted font-mono whitespace-nowrap truncate max-w-[140px]">
+                            <td className="px-2.5 sm:px-3 text-ink-muted dark:text-ink-dark-muted font-mono whitespace-nowrap truncate max-w-[8.75rem]">
                               {isFundingTx ? (
                                 <span className="font-sans text-micro font-medium text-brand dark:text-brand-bright whitespace-nowrap">
                                   {t.paymentDestination === 'external_cash'
@@ -1913,43 +1973,43 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                                       : 'من درج الكاشير'}
                                 </span>
                               ) : (
-                                t.customerPhone ? `${t.customerPhone} ${t.customerName ? `(${t.customerName})` : ''}` : '—'
+                                t.customerPhone ? `${formatPhoneDisplay(t.customerPhone)} ${t.customerName ? `(${t.customerName})` : ''}` : '—'
                               )}
                             </td>
                             <td className="px-2.5 sm:px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap text-micro">
                               {formatLocalDateTime(t.createdAt)}
                             </td>
-                            <td className="px-2.5 sm:px-3 text-ink-muted dark:text-ink-dark-muted whitespace-nowrap truncate max-w-[90px]" title={t.createdByName || t.createdBy || 'كاشير'}>
+                            <td className="px-2.5 sm:px-3 text-ink-muted dark:text-ink-dark-muted whitespace-nowrap truncate max-w-[5.625rem]" title={t.createdByName || t.createdBy || 'كاشير'}>
                               {t.createdByName || t.createdBy || 'كاشير'}
                             </td>
                             <td className="px-2.5 sm:px-3 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1.5">
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="subtle"
+                                  size="xs"
+                                  icon={Printer}
+                                  aria-label="طباعة إيصال المعاملة"
+                                  title="طباعة إيصال المعاملة على الطابعة الحرارية"
                                   onClick={() => void handlePrintWalletReceipt(t)}
                                   disabled={isPrintingWalletReceipt}
-                                  className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-bright/15 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center disabled:opacity-50"
-                                  title="طباعة إيصال المعاملة على الطابعة الحرارية"
-                                >
-                                  <Printer className="w-4 h-4" />
-                                </button>
+                                />
                                 {isCancelled ? (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-micro font-bold bg-danger/10 text-danger dark:bg-danger/20 dark:text-danger-bright">
                                     ملغاة
                                   </span>
                                 ) : canCancelTx && t.txType !== 'sale_credit' && (t.txType as string) !== 'pos_sale' && (t.txType as string) !== 'pos_return' ? (
-                                  <button
-                                    type="button"
+                                  <AppButton
+                                    variant="dangerSoft"
+                                    size="xs"
+                                    icon={RotateCcw}
+                                    title="إلغاء المعاملة وتصحيح الرصيد"
                                     onClick={() => {
                                       setCancellingTx(t);
                                       setCancelReason('');
                                     }}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger/10 transition-colors cursor-pointer"
-                                    title="إلغاء المعاملة وتصحيح الرصيد"
                                   >
-                                    <RotateCcw className="w-3.5 h-3.5" />
-                                    <span>إلغاء</span>
-                                  </button>
+                                    إلغاء
+                                  </AppButton>
                                 ) : null}
                               </div>
                             </td>
@@ -2077,42 +2137,39 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       {/* ================================================================ */}
       {isFundingModalOpen && (
         <div onClick={handleFundingBackdropClick} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 border-b border-line dark:border-line-dark flex items-center justify-between">
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl max-w-xl w-full max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
               <h3 className="t-card-title text-ink dark:text-white m-0">
                 شحن وتغذية رصيد المحفظة / إنستاباي
               </h3>
-              <button
-                type="button"
-                onClick={() => void requestCloseFunding()}
-                className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={() => void requestCloseFunding()} />
             </div>
 
-            <div className="p-5 flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  المحفظة / الحساب المطلوب شحنه:
-                </label>
-                <CustomSelect
-                  value={fundingAccountId}
-                  onChange={(val) => setFundingAccountId(val)}
-                  options={accountSelectOptions}
-                />
-              </div>
+            <MotionHeight className="p-5 flex-1 min-h-0 overflow-y-auto">
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                    المحفظة / الحساب المطلوب شحنه:
+                  </label>
+                  <CustomSelect
+                    value={fundingAccountId}
+                    onChange={(val) => setFundingAccountId(val)}
+                    options={accountSelectOptions}
+                  />
+                </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  مبلغ الشحن / الإيداع: <RequiredMark />
-                </label>
-                <MoneyInput
-                  valuePiasters={fundingAmountPiasters}
-                  onChangePiasters={(val) => setFundingAmountPiasters(val)}
-                  className="text-xl font-black font-mono text-center h-12 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl"
-                  autoFocus
-                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                    مبلغ الشحن / الإيداع: <RequiredMark />
+                  </label>
+                  <MoneyInput
+                    valuePiasters={fundingAmountPiasters}
+                    onChangePiasters={(val) => setFundingAmountPiasters(val)}
+                    className="text-xl font-black font-mono text-center h-12 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl"
+                    autoFocus
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -2130,7 +2187,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 />
 
                 {fundingSource === 'cash_drawer' && (
-                  <div className="space-y-1.5 mt-1">
+                  <div {...fundingPanel} className="space-y-1.5 mt-1">
                     <div className="p-2 rounded-xl border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between">
                       <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-micro">كاش الدرج المتوفر حالياً:</span>
                       <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
@@ -2172,17 +2229,15 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 />
               </div>
             </div>
+            </MotionHeight>
 
-            <div className="p-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => void requestCloseFunding()}
-                className="h-9 px-4 rounded-xl text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-              >
+            <div className="p-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-end gap-2 shrink-0">
+              <AppButton variant="secondary" size="md" onClick={() => void requestCloseFunding()}>
                 إلغاء
-              </button>
-              <button
-                type="button"
+              </AppButton>
+              <AppButton
+                variant="success"
+                size="md"
                 onClick={handleSaveFunding}
                 disabled={
                   actionLoading ||
@@ -2191,10 +2246,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     liveDrawerCashPiasters !== null &&
                     (liveDrawerCashPiasters <= 0 || fundingAmountPiasters > liveDrawerCashPiasters))
                 }
-                className="h-9 px-5 rounded-xl bg-paid text-white text-xs font-black hover:bg-paid-dark shadow-xs cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {actionLoading ? 'جاري الشحن...' : 'تأكيد شحن الرصيد'}
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -2205,10 +2259,10 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       {/* ================================================================ */}
       {isAccountModalOpen && (
         <div onClick={handleAccountBackdropClick} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl max-w-2xl w-full max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             
             {/* Modal Header */}
-            <div className="p-4 border-b border-line dark:border-line-dark flex items-center justify-between">
+            <div className="p-4 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright flex items-center justify-center">
                   {accountFormType === 'instapay' ? <Landmark className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
@@ -2217,26 +2271,20 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   <h3 className="t-card-title text-ink dark:text-white m-0">
                     {editingAccount
                       ? (accountFormType === 'instapay' ? 'تعديل حساب إنستاباي البنكي' : 'تعديل محفظة الكاش')
-                      : (accountFormType === 'instapay' ? 'إضافة حساب إنستاباي (InstaPay) جديد' : 'إضافة محفظة كاش جديدة')}
+                      : (accountFormType === 'instapay' ? 'إضافة حساب إنستاباي جديد' : 'إضافة محفظة كاش جديدة')}
                   </h3>
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                     {accountFormType === 'instapay'
-                      ? 'ربط حساب بنكي معتمد بشبكة المدفوعات اللحظية IPN'
+                      ? 'ربط حساب بنكي معتمد بشبكة المدفوعات اللحظية'
                       : 'محفظة هاتف محمول نقدية لعمليات الشحن والسحب'}
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => void requestCloseAccount()}
-                className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={() => void requestCloseAccount()} />
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
+            <div className="p-5 flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto">
               <p className="text-micro text-ink-muted dark:text-ink-muted-dark -mb-2">الحقول المميزة بعلامة * مطلوبة</p>
               
               {/* Type Switcher / Locked Indicator */}
@@ -2259,7 +2307,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     <div className="flex items-center gap-2">
                       {accountFormType === 'instapay' ? <Landmark className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
                       <span className="text-xs font-black">
-                        {accountFormType === 'instapay' ? 'حساب إنستاباي بنكي (InstaPay IPN)' : 'محفظة هاتف كاش نقدية (Mobile Wallet)'}
+                        {accountFormType === 'instapay' ? 'حساب إنستاباي بنكي' : 'محفظة هاتف كاش نقدية'}
                       </span>
                     </div>
                     <span className="text-micro font-black px-2 py-0.5 rounded-md bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
@@ -2283,7 +2331,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                       }`}
                     >
                       <Landmark className="w-4 h-4" />
-                      <span>حساب إنستاباي (InstaPay)</span>
+                      <span>حساب إنستاباي</span>
                     </button>
 
                     <button
@@ -2296,83 +2344,83 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                       }`}
                     >
                       <Smartphone className="w-4 h-4" />
-                      <span>محفظة كاش (Wallet)</span>
+                      <span>محفظة كاش</span>
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Provider / Bank Dropdown - Dynamically Adjusted */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1.5">
-                  {accountFormType === 'instapay' ? (
-                    <>
-                      <Landmark className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-                      <span>اختر البنك المرتبط بـ إنستاباي (InstaPay Bank):</span>
-                    </>
-                  ) : (
-                    <>
-                      <Smartphone className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                      <span>اختر شركة / شبكة المحفظة (Wallet Network):</span>
-                    </>
-                  )}
-                </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4">
+                {/* Provider / Bank Dropdown - Dynamically Adjusted */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1.5">
+                    {accountFormType === 'instapay' ? (
+                      <>
+                        <Landmark className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                        <span>اختر البنك المرتبط بـ إنستاباي:</span>
+                      </>
+                    ) : (
+                      <>
+                        <Smartphone className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                        <span>اختر شركة / شبكة المحفظة:</span>
+                      </>
+                    )}
+                  </label>
                 
-                {accountFormType === 'instapay' ? (
-                  <CustomSelect
-                    value={accountFormProvider}
-                    onChange={(val) => handleProviderChange(val)}
-                    options={INSTAPAY_BANKS.map((b) => ({
-                      value: b.code,
-                      label: b.name,
-                    }))}
+                  {accountFormType === 'instapay' ? (
+                    <CustomSelect
+                      value={accountFormProvider}
+                      onChange={(val) => handleProviderChange(val)}
+                      options={INSTAPAY_BANKS.map((b) => ({
+                        value: b.code,
+                        label: b.name,
+                      }))}
+                    />
+                  ) : (
+                    <CustomSelect
+                      value={accountFormProvider}
+                      onChange={(val) => handleProviderChange(val)}
+                      options={EGYPTIAN_WALLETS.map((w) => ({
+                        value: w.code,
+                        label: w.name,
+                      }))}
+                    />
+                  )}
+                </div>
+
+                {/* Account Display Name */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                    اسم الحساب أو المحفظة في البرنامج: <RequiredMark />
+                  </label>
+                  <input
+                    type="text"
+                    value={accountFormName}
+                    onChange={(e) => setAccountFormName(e.target.value)}
+                    placeholder={accountFormType === 'instapay' ? 'مثال: إنستاباي - البنك الأهلي المصري' : 'مثال: فودافون كاش كاشير 1'}
+                    className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
+                    autoFocus
                   />
-                ) : (
-                  <CustomSelect
-                    value={accountFormProvider}
-                    onChange={(val) => handleProviderChange(val)}
-                    options={EGYPTIAN_WALLETS.map((w) => ({
-                      value: w.code,
-                      label: w.name,
-                    }))}
+                </div>
+
+                {/* Account holder name: what the customer sees when sending money */}
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="account-holder-name" className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                    اسم صاحب الحساب:
+                  </label>
+                  <input
+                    id="account-holder-name"
+                    type="text"
+                    value={accountFormHolder}
+                    onChange={(e) => setAccountFormHolder(e.target.value)}
+                    maxLength={60}
+                    placeholder="مثال: أحمد محمود السيد"
+                    className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
                   />
-                )}
-              </div>
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">الاسم الذي يظهر للزبون عند التحويل</span>
+                </div>
 
-              {/* Account Display Name */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  اسم الحساب أو المحفظة في البرنامج: <RequiredMark />
-                </label>
-                <input
-                  type="text"
-                  value={accountFormName}
-                  onChange={(e) => setAccountFormName(e.target.value)}
-                  placeholder={accountFormType === 'instapay' ? 'مثال: إنستاباي - البنك الأهلي المصري' : 'مثال: فودافون كاش كاشير 1'}
-                  className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
-                  autoFocus
-                />
-              </div>
-
-              {/* Account holder name: what the customer sees when sending money */}
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="account-holder-name" className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  اسم صاحب الحساب:
-                </label>
-                <input
-                  id="account-holder-name"
-                  type="text"
-                  value={accountFormHolder}
-                  onChange={(e) => setAccountFormHolder(e.target.value)}
-                  maxLength={60}
-                  placeholder="مثال: أحمد محمود السيد"
-                  className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
-                />
-                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">الاسم الذي يظهر للزبون عند التحويل</span>
-              </div>
-
-              {/* Specific Fields: Phone & IPA / Account Number */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Specific Fields: Phone & IPA / Account Number */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
                     {accountFormType === 'instapay' ? 'رقم الهاتف المسجل بإنستاباي:' : 'رقم هاتف المحفظة (أساسي):'}
@@ -2389,7 +2437,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                    {accountFormType === 'instapay' ? 'عنوان الدفع اللحظي (IPA) / المعرف:' : 'معرف إضافي أو كارت ميزة:'}
+                    {accountFormType === 'instapay' ? 'عنوان الدفع اللحظي / المعرف:' : 'معرف إضافي أو كارت ميزة:'}
                   </label>
                   <input
                     type="text"
@@ -2398,6 +2446,18 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     placeholder={accountFormType === 'instapay' ? 'username@instapay' : 'كارت ميزة / معرف'}
                     className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-left focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
                     dir="ltr"
+                  />
+                </div>
+
+                {/* Initial Balance */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                    الرصيد الافتتاحي الحالي في الحساب:
+                  </label>
+                  <MoneyInput
+                    valuePiasters={accountFormBalance}
+                    onChangePiasters={(val) => setAccountFormBalance(val)}
+                    className="text-lg font-black font-mono text-center h-11 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl"
                   />
                 </div>
               </div>
@@ -2421,18 +2481,6 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                         : 'يظهر هذا الحساب للكاشير عند الدفع عبر انستاباي أو المحفظة، ويُسجَّل فيه المبلغ المستلم'}
                   </span>
                 </div>
-              </div>
-
-              {/* Initial Balance */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  الرصيد الافتتاحي الحالي في الحساب:
-                </label>
-                <MoneyInput
-                  valuePiasters={accountFormBalance}
-                  onChangePiasters={(val) => setAccountFormBalance(val)}
-                  className="text-lg font-black font-mono text-center h-11 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl"
-                />
               </div>
 
               {/* Daily & Monthly Limits */}
@@ -2476,34 +2524,20 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between">
+            <div className="p-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
               {editingAccount ? (
-                <button
-                  type="button"
-                  onClick={() => handleDeleteAccount(editingAccount)}
-                  className="text-xs font-bold text-danger dark:text-danger-bright hover:underline cursor-pointer flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>حذف الحساب</span>
-                </button>
+                <AppButton variant="dangerSubtle" size="sm" icon={Trash2} onClick={() => handleDeleteAccount(editingAccount)}>
+                  حذف الحساب
+                </AppButton>
               ) : <div></div>}
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void requestCloseAccount()}
-                  className="h-9 px-4 rounded-xl text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-                >
+                <AppButton variant="secondary" size="md" onClick={() => void requestCloseAccount()}>
                   إلغاء
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveAccount}
-                  disabled={actionLoading || !accountFormName.trim()}
-                  className="h-9 px-5 rounded-xl bg-brand text-white text-xs font-black hover:bg-brand-dark shadow-xs cursor-pointer transition-all"
-                >
+                </AppButton>
+                <AppButton variant="primary" size="md" onClick={handleSaveAccount} disabled={actionLoading || !accountFormName.trim()}>
                   {actionLoading ? 'جاري الحفظ...' : 'حفظ بيانات الحساب'}
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -2513,46 +2547,40 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       {/* MODAL: CANCEL / REVERSE WALLET TRANSACTION */}
       {cancellingTx && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-md w-full p-6 shadow-2xl border border-line dark:border-line-dark" dir="rtl">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-line dark:border-line-dark" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
-              <h3 className="t-card-title text-danger flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-danger" />
+              <h3 className="t-card-title text-danger dark:text-danger-bright flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-danger dark:text-danger-bright" />
                 <span>إلغاء معاملة محفظة / إنستاباي</span>
               </h3>
-              <button
-                type="button"
-                onClick={() => setCancellingTx(null)}
-                className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setCancellingTx(null)} />
             </div>
 
             <div className="space-y-4">
               <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-xs flex flex-col gap-1.5">
                 <div className="flex justify-between font-bold">
-                  <span className="text-ink-muted">رقم العملية:</span>
-                  <span className="font-mono text-ink">{cancellingTx.transactionNumber}</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted">رقم العملية:</span>
+                  <span className="font-mono text-ink dark:text-ink-dark">{cancellingTx.transactionNumber}</span>
                 </div>
                 <div className="flex justify-between font-bold">
-                  <span className="text-ink-muted">الحساب:</span>
-                  <span className="text-ink">{cancellingTx.accountName || 'محفظة'}</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted">الحساب:</span>
+                  <span className="text-ink dark:text-ink-dark">{cancellingTx.accountName || 'محفظة'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-ink-muted">نوع العملية:</span>
-                  <span className="font-bold text-ink">{cancellingTx.txTypeArabic || (cancellingTx.txType === 'cash_out' ? 'سحب كاش' : 'إيداع')}</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted">نوع العملية:</span>
+                  <span className="font-bold text-ink dark:text-ink-dark">{cancellingTx.txTypeArabic || (cancellingTx.txType === 'cash_out' ? 'سحب كاش' : 'إيداع')}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-ink-muted">المبلغ:</span>
-                  <span className="font-mono font-bold text-ink">{cancellingTx.amountFormatted || formatArabicCurrency(cancellingTx.amountPiasters)}</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted">المبلغ:</span>
+                  <span className="font-mono font-bold text-ink dark:text-ink-dark">{cancellingTx.amountFormatted || formatArabicCurrency(cancellingTx.amountPiasters)}</span>
                 </div>
                 {cancellingTx.profitPiasters > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-ink-muted">الربح المحتسب:</span>
-                    <span className="font-mono font-bold text-paid">{cancellingTx.profitFormatted || formatArabicCurrency(cancellingTx.profitPiasters)}</span>
+                    <span className="text-ink-muted dark:text-ink-dark-muted">الربح المحتسب:</span>
+                    <span className="font-mono font-bold text-paid dark:text-paid-bright">{cancellingTx.profitFormatted || formatArabicCurrency(cancellingTx.profitPiasters)}</span>
                   </div>
                 )}
-                <div className="text-micro text-danger font-medium mt-1 pt-1 border-t border-line dark:border-line-dark">
+                <div className="text-micro text-danger dark:text-danger-bright font-medium mt-1 pt-1 border-t border-line dark:border-line-dark">
                   سيتم التراجع عن حركة الرصيد في المحفظة والدرج، ولا يمكن التراجع بعد الإلغاء.
                 </div>
               </div>
@@ -2564,27 +2592,23 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder="مثال: خطأ في إدخال الرقم / بناءً على طلب العميل"
-                  className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink placeholder:text-ink-muted/50 focus:bg-surface focus:border-brand focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 focus:bg-surface focus:border-brand focus:outline-none transition-all"
                 />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-line dark:border-line-dark mt-1">
-                <button
-                  type="button"
-                  onClick={() => setCancellingTx(null)}
-                  className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-2 border border-line text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
+                <AppButton variant="secondary" size="md" onClick={() => setCancellingTx(null)}>
                   تراجع
-                </button>
-                <button
-                  type="button"
+                </AppButton>
+                <AppButton
+                  variant="danger"
+                  size="md"
+                  icon={AlertTriangle}
                   disabled={isSubmittingCancel || !cancelReason.trim()}
                   onClick={handleCancelTransaction}
-                  className="px-4 py-2 bg-danger hover:bg-danger/90 text-white rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>{isSubmittingCancel ? 'جاري الإلغاء...' : 'تأكيد إلغاء العملية'}</span>
-                </button>
+                  {isSubmittingCancel ? 'جاري الإلغاء...' : 'تأكيد إلغاء العملية'}
+                </AppButton>
               </div>
             </div>
           </div>

@@ -47,9 +47,9 @@ const TERMINOLOGY_MAP: Record<string, StoreTerminology> = {
     packagingLevelPlaceholder: 'إضافة شريط أو قرص للأدوية',
   },
   clothing_apparel: {
-    sizeLabel: 'المقاس (Size)',
+    sizeLabel: 'المقاس',
     sizePlaceholder: 'مثلاً: S, M, L, XL, 32, 34...',
-    colorLabel: 'اللون (Color)',
+    colorLabel: 'اللون',
     colorPlaceholder: 'مثلاً: أسود، كحلي، أبيض، رمادي...',
     modelOrCodeLabel: 'كود الموديل (SKU)',
     modelOrCodePlaceholder: 'مثلاً: MOD-2026-X',

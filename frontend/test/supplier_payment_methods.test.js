@@ -28,7 +28,7 @@ describe('Supplier Payment Methods: InstaPay & Vodafone Cash Support', () => {
     assert.ok(modalContent.includes("value: 'vodafone_cash'"), 'Modal has vodafone_cash option');
     assert.ok(modalContent.includes("value: 'external_cash'"), 'Modal has external_cash option');
     assert.ok(modalContent.includes("value: 'cash_drawer'"), 'Modal has cash_drawer option');
-    assert.ok(modalContent.includes('تحويل إنستاباي - InstaPay'), 'Arabic label for instapay');
+    assert.ok(modalContent.includes('تحويل إنستاباي'), 'Arabic label for instapay');
     assert.ok(modalContent.includes('محفظة فودافون كاش'), 'Arabic label for vodafone_cash');
   });
 

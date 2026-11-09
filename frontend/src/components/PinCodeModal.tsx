@@ -6,7 +6,6 @@ import {
   X, 
   AlertTriangle, 
   Delete, 
-  Loader2, 
   LifeBuoy, 
   CheckCircle2, 
   Copy, 
@@ -16,6 +15,7 @@ import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RequiredMark } from './RequiredMark';
 import { normalizeTokenOrKey } from '../utils/tokenNormalizer';
+import { AppButton } from './AppButton';
 
 export interface PinCodeModalProps {
   isOpen: boolean;
@@ -264,8 +264,9 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
           <button
             type="button"
             onClick={requestClose}
-            className="p-1 rounded-lg text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition-colors"
+            className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3"
             title="إلغاء (Esc)"
+            aria-label="إغلاق"
           >
             <X className="w-5 h-5" />
           </button>
@@ -290,25 +291,21 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                 <span className="font-mono text-base font-bold text-paid dark:text-paid-bright tracking-wider">
                   {newRecoveryCodeGenerated}
                 </span>
-                <button
-                  type="button"
-                  onClick={copyRecoveryCode}
-                  className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark text-xs font-semibold rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark flex items-center gap-1.5 transition-colors"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-paid dark:text-paid-bright" /> : <Copy className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />}
-                  <span>{copied ? 'تم النسخ' : 'نسخ'}</span>
-                </button>
+                <AppButton variant="secondary" size="xs" icon={copied ? Check : Copy} onClick={copyRecoveryCode}>
+                  {copied ? 'تم النسخ' : 'نسخ'}
+                </AppButton>
               </div>
 
-              <button
-                type="button"
+              <AppButton
+                variant="primary"
+                fullWidth
+                className="mt-2"
                 onClick={() => {
                   onSuccess();
                 }}
-                className="w-full py-2.5 bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white font-bold rounded-xl text-sm transition-colors mt-2 shadow-xs"
               >
                 متابعة العملية
-              </button>
+              </AppButton>
             </div>
           ) : isRecoveryMode ? (
             /* Recovery Code Form */
@@ -365,24 +362,25 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
               </div>
 
               <div className="flex gap-2 pt-2">
-                <button
+                <AppButton
                   type="submit"
-                  disabled={loading || !recoveryCode.trim() || !newPin.trim()}
-                  className="flex-1 py-2.5 bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
+                  variant="primary"
+                  icon={KeyRound}
+                  loading={loading}
+                  disabled={!recoveryCode.trim() || !newPin.trim()}
+                  className="flex-1"
                 >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-                  <span>إعادة تعيين الرقم</span>
-                </button>
-                <button
-                  type="button"
+                  إعادة تعيين الرقم
+                </AppButton>
+                <AppButton
+                  variant="secondary"
                   onClick={() => {
                     setIsRecoveryMode(false);
                     setError(null);
                   }}
-                  className="px-3 py-2.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark font-bold rounded-xl text-xs text-ink dark:text-ink-dark transition-colors"
                 >
                   رجوع
-                </button>
+                </AppButton>
               </div>
             </form>
           ) : (
@@ -425,7 +423,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                       void handleVerify();
                     }
                   }}
-                  className="w-full max-w-[240px] px-4 py-2.5 bg-surface dark:bg-surface-dark-2 rounded-2xl border border-line dark:border-line-dark shadow-2xs text-center text-xl font-mono text-ink dark:text-ink-dark caret-brand dark:caret-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright read-only:opacity-60"
+                  className="w-full max-w-[15rem] px-4 py-2.5 bg-surface dark:bg-surface-dark-2 rounded-2xl border border-line dark:border-line-dark shadow-2xs text-center text-xl font-mono text-ink dark:text-ink-dark caret-brand dark:caret-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright read-only:opacity-60"
                   aria-label="الرقم السري"
                   autoFocus
                 />
@@ -434,76 +432,71 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
               {/* On-Screen Numeric Keypad */}
               <div className="grid grid-cols-3 gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                  <button
+                  <AppButton
                     key={num}
-                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    className="!text-lg font-mono"
                     disabled={isLocked || loading}
                     onClick={() => handleKeypadPress(num.toString())}
-                    className="h-11 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-lg font-bold font-mono text-ink dark:text-ink-dark transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
                   >
                     {num}
-                  </button>
+                  </AppButton>
                 ))}
-                <button
-                  type="button"
-                  disabled={isLocked || loading || pin.length === 0}
-                  onClick={handleClear}
-                  className="h-11 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-warn-soft dark:hover:bg-warn-dark-soft border border-line dark:border-line-dark text-xs font-bold text-warn dark:text-warn-bright transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
-                >
+                <AppButton variant="warningSoft" size="lg" disabled={isLocked || loading || pin.length === 0} onClick={handleClear}>
                   مسح
-                </button>
-                <button
-                  type="button"
+                </AppButton>
+                <AppButton
+                  variant="secondary"
+                  size="lg"
+                  className="!text-lg font-mono"
                   disabled={isLocked || loading}
                   onClick={() => handleKeypadPress('0')}
-                  className="h-11 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-lg font-bold font-mono text-ink dark:text-ink-dark transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
                 >
                   0
-                </button>
-                <button
-                  type="button"
+                </AppButton>
+                <AppButton
+                  variant="dangerSoft"
+                  size="lg"
+                  aria-label="حذف"
+                  title="حذف"
                   disabled={isLocked || loading || pin.length === 0}
                   onClick={handleBackspace}
-                  className="h-11 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-line dark:border-line-dark flex items-center justify-center text-danger dark:text-danger-bright transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
-                  title="حذف"
                 >
                   <Delete className="w-5 h-5" />
-                </button>
+                </AppButton>
               </div>
 
               {/* Action Buttons */}
               <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  disabled={isLocked || loading || pin.length < 4}
+                <AppButton
+                  variant="primary"
+                  icon={Lock}
+                  loading={loading}
+                  disabled={isLocked || pin.length < 4}
                   onClick={() => void handleVerify()}
-                  className="flex-1 py-2.5 bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
+                  className="flex-1"
                 >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                  <span>تأكيد الرقم (Enter)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="px-3.5 py-2.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark font-bold rounded-xl text-xs text-ink dark:text-ink-dark transition-colors shadow-2xs"
-                >
+                  تأكيد الرقم (Enter)
+                </AppButton>
+                <AppButton variant="secondary" onClick={handleClose}>
                   إلغاء
-                </button>
+                </AppButton>
               </div>
 
               {/* Forgot PIN / Emergency Recovery Link */}
               <div className="text-center pt-1 border-t border-line dark:border-line-dark">
-                <button
-                  type="button"
+                <AppButton
+                  variant="subtle"
+                  size="xs"
+                  icon={LifeBuoy}
                   onClick={() => {
                     setIsRecoveryMode(true);
                     setError(null);
                   }}
-                  className="text-micro font-semibold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-colors flex items-center justify-center gap-1 mx-auto"
                 >
-                  <LifeBuoy className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                  <span>نسيت الرقم السري؟ استخدام رمز استرجاع الطوارئ</span>
-                </button>
+                  نسيت الرقم السري؟ استخدام رمز استرجاع الطوارئ
+                </AppButton>
               </div>
             </div>
           )}

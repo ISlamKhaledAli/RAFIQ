@@ -9,7 +9,6 @@ import {
   Truck,
   TrendingDown,
   Clock,
-  ArrowRight,
   ShieldAlert,
   ChevronLeft,
   DollarSign,
@@ -18,7 +17,7 @@ import {
   PackageX
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
-import { printReport } from '../../utils/printReport';
+import { usePrintReport } from '../../hooks/usePrintReport';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
@@ -39,6 +38,10 @@ import type {
   BatchSummary
 } from '../../types/models';
 
+import { AppButton } from '../../components/AppButton';
+import { ClickableCard, ClickableChevron, ClickableHint } from '../../components/ClickableCard';
+import { useNavAccess } from '../../hooks/useNavAccess';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 const PERIOD_OPTIONS: SelectOption[] = [
   { value: 'today', label: 'اليوم' },
   { value: 'week', label: 'آخر 7 أيام' },
@@ -63,6 +66,10 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   onNavigateToProductEdit,
   onNavigateToPurchases
 }) => {
+  const navAccess = useNavAccess();
+  const openProducts = onNavigateToProducts && navAccess.products ? onNavigateToProducts : undefined;
+  const openPurchases = onNavigateToPurchases && navAccess.purchases ? onNavigateToPurchases : undefined;
+
   const [period, setPeriod] = useState<string>('month');
   const [customFrom, setCustomFrom] = useState<string>(() => defaultCustomReportRange().from);
   const [customTo, setCustomTo] = useState<string>(() => defaultCustomReportRange().to);
@@ -78,6 +85,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
 
   const [activeSection, setActiveSection] = useState<InventorySection>('shrinkage');
+  const motionPanel = useMotionPanel(activeSection);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -120,9 +128,11 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
     0
   );
 
-  const handlePrint = () => {
-    void printReport({ kind: 'a4only' });
-  };
+  const { print: handlePrint, printing } = usePrintReport({
+    reportName: 'تقرير تحليلات المخزون',
+    kind: 'a4only',
+    hasData: overview !== null,
+  });
 
   if (showLoading && !overview) {
     return (
@@ -184,22 +194,16 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
             />
           )}
 
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="h-10 px-4 rounded-lg bg-brand-dark dark:bg-brand-bright dark:text-surface-dark hover:bg-brand dark:hover:bg-brand-bright/90 text-white text-sm font-bold flex items-center gap-2 transition-colors shadow-2xs cursor-pointer"
-            title="طباعة التقرير"
-          >
-            <Printer className="w-4 h-4" />
-            <span>طباعة التقرير</span>
-          </button>
+          <AppButton variant="primary" icon={Printer} onClick={handlePrint} loading={printing} title="طباعة التقرير">
+            طباعة التقرير
+          </AppButton>
         </div>
       </div>
 
       {/* 2. Top Inventory Valuation KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 shrink-0">
         {/* KPI 1: Inventory Cost Valuation */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">قيمة المخزون (بالتكلفة)</span>
             <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
@@ -213,7 +217,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         </div>
 
         {/* KPI 2: Inventory Retail Valuation */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">قيمة المخزون (بالبيع)</span>
             <DollarSign className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
@@ -227,7 +231,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         </div>
 
         {/* KPI 3: Potential Gross Profit */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">الربح المحتمل بالمخزن</span>
             <Layers className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
@@ -241,9 +245,11 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         </div>
 
         {/* KPI 4: Out of Stock */}
-        <div 
-          onClick={() => onNavigateToProducts && onNavigateToProducts('catalog', 'outOfStock')}
-          className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-danger/40 dark:hover:border-danger-bright/40 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px] cursor-pointer transition-colors group"
+        <ClickableCard
+          tone="danger"
+          onClick={openProducts ? () => openProducts('catalog', 'outOfStock') : undefined}
+          title="عرض الأصناف اللي رصيدها صفر في إدارة المخزن"
+          className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]"
         >
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold group-hover:text-danger dark:group-hover:text-danger-bright transition-colors">أصناف رصيدها صفر</span>
@@ -254,14 +260,16 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
           </div>
           <div className="text-xs text-ink-muted dark:text-ink-dark-muted flex items-center justify-between">
             <span>نافدة بالكامل</span>
-            <ArrowRight className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted group-hover:text-danger dark:group-hover:text-danger-bright" />
+            {openProducts && <ClickableHint label="عرض الأصناف" />}
           </div>
-        </div>
+        </ClickableCard>
 
         {/* KPI 5: Low Stock */}
-        <div 
-          onClick={() => onNavigateToProducts && onNavigateToProducts('catalog', 'lowStock')}
-          className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-warn/40 dark:hover:border-warn-bright/40 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px] cursor-pointer transition-colors group"
+        <ClickableCard
+          tone="warn"
+          onClick={openProducts ? () => openProducts('catalog', 'lowStock') : undefined}
+          title="عرض الأصناف اللي تحت حد الطلب في إدارة المخزن"
+          className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]"
         >
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold group-hover:text-warn dark:group-hover:text-warn-bright transition-colors">أصناف تحت حد الطلب</span>
@@ -272,12 +280,12 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
           </div>
           <div className="text-xs text-ink-muted dark:text-ink-dark-muted flex items-center justify-between">
             <span>تحتاج إعادة طلب</span>
-            <ArrowRight className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted group-hover:text-warn dark:group-hover:text-warn-bright" />
+            {openProducts && <ClickableHint label="عرض الأصناف" />}
           </div>
-        </div>
+        </ClickableCard>
 
         {/* KPI 6: Turnover Rate */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]">
           <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
             <span className="text-sm font-bold">معدل دوران المخزون</span>
             <Clock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
@@ -302,7 +310,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
       </div>
 
       {/* 4. Dynamic Tab Content */}
-      <div className="flex-1 pb-4">
+      <div {...motionPanel} className="flex-1 pb-4">
         {/* SECTION A: Shrinkage & Loss Analysis */}
         {activeSection === 'shrinkage' && (
           <div className="space-y-5">
@@ -402,8 +410,8 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                       shrinkage.topShrinkageProducts.map((it, idx) => (
                         <tr key={`${it.productId}-${idx}`} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                           <td className="py-3.5 px-3.5 font-bold text-ink dark:text-ink-dark">{it.productName}</td>
-                          <td className="py-3.5 px-3.5 text-danger dark:text-danger-bright">
-                            <span className="font-mono font-bold">{(Math.abs(it.quantityDeltaMilli) / 1000).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(it.unit)}
+                          <td className="py-3.5 px-3.5 font-mono font-bold text-danger dark:text-danger-bright">
+                            {(Math.abs(it.quantityDeltaMilli) / 1000).toLocaleString('ar-EG-u-nu-latn')} {formatUnitArabic(it.unit)}
                           </td>
                           <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                             {formatArabicCurrency(it.unitCostPiasters)}
@@ -470,14 +478,14 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                           <div className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || '—'}</div>
                         </td>
                         <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
-                        <td className="py-3.5 px-3.5 font-bold text-danger dark:text-danger-bright">
-                          <span className="font-mono">{(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(item.unit)}
+                        <td className="py-3.5 px-3.5 font-mono font-bold text-danger dark:text-danger-bright">
+                          {(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {formatUnitArabic(item.unit)}
                         </td>
-                        <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-dark-muted">
-                          <span className="font-mono">{(item.minStockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(item.unit)}
+                        <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
+                          {(item.minStockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {formatUnitArabic(item.unit)}
                         </td>
-                        <td className="py-3.5 px-3.5 font-bold text-paid dark:text-paid-bright">
-                          <span dir="ltr" className="font-mono">+{((item.suggestedOrderMilli / 1000)).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(item.unit)}
+                        <td className="py-3.5 px-3.5 font-mono font-bold text-paid dark:text-paid-bright">
+                          <span dir="ltr">+{((item.suggestedOrderMilli / 1000)).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(item.unit)}
                         </td>
                         <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {formatArabicCurrency(item.unitCostPiasters)}
@@ -542,16 +550,20 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                 <div className="text-xs text-paid-dark dark:text-paid-bright">دفعات مقدمة لنا عند الموردين</div>
               </div>
 
-              <div 
-                onClick={() => onNavigateToPurchases && onNavigateToPurchases()}
-                className="bg-brand-soft/50 dark:bg-brand-soft/10 border border-brand/30 dark:border-brand-bright/30 hover:bg-brand-soft dark:hover:bg-brand-soft/20 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px] cursor-pointer transition-colors"
-              >
-                <div className="text-xs font-bold text-brand-dark dark:text-brand-bright">إدارة فواتير المشتريات</div>
-                <div className="text-xs text-brand dark:text-brand-bright mt-1 flex items-center justify-between">
-                  <span>فتح شاشة المشتريات</span>
-                  <ChevronLeft className="w-4 h-4 text-brand-dark dark:text-brand-bright" />
-                </div>
-              </div>
+              {openPurchases && (
+                <ClickableCard
+                  tone="brand"
+                  onClick={openPurchases}
+                  title="فتح شاشة فواتير المشتريات"
+                  className="bg-brand-soft/50 dark:bg-brand-soft/10 border border-brand/30 dark:border-brand-bright/30 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[7.75rem]"
+                >
+                  <div className="text-xs font-bold text-brand-dark dark:text-brand-bright">إدارة فواتير المشتريات</div>
+                  <div className="text-xs text-brand dark:text-brand-bright mt-1 flex items-center justify-between">
+                    <span>فتح شاشة المشتريات</span>
+                    <ClickableChevron className="w-4 h-4" />
+                  </div>
+                </ClickableCard>
+              )}
             </div>
 
             <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
@@ -642,15 +654,11 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
             <div className="text-sm text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-xl border border-line dark:border-line-dark flex items-center gap-1.5 flex-wrap">
               <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
               <span>يمكنك إدارة وطباعة الباركود الخاص بكل دفعة عبر قسم{' '}</span>
-              <button
-                type="button"
-                onClick={() => onNavigateToProducts && onNavigateToProducts('batches')}
-                className="font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer inline-flex items-center gap-1"
-              >
+              <AppButton variant="soft" size="xs" disabled={!openProducts} onClick={() => openProducts?.('batches')}>
                 <span>السلع والمخزن</span>
                 <ChevronLeft className="w-3 h-3" />
                 <span>الدفعات وتواريخ الصلاحية</span>
-              </button>
+              </AppButton>
             </div>
           </div>
         )}
@@ -658,13 +666,13 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         {/* SECTION E: Dead Stock Radar */}
         {activeSection === 'deadstock' && (
           <DeadStockRadar 
-            onNavigateToProduct={(productId) => {
+            onNavigateToProduct={navAccess.products ? (productId) => {
               if (onNavigateToProductEdit) {
                 onNavigateToProductEdit(productId);
               } else if (onNavigateToProducts) {
                 onNavigateToProducts('catalog');
               }
-            }} 
+            } : undefined}
           />
         )}
       </div>

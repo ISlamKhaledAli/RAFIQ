@@ -124,7 +124,7 @@ namespace RafiqPOS.Common
             {
                 Key = "feature_expiry_dates",
                 NameAr = "تواريخ الصلاحية وتشغيلات البضاعة",
-                DescriptionAr = "متابعة تواريخ انتهاء الصلاحية والتنبيهات وسياسة صرف الأقدم أولاً (FEFO).",
+                DescriptionAr = "متابعة تواريخ انتهاء الصلاحية والتنبيهات وسياسة صرف الأقدم أولاً.",
                 Category = "المخزون والتشغيلات",
                 DefaultValue = false,
                 OwnedCommands = new List<string>
@@ -511,7 +511,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_cafe_restaurant",
-                NameAr = "وضع الكافيهات والمطاعم (Hospitality Mode)",
+                NameAr = "وضع الكافيهات والمطاعم",
                 Category = "الكافيهات والمطاعم",
                 DescriptionAr = "تفعيل واجهة الكافيهات والمطاعم في الكاشير (اختيار نوع الطلب صالة/تيك أواي/دليفري، رقم النداء اليومي، ورسوم الخدمة)",
                 DefaultValue = false,
@@ -523,7 +523,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_table_management",
-                NameAr = "إدارة الصالة والطاولات (Floor & Tables)",
+                NameAr = "إدارة الصالة والطاولات",
                 Category = "الكافيهات والمطاعم",
                 DescriptionAr = "خريطة الطاولات التفاعلية، فتح الطلبات باسم الويتر وعدد الضيوف، نقل الطاولات، دمجها، وتقسيم الحساب بالأصناف",
                 DefaultValue = false,
@@ -554,9 +554,9 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_kitchen_printer",
-                NameAr = "طابعة المطبخ والبار (Kitchen & Bar KOT)",
+                NameAr = "طابعة المطبخ والبار",
                 Category = "الكافيهات والمطاعم",
-                DescriptionAr = "طباعة بون التحضير للمطبخ والبار بدون أسعار وبخط واضح مع تتبع الكميات المضافة فقط (Delta KOT)",
+                DescriptionAr = "طباعة بون التحضير للمطبخ والبار بدون أسعار وبخط واضح مع تتبع الكميات المضافة فقط",
                 DefaultValue = false,
                 Requires = new List<string> { "feature_cafe_restaurant" },
                 OwnedCommands = new List<string>
@@ -574,7 +574,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_item_modifiers",
-                NameAr = "إضافات وتخصيصات الأصناف (Item Modifiers)",
+                NameAr = "إضافات وتخصيصات الأصناف",
                 Category = "الكافيهات والمطاعم",
                 DescriptionAr = "مجموعات الإضافات والتخصيصات المجانية والمدفوعة لكل صنف (مثل مستوى السكر، نوع الحليب، الإضافات الخاصة)",
                 DefaultValue = false,
@@ -596,7 +596,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_delivery_management",
-                NameAr = "إدارة الدليفري والطيارين (Delivery & Riders)",
+                NameAr = "إدارة الدليفري والطيارين",
                 Category = "الكافيهات والمطاعم",
                 DescriptionAr = "مناطق التوصيل ورسومها، إسناد الطلبات للطيارين، تتبع حالة التوصيل، وتصفية عهدة الطيارين النقدية",
                 DefaultValue = false,
@@ -622,7 +622,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_manufacturing_recipes",
-                NameAr = "الرسبي والتصنيع وخصم الخامات (Recipes / BOM)",
+                NameAr = "الرسبي والتصنيع وخصم الخامات",
                 Category = "الكافيهات والمطاعم",
                 DescriptionAr = "ربط الأصناف بمكوناتها الخام مع الخصم التلقائي بالملي/الجرام عند البيع أو عبر أوامر الإنتاج المجمع",
                 DefaultValue = false,

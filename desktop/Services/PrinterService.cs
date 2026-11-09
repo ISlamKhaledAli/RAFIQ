@@ -26,6 +26,18 @@ namespace RafiqPOS.Services
         public bool Success { get; set; }
         public string Message { get; set; }
         public string PrinterUsed { get; set; }
+        // رمز ثابت للواجهة عند فشل معروف السبب (مثل PRINTER_NOT_FOUND)، وفارغ للأعطال العامة
+        public string ErrorCode { get; set; }
+    }
+
+    public class PrinterStatusInfo
+    {
+        // true عند وجود طابعة فعلية واحدة على الأقل (طابعات الملفات الافتراضية في ويندوز لا تُحسب)
+        public bool HasPrinter { get; set; }
+        public int PrinterCount { get; set; }
+        public string DefaultPrinter { get; set; }
+        public string ConfiguredPrinter { get; set; }
+        public bool ConfiguredFound { get; set; }
     }
 
     public class RecoveryVoucherRequest
@@ -271,6 +283,11 @@ namespace RafiqPOS.Services
             try
             {
                 string selectedPrinter = ResolvePrinterName(printerName);
+                PrintResult missingTestPrinter = CheckPrinterAvailable(selectedPrinter, "");
+                if (missingTestPrinter != null)
+                {
+                    return missingTestPrinter;
+                }
                 string selectedWidth = paperWidth ?? GetConfiguredPaperWidth();
 
                 var testSale = new Sale
@@ -331,6 +348,11 @@ namespace RafiqPOS.Services
             }
 
             string targetPrinter = ResolvePrinterName(printerName);
+            PrintResult missingPrinter = CheckPrinterAvailable(targetPrinter, string.Format("الفاتورة رقم #{0} محفوظة بأمان ويمكن حفظ الإيصال كصورة.", sale.InvoiceNumber));
+            if (missingPrinter != null)
+            {
+                return missingPrinter;
+            }
             string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
             bool isCompact = IsCompactPaper(targetWidth);
 
@@ -2298,6 +2320,11 @@ namespace RafiqPOS.Services
             }
 
             string targetPrinter = ResolvePrinterName(printerName);
+            PrintResult missingReturnPrinter = CheckPrinterAvailable(targetPrinter, "المرتجع محفوظ بأمان.");
+            if (missingReturnPrinter != null)
+            {
+                return missingReturnPrinter;
+            }
             string configuredWidth = GetConfiguredPaperWidth();
             int printWidth = (paperWidth.HasValue && paperWidth.Value > 0)
                 ? paperWidth.Value
@@ -2549,6 +2576,11 @@ namespace RafiqPOS.Services
             }
 
             string targetPrinter = ResolvePrinterName(printerName);
+            PrintResult missingClosingPrinter = CheckPrinterAvailable(targetPrinter, "الإقفال محفوظ بأمان ويمكن إعادة طباعته لاحقاً.");
+            if (missingClosingPrinter != null)
+            {
+                return missingClosingPrinter;
+            }
             string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
             int printWidth = GetContentWidthPoints(targetWidth);
 
@@ -2950,28 +2982,108 @@ namespace RafiqPOS.Services
 
         private string ResolvePrinterName(string explicitPrinter)
         {
-            if (!string.IsNullOrWhiteSpace(explicitPrinter))
+            string configured = _settings != null ? _settings.Get("default_printer_name", "") : "";
+            List<string> installed = ReadInstalledPrinterNames();
+            if (installed == null)
             {
-                return explicitPrinter;
+                // تعذر سرد الطابعات من ويندوز: السلوك القديم بدل حجب الطباعة بسبب قراءة فاشلة
+                if (!string.IsNullOrWhiteSpace(explicitPrinter)) return explicitPrinter;
+                if (!string.IsNullOrWhiteSpace(configured)) return configured;
+                return ReadWindowsDefaultPrinter();
             }
 
-            if (_settings != null)
+            PrinterResolution resolution = PrinterNameResolver.Resolve(explicitPrinter, configured, installed, ReadWindowsDefaultPrinter());
+            if (resolution.FellBack)
             {
-                string configured = _settings.Get("default_printer_name", "");
-                if (!string.IsNullOrWhiteSpace(configured))
-                {
-                    return configured;
-                }
+                Logger.Warn(string.Format("الطابعة المحفوظة '{0}' غير مثبتة، تم استخدام طابعة ويندوز الافتراضية '{1}'.", configured, resolution.Name));
             }
+            return resolution.Name;
+        }
 
+        private static List<string> ReadInstalledPrinterNames()
+        {
             try
             {
-                return new PrinterSettings().PrinterName;
+                List<string> names = new List<string>();
+                foreach (string printer in PrinterSettings.InstalledPrinters)
+                {
+                    names.Add(printer);
+                }
+                return names;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر قراءة قائمة الطابعات: " + ex.Message);
+                return null;
+            }
+        }
+
+        private static string ReadWindowsDefaultPrinter()
+        {
+            try
+            {
+                return new PrinterSettings().PrinterName ?? "";
             }
             catch
             {
                 return "";
             }
+        }
+
+        /// <summary>
+        /// حالة الطابعات للواجهة قبل الطباعة: لا طابعة فعلية يعني التحويل مباشرة إلى حفظ التقرير كملف.
+        /// </summary>
+        public PrinterStatusInfo GetPrinterStatus()
+        {
+            string configured = _settings != null ? (_settings.Get("default_printer_name", "") ?? "").Trim() : "";
+            List<string> installed = ReadInstalledPrinterNames();
+            if (installed == null)
+            {
+                // القراءة فشلت: لا نمنع المحاولة، والتعامل مع فشل الطباعة يتم بعدها
+                return new PrinterStatusInfo { HasPrinter = true, PrinterCount = 0, DefaultPrinter = ReadWindowsDefaultPrinter(), ConfiguredPrinter = configured, ConfiguredFound = true };
+            }
+
+            return new PrinterStatusInfo
+            {
+                HasPrinter = PrinterNameResolver.CountRealPrinters(installed) > 0 || RawPrinterHelper.IsNetworkPrinter(configured),
+                PrinterCount = installed.Count,
+                DefaultPrinter = ReadWindowsDefaultPrinter(),
+                ConfiguredPrinter = configured,
+                ConfiguredFound = configured.Length == 0 || RawPrinterHelper.IsNetworkPrinter(configured) || PrinterNameResolver.ContainsPrinter(installed, configured)
+            };
+        }
+
+        /// <summary>
+        /// null عندما تكون الطابعة صالحة (مثبتة أو عنوان شبكة)، وإلا نتيجة فاشلة برمز PRINTER_NOT_FOUND ورسالة عربية واضحة.
+        /// </summary>
+        private PrintResult CheckPrinterAvailable(string printerName, string documentHint)
+        {
+            if (RawPrinterHelper.IsNetworkPrinter(printerName)) return null;
+
+            List<string> installed = ReadInstalledPrinterNames();
+            if (installed == null) return null;
+
+            if (string.IsNullOrWhiteSpace(printerName))
+            {
+                return new PrintResult
+                {
+                    Success = false,
+                    ErrorCode = "PRINTER_NOT_FOUND",
+                    Message = "لا توجد طابعة مثبتة على هذا الجهاز. ثبّت تعريف الطابعة أو اختر طابعة من إعدادات الطباعة. " + documentHint
+                };
+            }
+
+            if (!PrinterNameResolver.ContainsPrinter(installed, printerName))
+            {
+                return new PrintResult
+                {
+                    Success = false,
+                    ErrorCode = "PRINTER_NOT_FOUND",
+                    PrinterUsed = printerName,
+                    Message = string.Format("الطابعة '{0}' غير موجودة على هذا الجهاز أو غير مثبتة. تأكد من تشغيلها وتثبيت تعريفها أو اختر طابعة أخرى من إعدادات الطباعة. {1}", printerName, documentHint)
+                };
+            }
+            return null;
         }
 
         private string GetConfiguredPaperWidth()
@@ -4202,7 +4314,7 @@ namespace RafiqPOS.Services
             g.DrawString(sName, fontStore, Brushes.Black, new RectangleF(margin, y, usableWidth, isCompact ? 16f : 20f), centerFormat);
             y += isCompact ? 16f : 20f;
 
-            g.DrawString("نظام رفيق لإدارة المتاجر ونقاط البيع (Rafiq POS)", fontSub, Brushes.Black, new RectangleF(margin, y, usableWidth, 14f), centerFormat);
+            g.DrawString("نظام رفيق لإدارة المتاجر ونقاط البيع", fontSub, Brushes.Black, new RectangleF(margin, y, usableWidth, 14f), centerFormat);
             y += 14f;
 
             if (!string.IsNullOrWhiteSpace(request.Phone))

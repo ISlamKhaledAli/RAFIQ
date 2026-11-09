@@ -11,6 +11,7 @@ import {
 import { ReceiptModal } from '../components/ReceiptModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UndoToast } from '../components/UndoToast';
+import { useExitValue } from '../hooks/useExitTransition';
 import { WeightInputModal } from '../components/WeightInputModal';
 import { QuickItemsManagerModal } from '../components/QuickItemsManagerModal';
 import { QuickFastItemModal } from '../components/QuickFastItemModal';
@@ -206,6 +207,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     return null;
   });
   const [undoItem, setUndoItem] = useState<{ item: CartItem; index: number } | null>(null);
+  const undoToast = useExitValue(undoItem);
   const [weightModalProduct, setWeightModalProduct] = useState<{
     id?: string;
     name: string;
@@ -944,9 +946,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           kotPrintedQtyMilli: it.quantityMilli,
         }))
       );
-      showStatus(res?.message || 'تم إرسال طلب المطبخ والبار (KOT)', 'success');
+      showStatus(res?.message || 'تم إرسال طلب المطبخ والبار', 'success');
     } catch (err) {
-      showStatus(err instanceof Error ? err.message : 'تعذر طباعة تذكرة المطبخ KOT', 'error');
+      showStatus(err instanceof Error ? err.message : 'تعذر طباعة تذكرة المطبخ', 'error');
     } finally {
       setKotPrinting(false);
     }
@@ -1353,7 +1355,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
     // Story 137 / Feature #194: Hard lock checkout when severe DDI is un-overridden
     if (isDdiActive && ddiResult && ddiResult.hasInteractions && ddiResult.maxSeverity === 'severe' && !isDdiOverridden) {
-      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة (Severe DDI)! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
+      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
       setIsDdiModalOpen(true);
       return;
     }
@@ -2494,7 +2496,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
     // Story 137 / Feature #194: Hard lock fast cash checkout (F12) when severe DDI is un-overridden
     if (isDdiActive && ddiResult && ddiResult.hasInteractions && ddiResult.maxSeverity === 'severe' && !isDdiOverridden) {
-      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة (Severe DDI)! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
+      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
       setIsDdiModalOpen(true);
       return;
     }
@@ -2687,7 +2689,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       <div className="flex-1 flex flex-row overflow-hidden">
         
         {/* ================= REGION A: BARCODE SEARCH & CART TABLE ================= */}
-        <section className={`${showFastItems ? 'flex-1 min-w-[360px]' : 'flex-1'} h-full bg-surface dark:bg-surface-dark hairline-l flex flex-col overflow-hidden`}>
+        <section className={`${showFastItems ? 'flex-1 min-w-[22.5rem]' : 'flex-1'} h-full bg-surface dark:bg-surface-dark hairline-l flex flex-col overflow-hidden`}>
           {showCafeMode && (
             <PosOrderModeBar
               orderType={orderType}
@@ -3028,10 +3030,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       />
 
       {/* 5. UNDO REMOVED ITEM TOAST (Feature #112 / Task 112-3) */}
-      {undoItem && (
+      {undoToast.value && (
         <UndoToast
-          message={`تم حذف الصنف "${undoItem.item.productName}" من السلة.`}
+          message={`تم حذف الصنف "${undoToast.value.item.productName}" من السلة.`}
           durationMs={6000}
+          exiting={undoToast.exiting}
           onUndo={handleUndoRemove}
           onDismiss={handleDismissUndo}
         />

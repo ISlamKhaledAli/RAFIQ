@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AppButton } from './AppButton';
 
 interface Props {
   children: ReactNode;
@@ -43,14 +44,9 @@ export class ErrorBoundary extends Component<Props, State> {
               تم حفظ وحماية جميع البيانات في قاعدة البيانات بأمان. يمكنك إعادة تحميل الواجهة للمتابعة.
             </p>
 
-            <button
-              type="button"
-              onClick={this.handleReload}
-              className="w-full py-2.5 px-4 bg-brand hover:bg-brand-hover text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>إعادة تشغيل وتنشيط الواجهة بأمان</span>
-            </button>
+            <AppButton variant="primary" fullWidth icon={RefreshCw} onClick={this.handleReload}>
+              إعادة تشغيل وتنشيط الواجهة بأمان
+            </AppButton>
           </div>
         </div>
       );

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Users, 
-  Search, 
   Plus, 
   CreditCard, 
   FileText, 
@@ -11,7 +10,6 @@ import {
   FileSpreadsheet,
   Download,
   Trash2,
-  Loader2,
   HeartPulse,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
@@ -19,6 +17,7 @@ import { useDataSubscription } from '../utils/eventBus';
 import { normalizeArabicNumerals, formatArabicCurrency } from '../utils/money';
 import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
 import { exportCustomersToExcel } from '../utils/excelImport';
+import { formatPhoneDisplay } from '../utils/phoneFormat';
 import type { Customer, CustomerLedgerEntry, CustomerImportPreviewResult, CustomerImportResult, CustomerBalanceVerification } from '../types/models';
 import { CustomerFormModal } from './customers/CustomerFormModal';
 import { CustomerPaymentModal } from './customers/CustomerPaymentModal';
@@ -29,6 +28,9 @@ import { PatientProfileModal } from './customers/PatientProfileModal';
 import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
 import { PaginationBar } from '../components/PaginationBar';
+import { AppButton } from '../components/AppButton';
+import { SearchInput } from '../components/SearchInput';
+import { useDebouncedValue } from '../utils/useDebouncedValue';
 import { useClientPagination } from '../utils/usePagination';
 import { RafiqTableLoading } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
@@ -49,6 +51,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
   const canViewLedger = hasPermission('customers.ledger');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const appliedQueryRef = useRef('');
   const [filterType, setFilterType] = useState<'all' | 'debtors' | 'settled'>('all');
   const [isLoading, setIsLoading] = useState(false);
   const showLoading = useSmoothLoading(isLoading, 300);
@@ -229,7 +232,11 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
   const loadCustomers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await invoke<Customer[]>('customers:getAll', { limit: 200 });
+      // Refreshes (after a save or a data event) keep honouring the text that is currently applied
+      const query = appliedQueryRef.current;
+      const data = query.trim()
+        ? await invoke<Customer[]>('customers:search', { query })
+        : await invoke<Customer[]>('customers:getAll', { limit: 200 });
       setCustomers(data || []);
     } catch {
       // Offline fallback
@@ -248,22 +255,17 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
     void loadCustomers();
   });
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) {
-      void loadCustomers();
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const results = await invoke<Customer[]>('customers:search', { query: searchQuery });
-      setCustomers(results || []);
-    } catch {
-      // Search fallback
-    } finally {
-      setIsLoading(false);
-    }
+  const applyCustomerSearch = (value: string) => {
+    appliedQueryRef.current = value;
+    void loadCustomers();
   };
+
+  const debouncedSearchQuery = useDebouncedValue(searchQuery);
+  useEffect(() => {
+    if (debouncedSearchQuery === appliedQueryRef.current) return;
+    appliedQueryRef.current = debouncedSearchQuery;
+    void loadCustomers();
+  }, [debouncedSearchQuery, loadCustomers]);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
@@ -654,61 +656,55 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
               <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">عميل</span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-emerald-900/40 flex items-center justify-center text-paid dark:text-paid-bright shadow-2xs shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border flex items-center justify-center text-paid dark:text-paid-bright shadow-2xs shrink-0">
             <Users className="w-4.5 h-4.5" />
           </div>
         </div>
       </section>
 
       {/* 2. TOOLBAR (Search, filter tabs, new customer button) */}
-      <div className="min-h-[50px] py-1.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl px-3 sm:px-4 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap shrink-0 shadow-2xs">
-        <form onSubmit={handleSearch} className="flex items-center gap-1.5 flex-1 max-w-sm">
-          <div className="relative flex-1">
-            <input 
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
-              placeholder="ابحث بالاسم أو الهاتف..."
-              className="w-full h-8.5 pl-8 pr-3 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:ring-1 focus:ring-brand/30 dark:focus:ring-brand-bright/30 focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark transition-all placeholder:text-ink-muted/70 dark:placeholder:text-ink-dark-muted/70"
-            />
-            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute left-2.5 top-2 pointer-events-none" />
-          </div>
-          <button 
-            type="submit" 
-            className="h-8.5 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg text-xs font-bold text-ink dark:text-ink-dark cursor-pointer transition-colors shadow-2xs"
-          >
-            بحث
-          </button>
-        </form>
+      <div className="min-h-[3.125rem] py-1.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl px-3 sm:px-4 flex items-center justify-between gap-x-8 gap-y-2 flex-wrap sm:flex-nowrap shrink-0 shadow-2xs">
+        <SearchInput
+          size="sm"
+          value={searchQuery}
+          onChange={(value) => setSearchQuery(normalizeArabicNumerals(value))}
+          onSubmit={applyCustomerSearch}
+          placeholder="ابحث بالاسم أو الهاتف..."
+          ariaLabel="بحث في العملاء"
+          className="flex-1 max-w-sm"
+        />
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           {/* Filters */}
           <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-lg border border-line dark:border-line-dark text-xs">
             <button
+              type="button"
               onClick={() => setFilterType('all')}
               className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 filterType === 'all' 
-                  ? 'bg-brand-dark text-white shadow-xs' 
+                  ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs' 
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-surface dark:hover:bg-surface-dark'
               }`}
             >
               الكل
             </button>
             <button
+              type="button"
               onClick={() => setFilterType('debtors')}
               className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 filterType === 'debtors' 
-                  ? 'bg-danger text-white shadow-xs' 
+                  ? 'bg-danger dark:bg-danger-dark-soft text-white dark:text-danger-bright dark:ring-1 dark:ring-inset dark:ring-danger-bright/40 shadow-xs' 
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-surface dark:hover:bg-surface-dark'
               }`}
             >
               عليهم فلوس
             </button>
             <button
+              type="button"
               onClick={() => setFilterType('settled')}
               className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 filterType === 'settled' 
-                  ? 'bg-paid text-white shadow-xs' 
+                  ? 'bg-paid dark:bg-paid-dark-soft text-white dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40 shadow-xs' 
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright hover:bg-surface dark:hover:bg-surface-dark'
               }`}
             >
@@ -718,38 +714,36 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
 
           {/* Import from Excel Button */}
           {canCreateCustomer && (
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="sm"
             onClick={() => { setIsImportModalOpen(true); setImportError(null); setImportResult(null); }}
-            className="flex items-center gap-1.5 h-8.5 px-2.5 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
             title="استيراد عملاء وديونهم الافتتاحية من ملف إكسل"
+            aria-label="استيراد إكسل"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
             <span className="hidden xl:inline">استيراد إكسل</span>
-          </button>
+          </AppButton>
           )}
 
           {/* Export to Excel Button */}
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="sm"
             onClick={() => void handleExportCustomersToExcel()}
             disabled={isExportingExcel || customers.length === 0}
-            className="flex items-center gap-1.5 h-8.5 px-2.5 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
             title="تصدير كشف حسابات وأرصدة العملاء والديون إلى ملف إكسل"
+            aria-label="تصدير إكسل"
           >
             <Download className={`w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0 ${isExportingExcel ? 'animate-bounce' : ''}`} />
             <span className="hidden xl:inline">{isExportingExcel ? 'تصدير...' : 'تصدير إكسل'}</span>
-          </button>
+          </AppButton>
 
           {/* Add Customer Button */}
           {canCreateCustomer && (
-          <button
-            onClick={openAddModal}
-            className="flex items-center gap-1.5 h-8.5 px-3 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 active:scale-[0.98] text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>عميل جديد</span>
-          </button>
+          <AppButton variant="primary" size="sm" icon={Plus} onClick={openAddModal} className="shrink-0">
+            عميل جديد
+          </AppButton>
           )}
         </div>
       </div>
@@ -797,7 +791,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                         {cust.phone ? (
                           <div className="flex items-center gap-1.5">
                             <Phone className="w-3.5 h-3.5 hidden xl:block text-ink-muted dark:text-ink-dark-muted" />
-                            <span>{cust.phone}</span>
+                            <span>{formatPhoneDisplay(cust.phone)}</span>
                           </div>
                         ) : (
                           <span className="text-ink-muted/40 dark:text-ink-dark-muted/40">غير مسجل</span>
@@ -845,7 +839,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                       </td>
 
                       {/* Date */}
-                      <td className="px-3 hidden xl:table-cell text-ink-muted dark:text-ink-dark-muted text-micro tabular-nums">
+                      <td className="px-3 hidden xl:table-cell text-ink-muted dark:text-ink-dark-muted text-xs tabular-nums">
                         {cust.createdAt ? new Date(cust.createdAt).toLocaleDateString('ar-EG-u-nu-latn') : '---'}
                       </td>
 
@@ -854,70 +848,68 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                         <div className="flex items-center justify-center gap-1">
                           {/* Settle Debt or Deposit Advance Button */}
                           {canRecordPayment && (
-                          <button
+                          <AppButton
+                            variant="successSoft"
+                            size="xs"
+                            icon={CreditCard}
                             onClick={() => openPaymentModal(cust)}
                             title={hasDebt ? "تسجيل دفعة سداد دين" : "إيداع دفعة نقدية تحت الحساب (أمانات)"}
-                            className="flex items-center gap-1 h-7.5 px-2.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright hover:bg-paid hover:text-white dark:hover:bg-paid dark:hover:text-white border border-paid/20 dark:border-emerald-800/40 active:scale-95"
                           >
-                            <CreditCard className="w-3.5 h-3.5" />
-                            <span>{hasDebt ? 'سداد' : 'إيداع'}</span>
-                          </button>
+                            {hasDebt ? 'سداد' : 'إيداع'}
+                          </AppButton>
                           )}
 
                           {/* Statement Button */}
                           {canViewLedger && (
-                          <button
+                          <AppButton
+                            variant="secondary"
+                            size="xs"
                             onClick={() => openStatementModal(cust)}
                             title="كشف حساب العميل"
-                            className="flex items-center gap-1 h-7.5 px-2.5 whitespace-nowrap rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-brand dark:text-brand-bright hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                            aria-label="كشف حساب"
                           >
                             <FileText className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                             <span className="hidden xl:inline">كشف حساب</span>
-                          </button>
+                          </AppButton>
                           )}
 
                           {/* Patient Profile Button (Story 133 / Feature #190) */}
                           {isEnabled('feature_patient_profiles') && hasPermission('patients.view') && (
-                            <button
+                            <AppButton
+                              variant="soft"
+                              size="xs"
+                              icon={HeartPulse}
                               onClick={() => setPatientModalCustomer(cust)}
                               title="الملف الطبي والأمراض المزمنة للمريض"
-                              className="flex items-center gap-1 h-7.5 px-2.5 rounded-xl bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright hover:bg-brand hover:text-white dark:hover:bg-brand-bright dark:hover:text-surface-dark text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                              aria-label="الملف الطبي"
                             >
-                              <HeartPulse className="w-3.5 h-3.5" />
                               <span className="hidden xl:inline">الملف الطبي</span>
-                            </button>
+                            </AppButton>
                           )}
 
                           {/* Edit Button */}
                           {canEditCustomer && (
-                          <button
+                          <AppButton
+                            variant="secondary"
+                            size="xs"
+                            icon={Edit2}
                             onClick={() => openEditModal(cust)}
                             title="تعديل بيانات العميل"
-                            className="w-7.5 h-7.5 flex items-center justify-center rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors shadow-2xs cursor-pointer"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                            aria-label="تعديل بيانات العميل"
+                          />
                           )}
 
                           {canEditCustomer && (
-                            <button
+                            <AppButton
+                              variant="dangerSubtle"
+                              size="xs"
+                              icon={Trash2}
+                              loading={archivingCustomerId === cust.id}
                               onClick={() => void handleArchiveCustomer(cust)}
                               title={hasDebt ? 'لا يمكن الحذف — يوجد دين مستحق' : archivingCustomerId === cust.id ? 'جاري الحذف...' : 'حذف العميل'}
-                              disabled={hasDebt || archivingCustomerId === cust.id}
-                              className={`w-7.5 h-7.5 flex items-center justify-center rounded-xl border transition-colors shadow-2xs cursor-pointer ${
-                                hasDebt
-                                  ? 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink-muted/40 dark:text-ink-dark-muted/40 cursor-not-allowed opacity-40'
-                                  : archivingCustomerId === cust.id
-                                  ? 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-danger dark:text-danger-bright opacity-75 cursor-wait'
-                                  : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark text-danger/80 dark:text-danger-bright hover:text-white dark:hover:text-white hover:bg-danger dark:hover:bg-danger hover:border-danger'
-                              }`}
-                            >
-                              {archivingCustomerId === cust.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-danger dark:text-danger-bright" />
-                              ) : (
-                                <Trash2 className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                              aria-label="حذف العميل"
+                              disabled={hasDebt}
+                            />
                           )}
                         </div>
                       </td>

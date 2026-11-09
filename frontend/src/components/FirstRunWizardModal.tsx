@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Apple,
   ArrowLeft,
@@ -7,7 +7,6 @@ import {
   Check,
   Coffee,
   Flame,
-  Loader2,
   Milk,
   Package,
   Pill,
@@ -23,9 +22,12 @@ import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { rafiqConfirm } from '../utils/dialogService';
 import { RequiredMark } from './RequiredMark';
+import { AppButton } from './AppButton';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import { SetupChecklist } from './SetupChecklist';
 import type { SetupChecklistTarget } from './SetupChecklist';
-import { INITIAL_STORE_TEMPLATES, type StoreTemplateDto } from '../constants/storeTemplates';
+import type { StoreTemplateDto } from '../constants/storeTemplates';
+import { pickWizardTemplateId, resolveWizardTemplates } from '../utils/wizardTemplates';
 export type { StoreTemplateDto };
 
 export interface FirstRunWizardModalProps {
@@ -55,6 +57,7 @@ interface ApplyTemplateResponse {
 const WIZARD_STORAGE_KEY = 'rafiq_wizard_state';
 const DEFAULT_TEMPLATE_ID = 'supermarket';
 const TOTAL_STEPS = 2;
+const PLACEHOLDER_CARD_COUNT = 6;
 const INPUT_CLASS =
   'w-full h-11 px-3.5 bg-surface dark:bg-surface-dark-2 border rounded-[6px] text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted outline-none focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors';
 
@@ -89,8 +92,7 @@ const readDraft = (): Partial<WizardDraft> => {
   }
 };
 
-export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
-  isOpen,
+const FirstRunWizardContent: React.FC<Omit<FirstRunWizardModalProps, 'isOpen'>> = ({
   onClose,
   onCompleted,
   isFirstRun = false,
@@ -100,22 +102,23 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   const [draft] = useState<Partial<WizardDraft>>(() => (isFirstRun ? readDraft() : {}));
   const [step, setStep] = useState<WizardStep>(draft.step ?? 1);
   const [completed, setCompleted] = useState(false);
+  const motionPanel = useMotionPanel(completed ? 'done' : String(step));
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [templates, setTemplates] = useState<StoreTemplateDto[]>(INITIAL_STORE_TEMPLATES);
+  const [templates, setTemplates] = useState<StoreTemplateDto[]>([]);
+  const [isReady, setIsReady] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(draft.selectedTemplateId ?? DEFAULT_TEMPLATE_ID);
   const [storeName, setStoreName] = useState(draft.storeName ?? '');
   const [phone, setPhone] = useState(draft.phone ?? '');
   const [address, setAddress] = useState(draft.address ?? '');
-  const prefilledRef = useRef(false);
 
   const handleDismiss = () => {
     if (completed) onCompleted();
     else onClose();
   };
   const { requestClose, handleBackdropClick } = useModalDismiss({
-    isOpen: isOpen && !isFirstRun && !isApplying,
+    isOpen: !isFirstRun && !isApplying,
     onDismiss: handleDismiss,
     isDirty: false,
   });
@@ -131,43 +134,39 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     }
   }, [isFirstRun, completed, step, selectedTemplateId, storeName, phone, address]);
 
+  // The list, the saved store data and the selection are resolved together so the cards render once, already final
   useEffect(() => {
-    if (!isOpen) return;
     let active = true;
-    let available: StoreTemplateDto[] = INITIAL_STORE_TEMPLATES;
     (async () => {
+      let list: StoreTemplateDto[];
       try {
-        const tplList = await invoke<StoreTemplateDto[]>('templates:getAll');
-        if (!active || !Array.isArray(tplList)) return;
-        const cleanList = tplList.filter((t) => t.id !== 'accessories_gifts');
-        if (cleanList.length > 0) {
-          available = cleanList;
-          setTemplates(cleanList);
-          setSelectedTemplateId((prev) => (cleanList.some((t) => t.id === prev) ? prev : cleanList[0].id));
-        }
+        list = resolveWizardTemplates(await invoke<StoreTemplateDto[]>('templates:getAll'));
       } catch (err: unknown) {
         console.error('Failed to load store templates:', err);
+        list = resolveWizardTemplates(null);
       }
-      if (isFirstRun || prefilledRef.current) return;
-      try {
-        const saved = await invoke<Record<string, string>>('settings:getAll');
-        if (!active || !saved) return;
-        prefilledRef.current = true;
+      let saved: Record<string, string> | null = null;
+      if (!isFirstRun) {
+        try {
+          saved = await invoke<Record<string, string>>('settings:getAll');
+        } catch (err: unknown) {
+          console.error('Failed to load saved store data:', err);
+        }
+      }
+      if (!active) return;
+      setTemplates(list);
+      setSelectedTemplateId((prev) => pickWizardTemplateId(list, saved?.store_type, prev));
+      if (saved) {
         setStoreName((prev) => prev || saved.store_name || '');
         setPhone((prev) => prev || saved.store_phone || '');
         setAddress((prev) => prev || saved.store_address || '');
-        if (saved.store_type) {
-          const savedType = saved.store_type;
-          setSelectedTemplateId((prev) => (available.some((t) => t.id === savedType) ? savedType : prev));
-        }
-      } catch (err: unknown) {
-        console.error('Failed to load saved store data:', err);
       }
+      setIsReady(true);
     })();
     return () => {
       active = false;
     };
-  }, [isOpen, isFirstRun]);
+  }, [isFirstRun]);
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0];
 
@@ -204,7 +203,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   };
 
   const handleNext = () => {
-    if (isApplying) return;
+    if (isApplying || (step === 1 && !isReady)) return;
     if (step === 1) {
       setError(null);
       setStep(2);
@@ -235,14 +234,23 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
-
   const stepTitle = completed ? 'النظام جاهز للعمل' : step === 1 ? 'اختر نوع نشاط محلك' : 'بيانات المحل';
   const stepHint = completed
     ? 'تم ضبط ميزات نشاطك وحفظ بيانات المحل.'
     : step === 1
       ? 'سيضبط رفيق ميزات البيع المناسبة لنشاطك تلقائياً.'
       : 'اسم المحل هو المطلوب للبدء، وباقي بيانات الفاتورة تُضبط لاحقاً من الإعدادات.';
+
+  const renderTemplatePlaceholders = () => (
+    <div className="grid grid-cols-2 gap-3.5 motion-static" role="status" aria-busy="true" aria-label="جارٍ تحميل أنواع الأنشطة">
+      {Array.from({ length: PLACEHOLDER_CARD_COUNT }, (_, index) => (
+        <div
+          key={index}
+          className="min-h-[8.25rem] rounded-[6px] border-2 border-line dark:border-line-dark bg-surface dark:bg-surface-dark"
+        />
+      ))}
+    </div>
+  );
 
   const renderTemplates = () => (
     <div role="radiogroup" aria-label="نوع النشاط" className="grid grid-cols-2 gap-3.5">
@@ -265,7 +273,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
               setError(null);
               setStep(2);
             }}
-            className={`relative min-h-[132px] p-4 flex flex-col items-start gap-2 text-start rounded-[6px] border-2 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand dark:focus-visible:ring-brand-bright ${
+            className={`relative min-h-[8.25rem] p-4 flex flex-col items-start gap-2 text-start rounded-[6px] border-2 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand dark:focus-visible:ring-brand-bright ${
               isSelected
                 ? 'bg-brand-soft dark:bg-brand-dark-soft border-brand dark:border-brand-bright'
                 : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright'
@@ -303,7 +311,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   );
 
   const renderStoreData = () => (
-    <div className="w-full max-w-[520px] mx-auto flex flex-col gap-5 py-2">
+    <div className="w-full max-w-[32.5rem] mx-auto flex flex-col gap-5 py-2">
       <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">الحقول المميزة بعلامة * مطلوبة</p>
       <div className="flex flex-col gap-1.5">
         <label htmlFor="wizard-store-name" className="text-xs font-semibold text-ink dark:text-ink-dark">
@@ -359,7 +367,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   );
 
   const renderFinish = () => (
-    <div className="w-full max-w-[640px] mx-auto flex flex-col gap-5 py-1">
+    <div className="w-full max-w-[40rem] mx-auto flex flex-col gap-5 py-1">
       <div className="flex items-center gap-4 p-4 rounded-[6px] bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border">
         <span className="w-12 h-12 shrink-0 rounded-[6px] bg-paid dark:bg-paid-bright text-white dark:text-surface-dark flex items-center justify-center">
           <Check className="w-7 h-7 stroke-[2.5]" />
@@ -382,7 +390,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
   const card = (
     <form
-      className="w-[880px] max-w-full h-[640px] max-h-full bg-surface dark:bg-surface-dark rounded-[8px] border border-line dark:border-line-dark shadow-card flex flex-col overflow-hidden"
+      className="w-[55rem] max-w-full h-[40rem] max-h-full bg-surface dark:bg-surface-dark rounded-[8px] border border-line dark:border-line-dark shadow-card flex flex-col overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-label="معالج تجهيز النظام"
@@ -393,7 +401,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         if (!completed) handleNext();
       }}
     >
-      <header className="h-[80px] px-6 flex items-center gap-4 shrink-0 border-b border-line dark:border-line-dark">
+      <header className="h-[5rem] px-6 flex items-center gap-4 shrink-0 border-b border-line dark:border-line-dark">
         <img src="/logo_full.png" alt="نظام رفيق" className="h-9 object-contain dark:hidden" />
         <img src="/logo_full_dark.png" alt="نظام رفيق" className="h-9 object-contain hidden dark:block" />
         <div className="flex-1 min-w-0 flex flex-col gap-0.5 ps-4 border-s border-line dark:border-line-dark">
@@ -406,26 +414,18 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           </span>
         )}
         {isFirstRun ? (
-          <button
-            type="button"
-            onClick={() => void handleExitApp()}
-            disabled={isApplying}
-            className="h-11 px-4 shrink-0 flex items-center gap-2 text-sm font-semibold rounded-[6px] border border-danger dark:border-danger-bright text-danger dark:text-danger-bright bg-surface dark:bg-surface-dark hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Power className="w-4 h-4" />
-            <span>إغلاق البرنامج</span>
-          </button>
+          <AppButton variant="dangerSoft" size="lg" icon={Power} onClick={() => void handleExitApp()} disabled={isApplying} className="shrink-0">
+            إغلاق البرنامج
+          </AppButton>
         ) : (
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="lg"
+            icon={X}
+            aria-label="إغلاق المعالج"
             onClick={() => void requestClose()}
             disabled={isApplying}
-            title="إغلاق المعالج"
-            aria-label="إغلاق المعالج"
-            className="w-11 h-11 shrink-0 flex items-center justify-center rounded-[6px] border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-canvas dark:hover:bg-canvas-dark transition-colors cursor-pointer disabled:opacity-50"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          />
         )}
       </header>
 
@@ -434,24 +434,25 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         <div className={`flex-1 ${progressSegment(2)}`} />
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 bg-canvas dark:bg-canvas-dark">
-        {completed ? renderFinish() : step === 1 ? renderTemplates() : renderStoreData()}
+      <div {...motionPanel} className="flex-1 overflow-y-auto p-6 bg-canvas dark:bg-canvas-dark">
+        {completed ? renderFinish() : step === 1 ? (isReady ? renderTemplates() : renderTemplatePlaceholders()) : renderStoreData()}
       </div>
 
-      <footer className="h-[80px] px-6 flex items-center gap-4 shrink-0 border-t border-line dark:border-line-dark">
+      <footer className="h-[5rem] px-6 flex items-center gap-4 shrink-0 border-t border-line dark:border-line-dark">
         {step === 2 && !completed ? (
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="lg"
+            icon={ArrowRight}
             onClick={() => {
               setError(null);
               setStep(1);
             }}
             disabled={isApplying}
-            className="h-11 px-5 shrink-0 flex items-center gap-2 text-sm font-medium rounded-[6px] border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-canvas dark:hover:bg-canvas-dark transition-colors cursor-pointer disabled:opacity-50"
+            className="shrink-0"
           >
-            <ArrowRight className="w-4 h-4" />
-            <span>السابق</span>
-          </button>
+            السابق
+          </AppButton>
         ) : (
           <span className="shrink-0" />
         )}
@@ -459,37 +460,17 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           {error}
         </p>
         {completed ? (
-          <button
-            type="button"
-            autoFocus
-            onClick={onCompleted}
-            className="h-11 px-7 shrink-0 flex items-center gap-2 text-sm font-bold rounded-[6px] bg-paid dark:bg-paid-bright hover:bg-paid-hover dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark transition-colors cursor-pointer"
-          >
-            <Check className="w-4 h-4 stroke-[2.5]" />
-            <span>{isFirstRun ? 'ابدأ البيع الآن' : 'إنهاء'}</span>
-          </button>
+          <AppButton variant="success" size="lg" icon={Check} autoFocus onClick={onCompleted} className="shrink-0">
+            {isFirstRun ? 'ابدأ البيع الآن' : 'إنهاء'}
+          </AppButton>
+        ) : step === 1 ? (
+          <AppButton type="submit" variant="primary" size="lg" icon={ArrowLeft} iconPosition="end" disabled={isApplying || !isReady} className="shrink-0">
+            التالي
+          </AppButton>
         ) : (
-          <button
-            type="submit"
-            disabled={isApplying}
-            className={`h-11 px-7 shrink-0 flex items-center gap-2 text-sm font-bold rounded-[6px] text-white dark:text-surface-dark transition-colors cursor-pointer disabled:opacity-50 ${
-              step === 1
-                ? 'bg-brand dark:bg-brand-bright hover:bg-brand-hover dark:hover:bg-paid-bright-hover'
-                : 'bg-paid dark:bg-paid-bright hover:bg-paid-hover dark:hover:bg-paid-bright-hover'
-            }`}
-          >
-            {step === 1 ? (
-              <>
-                <span>التالي</span>
-                <ArrowLeft className="w-4 h-4" />
-              </>
-            ) : (
-              <>
-                {isApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[2.5]" />}
-                <span>إنهاء التجهيز</span>
-              </>
-            )}
-          </button>
+          <AppButton type="submit" variant="success" size="lg" icon={Check} loading={isApplying} className="shrink-0">
+            إنهاء التجهيز
+          </AppButton>
         )}
       </footer>
     </form>
@@ -516,3 +497,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     </div>
   );
 };
+
+// Mounted only while open so every opening starts from the first step with fresh state
+export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({ isOpen, ...props }) =>
+  isOpen ? <FirstRunWizardContent {...props} /> : null;

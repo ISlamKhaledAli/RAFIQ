@@ -19,6 +19,28 @@ namespace RafiqPOS.Services
         }
     }
 
+    public class DatabaseHealthInfo
+    {
+        public bool IsOk { get; set; }
+        public string JournalMode { get; set; }
+        public int SchemaVersion { get; set; }
+        public long SizeBytes { get; set; }
+        public string Error { get; set; }
+
+        public DatabaseHealthInfo()
+        {
+            JournalMode = "";
+            Error = "";
+        }
+
+        // Short Arabic line for the legacy dbStatus field (root console fallback); the Help Center renders the structured fields
+        public string ToSummaryText()
+        {
+            if (IsOk) return "متصلة وسليمة";
+            return string.IsNullOrEmpty(Error) ? "تعذر فتح قاعدة البيانات" : Error;
+        }
+    }
+
     public class FactoryResetResult
     {
         public bool Success { get; set; }
@@ -26,6 +48,7 @@ namespace RafiqPOS.Services
         public int DeletedSalesCount { get; set; }
         public int DeletedProductsCount { get; set; }
         public int DeletedCustomersCount { get; set; }
+        public string SafetyBackupFile { get; set; }
     }
 
     public class DatabaseIntegrityStatus
@@ -235,7 +258,7 @@ namespace RafiqPOS.Services
             Printer = new PrinterService(Settings);
             Security = new SecurityService(SettingsRepo, AuditRepo, UserRepo);
             Templates = new StoreTemplateService(_connectionString, SettingsRepo, Categories, QuickItems, AuditRepo);
-            DemoData = new DemoDataService(_connectionString, SettingsRepo, AuditRepo);
+            DemoData = new DemoDataService(_connectionString, SettingsRepo, AuditRepo, delegate { return Backup.CreateBackup(null); });
             Readiness = new ReadinessService(SettingsRepo, ProductRepo, Backup, Printer);
             SystemHealth = new SystemHealthService(_dbPath, SettingsRepo, ProductRepo, Backup, Printer);
             License = new LicenseService(SettingsRepo, Audit);
@@ -591,10 +614,11 @@ namespace RafiqPOS.Services
         /// </summary>
         public static string ValidateRecoveryBackup(string backupFilePath, string recoveryCode)
         {
-            string target = ResolveRestoreTarget(backupFilePath);
-            if (string.IsNullOrWhiteSpace(target) || !File.Exists(target))
+            string target;
+            string pathError = CheckRestoreSource(ResolveRestoreTarget(backupFilePath), out target);
+            if (pathError != null)
             {
-                return "لم يتم العثور على ملف النسخة الاحتياطية المحددة.";
+                return pathError;
             }
             if (!EncryptionService.IsFileEncrypted(target))
             {
@@ -602,13 +626,29 @@ namespace RafiqPOS.Services
             }
             if (string.IsNullOrWhiteSpace(recoveryCode))
             {
-                return "يرجى إدخال كود استرجاع المالك (Recovery Code) لتأكيد الاسترجاع.";
+                return "يرجى إدخال كود استرجاع المالك لتأكيد الاسترجاع.";
             }
             if (!EncryptionService.CanUnlockWithRecoveryCode(target, recoveryCode))
             {
                 return "كود استرجاع المالك غير صحيح لهذه النسخة، أو أن الملف ليس نسخة رفيق احتياطية مشفرة صالحة.";
             }
             return null;
+        }
+
+        // Path gate shared by the restore entry points: the backup file the UI names is never trusted as-is
+        private static string CheckRestoreSource(string candidate, out string fullPath)
+        {
+            string allowedFolder = null;
+            try
+            {
+                if (SettingsRepo != null) allowedFolder = SettingsRepo.Get("backup_target_folder", "");
+            }
+            catch (Exception)
+            {
+                // Settings may be unreadable on a damaged database; the gate then only allows local drive paths
+            }
+            string liveDataFolder = string.IsNullOrEmpty(_dbPath) ? null : Path.GetDirectoryName(_dbPath);
+            return BackupService.ValidateRestoreSource(candidate, allowedFolder, liveDataFolder, out fullPath);
         }
 
         /// <summary>Starts license/backup background timers now and again after every database swap.</summary>
@@ -630,11 +670,11 @@ namespace RafiqPOS.Services
             string tempStaging = null;
             try
             {
-                string targetBackup = ResolveRestoreTarget(backupFilePath);
-
-                if (string.IsNullOrWhiteSpace(targetBackup) || !File.Exists(targetBackup))
+                string targetBackup;
+                string pathError = CheckRestoreSource(ResolveRestoreTarget(backupFilePath), out targetBackup);
+                if (pathError != null)
                 {
-                    return new TransactionResult(false, "لم يتم العثور على ملف النسخة الاحتياطية المحددة.");
+                    return new TransactionResult(false, pathError);
                 }
 
                 // Feature #168: If backup is encrypted, decrypt to temp staging for verification and restore
@@ -769,8 +809,22 @@ namespace RafiqPOS.Services
                 }
             }
 
+            // Stage the replacement next to the live file first: a failed copy (disk full, flash removed) then changes nothing
+            string incomingPath = dbPath + ".incoming_" + Guid.NewGuid().ToString("N");
+            try
+            {
+                File.Copy(replacementDbPath, incomingPath, true);
+            }
+            catch (Exception stageEx)
+            {
+                Logger.Error("تعذر تجهيز ملف قاعدة البيانات المسترجعة", stageEx);
+                try { if (File.Exists(incomingPath)) File.Delete(incomingPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                return new TransactionResult(false, "تم إيقاف الاسترجاع: تعذر تجهيز ملف النسخة (مساحة القرص أو الفلاشة). لم يتم المساس بقاعدة البيانات الحالية.");
+            }
+
             // Background timers would reopen the database mid-swap, so they stay off until the new file is live
             if (isLive) StopBackgroundChecks();
+            string rollbackPath = null;
             try
             {
                 // Fold the WAL into the main file so nothing committed depends on the files about to be removed
@@ -801,29 +855,79 @@ namespace RafiqPOS.Services
                     return new TransactionResult(false, moveError);
                 }
 
-                File.Copy(replacementDbPath, dbPath, true);
-                if (afterCopy != null)
+                try
                 {
-                    afterCopy();
+                    // The current file is parked (not deleted) until the restored one has opened cleanly, so any failure can undo the swap
+                    if (File.Exists(dbPath))
+                    {
+                        rollbackPath = dbPath + ".rollback_" + Guid.NewGuid().ToString("N");
+                        File.Move(dbPath, rollbackPath);
+                    }
+                    File.Move(incomingPath, dbPath);
+                    if (afterCopy != null)
+                    {
+                        afterCopy();
+                    }
+
+                    System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                    if (isLive)
+                    {
+                        Initialize(_baseFolder);
+                        if (IsCorrupted)
+                        {
+                            throw new InvalidDataException("الملف المسترجع لم يجتز فحص السلامة بعد الاستبدال.");
+                        }
+                    }
+                }
+                catch (Exception swapEx)
+                {
+                    Logger.Error("فشل استبدال قاعدة البيانات، جاري إعادة الملف الأصلي", swapEx);
+                    return new TransactionResult(false, RollBackDatabaseSwap(dbPath, rollbackPath, isLive, swapEx));
                 }
 
-                System.Data.SQLite.SQLiteConnection.ClearAllPools();
-                if (isLive)
+                if (rollbackPath != null)
                 {
-                    Initialize(_baseFolder);
-                    if (IsCorrupted)
-                    {
-                        return new TransactionResult(false, "فشلت استعادة قاعدة البيانات: الملف المسترجع غير سليم.");
-                    }
+                    try { File.Delete(rollbackPath); } catch (IOException delEx) { Logger.Warn("تعذر حذف الملف المؤقت للقاعدة السابقة: " + delEx.Message); }
                 }
                 return new TransactionResult(true, "تم استبدال قاعدة البيانات بنجاح.");
             }
             finally
             {
+                try { if (File.Exists(incomingPath)) File.Delete(incomingPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
                 if (isLive && _backgroundChecksRequested && !IsCorrupted)
                 {
                     StartBackgroundChecks();
                 }
+            }
+        }
+
+        // Puts the parked database back after a failed swap and reopens it; returns the Arabic outcome for the caller
+        private static string RollBackDatabaseSwap(string dbPath, string rollbackPath, bool isLive, Exception cause)
+        {
+            try
+            {
+                System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                if (rollbackPath != null && File.Exists(rollbackPath))
+                {
+                    // Whatever replaced the original (including its WAL/SHM) goes away together
+                    foreach (string stray in new string[] { dbPath, dbPath + "-wal", dbPath + "-shm" })
+                    {
+                        if (File.Exists(stray)) File.Delete(stray);
+                    }
+                    File.Move(rollbackPath, dbPath);
+                }
+                if (isLive)
+                {
+                    Initialize(_baseFolder);
+                }
+                return "تم إلغاء الاسترجاع وإرجاع قاعدة البيانات الحالية كما كانت دون أي تغيير. السبب: " + cause.Message;
+            }
+            catch (Exception rbEx)
+            {
+                Logger.Error("تعذرت إعادة قاعدة البيانات الأصلية بعد فشل الاستبدال", rbEx);
+                return "فشل الاسترجاع وتعذرت إعادة قاعدة البيانات تلقائياً. لا تغلق البرنامج وتواصل مع الدعم الفني فوراً؛ نسخة الأمان محفوظة في مجلد pre_restore ونسخة القاعدة السابقة في: " + (rollbackPath ?? dbPath);
             }
         }
 
@@ -860,13 +964,57 @@ namespace RafiqPOS.Services
             return null;
         }
 
-        public static string GetStatus()
+        public static DatabaseHealthInfo GetHealth()
         {
-            if (IsCorrupted)
+            return CheckHealth(_dbPath, IsCorrupted);
+        }
+
+        // Real read-only facts about the store database. Never throws and never waits long: a short busy timeout on a
+        // separate connection (WAL readers do not block the sale writer) so the system info screen cannot stall selling.
+        public static DatabaseHealthInfo CheckHealth(string dbPath, bool flaggedCorrupt)
+        {
+            var info = new DatabaseHealthInfo();
+            if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
             {
-                return "قاعدة البيانات تالفة [Write Operations Locked]";
+                info.Error = "ملف قاعدة البيانات غير موجود.";
+                return info;
             }
-            return string.Format("SQLite 3 Connected [File: {0}, WAL Mode Active, Migrated]", Path.GetFileName(_dbPath));
+
+            try { info.SizeBytes = new FileInfo(dbPath).Length; }
+            catch (Exception sizeEx) { Logger.Warn("تعذر قراءة حجم قاعدة البيانات: " + sizeEx.Message); }
+
+            if (flaggedCorrupt)
+            {
+                info.Error = "فحص السلامة اكتشف تلفاً في قاعدة البيانات، وعمليات الكتابة موقوفة حمايةً للبيانات.";
+                return info;
+            }
+
+            try
+            {
+                string connStr = string.Format("Data Source={0};Version=3;BusyTimeout=500;Pooling=False;", dbPath);
+                using (var conn = new System.Data.SQLite.SQLiteConnection(connStr))
+                {
+                    conn.Open();
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand("PRAGMA journal_mode;", conn))
+                    {
+                        object mode = cmd.ExecuteScalar();
+                        info.JournalMode = mode != null && mode != DBNull.Value ? mode.ToString().ToLowerInvariant() : "";
+                    }
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT COALESCE(MAX(version), 0) FROM schema_migrations;", conn))
+                    {
+                        object ver = cmd.ExecuteScalar();
+                        info.SchemaVersion = ver != null && ver != DBNull.Value ? Convert.ToInt32(ver) : 0;
+                    }
+                }
+                info.IsOk = true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر فحص قاعدة البيانات لشاشة معلومات النظام: " + ex.Message);
+                info.IsOk = false;
+                info.Error = "تعذر فتح قاعدة البيانات أو قراءة بياناتها.";
+            }
+            return info;
         }
 
         public static TransactionResult ExecuteAtomicSaleTransaction(int itemCount)
@@ -900,7 +1048,7 @@ namespace RafiqPOS.Services
                         trans.Commit();
                     }
                 }
-                return new TransactionResult(true, string.Format("تم اختبار المعاملة الذرية (ACID) بنجاح لـ {0} أصناف في بيئة معزولة.", itemCount));
+                return new TransactionResult(true, string.Format("تم اختبار المعاملة الذرية بنجاح لـ {0} أصناف في بيئة معزولة.", itemCount));
             }
             catch (Exception ex)
             {
@@ -916,7 +1064,7 @@ namespace RafiqPOS.Services
             }
         }
 
-        public static FactoryResetResult FactoryReset(bool wipeBackups = false)
+        public static FactoryResetResult FactoryReset()
         {
             var result = new FactoryResetResult();
             if (string.IsNullOrEmpty(_connectionString))
@@ -926,14 +1074,33 @@ namespace RafiqPOS.Services
                 return result;
             }
 
+            RafiqPOS.Models.UserDto resetActor = SecurityService.CurrentUser;
+            string preResetBackupName = "";
+
             using (var conn = new System.Data.SQLite.SQLiteConnection(_connectionString))
             {
                 conn.Open();
 
-                // Mandatory safety backup before wiping data unless user explicitly requested wiping all backups
-                if (!wipeBackups && Backup != null)
+                // An open shift holds cash that the wipe would erase, so the cashier must close it first
+                if (TableExists(conn, null, "shifts"))
                 {
-                    BackupResult preResetBackup = null;
+                    long openShifts;
+                    using (var shiftCmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM shifts WHERE status = 'open';", conn))
+                    {
+                        openShifts = Convert.ToInt64(shiftCmd.ExecuteScalar());
+                    }
+                    if (openShifts > 0)
+                    {
+                        result.Success = false;
+                        result.Message = "تم إيقاف التصفير: توجد وردية مفتوحة. أغلق الوردية واعتمد إقفال اليوم أولاً ثم أعد المحاولة.";
+                        return result;
+                    }
+                }
+
+                // Mandatory verified safety backup before wiping; without it nothing is deleted
+                BackupResult preResetBackup = null;
+                if (Backup != null)
+                {
                     try
                     {
                         preResetBackup = Backup.CreateBackup(null);
@@ -942,13 +1109,14 @@ namespace RafiqPOS.Services
                     {
                         Logger.Error("فشل أخذ نسخة احتياطية قبل تصفير البيانات", bEx);
                     }
-                    if (preResetBackup == null || !preResetBackup.Success)
-                    {
-                        result.Success = false;
-                        result.Message = "تم إيقاف التصفير: تعذر أخذ نسخة احتياطية آمنة من البيانات الحالية أولاً.";
-                        return result;
-                    }
                 }
+                if (preResetBackup == null || !preResetBackup.Success || !preResetBackup.IsVerified)
+                {
+                    result.Success = false;
+                    result.Message = "تم إيقاف التصفير: تعذر أخذ نسخة احتياطية موثقة من البيانات الحالية أولاً، ولم يُحذف شيء.";
+                    return result;
+                }
+                preResetBackupName = Path.GetFileName(preResetBackup.BackupFilePath ?? "");
 
                 using (var trans = conn.BeginTransaction())
                 {
@@ -1047,7 +1215,14 @@ namespace RafiqPOS.Services
                         }
 
                         // 4. Reset sequence counters, wipe all app settings, and restore factory users
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters; DELETE FROM app_settings;", conn, trans))
+                        // Licence state (activation, clock guard, used offline codes, transfer data) survives a data reset, so a wipe never un-licenses the shop or re-opens used codes
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand(@"
+                            DELETE FROM counters;
+                            DELETE FROM app_settings
+                            WHERE key NOT LIKE 'license_%'
+                              AND key NOT LIKE 'transfer_%'
+                              AND key NOT IN ('consumed_offline_codes', 'last_known_utc', 'last_online_verify_at', 'last_online_verify_attempt');
+                        ", conn, trans))
                         {
                             cmd.ExecuteNonQuery();
                         }
@@ -1081,7 +1256,13 @@ namespace RafiqPOS.Services
                         string genesisHash = "GENESIS_RAFIQ_AUDIT_V1";
                         string resetLogId = "aud_" + Guid.NewGuid().ToString("N");
                         string nowIso = DateTime.UtcNow.ToString("o");
-                        string detailsJson = "{\"action\":\"factory_reset\",\"message\":\"تم تصفير ومسح كافة بيانات النظام والبدء من جديد\"}";
+                        string detailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                        {
+                            action = "factory_reset",
+                            message = "تم تصفير ومسح كافة بيانات النظام والبدء من جديد",
+                            performedBy = resetActor != null ? resetActor.Username : "غير معروف",
+                            safetyBackup = preResetBackupName
+                        });
                         string recordHash = MigrationRunner.ComputeAuditHash(
                             genesisHash, resetLogId, "usr_admin_default", "factory_reset", "system", "all", detailsJson, nowIso
                         );
@@ -1110,7 +1291,8 @@ namespace RafiqPOS.Services
 
                         trans.Commit();
                         result.Success = true;
-                        result.Message = "تم مسح وتصفير كافة البيانات بنجاح، والنظام جاهز الآن كبداية نظيفة كلياً.";
+                        result.SafetyBackupFile = preResetBackupName;
+                        result.Message = "تم مسح وتصفير كافة البيانات بنجاح، والنظام جاهز الآن كبداية نظيفة كلياً. النسخة الاحتياطية التي أُخذت قبل التصفير محفوظة على الجهاز.";
                     }
                     catch (Exception ex)
                     {
@@ -1130,45 +1312,6 @@ namespace RafiqPOS.Services
                     }
                 }
                 catch { }
-            }
-
-            // 8. Wipe all backup files and history if requested
-            if (wipeBackups)
-            {
-                try
-                {
-                    if (Backup != null)
-                    {
-                        string defaultBDir = Backup.GetDefaultBackupFolder();
-                        if (Directory.Exists(defaultBDir))
-                        {
-                            string[] files = Directory.GetFiles(defaultBDir, "*.*");
-                            for (int i = 0; i < files.Length; i++)
-                            {
-                                try { File.Delete(files[i]); } catch { }
-                            }
-                        }
-                    }
-
-                    string customBDir = SettingsRepo != null ? SettingsRepo.Get("backup_target_folder", "") : "";
-                    if (!string.IsNullOrWhiteSpace(customBDir) && Directory.Exists(customBDir))
-                    {
-                        string[] files = Directory.GetFiles(customBDir, "rafiq_backup_*.*");
-                        for (int i = 0; i < files.Length; i++)
-                        {
-                            try { File.Delete(files[i]); } catch { }
-                        }
-                    }
-
-                    if (SettingsRepo != null)
-                    {
-                        SettingsRepo.Set("backup_last_success_at", "");
-                    }
-                }
-                catch (Exception bEx)
-                {
-                    Logger.Warn("تعذر إفراغ بعض ملفات النسخ الاحتياطي: " + bEx.Message);
-                }
             }
 
             return result;

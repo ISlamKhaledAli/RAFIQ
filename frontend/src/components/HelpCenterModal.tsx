@@ -26,15 +26,21 @@ import {
   Cpu,
   KeyRound,
   Download,
+  FolderOpen,
   AlertTriangle,
   Lightbulb,
   Sparkles,
   Info
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
+import { AppButton } from './AppButton';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import { useAuth } from '../context/useAuth';
 import type { SystemInfo } from '../App';
 import type { LicenseInfoData } from './LicenseModal';
+import { buildDatabaseCells, lastBackupLabel, licenseTypeLabel } from '../utils/systemSpecs';
+import type { SystemSpecFacts } from '../utils/systemSpecs';
 import {
   FAQS,
   HELP_ARTICLES,
@@ -57,6 +63,7 @@ interface SupportBundleResult {
   success?: boolean;
   message?: string;
   filePath?: string;
+  folderPath?: string;
 }
 
 const SUPPORT_PHONE = '01097782965';
@@ -90,11 +97,12 @@ export const HelpCenterModal = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFaqId, setExpandedFaqId] = useState<string | null>(null);
 
-  const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
+  const [sysInfo, setSysInfo] = useState<(SystemInfo & SystemSpecFacts) | null>(null);
   const [licenseInfo, setLicenseInfo] = useState<LicenseInfoData | null>(null);
   const [supportLoading, setSupportLoading] = useState(false);
   const [supportMessage, setSupportMessage] = useState<string | null>(null);
   const [supportSavedPath, setSupportSavedPath] = useState<string | null>(null);
+  const [supportFolderPath, setSupportFolderPath] = useState<string | null>(null);
   const [copied, setCopied] = useState<'phone' | 'fingerprint' | 'failed' | null>(null);
 
   const { hasPermission, isAdmin } = useAuth();
@@ -126,7 +134,7 @@ export const HelpCenterModal = ({
   useEffect(() => {
     if (!isOpen) return;
     let isMounted = true;
-    void invoke<SystemInfo>('system:getInfo')
+    void invoke<SystemInfo & SystemSpecFacts>('system:getInfo')
       .then((sys) => { if (isMounted && sys) setSysInfo(sys); })
       .catch(() => undefined);
     void invoke<LicenseInfoData>('license:getInfo')
@@ -162,6 +170,7 @@ export const HelpCenterModal = ({
   }, []);
 
   const hasQuery = searchQuery.trim().length > 0;
+  const motionPanel = useMotionPanel(hasQuery ? 'search' : activeSection);
 
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0 });
@@ -189,11 +198,13 @@ export const HelpCenterModal = ({
     setSupportLoading(true);
     setSupportMessage(null);
     setSupportSavedPath(null);
+    setSupportFolderPath(null);
     try {
       const res = await invoke<SupportBundleResult>('support:createBundle');
       if (res?.success) {
         setSupportMessage(res.message || 'تم إنشاء حزمة الدعم');
         setSupportSavedPath(res.filePath || null);
+        setSupportFolderPath(res.folderPath || null);
       } else {
         setSupportMessage(res?.message || 'تعذر إنشاء حزمة الدعم الفني');
       }
@@ -202,6 +213,16 @@ export const HelpCenterModal = ({
       setSupportMessage(`تعذر إنشاء الحزمة: ${msg}`);
     } finally {
       setSupportLoading(false);
+    }
+  };
+
+  const handleOpenSupportFolder = async () => {
+    if (!supportFolderPath) return;
+    try {
+      await invoke('excel:openExportFolder', { folderPath: supportFolderPath });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSupportMessage(`تعذر فتح المجلد: ${msg}`);
     }
   };
 
@@ -247,7 +268,7 @@ export const HelpCenterModal = ({
       dir="rtl"
     >
       <div
-        className="w-full max-w-6xl h-full max-h-[860px] bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col overflow-hidden font-sans text-ink dark:text-ink-dark"
+        className="w-full max-w-6xl h-full max-h-[53.75rem] bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col overflow-hidden font-sans text-ink dark:text-ink-dark"
         role="dialog"
         aria-modal="true"
         aria-labelledby="help-center-title"
@@ -260,42 +281,23 @@ export const HelpCenterModal = ({
               <HelpCircle className="w-5 h-5 text-white" />
             </div>
             <h2 id="help-center-title" className="t-modal-title text-white m-0 whitespace-nowrap">مركز المساعدة والدعم</h2>
-            <span className="hidden lg:inline-flex text-micro font-bold px-2 py-0.5 rounded-full bg-white/10 text-paid-bright border border-white/20 whitespace-nowrap">
-              يعمل بدون إنترنت
-            </span>
           </div>
 
-          <div className="relative flex-1 min-w-0 max-w-xl me-auto">
-            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              ref={searchRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="ابحث في مركز المساعدة"
-              placeholder="ابحث: باركود، مرتجع، آجل، طابعة..."
-              className="w-full h-10 pr-9 pl-10 rounded-xl bg-surface dark:bg-surface-dark-3 border border-transparent focus:border-paid dark:focus:border-brand-bright focus:ring-2 focus:ring-paid/30 text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted outline-none transition-colors"
-            />
-            {hasQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  searchRef.current?.focus();
-                }}
-                className="absolute left-1.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
-                aria-label="مسح البحث"
-                title="مسح البحث"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+          <SearchInput
+            ref={searchRef}
+            size="md"
+            searchButton={false}
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="ابحث: باركود، مرتجع، آجل، طابعة..."
+            ariaLabel="ابحث في مركز المساعدة"
+            className="flex-1 min-w-0 max-w-xl me-auto"
+          />
 
           <button
             type="button"
             onClick={onClose}
-            className="w-10 h-10 shrink-0 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-10 h-10 shrink-0 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
             aria-label="إغلاق"
             title="إغلاق (Esc)"
           >
@@ -368,7 +370,7 @@ export const HelpCenterModal = ({
           </nav>
 
           {/* Content */}
-          <div ref={contentRef} className="flex-1 min-w-0 px-6 py-5 overflow-y-auto bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark">
+          <div ref={contentRef} {...motionPanel} className="flex-1 min-w-0 px-6 py-5 overflow-y-auto bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark">
             {hasQuery && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between gap-3 pb-3 border-b border-line dark:border-line-dark">
@@ -569,9 +571,9 @@ export const HelpCenterModal = ({
                       <button
                         type="button"
                         onClick={() => void copyText(SUPPORT_PHONE, 'phone')}
-                        className="h-9 text-xs px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="h-8 text-xs px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center gap-1.5"
                       >
-                        {copied === 'phone' ? <Check className="w-4 h-4 text-paid-bright" /> : <Copy className="w-4 h-4" />}
+                        {copied === 'phone' ? <Check className="w-3.5 h-3.5 text-paid-bright" /> : <Copy className="w-3.5 h-3.5" />}
                         <span>{copied === 'phone' ? 'تم النسخ' : copied === 'failed' ? 'تعذر النسخ' : 'نسخ الرقم'}</span>
                       </button>
                     </div>
@@ -592,15 +594,15 @@ export const HelpCenterModal = ({
                       <span className="font-mono text-xs font-bold text-brand dark:text-brand-bright truncate select-all" dir="ltr" title={fingerprint || undefined}>
                         {fingerprint || dash}
                       </span>
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="secondary"
+                        size="sm"
+                        icon={copied === 'fingerprint' ? Check : Copy}
                         onClick={() => void copyText(fingerprint, 'fingerprint')}
                         disabled={!fingerprint}
-                        className="h-9 text-xs px-3 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface-3 dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {copied === 'fingerprint' ? <Check className="w-4 h-4 text-paid dark:text-paid-bright" /> : <Copy className="w-4 h-4" />}
-                        <span>{copied === 'fingerprint' ? 'تم النسخ' : 'نسخ'}</span>
-                      </button>
+                        {copied === 'fingerprint' ? 'تم النسخ' : 'نسخ'}
+                      </AppButton>
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-ink-muted dark:text-ink-dark-muted">
                       <span>اسم المحل: <strong className="text-ink dark:text-ink-dark">{licenseInfo?.shopName || dash}</strong></span>
@@ -616,14 +618,20 @@ export const HelpCenterModal = ({
                   </div>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {[
-                      { label: 'إصدار البرنامج', value: sysInfo?.version, mono: true },
-                      { label: 'نظام التشغيل', value: sysInfo?.osVersion, mono: false },
-                      { label: 'قاعدة البيانات', value: sysInfo?.dbStatus, mono: false },
-                      { label: 'نوع الترخيص', value: licenseInfo?.licenseType, mono: false }
+                      { label: 'إصدار البرنامج', value: sysInfo?.version, tone: 'normal', mono: true },
+                      { label: 'نظام التشغيل', value: sysInfo?.osVersion, tone: 'normal', mono: false },
+                      { label: 'نوع الترخيص', value: licenseTypeLabel(licenseInfo?.licenseType), tone: 'normal', mono: false },
+                      { label: 'آخر نسخة احتياطية', value: lastBackupLabel(sysInfo?.lastBackupAt), tone: 'normal', mono: false },
+                      ...buildDatabaseCells(sysInfo)
                     ].map((cell) => (
-                      <div key={cell.label} className="p-3 rounded-lg bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark min-w-0">
+                      <div
+                        key={cell.label}
+                        className={`p-3 rounded-lg border min-w-0 ${cell.tone === 'danger'
+                          ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/40 dark:border-danger-bright/40'
+                          : 'bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark'}`}
+                      >
                         <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">{cell.label}</span>
-                        <span className={`text-sm font-bold text-ink dark:text-ink-dark block break-words ${cell.mono ? 'font-mono' : ''}`}>
+                        <span className={`text-sm font-bold block break-words ${cell.tone === 'danger' ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'} ${cell.mono ? 'font-mono' : ''}`}>
                           {cell.value || dash}
                         </span>
                       </div>
@@ -637,43 +645,50 @@ export const HelpCenterModal = ({
                     <span>حزمة معلومات الدعم الفني</span>
                   </div>
                   <p className="text-sm leading-7 text-ink-muted dark:text-ink-dark-muted m-0">
-                    ملف مضغوط يُحفظ على سطح المكتب بمواصفات الجهاز وسجل الأخطاء الفنية فقط، دون بيانات الزبائن أو الفواتير. أرسله للدعم الفني ليحل المشكلة أسرع.
+                    ملف مضغوط يُحفظ على سطح المكتب (أو في التنزيلات إن تعذر) فيه تقرير مقروء بحالة الجهاز وقاعدة البيانات والنسخ الاحتياطي والترخيص وآخر الأخطاء، دون ملف قاعدة البيانات أو بيانات الزبائن أو الفواتير. أرسله للدعم الفني ليحل المشكلة أسرع.
                   </p>
 
                   {supportMessage && (
                     <div className="p-3 rounded-lg bg-surface dark:bg-surface-dark-3 border border-paid-border dark:border-paid-dark-border text-sm text-ink dark:text-ink-dark flex flex-col gap-1.5">
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-bold">{supportMessage}</span>
-                        <button
-                          type="button"
+                        <AppButton
+                          variant="subtle"
+                          size="sm"
+                          icon={X}
+                          aria-label="إخفاء الرسالة"
                           onClick={() => {
                             setSupportMessage(null);
                             setSupportSavedPath(null);
+                            setSupportFolderPath(null);
                           }}
-                          className="w-8 h-8 shrink-0 -m-1 flex items-center justify-center rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
-                          aria-label="إخفاء الرسالة"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                          className="-m-1"
+                        />
                       </div>
                       {supportSavedPath && (
                         <span className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-lowest p-2 rounded break-all" dir="ltr">
                           {supportSavedPath}
                         </span>
                       )}
+                      {supportFolderPath && (
+                        <AppButton variant="secondary" size="sm" icon={FolderOpen} onClick={() => void handleOpenSupportFolder()} className="self-start">
+                          فتح المجلد
+                        </AppButton>
+                      )}
                     </div>
                   )}
 
                   {isAdmin ? (
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="success"
+                      size="lg"
+                      fullWidth
+                      icon={Download}
+                      loading={supportLoading}
                       onClick={() => void handleCreateSupportBundle()}
-                      disabled={supportLoading}
-                      className="h-11 bg-paid hover:bg-paid-hover active:bg-brand-dark text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Download className="w-4 h-4" />
-                      <span>{supportLoading ? 'جاري تجهيز الحزمة...' : 'إنشاء حزمة الدعم على سطح المكتب'}</span>
-                    </button>
+                      {supportLoading ? 'جاري تجهيز الحزمة...' : 'إنشاء حزمة الدعم على سطح المكتب'}
+                    </AppButton>
                   ) : (
                     <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">إنشاء الحزمة متاح للمالك أو المدير، اطلب منه تجهيزها.</p>
                   )}

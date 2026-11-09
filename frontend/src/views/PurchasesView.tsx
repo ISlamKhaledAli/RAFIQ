@@ -5,6 +5,7 @@ import {
   Printer,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { AppButton } from '../components/AppButton';
 import { useDataSubscription, emitDataChanged } from '../utils/eventBus';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { extractProducts, type Supplier, type Purchase, type PurchaseItem, type Product, type SupplierTransaction, type SupplierPaymentSource } from '../types/models';
@@ -28,6 +29,8 @@ import { computePurchaseLine, purchaseLinesTotal } from './purchases/purchaseLin
 import { formatUnitArabic } from '../utils/units';
 import { isCashDrawerBlocked } from './purchases/supplierPaymentState';
 import { useUnsavedChangesGuard } from '../context/useUnsavedChanges';
+import { useMotionPanel } from '../hooks/useMotionPanel';
+import { useExitValue } from '../hooks/useExitTransition';
 import { buildPurchasesRequest, buildSupplierTransactionsRequest } from './purchases/purchasesQuery';
 import { DEFAULT_DATE_FILTER, useToday, type DateFilterValue } from '../utils/dateFilter';
 
@@ -46,6 +49,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const canManageSuppliers = hasPermission('suppliers.manage');
   const [internalTab, setInternalTab] = useState<PurchasesSubView>('new_invoice');
   const activeTab = subView ?? internalTab;
+  const motionPanel = useMotionPanel(activeTab);
   const setActiveTab = (view: PurchasesSubView) => {
     if (onSubViewChange) {
       onSubViewChange(view);
@@ -101,6 +105,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [isSearchingProduct, setIsSearchingProduct] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toast = useExitValue(notification);
 
   // Barcode Label Printing from Purchase Invoice
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState<boolean>(false);
@@ -909,20 +914,21 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   return (
     <div className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark overflow-hidden text-ink dark:text-ink-dark">
       {/* Toast Notification */}
-      {notification && (
+      {toast.value && (
         <div
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-xl border font-bold text-xs shadow-md transition-all ${
-            notification.type === 'success'
-              ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 dark:border-emerald-800/40 text-paid dark:text-paid-bright'
+          data-exiting={toast.exiting || undefined}
+          className={`motion-toast motion-exit-toast fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-xl border font-bold text-xs shadow-md transition-all ${
+            toast.value.type === 'success'
+              ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 dark:border-paid-bright/30 text-paid dark:text-paid-bright'
               : 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright'
           }`}
         >
-          {notification.message}
+          {toast.value.message}
         </div>
       )}
 
       {/* Top Header */}
-      <header className="h-[52px] bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
+      <header className="h-[3.25rem] bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center text-brand dark:text-brand-bright shadow-2xs">
             <ShoppingCart className="w-4 h-4" />
@@ -941,21 +947,21 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         {/* Header Right Action / Badges */}
         <div className="flex items-center gap-2">
           {isEnabled('feature_expiry_returns') && hasPermission('pharma.expiry_returns.manage') && (
-            <button
-              type="button"
+            <AppButton
+              variant="warningSoft"
+              size="sm"
+              icon={RotateCcw}
               onClick={() => setIsExpiryReturnsModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-xs font-bold transition-colors cursor-pointer"
               title="إدارة مرتجعات الصلاحية للموردين ومحاضر الإعدام"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>مرتجعات الصلاحية والإعدام</span>
-            </button>
+              مرتجعات الصلاحية والإعدام
+            </AppButton>
           )}
         </div>
       </header>
 
       {/* Main Workspace Body */}
-      <main className="flex-1 overflow-hidden p-3 sm:p-3.5 flex flex-col">
+      <main {...motionPanel} className="flex-1 overflow-hidden p-3 sm:p-3.5 flex flex-col">
         {activeTab === 'invoices' && (
           <PurchasesInvoicesTab
             purchases={purchases}

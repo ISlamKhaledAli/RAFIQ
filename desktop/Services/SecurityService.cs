@@ -658,7 +658,7 @@ namespace RafiqPOS.Services
                 dto.IsRecoverySession = _recoveryLoginUserId == user.Id;
                 _currentUserSession = dto;
 
-                string roleName = user.Role == "root" ? "المالك (Root)" : (user.Role == "admin" ? "مدير النظام" : user.Role);
+                string roleName = user.Role == "root" ? "المطور" : (user.Role == "admin" ? "مدير النظام" : user.Role);
                 LogAudit("USER_LOGIN", "SECURITY", user.Username, string.Format("تسجيل دخول الموظف: {0} ({1})", user.DisplayName, roleName));
 
                 res.Success = true;
@@ -721,20 +721,54 @@ namespace RafiqPOS.Services
             return list;
         }
 
+        // Staff list rule: a caller sees only accounts strictly below his own tier (never himself); a cashier-tier caller sees his own descendants
+        private static bool IsVisibleInStaffList(User caller, User target, Dictionary<string, User> usersById)
+        {
+            if (caller == null || target == null || caller.Id == target.Id) return false;
+            int callerTier = Tier(caller);
+            if (callerTier >= TIER_MANAGER) return Tier(target) < callerTier;
+
+            var seen = new HashSet<string>();
+            string cursor = target.ParentId;
+            while (!string.IsNullOrEmpty(cursor) && seen.Add(cursor))
+            {
+                if (cursor == caller.Id) return true;
+                User parent;
+                if (!usersById.TryGetValue(cursor, out parent)) return false;
+                cursor = parent.ParentId;
+            }
+            return false;
+        }
+
+        // Fail closed: no session (or a session whose account no longer exists) sees nobody
+        private List<User> GetStaffVisibleToCaller()
+        {
+            var visible = new List<User>();
+            User caller = GetSessionUser();
+            if (_userRepo == null || caller == null) return visible;
+
+            var users = _userRepo.GetAll(false);
+            var usersById = new Dictionary<string, User>();
+            for (int i = 0; i < users.Count; i++)
+            {
+                usersById[users[i].Id] = users[i];
+            }
+            for (int i = 0; i < users.Count; i++)
+            {
+                if (IsVisibleInStaffList(caller, users[i], usersById)) visible.Add(users[i]);
+            }
+            return visible;
+        }
+
         public List<UserDto> GetAllUsers()
         {
             var list = new List<UserDto>();
-            if (_userRepo != null)
+            var visible = GetStaffVisibleToCaller();
+            for (int i = 0; i < visible.Count; i++)
             {
-                var users = _userRepo.GetAll(false);
-                bool isRootCaller = _currentUserSession != null && _currentUserSession.Role == "root";
-                for (int i = 0; i < users.Count; i++)
-                {
-                    if (!isRootCaller && users[i].Role == "root") continue;
-                    list.Add(MapToDto(users[i]));
-                }
-                list.Sort(CompareTreeNodes);
+                list.Add(MapToDto(visible[i]));
             }
+            list.Sort(CompareTreeNodes);
             return list;
         }
 
@@ -824,7 +858,7 @@ namespace RafiqPOS.Services
             string targetRole = string.IsNullOrEmpty(role) ? "cashier" : role.Trim().ToLowerInvariant();
             if (targetRole == "root")
             {
-                throw new UnauthorizedAccessException("غير مصرح بإنشاء حسابات برتبة Root نهائياً.");
+                throw new UnauthorizedAccessException("غير مصرح بإنشاء حسابات برتبة مطور نهائياً.");
             }
             if (targetRole != "admin")
             {
@@ -1056,7 +1090,7 @@ namespace RafiqPOS.Services
 
             if (targetRole == "root" && user.Role != "root")
             {
-                throw new UnauthorizedAccessException("غير مصرح بترقية أي حساب إلى رتبة Root.");
+                throw new UnauthorizedAccessException("غير مصرح بترقية أي حساب إلى رتبة مطور.");
             }
 
             // Authority: a caller may only modify a strictly lower tier (root may modify anyone); everybody may rename themselves
@@ -1155,12 +1189,12 @@ namespace RafiqPOS.Services
 
             if (user.Role == "root" || user.Username == "root")
             {
-                throw new InvalidOperationException("حساب الـ Root يملك جميع الصلاحيات دائماً ولا يمكن تقييده أو سحب الصلاحيات منه.");
+                throw new InvalidOperationException("حساب المطور يملك جميع الصلاحيات دائماً ولا يمكن تقييده أو سحب الصلاحيات منه.");
             }
 
             if (IsOwnerUser(user) && !IsCurrentSessionRoot())
             {
-                throw new InvalidOperationException("لا يمكن تعديل صلاحيات صاحب المحل إلا من خلال حساب الـ Root الأعلى.");
+                throw new InvalidOperationException("لا يمكن تعديل صلاحيات صاحب المحل إلا من خلال حساب المطور الأعلى.");
             }
 
             User caller = RequireHierarchyAuthority(user);
@@ -1235,7 +1269,7 @@ namespace RafiqPOS.Services
 
             if (user.Role == "root")
             {
-                throw new InvalidOperationException("حساب الـ Root يملك أعلى مستوى تفويض دائماً.");
+                throw new InvalidOperationException("حساب المطور يملك أعلى مستوى تفويض دائماً.");
             }
 
             User caller = RequireHierarchyAuthority(user);
@@ -1407,16 +1441,11 @@ namespace RafiqPOS.Services
 
         public List<UserDto> GetUserTree(string parentUserId = null)
         {
-            if (_userRepo == null) return new List<UserDto>();
-
-            var allUsers = _userRepo.GetAll(false);
-            bool isRootCaller = _currentUserSession != null && _currentUserSession.Role == "root";
+            var visible = GetStaffVisibleToCaller();
             var dtos = new Dictionary<string, UserDto>();
-            for (int i = 0; i < allUsers.Count; i++)
+            for (int i = 0; i < visible.Count; i++)
             {
-                // The developer root account is invisible to everyone else (same rule as GetAllUsers)
-                if (!isRootCaller && allUsers[i].Role == "root") continue;
-                var d = MapToDto(allUsers[i]);
+                var d = MapToDto(visible[i]);
                 d.Children = new List<UserDto>();
                 dtos[d.Id] = d;
             }
@@ -1435,7 +1464,7 @@ namespace RafiqPOS.Services
                 }
             }
 
-            // Managers before cashiers (root and owner first at the top level), then alphabetical
+            // Higher tiers first at the top level (children of an invisible parent become top-level rows), then alphabetical
             rootNodes.Sort(CompareTreeNodes);
             foreach (var kvp2 in dtos)
             {
@@ -1445,14 +1474,6 @@ namespace RafiqPOS.Services
             if (!string.IsNullOrEmpty(parentUserId) && dtos.ContainsKey(parentUserId))
             {
                 return new List<UserDto> { dtos[parentUserId] };
-            }
-
-            if (_currentUserSession != null && _currentUserSession.Role != "root" && _currentUserSession.Role != "admin")
-            {
-                if (dtos.ContainsKey(_currentUserSession.Id))
-                {
-                    return new List<UserDto> { dtos[_currentUserSession.Id] };
-                }
             }
 
             return rootNodes;
@@ -1484,7 +1505,7 @@ namespace RafiqPOS.Services
             }
             if (user.Role == "root" && caller.Role != "root")
             {
-                throw new UnauthorizedAccessException("حساب المطور (Root) يُدار بالتحدي المشفر فقط ولا يمكن تغيير بياناته.");
+                throw new UnauthorizedAccessException("حساب المطور يُدار بالتحدي المشفر فقط ولا يمكن تغيير بياناته.");
             }
 
             bool callerIsAdmin = caller.Role == "admin" || caller.Role == "root";
@@ -1606,7 +1627,7 @@ namespace RafiqPOS.Services
 
             if (targetUser.Role == "root" && !IsCurrentSessionRoot())
             {
-                throw new UnauthorizedAccessException("حساب المطور (Root) يُدار بالتحدي المشفر فقط ولا يمكن تعيين رقم سري له.");
+                throw new UnauthorizedAccessException("حساب المطور يُدار بالتحدي المشفر فقط ولا يمكن تعيين رقم سري له.");
             }
 
             bool isSelf = _currentUserSession != null && _currentUserSession.Id == targetUserId;
@@ -2844,8 +2865,8 @@ namespace RafiqPOS.Services
             if (!RootChallengeManager.VerifyRootResponse(responseToken, deviceFp, out error))
             {
                 res.Success = false;
-                res.Message = error ?? "تصريح دخول Root غير صالح.";
-                LogAudit("ROOT_CHALLENGE_FAILED", "SECURITY", "root", "فشل تسجيل الدخول بتصريح Root: " + res.Message);
+                res.Message = error ?? "تصريح دخول المطور غير صالح.";
+                LogAudit("ROOT_CHALLENGE_FAILED", "SECURITY", "root", "فشل تسجيل الدخول بتصريح المطور: " + res.Message);
                 return res;
             }
 
@@ -2867,7 +2888,7 @@ namespace RafiqPOS.Services
                 {
                     Id = "usr_root_developer",
                     Username = "islam",
-                    DisplayName = "مطور النظام (Root)",
+                    DisplayName = "مطور النظام",
                     Role = "root",
                     IsActive = true
                 };
@@ -2882,8 +2903,8 @@ namespace RafiqPOS.Services
             res.IsLocked = false;
             res.RemainingLockoutSeconds = 0;
             res.MustChangePin = false;
-            res.Message = "تم تسجيل الدخول بصلاحيات مطور النظام (Root) بنجاح.";
-            LogAudit("ROOT_CHALLENGE_LOGIN_SUCCESS", "SECURITY", rootUser.Username, "تسجيل دخول حساب المطور (Root) بنجاح عبر بروتوكول التحدي والاستجابة");
+            res.Message = "تم تسجيل الدخول بصلاحيات مطور النظام بنجاح.";
+            LogAudit("ROOT_CHALLENGE_LOGIN_SUCCESS", "SECURITY", rootUser.Username, "تسجيل دخول حساب المطور بنجاح عبر بروتوكول التحدي والاستجابة");
             return res;
         }
     }

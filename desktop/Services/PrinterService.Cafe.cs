@@ -158,7 +158,7 @@ namespace RafiqPOS.Services
 
             if (stationGroups.Count == 0)
             {
-                return new PrintResult { Success = true, Message = "الأصناف المحددة لا تتطلب طباعة مطبخ/بار (Station = none)." };
+                return new PrintResult { Success = true, Message = "الأصناف المحددة لا تتطلب طباعة مطبخ/بار." };
             }
 
             string paperWidth = !string.IsNullOrWhiteSpace(cfg.PaperWidth) ? cfg.PaperWidth : GetConfiguredPaperWidth();
@@ -192,8 +192,8 @@ namespace RafiqPOS.Services
 
                 lastPrinterUsed = targetPrinter;
                 string stationTitle = string.Equals(stationKey, "bar", StringComparison.OrdinalIgnoreCase)
-                    ? "تذكرة تحضير البار (BAR KOT)"
-                    : "تذكرة تحضير المطبخ (KITCHEN KOT)";
+                    ? "تذكرة تحضير البار"
+                    : "تذكرة تحضير المطبخ";
 
                 PrintResult res = PrintSingleStationKot(req, stationTitle, stationItems, targetPrinter, paperWidth, contentWidth);
                 if (res.Success)
@@ -385,7 +385,7 @@ namespace RafiqPOS.Services
                 string modeStr = "تيك أواي (سفري)";
                 if (string.Equals(req.OrderType, "dine_in", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(req.TableName))
                 {
-                    modeStr = !string.IsNullOrWhiteSpace(req.TableName) ? ("طاولة: " + req.TableName) : "صالة (Dine-In)";
+                    modeStr = !string.IsNullOrWhiteSpace(req.TableName) ? ("طاولة: " + req.TableName) : "صالة (داخل المطعم)";
                 }
                 else if (string.Equals(req.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
                 {

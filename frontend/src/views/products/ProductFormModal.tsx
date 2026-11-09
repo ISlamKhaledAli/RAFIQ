@@ -52,7 +52,11 @@ import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { ProductUnitsEditor } from '../../components/ProductUnitsEditor';
 import { useFeatures } from '../../context/useFeatures';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 import { RequiredMark } from '../../components/RequiredMark';
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
+import { useDirtyTracker } from './productFormDirty';
 import { getStoreTerminology, getCurrentStoreType } from '../../utils/storeTerminology';
 import { formatCompoundStock } from '../../utils/packaging';
 import { formatUnitArabic } from '../../utils/units';
@@ -813,10 +817,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   // Load pharmacy data only when pharmacy mode is active
   useEffect(() => {
     if (isOpen && isPharmacy) {
-      void invoke<PharmaDosageForm[]>('pharma:getDosageForms').then((res) => setDosageForms(res || []));
-      void invoke<PharmaManufacturer[]>('pharma:getManufacturers').then((res) => setManufacturers(res || []));
-      void invoke<TherapeuticClass[]>('pharma:getTherapeuticClasses').then((res) => setTherapeuticClasses(res || []));
-      void invoke<ActiveIngredient[]>('pharma:getActiveIngredients').then((res) => setActiveIngredientsList(res || []));
+      void invoke<PharmaDosageForm[]>('pharma:getDosageForms').then((res) => setDosageForms(Array.isArray(res) ? res : []));
+      void invoke<PharmaManufacturer[]>('pharma:getManufacturers').then((res) => setManufacturers(Array.isArray(res) ? res : []));
+      void invoke<TherapeuticClass[]>('pharma:getTherapeuticClasses').then((res) => setTherapeuticClasses(Array.isArray(res) ? res : []));
+      void invoke<ActiveIngredient[]>('pharma:getActiveIngredients').then((res) => setActiveIngredientsList(Array.isArray(res) ? res : []));
     }
   }, [isOpen, isPharmacy]);
 
@@ -885,12 +889,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   }, [therapeuticClasses]);
 
   const routeOptions: SelectOption[] = [
-    { value: 'oral', label: 'فموي (Oral)' },
-    { value: 'topical', label: 'موضعي (Topical)' },
-    { value: 'parenteral', label: 'حقن عضل / وريد (Parenteral)' },
-    { value: 'ophthalmic', label: 'قطرة عين / أذن (Drops)' },
-    { value: 'inhalation', label: 'استنشاق (Inhalation)' },
-    { value: 'rectal', label: 'لبوس / شرجي (Rectal)' },
+    { value: 'oral', label: 'فموي' },
+    { value: 'topical', label: 'موضعي' },
+    { value: 'parenteral', label: 'حقن عضل / وريد' },
+    { value: 'ophthalmic', label: 'قطرة عين / أذن' },
+    { value: 'inhalation', label: 'استنشاق' },
+    { value: 'rectal', label: 'لبوس / شرجي' },
   ];
 
   const pregnancyOptions: SelectOption[] = [
@@ -912,9 +916,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   ];
 
   const rxStatusOptions: SelectOption[] = [
-    { value: 'otc', label: 'دواء متاح بدون وصفة (OTC)' },
+    { value: 'otc', label: 'دواء متاح بدون وصفة' },
     { value: 'rx', label: 'يتطلب وصفة طبية (Rx)' },
-    { value: 'controlled', label: 'دواء جدول ورقابة مشددة (Controlled)' },
+    { value: 'controlled', label: 'دواء جدول ورقابة مشددة' },
   ];
 
   const controlledScheduleOptions: SelectOption[] = [
@@ -926,26 +930,50 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     { value: 'sedative', label: 'مهدئات خاضعة للتسجيل' },
   ];
 
-  const isDirty = useMemo(() => {
-    if (editingId) {
-      return Boolean(name.trim() || barcode.trim() || pricePiasters > 0);
-    }
-    return Boolean(
-      name.trim() ||
-      barcode.trim() ||
-      pricePiasters > 0 ||
-      costPiasters > 0 ||
-      (stockInput && stockInput !== '0') ||
-      productUnits.length > 0 ||
-      additionalBarcodes.length > 0 ||
-      pharmaInfo?.scientificName
-    );
-  }, [editingId, name, barcode, pricePiasters, costPiasters, stockInput, productUnits.length, additionalBarcodes.length, pharmaInfo?.scientificName]);
+  const dirtyTracker = useDirtyTracker(isOpen ? (editingId ?? 'new') : null, {
+    name,
+    barcode,
+    additionalBarcodes,
+    newBarcodeInput,
+    categoryId,
+    pricePiasters,
+    costPiasters,
+    unit,
+    productUnits,
+    stockInput,
+    stockAdjustReason,
+    minStockInput,
+    taxRatePercent,
+    internalCode,
+    taxCategoryCode,
+    variantSize,
+    variantColor,
+    initialExpiryDate,
+    initialBatchNumber,
+    isLooseSellable,
+    defaultSaleUnitId,
+    defaultPurchaseUnitId: _defaultPurchaseUnitId,
+    displayUnitId,
+    locationId,
+    isColdChain,
+    pharmaInfo,
+  });
+
+  // Only an action that can change a value counts as a touch: focusing a field or loading data must not
+  const handleFormInteraction = (e: React.SyntheticEvent) => {
+    if (e.type !== 'click' || (e.target as Element).closest('button, label')) dirtyTracker.touch();
+  };
+
+  const profitState = pricePiasters < costPiasters ? 'loss' : pricePiasters === costPiasters ? 'even' : 'profit';
+  const stockPanel = useMotionPanel(unit);
+  const stockTierPanel = useMotionPanel(productUnits.length > 2 ? 'multi' : 'pack');
+  const costCalcPanel = useMotionPanel(`${costCalcMode}|${unit}`);
+  const profitPanel = useMotionPanel(profitState);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
     onClose,
-    isDirty,
+    isDirty: dirtyTracker.isDirty,
     confirmTitle: 'تجاهل تعديلات الصنف؟',
     confirmMessage: 'هناك بيانات أو تعديلات غير محفوظة على هذا الصنف، هل أنت متأكد من الخروج وتجاهلها؟',
     discardText: 'تجاهل والخروج',
@@ -992,7 +1020,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   }, [editingId, isPharmacy, isClothing, isProduceOrButchery, isElectronics, isSpices, isDairy]);
 
   const namePlaceholder = useMemo(() => {
-    if (isPharmacy) return 'مثلاً: بانادول إكسترا 500 ملجم (Panadol Extra)';
+    if (isPharmacy) return 'مثلاً: بانادول إكسترا 500 ملجم';
     if (isClothing) return 'مثلاً: بنطلون جينز كاجوال سليم فت أو قميص أوكسفورد';
     if (isProduceOrButchery) return 'مثلاً: تفاح أحمر مستورد أو لحم كندوز بلدي طازج';
     if (isElectronics) return 'مثلاً: هاتف سامسونج A55 أو شاحن سريع 65W';
@@ -1011,36 +1039,43 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       <div className="w-full max-w-3xl max-h-[92vh] bg-surface dark:bg-surface-dark rounded-xl border border-brand/50 dark:border-brand/40 shadow-xl overflow-hidden flex flex-col select-none transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150">
         
         {/* Modal Header */}
-        <div className="h-[48px] bg-surface-2 dark:bg-surface-dark-2 hairline-b border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
+        <div className="h-[3rem] bg-surface-2 dark:bg-surface-dark-2 hairline-b border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             {headerIcon}
             <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">
               {headerTitle}
             </h3>
             {editingId && (
-              <button
-                type="button"
+              <AppButton
+                variant="soft"
+                size="xs"
+                icon={History}
                 onClick={onOpenPriceHistory}
-                className="mr-2 px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 border border-brand/20 text-brand dark:text-brand-bright text-micro font-bold flex items-center gap-1 transition-colors"
+                className="mr-2"
                 title="عرض تاريخ وتعديلات أسعار هذا الصنف"
               >
-                <History className="w-3 h-3" />
-                <span>سجل الأسعار</span>
-              </button>
+                سجل الأسعار
+              </AppButton>
             )}
           </div>
-          <button
-            type="button"
+          <AppButton
+            variant="subtle"
+            size="sm"
+            icon={X}
             onClick={() => void requestClose()}
-            className="text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright p-1 rounded transition-colors"
+            aria-label="إغلاق"
             title="إغلاق"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          />
         </div>
 
         {/* Modal Form */}
-        <form onSubmit={(e) => onSave(e)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <form
+          onSubmit={(e) => onSave(e)}
+          onInputCapture={handleFormInteraction}
+          onChangeCapture={handleFormInteraction}
+          onClickCapture={handleFormInteraction}
+          className="flex flex-col flex-1 min-h-0 overflow-hidden"
+        >
           {/* Scrollable Form Body */}
           <div ref={formBodyRef} className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 flex flex-col gap-3.5 text-xs">
             
@@ -1055,7 +1090,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             )}
 
             {/* CARD 1: بطاقة تعريف الصنف والهوية المخصصة */}
-            <div className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
+            <MotionHeight className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-2xs">
+            <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between border-b border-line/60 dark:border-line-dark/60 pb-2">
                 <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark text-sm">
                   <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
@@ -1086,7 +1122,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </span>
                 )}
                 {isPharmacy && pharmaInfo?.scientificName && (
-                  <span className="text-micro px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-mono font-bold truncate max-w-[200px]">
+                  <span className="text-micro px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-mono font-bold truncate max-w-[12.5rem]">
                     {pharmaInfo.scientificName}
                   </span>
                 )}
@@ -1109,7 +1145,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     placeholder={namePlaceholder}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-[36px] px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-sans"
+                    className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-[2.25rem] px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-sans"
                     autoFocus
                   />
                 </div>
@@ -1145,7 +1181,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       placeholder={isProduceOrButchery ? 'اضرب كود الميزان أو اضغط كود وزني تلقائي' : 'اضرب الباركود بالقارئ أو اضغط كود تلقائي'}
                       value={barcode}
                       onChange={(e) => setBarcode(normalizeArabicNumerals(e.target.value))}
-                      className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-[36px] px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
+                      className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-[2.25rem] px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
                     />
                     {isLookingUpDrugRef && (
                       <div className="absolute left-2.5 top-2.5 flex items-center gap-1 text-micro text-brand dark:text-brand-bright animate-spin pointer-events-none">
@@ -1187,15 +1223,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="success"
+                    size="xs"
+                    icon={Sparkles}
                     onClick={() => handleApplyDrugRefData(matchedDrugRef)}
-                    className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-md text-micro font-bold transition-colors shadow-2xs flex items-center justify-center gap-1 shrink-0 cursor-pointer"
+                    className="shrink-0"
                     title="تعبئة وتحديث الاسم والسعر الرسمي والشكل والشركة والمجموعة بالاستناد للدليل المرجعي"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>تطبيق بيانات الدليل</span>
-                  </button>
+                    تطبيق بيانات الدليل
+                  </AppButton>
                 </div>
               )}
 
@@ -1220,16 +1257,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           onAddBarcode();
                         }
                       }}
-                      className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[32px] px-2.5 text-micro font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                      className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2rem] px-2.5 text-micro font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                     />
-                    <button
-                      type="button"
-                      onClick={onAddBarcode}
-                      disabled={!newBarcodeInput.trim()}
-                      className="px-3 h-[32px] bg-brand hover:bg-brand-hover disabled:bg-surface dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white rounded text-micro font-bold transition-colors shadow-2xs cursor-pointer"
-                    >
+                    <AppButton variant="primary" size="sm" onClick={onAddBarcode} disabled={!newBarcodeInput.trim()}>
                       إضافة
-                    </button>
+                    </AppButton>
                   </div>
                   {additionalBarcodes.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1 max-h-20 overflow-y-auto">
@@ -1244,6 +1276,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             type="button"
                             onClick={() => onRemoveBarcode(idx)}
                             className="text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright rounded p-0.5 cursor-pointer"
+                            aria-label="مسح"
                             title="مسح"
                           >
                             <X className="w-3 h-3" />
@@ -1264,39 +1297,34 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       <span>المقاس واللون ومصفوفة الموديل</span>
                     </div>
                     {!editingId && onOpenVariantMatrix && (
-                      <button
-                        type="button"
-                        onClick={onOpenVariantMatrix}
-                        className="px-2.5 py-1 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg transition-colors text-micro shadow-2xs flex items-center gap-1 cursor-pointer"
-                      >
-                        <Sparkles className="w-3 h-3" />
-                        <span>+ عمل مصفوفة سريعة (مقاس × لون)</span>
-                      </button>
+                      <AppButton variant="primary" size="xs" icon={Sparkles} onClick={onOpenVariantMatrix}>
+                        + عمل مصفوفة سريعة (مقاس × لون)
+                      </AppButton>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-micro font-semibold text-purple-900 dark:text-purple-300 mb-1">
-                        المقاس (Size)
+                        المقاس
                       </label>
                       <input
                         type="text"
                         placeholder="مثلاً: S, M, L, XL, 32, 34..."
                         value={variantSize}
                         onChange={(e) => setVariantSize?.(e.target.value)}
-                        className="w-full bg-white dark:bg-surface-dark border border-purple-200 dark:border-purple-800/60 rounded h-[34px] px-2.5 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-purple-600"
+                        className="w-full bg-white dark:bg-surface-dark border border-purple-200 dark:border-purple-800/60 rounded h-[2.125rem] px-2.5 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-purple-600"
                       />
                     </div>
                     <div>
                       <label className="block text-micro font-semibold text-purple-900 dark:text-purple-300 mb-1">
-                        اللون (Color)
+                        اللون
                       </label>
                       <input
                         type="text"
                         placeholder="مثلاً: أسود، كحلي، أبيض، رمادي..."
                         value={variantColor}
                         onChange={(e) => setVariantColor?.(e.target.value)}
-                        className="w-full bg-white dark:bg-surface-dark border border-purple-200 dark:border-purple-800/60 rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-purple-600"
+                        className="w-full bg-white dark:bg-surface-dark border border-purple-200 dark:border-purple-800/60 rounded h-[2.125rem] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-purple-600"
                       />
                     </div>
                   </div>
@@ -1320,7 +1348,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="مثلاً: 128GB أو 256GB أو Pro Max"
                         value={variantSize}
                         onChange={(e) => setVariantSize?.(e.target.value)}
-                        className="w-full bg-white dark:bg-surface-dark border border-blue-200 dark:border-blue-800/60 rounded h-[32px] px-2.5 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white dark:bg-surface-dark border border-blue-200 dark:border-blue-800/60 rounded h-[2rem] px-2.5 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-blue-600"
                       />
                     </div>
                     <div>
@@ -1332,7 +1360,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="مثلاً: تيتانيوم طبيعي، أسود فلكي"
                         value={variantColor}
                         onChange={(e) => setVariantColor?.(e.target.value)}
-                        className="w-full bg-white dark:bg-surface-dark border border-blue-200 dark:border-blue-800/60 rounded h-[32px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white dark:bg-surface-dark border border-blue-200 dark:border-blue-800/60 rounded h-[2rem] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-blue-600"
                       />
                     </div>
                     <div>
@@ -1344,7 +1372,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="مثال: SM-A556B"
                         value={internalCode}
                         onChange={(e) => setInternalCode(e.target.value)}
-                        className="w-full bg-white dark:bg-surface-dark border border-blue-200 dark:border-blue-800/60 rounded h-[32px] px-2.5 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white dark:bg-surface-dark border border-blue-200 dark:border-blue-800/60 rounded h-[2rem] px-2.5 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-blue-600"
                       />
                     </div>
                   </div>
@@ -1358,7 +1386,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-micro font-bold text-ink dark:text-ink-dark">
-                        الاسم العلمي / المادة الفعالة الأساسية (Generic Name)
+                        الاسم العلمي / المادة الفعالة الأساسية
                       </label>
                       {pharmaInfo?.scientificName?.trim() && (!pharmaInfo?.ingredients || pharmaInfo.ingredients.length === 0) && (
                         <button
@@ -1378,7 +1406,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         value={pharmaInfo?.scientificName || ''}
                         onChange={(e) => setPharmaInfo?.((prev) => ({ ...prev, scientificName: e.target.value }))}
                         placeholder="مثلاً: Paracetamol, Amoxicillin, Ibuprofen..."
-                        className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-[34px] px-3 pr-8 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
+                        className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-[2.125rem] px-3 pr-8 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
                       />
                       <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright absolute right-2.5 top-2.5 pointer-events-none" />
                     </div>
@@ -1388,7 +1416,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <div>
                       <label className="block text-micro font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                        الشكل الدوائي (Dosage Form)
+                        الشكل الدوائي
                       </label>
                       <CustomSelect
                         options={dosageOptions}
@@ -1408,7 +1436,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                     <div>
                       <label className="block text-micro font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                        الشركة المصنعة (Manufacturer)
+                        الشركة المصنعة
                       </label>
                       <CustomSelect
                         options={manufacturerOptions}
@@ -1428,7 +1456,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                     <div>
                       <label className="block text-micro font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                        المجموعة العلاجية (Therapeutic)
+                        المجموعة العلاجية
                       </label>
                       <CustomSelect
                         options={therapeuticOptions}
@@ -1526,7 +1554,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       {/* Cold Chain Checkbox */}
                       {supportsColdChain && (
                         <label 
-                          className={`flex items-center gap-1.5 px-2.5 h-[34px] rounded-lg border cursor-pointer select-none transition-colors shrink-0 ${
+                          className={`flex items-center gap-1.5 px-2.5 h-[2.125rem] rounded-lg border cursor-pointer select-none transition-colors shrink-0 ${
                             isColdChainActive 
                               ? 'bg-cyan-50 dark:bg-cyan-950/30 border-cyan-300 dark:border-cyan-700 text-cyan-800 dark:text-cyan-300' 
                               : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted'
@@ -1537,7 +1565,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             type="checkbox"
                             checked={isColdChainActive}
                             onChange={(e) => handleColdChainChange(e.target.checked)}
-                            className="rounded border-line dark:border-line-dark text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5"
                           />
                           <Snowflake className={`w-3.5 h-3.5 ${isColdChainActive ? 'text-cyan-600 dark:text-cyan-400' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
                           <span className="text-micro font-bold">ثلاجة</span>
@@ -1553,7 +1580,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted">حفظ الصنف وتخزينه:</span>
                   <label 
-                    className={`flex items-center gap-1.5 px-3 h-[30px] rounded-lg border cursor-pointer select-none transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 h-[1.875rem] rounded-lg border cursor-pointer select-none transition-colors ${
                       isColdChainActive 
                         ? 'bg-cyan-50 dark:bg-cyan-950/30 border-cyan-300 dark:border-cyan-700 text-cyan-800 dark:text-cyan-300' 
                         : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted'
@@ -1564,7 +1591,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       type="checkbox"
                       checked={isColdChainActive}
                       onChange={(e) => handleColdChainChange(e.target.checked)}
-                      className="rounded border-line dark:border-line-dark text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5"
                     />
                     <Snowflake className={`w-3.5 h-3.5 ${isColdChainActive ? 'text-cyan-600 dark:text-cyan-400' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
                     <span className="text-micro font-bold">يحتاج حفظ في الثلاجة (تبريد)</span>
@@ -1587,7 +1613,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       }}
                       className={`py-1 px-3 rounded text-micro font-bold flex items-center gap-1 transition-all cursor-pointer ${
                         unit === 'piece'
-                          ? 'bg-brand text-white shadow-2xs'
+                          ? 'bg-brand text-white dark:bg-paid-bright dark:text-surface-dark'
                           : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                       }`}
                     >
@@ -1602,7 +1628,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       }}
                       className={`py-1 px-3 rounded text-micro font-bold flex items-center gap-1 transition-all cursor-pointer ${
                         unit === 'kg'
-                          ? 'bg-brand text-white shadow-2xs'
+                          ? 'bg-brand text-white dark:bg-paid-bright dark:text-surface-dark'
                           : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                       }`}
                     >
@@ -1613,9 +1639,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </div>
               )}
             </div>
+            </MotionHeight>
 
             {/* CARD 2: التسعير وهوامش الربح وتجزئة العبوات */}
-            <div ref={pricingCardRef} className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
+            <MotionHeight className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-2xs">
+            <div ref={pricingCardRef} className="flex flex-col gap-3">
               <div className="flex items-center justify-between border-b border-line/60 dark:border-line-dark/60 pb-2">
                 <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark text-sm">
                   <div className="w-6 h-6 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center">
@@ -1628,8 +1656,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
+                  <AppButton
+                    variant={showCostCalculator ? 'primary' : 'soft'}
+                    size="xs"
+                    icon={Calculator}
                     onClick={() => {
                       if (!showCostCalculator) {
                         if (!calcCartonCapacity && packSizeNum > 0) {
@@ -1641,16 +1671,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       }
                       setShowCostCalculator(!showCostCalculator);
                     }}
-                    className={`text-micro font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
-                      showCostCalculator
-                        ? 'bg-brand text-white border-brand shadow-xs'
-                        : 'bg-brand-soft/70 dark:bg-brand-dark-soft text-brand dark:text-brand-bright hover:bg-brand/15 border-brand/20'
-                    }`}
                     title="حساب تكلفة الوحدة من سعر الكرتونة أو إجمالي الفاتورة"
                   >
-                    <Calculator className="w-3.5 h-3.5" />
-                    <span>حاسبة التكلفة</span>
-                  </button>
+                    حاسبة التكلفة
+                  </AppButton>
                 </div>
               </div>
 
@@ -1680,7 +1704,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       <MoneyInput
                         valuePiasters={pricePiasters}
                         onChangePiasters={setPricePiasters}
-                        className="h-[38px] text-sm font-bold text-brand dark:text-brand-bright"
+                        className="h-[2.375rem] text-sm font-bold text-brand dark:text-brand-bright"
                       />
                       {hasPackTier && baseUnitObj && pricePiasters > 0 && (
                         <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted block mt-1">
@@ -1699,7 +1723,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       <MoneyInput
                         valuePiasters={costPiasters}
                         onChangePiasters={setCostPiasters}
-                        className="h-[38px] text-sm"
+                        className="h-[2.375rem] text-sm"
                       />
                       {hasPackTier && baseUnitObj && costPiasters > 0 && (
                         <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted block mt-1">
@@ -1728,7 +1752,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           onClick={() => setCostCalcMode('carton')}
                           className={`px-2.5 py-1 rounded text-micro font-bold flex items-center gap-1 transition-all cursor-pointer ${
                             costCalcMode === 'carton'
-                              ? 'bg-brand text-white shadow-xs'
+                              ? 'bg-brand text-white dark:bg-paid-bright dark:text-surface-dark'
                               : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                           }`}
                         >
@@ -1740,7 +1764,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           onClick={() => setCostCalcMode('invoice')}
                           className={`px-2.5 py-1 rounded text-micro font-bold flex items-center gap-1 transition-all cursor-pointer ${
                             costCalcMode === 'invoice'
-                              ? 'bg-brand text-white shadow-xs'
+                              ? 'bg-brand text-white dark:bg-paid-bright dark:text-surface-dark'
                               : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                           }`}
                         >
@@ -1751,6 +1775,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     )}
                   </div>
 
+                  <div {...costCalcPanel}>
                   {costCalcMode === 'carton' && unit !== 'kg' ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
                       <div>
@@ -1761,7 +1786,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           valuePiasters={calcCartonPricePiasters}
                           onChangePiasters={setCalcCartonPricePiasters}
                           placeholder="0.00"
-                          className="h-[34px] text-xs bg-white dark:bg-surface-dark"
+                          className="h-[2.125rem] text-xs bg-white dark:bg-surface-dark"
                         />
                       </div>
                       <div>
@@ -1773,7 +1798,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           value={calcCartonCapacity}
                           onChange={(e) => setCalcCartonCapacity(normalizeArabicNumerals(e.target.value))}
                           placeholder={packSizeNum > 0 ? String(packSizeNum) : 'مثلاً: 12'}
-                          className="w-full bg-white dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-3 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                          className="w-full bg-white dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.125rem] px-3 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                         />
                       </div>
                     </div>
@@ -1787,7 +1812,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           valuePiasters={calcInvoiceTotalPiasters}
                           onChangePiasters={setCalcInvoiceTotalPiasters}
                           placeholder="0.00"
-                          className="h-[34px] text-xs bg-white dark:bg-surface-dark"
+                          className="h-[2.125rem] text-xs bg-white dark:bg-surface-dark"
                         />
                       </div>
                       <div>
@@ -1799,11 +1824,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           value={calcInvoiceQty}
                           onChange={(e) => setCalcInvoiceQty(normalizeArabicNumerals(e.target.value))}
                           placeholder={stockInput ? stockInput : (unit === 'kg' ? 'مثلاً: 25.5' : 'مثلاً: 50')}
-                          className="w-full bg-white dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-3 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                          className="w-full bg-white dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.125rem] px-3 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                         />
                       </div>
                     </div>
                   )}
+                  </div>
 
                   <div className="flex items-center justify-between bg-white dark:bg-surface-dark p-2 rounded-md border border-brand/20 dark:border-brand/30 mt-0.5">
                     <div className="flex items-center gap-2">
@@ -1814,23 +1840,24 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         {formatArabicCurrency(activeCalculatedCost)}
                       </span>
                     </div>
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="primary"
+                      size="xs"
+                      icon={Check}
                       disabled={activeCalculatedCost <= 0}
                       onClick={() => {
                         setCostPiasters(activeCalculatedCost);
                         setShowCostCalculator(false);
                       }}
-                      className="px-3 py-1 bg-brand hover:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white rounded text-micro font-bold flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
                     >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>تطبيق التكلفة</span>
-                    </button>
+                      تطبيق التكلفة
+                    </AppButton>
                   </div>
                 </div>
               )}
 
               {/* Live Profit Margin Breakdown */}
+              <div {...profitPanel}>
               {(() => {
                 const profitPiasters = pricePiasters - costPiasters;
                 const markupPercent = costPiasters > 0 ? ((profitPiasters / costPiasters) * 100) : 0;
@@ -1883,12 +1910,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center justify-between font-mono text-micro text-paid/90 dark:text-paid-bright">
-                      <span>نسبة الربح من التكلفة (Markup): +{markupPercent.toFixed(1)}%</span>
-                      <span>هامش الربح من البيع (Margin): {marginPercent.toFixed(1)}%</span>
+                      <span>نسبة الربح من التكلفة: +{markupPercent.toFixed(1)}%</span>
+                      <span>هامش الربح من البيع: {marginPercent.toFixed(1)}%</span>
                     </div>
                   </div>
                 );
               })()}
+              </div>
 
               {/* Multi-Units & Packaging Editor (Shown for stores with multi-unit support) */}
               {supportsPackaging && (
@@ -1980,9 +2008,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </div>
               )}
             </div>
+            </MotionHeight>
 
             {/* CARD 3: رصيد المخزن والصلاحية وتنبيه النواقص */}
-            <div className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
+            <MotionHeight className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-2xs">
+            <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between border-b border-line/60 dark:border-line-dark/60 pb-2">
                 <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark text-sm">
                   <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
@@ -2002,8 +2032,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
 
               {/* Dynamic Inputs for Pieces or Weight */}
+              <div {...stockPanel} className="flex flex-col gap-3">
               {unit === 'piece' ? (
                 <>
+                  <div {...stockTierPanel}>
                   {productUnits.length > 2 ? (
                     /* Multi-Tier Packaging Inventory Grid (3 or 4 levels) */
                     <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 items-center bg-surface-2 dark:bg-surface-dark-2 p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
@@ -2030,7 +2062,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                               onChange={(e) => handleMultiTierCountChange(key, e.target.value)}
                               onFocus={(e) => e.target.select()}
                               placeholder="0"
-                              className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
+                              className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.25rem] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
                             />
                           </div>
                         );
@@ -2054,7 +2086,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           onFocus={(e) => e.target.select()}
                           placeholder="0"
                           title={editingId ? "يتم تعديل رصيد المخزون رسمياً عبر شاشة تسوية الجرد أو فواتير الشراء والبيع" : "الرصيد الافتتاحي للصنف الجديد"}
-                          className="w-full rounded h-[36px] px-2 text-sm font-mono text-center font-extrabold bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright focus:outline-none"
+                          className="w-full rounded h-[2.25rem] px-2 text-sm font-mono text-center font-extrabold bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright focus:outline-none"
                         />
                       </div>
                     </div>
@@ -2073,7 +2105,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           onChange={(e) => handleCartonsChange(e.target.value)}
                           onFocus={(e) => e.target.select()}
                           placeholder="0"
-                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.25rem] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
                         />
                       </div>
 
@@ -2094,7 +2126,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           onChange={(e) => handlePackSizeChange(e.target.value)}
                           onFocus={(e) => e.target.select()}
                           placeholder={detectedPackage?.conversionFactor ? String(detectedPackage.conversionFactor) : '1'}
-                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.25rem] px-2 text-sm font-mono text-center font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                         />
                       </div>
 
@@ -2113,7 +2145,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           onChange={(e) => handleLoosePiecesChange(e.target.value)}
                           onFocus={(e) => e.target.select()}
                           placeholder="0"
-                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.25rem] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
                         />
                       </div>
 
@@ -2138,12 +2170,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             readOnly={false}
                             placeholder="0"
                             title={editingId ? "يتم تعديل رصيد المخزون رسمياً عبر شاشة تسوية الجرد أو فواتير الشراء والبيع" : "الرصيد الافتتاحي للصنف الجديد"}
-                            className="w-full rounded h-[36px] px-2 text-sm font-mono text-center font-extrabold bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright focus:outline-none"
+                            className="w-full rounded h-[2.25rem] px-2 text-sm font-mono text-center font-extrabold bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright focus:outline-none"
                           />
                         </div>
                       </div>
                     </div>
                   )}
+                  </div>
 
                   {editingId && editingProduct && Math.round((parseFloat(normalizeArabicNumerals(stockInput)) || 0) * 1000) !== editingProduct.stockQuantityMilli && (
                     <div className="flex flex-col gap-1 bg-warn-soft dark:bg-warn-dark-soft px-3 py-2 rounded-lg border border-warn-border dark:border-warn-bright/30">
@@ -2155,7 +2188,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         value={stockAdjustReason}
                         onChange={(e) => setStockAdjustReason(e.target.value)}
                         placeholder="مثلاً: جرد فعلي للرف، تالف، فاقد"
-                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[30px] px-2 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[1.875rem] px-2 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                       />
                     </div>
                   )}
@@ -2177,7 +2210,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         }}
                         onFocus={(e) => e.target.select()}
                         placeholder="0"
-                        className="w-20 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[28px] px-2 text-xs font-mono text-center text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                        className="w-20 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[1.75rem] px-2 text-xs font-mono text-center text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                       />
                       <span className="text-micro text-ink-muted dark:text-ink-dark-muted truncate">تنبيه عند اقتراب نفاذ الصنف</span>
                     </div>
@@ -2225,7 +2258,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         readOnly={false}
                         title={editingId ? "يتم تعديل رصيد المخزون رسمياً عبر شاشة تسوية الجرد أو فواتير الشراء والبيع" : "الرصيد الافتتاحي للصنف الجديد"}
                         placeholder="مثلاً: 12.5"
-                        className={`w-full border rounded h-[36px] px-3 text-sm focus:outline-none font-mono font-bold ${
+                        className={`w-full border rounded h-[2.25rem] px-3 text-sm focus:outline-none font-mono font-bold ${
                           editingId
                             ? 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark focus:border-brand'
                             : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark focus:border-brand'
@@ -2244,7 +2277,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         value={minStockInput}
                         onChange={(e) => setMinStockInput(normalizeArabicNumerals(e.target.value))}
                         placeholder="5"
-                        className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
+                        className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[2.25rem] px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
                       />
                       <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1">تنبيه تلقائي عند هبوط الوزن عن هذا الحد</p>
                     </div>
@@ -2263,6 +2296,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   )}
                 </div>
               )}
+              </div>
 
               {/* Expiry Date & Batch (Only for stores that actually deal with expiries) */}
               {supportsExpiry && (
@@ -2270,7 +2304,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-200 font-bold text-xs">
                       <Calendar className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
-                      <span>تاريخ الصلاحية ورقم الشحنة (التشغيلة / Batch)</span>
+                      <span>تاريخ الصلاحية ورقم الشحنة (التشغيلة)</span>
                     </div>
                     <span className="text-micro text-amber-800 dark:text-amber-300 font-medium">تسجيل رصيد أول المدة بالمخزن</span>
                   </div>
@@ -2295,16 +2329,18 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="مثلاً: LOT-2026-A1 أو رقم الفاتورة"
                         value={initialBatchNumber}
                         onChange={(e) => setInitialBatchNumber?.(e.target.value)}
-                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[32px] px-2.5 text-micro font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2rem] px-2.5 text-micro font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                       />
                     </div>
                   </div>
                 </div>
               )}
             </div>
+            </MotionHeight>
 
             {/* CARD 4: خيارات وبيانات متقدمة (قابلة للطي لجميع المتاجر) */}
-            <div className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
+            <MotionHeight className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-2xs">
+            <div className="flex flex-col gap-3">
               <div
                 className="flex items-center justify-between cursor-pointer select-none"
                 onClick={() => setShowAdvancedDetails(!showAdvancedDetails)}
@@ -2329,6 +2365,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </div>
                 <button
                   type="button"
+                  aria-label={showAdvancedDetails ? 'طي التفاصيل المتقدمة' : 'عرض التفاصيل المتقدمة'}
                   className="p-1 text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark cursor-pointer"
                 >
                   {showAdvancedDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -2346,14 +2383,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark">
                             <ShieldAlert className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
-                            <span>تصنيف الصرف والرقابة والجدول (Controlled Drugs & Rx Status)</span>
+                            <span>تصنيف الصرف والرقابة والجدول</span>
                           </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                              نوع الوصفة / الصرف (Rx Status)
+                              نوع الوصفة / الصرف
                             </label>
                             <CustomSelect
                               options={rxStatusOptions}
@@ -2372,7 +2409,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                           <div>
                             <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                              جدول المواد المخدرة والمهدئات (Controlled Schedule)
+                              جدول المواد المخدرة والمهدئات
                             </label>
                             <CustomSelect
                               options={controlledScheduleOptions}
@@ -2403,7 +2440,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       {/* Clinical Usage, Route & Pregnancy Toggles */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                         <div>
-                          <label className="block text-micro font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">طريقة الاستخدام (Route)</label>
+                          <label className="block text-micro font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">طريقة الاستخدام</label>
                           <CustomSelect
                             options={routeOptions}
                             value={pharmaInfo?.routeOfAdministration || 'oral'}
@@ -2423,14 +2460,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         </div>
 
                         <div className="flex items-end">
-                          <label className="flex items-center gap-2 p-2 w-full h-[34px] bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg cursor-pointer">
+                          <label className="flex items-center gap-2 p-2 w-full h-[2.125rem] bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg cursor-pointer">
                             <input
                               type="checkbox"
                               checked={Boolean(pharmaInfo?.isAntibiotic)}
                               onChange={(e) => setPharmaInfo?.((prev) => ({ ...prev, isAntibiotic: e.target.checked }))}
-                              className="rounded text-brand focus:ring-brand w-3.5 h-3.5"
+                              className="w-3.5 h-3.5"
                             />
-                            <span className="text-micro font-bold text-ink dark:text-ink-dark">مضاد حيوي (Antibiotic)</span>
+                            <span className="text-micro font-bold text-ink dark:text-ink-dark">مضاد حيوي</span>
                           </label>
                         </div>
                       </div>
@@ -2443,12 +2480,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         >
                           <div className="flex items-center gap-1.5 text-micro font-bold text-ink dark:text-ink-dark">
                             <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                            <span>تفصيل المواد الفعالة وتركيزاتها (Active Ingredients)</span>
+                            <span>تفصيل المواد الفعالة وتركيزاتها</span>
                             <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono font-normal">
                               ({pharmaInfo?.ingredients?.length || 0} مادة)
                             </span>
                           </div>
-                          <button type="button" className="text-xs text-ink-muted dark:text-ink-dark-muted">
+                          <button
+                            type="button"
+                            aria-label={showIngredientsDetail ? 'طي المواد الفعالة' : 'عرض المواد الفعالة'}
+                            className="text-xs text-ink-muted dark:text-ink-dark-muted"
+                          >
                             {showIngredientsDetail ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                           </button>
                         </div>
@@ -2462,7 +2503,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                                 value={newIngredientName}
                                 onChange={(e) => setNewIngredientName(e.target.value)}
                                 placeholder="اسم المادة الفعالة..."
-                                className="flex-1 min-w-[120px] h-8 px-2 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                                className="flex-1 min-w-[7.5rem] h-8 px-2 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                               />
                               <input
                                 type="number"
@@ -2484,18 +2525,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                                   type="checkbox"
                                   checked={newIngredientIsPrimary}
                                   onChange={(e) => setNewIngredientIsPrimary(e.target.checked)}
-                                  className="rounded text-brand w-3 h-3"
+                                  className="w-3 h-3"
                                 />
                                 <span>رئيسية</span>
                               </label>
-                              <button
-                                type="button"
-                                onClick={handleAddIngredient}
-                                className="h-8 px-2.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
-                              >
-                                <Plus className="w-3 h-3" />
-                                <span>إضافة</span>
-                              </button>
+                              <AppButton variant="primary" size="sm" icon={Plus} onClick={handleAddIngredient} className="shrink-0">
+                                إضافة
+                              </AppButton>
                             </div>
 
                             {/* Ingredients List */}
@@ -2513,7 +2549,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                                   <tbody className="divide-y divide-line/40 dark:divide-line-dark/40 bg-surface dark:bg-surface-dark">
                                     {pharmaInfo.ingredients.map((ing, idx) => (
                                       <tr key={ing.ingredientId || idx}>
-                                        <td className="px-2.5 py-1.5 font-bold text-ink dark:text-ink-dark font-mono text-micro">
+                                        <td className="px-2.5 py-1.5 font-bold text-ink dark:text-ink-dark font-mono text-xs">
                                           {ing.ingredientName}
                                         </td>
                                         <td className="px-2.5 py-1.5 text-center font-mono font-bold text-brand dark:text-brand-bright">
@@ -2529,13 +2565,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                                           )}
                                         </td>
                                         <td className="px-2.5 py-1.5 text-center">
-                                          <button
-                                            type="button"
+                                          <AppButton
+                                            variant="dangerSubtle"
+                                            size="xs"
+                                            icon={Trash2}
                                             onClick={() => handleRemoveIngredient(idx)}
-                                            className="p-0.5 text-ink-muted hover:text-danger dark:text-ink-dark-muted dark:hover:text-danger-bright rounded cursor-pointer"
-                                          >
-                                            <Trash2 className="w-3 h-3" />
-                                          </button>
+                                            aria-label="حذف المادة الفعالة"
+                                          />
                                         </td>
                                       </tr>
                                     ))}
@@ -2560,7 +2596,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             value={taxRatePercent}
                             onChange={(e) => setTaxRatePercent(parseInt(normalizeArabicNumerals(e.target.value), 10) || 0)}
                             placeholder="0"
-                            className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono pl-7"
+                            className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.125rem] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono pl-7"
                           />
                           <Percent className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute left-2 pointer-events-none" />
                         </div>
@@ -2576,7 +2612,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           placeholder="مثال: ITM-00124"
                           value={internalCode}
                           onChange={(e) => setInternalCode(e.target.value)}
-                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.125rem] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
                         />
                       </div>
 
@@ -2589,7 +2625,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           placeholder="لمنظومة الضرائب"
                           value={taxCategoryCode}
                           onChange={(e) => setTaxCategoryCode(e.target.value)}
-                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.125rem] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
                         />
                       </div>
                     </div>
@@ -2603,7 +2639,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="مثال: ITM-00124"
                         value={internalCode}
                         onChange={(e) => setInternalCode(e.target.value)}
-                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
+                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[2.125rem] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
                       />
                     </div>
                   )}
@@ -2620,7 +2656,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             placeholder={terminology.sizePlaceholder}
                             value={variantSize}
                             onChange={(e) => setVariantSize?.(e.target.value)}
-                            className="w-full bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded h-[32px] px-2 text-xs font-mono text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
+                            className="w-full bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded h-[2rem] px-2 text-xs font-mono text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                           />
                         </div>
                         <div>
@@ -2630,7 +2666,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             placeholder={terminology.colorPlaceholder}
                             value={variantColor}
                             onChange={(e) => setVariantColor?.(e.target.value)}
-                            className="w-full bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded h-[32px] px-2 text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
+                            className="w-full bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded h-[2rem] px-2 text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                           />
                         </div>
                       </div>
@@ -2639,6 +2675,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </div>
               )}
             </div>
+            </MotionHeight>
 
           </div>
 
@@ -2655,8 +2692,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
-                <button
-                  type="button"
+                <AppButton
+                  variant="secondary"
+                  size="sm"
                   onClick={() => {
                     setSimilarWarning(null);
                     formBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2665,18 +2703,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       nameInputRef.current?.select();
                     }, 200);
                   }}
-                  className="px-3.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-lg text-xs font-bold transition-colors cursor-pointer"
                 >
                   تعديل الاسم
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onSave(undefined, true)}
-                  className="px-4 py-1.5 bg-warn hover:bg-warn-dark dark:bg-warn-bright dark:text-surface-dark text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>احفظ الصنف برضه</span>
-                </button>
+                </AppButton>
+                <AppButton variant="warning" size="sm" icon={Check} onClick={() => void onSave(undefined, true)}>
+                  احفظ الصنف برضه
+                </AppButton>
               </div>
             </div>
           )}
@@ -2695,30 +2727,25 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
-                <button
-                  type="button"
+                <AppButton
+                  variant="secondary"
+                  size="sm"
                   onClick={() => {
                     setBelowCostWarning(null);
                     pricingCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   }}
-                  className="px-3.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-lg text-xs font-bold transition-colors cursor-pointer"
                 >
                   تعديل الأسعار
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onSave(undefined, false, true)}
-                  className="px-4 py-1.5 bg-warn hover:bg-warn-dark dark:bg-warn-bright dark:text-surface-dark text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>احفظ الصنف بالخسارة عادي</span>
-                </button>
+                </AppButton>
+                <AppButton variant="warning" size="sm" icon={Check} onClick={() => void onSave(undefined, false, true)}>
+                  احفظ الصنف بالخسارة عادي
+                </AppButton>
               </div>
             </div>
           )}
 
           {/* Footer Actions (Docked at bottom) */}
-          <div className="h-[52px] bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between gap-2 shrink-0">
+          <div className="h-[3.25rem] bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between gap-2 shrink-0">
             <div className="flex-1 min-w-0 pl-2">
               {unitsLoadState === 'loading' ? (
                 <div className="text-ink-muted dark:text-ink-dark-muted text-micro font-bold flex items-center gap-1.5">
@@ -2729,13 +2756,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <div className="text-danger dark:text-danger-bright text-micro font-bold flex items-center gap-1.5" title={unitsLoadBlockMessage('error')}>
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span className="truncate">تعذر تحميل وحدات الصنف، الحفظ متوقف</span>
-                  <button
-                    type="button"
-                    onClick={onRetryLoadUnits}
-                    className="shrink-0 px-2 py-0.5 rounded border border-danger/40 dark:border-danger-bright/40 hover:bg-danger-soft dark:hover:bg-danger-dark-soft cursor-pointer"
-                  >
+                  <AppButton variant="dangerSoft" size="xs" onClick={onRetryLoadUnits} className="shrink-0">
                     إعادة المحاولة
-                  </button>
+                  </AppButton>
                 </div>
               ) : formError && (
                 <div className="text-danger dark:text-danger-bright text-micro font-bold truncate flex items-center gap-1.5" title={formError}>
@@ -2746,29 +2769,18 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => void requestClose()}
-                className="h-[36px] px-4 bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-              >
+              <AppButton variant="secondary" onClick={() => void requestClose()}>
                 إلغاء
-              </button>
+              </AppButton>
 
-              <button
-                type="submit"
-                disabled={loading || unitsLoadState !== 'ready'}
-                className="h-[36px] px-5 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark disabled:cursor-not-allowed"
-              >
-                <Check className="w-4 h-4" />
-                <span>
-                  {editingId 
-                    ? 'حفظ التعديلات' 
-                    : (isPharmacy ? 'حفظ الدواء في الصيدلية' :
-                       isClothing ? 'حفظ الموديل بالمحل' :
-                       isProduceOrButchery ? 'حفظ الصنف بالمحل' :
-                       isElectronics ? 'حفظ الجهاز بالمحل' : 'حفظ الصنف في المحل')}
-                </span>
-              </button>
+              <AppButton type="submit" variant="primary" icon={Check} disabled={loading || unitsLoadState !== 'ready'}>
+                {editingId
+                  ? 'حفظ التعديلات'
+                  : (isPharmacy ? 'حفظ الدواء في الصيدلية' :
+                     isClothing ? 'حفظ الموديل بالمحل' :
+                     isProduceOrButchery ? 'حفظ الصنف بالمحل' :
+                     isElectronics ? 'حفظ الجهاز بالمحل' : 'حفظ الصنف في المحل')}
+              </AppButton>
             </div>
           </div>
         </form>

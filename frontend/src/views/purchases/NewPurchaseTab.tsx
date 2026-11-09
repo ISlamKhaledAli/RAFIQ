@@ -24,7 +24,12 @@ import {
   Smartphone,
   Wallet,
   Clock,
+  Minus,
 } from 'lucide-react';
+import { SearchInput } from '../../components/SearchInput';
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { MoneyInput } from '../../components/MoneyInput';
@@ -809,6 +814,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   };
 
   const paymentState = getSupplierPaymentState(netCostPiasters, paidAmountPiasters);
+  const sourcePanel = useMotionPanel(paymentSource);
 
   const cashDrawerBlocked = isCashDrawerBlocked(paymentSource, paidAmountPiasters, liveDrawerCashPiasters);
 
@@ -817,13 +823,6 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     warn: 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright',
     danger: 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright',
   };
-
-  const quickBtnCls = (active: boolean) =>
-    `h-9 px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-      active
-        ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright border border-brand/40 dark:border-brand-bright/50'
-        : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-    }`;
 
   const extrasChips: string[] = [];
   if (supplierInvoiceNumber.trim()) extrasChips.push(`فاتورة رقم ${supplierInvoiceNumber.trim()}`);
@@ -882,15 +881,16 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                   size="lg"
                   searchable
                 />
-                <button
-                  type="button"
+                <AppButton
+                  variant="soft"
+                  size="md"
+                  icon={Plus}
+                  className="shrink-0"
                   onClick={onOpenAddSupplier}
-                  className="h-10 px-3 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand/30 text-brand-dark dark:text-brand-bright rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 border border-brand/20 dark:border-brand-bright/40 shadow-2xs transition-colors cursor-pointer"
                   title="إضافة مورد جديد سريعاً"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>مورد جديد</span>
-                </button>
+                  مورد جديد
+                </AppButton>
               </div>
             </div>
 
@@ -904,7 +904,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           </div>
 
           {/* Optional invoice-level fields */}
-          <div className="border-t border-line dark:border-line-dark pt-3">
+          <MotionHeight className="border-t border-line dark:border-line-dark pt-3">
             <button
               type="button"
               onClick={() => setExtrasOpen((v) => !v)}
@@ -994,31 +994,27 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 </div>
               </div>
             )}
-          </div>
+          </MotionHeight>
         </section>
 
         {/* Barcode & Product Scanner Search Bar */}
         <div ref={searchContainerRef} className="sticky top-0 z-30 bg-canvas dark:bg-canvas-dark py-1">
-          <div className="h-12 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark focus-within:border-brand dark:focus-within:border-brand-bright focus-within:ring-2 focus-within:ring-brand/20 dark:focus-within:ring-brand-bright/20 rounded-xl flex items-center px-4 gap-3 shadow-2xs transition-colors">
-            <Search className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted shrink-0" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="اضرب باركود الصنف بالاسكانر أو اكتب اسمه عشان ينزل في الفاتورة..."
-              value={productSearchQuery}
-              onChange={(e) => setProductSearchQuery(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className="flex-1 min-w-0 bg-transparent border-none text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-dark-muted/70 focus:outline-none"
-              autoFocus
-            />
-            {isSearchingProduct && (
-              <span className="text-xs text-ink-muted dark:text-ink-dark-muted animate-pulse shrink-0">بندور على الصنف...</span>
-            )}
-          </div>
+          <SearchInput
+            ref={searchInputRef}
+            size="md"
+            searchButton={false}
+            value={productSearchQuery}
+            onChange={setProductSearchQuery}
+            onKeyDown={handleSearchKeyDown}
+            placeholder="اضرب باركود الصنف بالاسكانر أو اكتب اسمه عشان ينزل في الفاتورة..."
+            autoFocus
+            ariaLabel="بحث عن صنف لإضافته للفاتورة"
+            trailing={isSearchingProduct ? <span className="text-xs text-ink-muted dark:text-ink-dark-muted animate-pulse shrink-0">بندور على الصنف...</span> : undefined}
+          />
 
           {/* Dropdown Results */}
           {displayedCatalogProducts.length > 0 && (
-            <div className="absolute top-[3.75rem] left-0 right-0 z-40 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-xl overflow-hidden divide-y divide-line dark:divide-line-dark max-h-72 overflow-y-auto">
+            <div className="absolute top-[3.25rem] left-0 right-0 z-40 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-xl overflow-hidden divide-y divide-line dark:divide-line-dark max-h-72 overflow-y-auto">
               {displayedCatalogProducts.map((p, idx) => (
                 <button
                   type="button"
@@ -1076,7 +1072,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           </div>
 
           {lineItems.length > 0 && (
-            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_210px_145px_110px_110px] gap-x-3 h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_11rem_8rem_7rem_7.5rem] gap-x-3 h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
               <div className="text-right">الصنف</div>
               <div className="text-center">الكمية <RequiredMark /></div>
               <div className="text-center">سعر الشراء</div>
@@ -1095,14 +1091,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 <span className="text-xs text-ink-muted dark:text-ink-dark-muted max-w-sm leading-relaxed">
                   اضرب الباركود بالاسكانر أو اكتب اسم الصنف في خانة البحث، واضغط Enter عشان ينزل هنا. بعدها حدد الكمية وسعر الشراء بس.
                 </span>
-                <button
-                  type="button"
+                <AppButton
+                  variant="soft"
+                  size="md"
+                  icon={Search}
+                  className="mt-1"
                   onClick={() => searchInputRef.current?.focus()}
-                  className="mt-1 h-9 px-4 rounded-lg bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand/30 text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
-                  <Search className="w-3.5 h-3.5" />
-                  <span>اذهب لخانة البحث</span>
-                </button>
+                  اذهب لخانة البحث
+                </AppButton>
               </div>
             ) : (
               lineItems.map((item, idx) => {
@@ -1150,7 +1147,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     className="px-4 py-3 flex flex-col gap-3 scroll-mt-16 hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40 transition-colors"
                   >
                     {/* Essentials: name, quantity, unit cost, total, actions */}
-                    <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1fr)_210px_145px_110px_110px] items-start gap-x-3 gap-y-3 text-xs">
+                    <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1fr)_11rem_8rem_7rem_7.5rem] items-start gap-x-3 gap-y-3 text-xs">
                       {/* 1. Product */}
                       <div className="col-span-2 lg:col-span-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1211,7 +1208,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         <span className="lg:hidden self-start text-xs font-bold text-ink-muted dark:text-ink-dark-muted">الكمية</span>
                         {meta.hasPackaging && (
                           <div
-                            className={`w-full max-w-[210px] p-0.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark shadow-2xs ${
+                            className={`w-full max-w-[13.125rem] p-0.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark shadow-2xs ${
                               meta.availableUnits.length === 3
                                 ? 'grid grid-cols-3 gap-0.5'
                                 : meta.availableUnits.length === 4
@@ -1237,8 +1234,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                     onClick={() => handleSelectUnit(idx, u)}
                                     className={`h-7 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer text-micro font-bold select-none ${
                                       isSelected
-                                        ? 'bg-brand dark:bg-brand text-white shadow-xs font-black ring-1 ring-brand-dark/20'
-                                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark'
+                                        ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-2xs font-extrabold'
+                                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                                     }`}
                                     title={`الشراء ${formatUnitWithBi(u.unitName)} (${u.conversionFactor > 1 ? `${u.conversionFactor} ${meta.baseUnitName}` : 'وحدة أساسية'})`}
                                   >
@@ -1260,8 +1257,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   onClick={() => handleTogglePurchaseUnitMode(idx, 'package')}
                                   className={`h-7 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer text-micro font-bold select-none ${
                                     meta.unitMode === 'package'
-                                      ? 'bg-brand dark:bg-brand text-white shadow-xs font-black ring-1 ring-brand-dark/20'
-                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark'
+                                      ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-2xs font-extrabold'
+                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                                   }`}
                                   title={`الشراء ${formatUnitWithBi(meta.packageUnitName)}`}
                                 >
@@ -1273,8 +1270,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   onClick={() => handleTogglePurchaseUnitMode(idx, 'base')}
                                   className={`h-7 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer text-micro font-bold select-none ${
                                     meta.unitMode === 'base'
-                                      ? 'bg-brand dark:bg-brand text-white shadow-xs font-black ring-1 ring-brand-dark/20'
-                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark'
+                                      ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-2xs font-extrabold'
+                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                                   }`}
                                   title={`الشراء ${formatUnitWithBi(meta.baseUnitName)}`}
                                 >
@@ -1286,15 +1283,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           </div>
                         )}
 
-                        <div className="flex items-center justify-center gap-1 w-full max-w-[210px]">
-                          <button
-                            type="button"
-                            onClick={() => handleQuantityStep(idx, -1)}
-                            className="w-8 h-8 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-sm font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer border border-line/60 dark:border-line-dark/60"
+                        <div className="flex items-center gap-1">
+                          <AppButton
+                            variant="secondary"
+                            size="md"
+                            icon={Minus}
+                            aria-label="إنقاص الكمية"
                             title="إنقاص الكمية"
-                          >
-                            -
-                          </button>
+                            onClick={() => handleQuantityStep(idx, -1)}
+                          />
                           <input
                             type="text"
                             inputMode="decimal"
@@ -1323,14 +1320,14 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             }`}
                             title={isPackageMode ? `عدد ال${meta.packageUnitName}` : `عدد ال${meta.baseUnitName}`}
                           />
-                          <button
-                            type="button"
-                            onClick={() => handleQuantityStep(idx, 1)}
-                            className="w-8 h-8 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-sm font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer border border-line/60 dark:border-line-dark/60"
+                          <AppButton
+                            variant="secondary"
+                            size="md"
+                            icon={Plus}
+                            aria-label="زيادة الكمية"
                             title="زيادة الكمية"
-                          >
-                            +
-                          </button>
+                            onClick={() => handleQuantityStep(idx, 1)}
+                          />
                         </div>
 
                         {meta.packSize > 1 && (
@@ -1414,30 +1411,26 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
                       {/* 5. Actions: details toggle follows the cost field in tab order */}
                       <div className="col-span-2 lg:col-span-1 flex items-center justify-end lg:justify-center gap-1">
-                        <button
-                          type="button"
+                        <AppButton
+                          variant={isOpen ? 'soft' : 'secondary'}
+                          size="sm"
+                          icon={SlidersHorizontal}
                           onClick={() => toggleItemExpand(item.productId)}
                           aria-expanded={isOpen}
                           aria-controls={detailsId}
-                          className={`h-9 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                            isOpen
-                              ? 'text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft'
-                              : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark'
-                          }`}
                           title="سعر البيع والتعبئة والصلاحية وباقي تفاصيل الصنف"
                         >
-                          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
-                          <span>تفاصيل</span>
-                          <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveLine(idx)}
-                          className="h-9 w-9 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft rounded-lg transition-colors cursor-pointer"
+                          تفاصيل
+                          <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                        </AppButton>
+                        <AppButton
+                          variant="dangerSubtle"
+                          size="sm"
+                          icon={Trash2}
+                          aria-label="حذف هذا الصنف من الفاتورة"
                           title="حذف هذا الصنف من الفاتورة"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          onClick={() => handleRemoveLine(idx)}
+                        />
                       </div>
                     </div>
 
@@ -1508,17 +1501,16 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             )}
                             {weightedSuggestedPricePiasters !== null &&
                               Math.abs(weightedSuggestedPricePiasters - item.newSellingPricePiasters) > 50 && (
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="soft"
+                                  size="xs"
+                                  icon={Sparkles}
+                                  className="self-start"
                                   onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
-                                  className="text-micro font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-paid-bright flex items-center gap-1 bg-brand-soft dark:bg-brand-soft/20 hover:bg-brand/20 dark:hover:bg-brand-bright/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30 transition-colors cursor-pointer self-start"
                                   title="تعديل سعر البيع لاعتماد متوسط التكلفة"
                                 >
-                                  <Sparkles className="w-2.5 h-2.5 shrink-0" />
-                                  <span>
-                                    مقترح: {formatArabicCurrency(isPackageMode ? weightedSuggestedPricePiasters * meta.packSize : weightedSuggestedPricePiasters, true)}
-                                  </span>
-                                </button>
+                                  مقترح: {formatArabicCurrency(isPackageMode ? weightedSuggestedPricePiasters * meta.packSize : weightedSuggestedPricePiasters, true)}
+                                </AppButton>
                               )}
                           </div>
 
@@ -1823,25 +1815,27 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">المدفوع الآن</span>
                 <div className="flex items-center gap-2">
                   {netCostPiasters > 0 && paidAmountPiasters !== netCostPiasters && (
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="successSoft"
+                      size="xs"
+                      icon={Banknote}
+                      className="-my-1.5"
                       onClick={() => setCustomPaidAmountPiasters(netCostPiasters)}
-                      className="text-micro font-bold text-paid hover:text-paid-hover dark:text-paid-bright cursor-pointer hover:underline flex items-center gap-1"
                       title="سداد كامل الفاتورة الآن"
                     >
-                      <Banknote className="w-3 h-3" />
-                      <span>دفع كامل الفاتورة ({formatMoney(netCostPiasters)})</span>
-                    </button>
+                      دفع كامل الفاتورة ({formatMoney(netCostPiasters)})
+                    </AppButton>
                   )}
                   {paidAmountPiasters > 0 && (
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="subtle"
+                      size="xs"
+                      className="-my-1.5"
                       onClick={() => setCustomPaidAmountPiasters(null)}
-                      className="text-micro font-bold text-ink-muted hover:text-danger dark:text-ink-dark-muted dark:hover:text-danger-bright cursor-pointer hover:underline"
                       title="تفريغ الخانة لتسجيل الفاتورة آجلة بالكامل"
                     >
                       تفريغ (آجل)
-                    </button>
+                    </AppButton>
                   )}
                 </div>
               </div>
@@ -1858,27 +1852,29 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             {(advanceCreditPiasters > 0 && advanceCreditPiasters < netCostPiasters) || supplierDebtPiasters > 0 ? (
               <div className="flex flex-wrap items-center gap-2">
                 {advanceCreditPiasters > 0 && advanceCreditPiasters < netCostPiasters && (
-                  <button
-                    type="button"
+                  <AppButton
+                    variant={paidAmountPiasters === netCostPiasters - advanceCreditPiasters ? 'soft' : 'secondary'}
+                    size="sm"
+                    icon={Sparkles}
+                    aria-pressed={paidAmountPiasters === netCostPiasters - advanceCreditPiasters}
                     onClick={() => {
                       setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters);
                     }}
-                    className={quickBtnCls(paidAmountPiasters === netCostPiasters - advanceCreditPiasters)}
                   >
-                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                    <span>سداد الفرق بعد رصيدنا ({formatMoney(netCostPiasters - advanceCreditPiasters)})</span>
-                  </button>
+                    سداد الفرق بعد رصيدنا ({formatMoney(netCostPiasters - advanceCreditPiasters)})
+                  </AppButton>
                 )}
                 {supplierDebtPiasters > 0 && (
-                  <button
-                    type="button"
+                  <AppButton
+                    variant={paidAmountPiasters === supplierDebtPiasters + netCostPiasters ? 'soft' : 'secondary'}
+                    size="sm"
+                    aria-pressed={paidAmountPiasters === supplierDebtPiasters + netCostPiasters}
                     onClick={() => {
                       setCustomPaidAmountPiasters(supplierDebtPiasters + netCostPiasters);
                     }}
-                    className={quickBtnCls(paidAmountPiasters === supplierDebtPiasters + netCostPiasters)}
                   >
-                    <span>تصفية الدين ({formatMoney(supplierDebtPiasters + netCostPiasters)})</span>
-                  </button>
+                    تصفية الدين ({formatMoney(supplierDebtPiasters + netCostPiasters)})
+                  </AppButton>
                 )}
               </div>
             ) : null}
@@ -1932,7 +1928,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     },
                     {
                       value: 'instapay',
-                      label: 'تحويل إنستاباي - InstaPay (لا يخصم من الدرج)',
+                      label: 'تحويل إنستاباي (لا يخصم من الدرج)',
                       icon: <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" />,
                     },
                     {
@@ -1948,6 +1944,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                   ]}
                 />
 
+                <div {...sourcePanel} className="space-y-2">
                 {paymentSource === 'cash_drawer' && (
                   <>
                     <div className="px-3 py-2 rounded-lg border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between gap-3">
@@ -1978,17 +1975,17 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 )}
 
                 {paymentSource === 'instapay' && (
-                  <div className="p-2.5 bg-brand-soft/60 dark:bg-brand-dark-soft/60 border border-brand/20 dark:border-brand-bright/30 rounded-lg text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in duration-150">
+                  <div className="p-2.5 bg-brand-soft/60 dark:bg-brand-dark-soft/60 border border-brand/20 dark:border-brand-bright/30 rounded-lg text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in">
                     <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
                     <div className="space-y-0.5 leading-relaxed">
-                      <span className="font-bold text-brand dark:text-brand-bright block">سداد عبر تحويل إنستاباي (InstaPay):</span>
+                      <span className="font-bold text-brand dark:text-brand-bright block">سداد عبر تحويل إنستاباي:</span>
                       <span>يتم تسجيل الفاتورة كمسددة إلكترونياً دون خصم أي مبالغ من درج الكاشير أو التأثير على جرد الوردية.</span>
                     </div>
                   </div>
                 )}
 
                 {paymentSource === 'vodafone_cash' && (
-                  <div className="p-2.5 bg-paid-soft/60 dark:bg-paid-dark-soft/60 border border-paid/20 dark:border-emerald-800/40 rounded-lg text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in duration-150">
+                  <div className="p-2.5 bg-paid-soft/60 dark:bg-paid-dark-soft/60 border border-paid/20 dark:border-paid-bright/30 rounded-lg text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in">
                     <Smartphone className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
                     <div className="space-y-0.5 leading-relaxed">
                       <span className="font-bold text-paid dark:text-paid-bright block">سداد عبر محفظة فودافون كاش:</span>
@@ -1998,7 +1995,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 )}
 
                 {paymentSource === 'external_cash' && (
-                  <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in duration-150">
+                  <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in">
                     <Wallet className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted shrink-0 mt-0.5" />
                     <div className="space-y-0.5 leading-relaxed">
                       <span className="font-bold text-ink dark:text-ink-dark block">سداد كاش خارجي من صاحب المحل:</span>
@@ -2006,6 +2003,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             )}
 
@@ -2039,27 +2037,19 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           )}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {dirty && (
-            <div role="status">
-              <UnsavedChangesChip />
-            </div>
-          )}
-          <button
-            type="button"
+          <UnsavedChangesChip dirty={dirty} />
+          <AppButton
+            variant="success"
+            size="lg"
+            icon={Receipt}
             onClick={handleSaveClick}
             disabled={isSaving || lineItems.length === 0 || cashDrawerBlocked}
-            className="h-11 px-6 bg-paid hover:bg-paid-hover dark:bg-paid-bright dark:text-surface-dark dark:hover:bg-paid-bright-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
           >
-            <Receipt className="w-4 h-4" />
-            <span>حفظ الفاتورة وتزويد رصيد البضاعة</span>
-          </button>
-          <button
-            type="button"
-            onClick={onRequestCancel}
-            className="h-11 px-5 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-sm font-semibold transition-colors cursor-pointer"
-          >
+            حفظ الفاتورة وتزويد رصيد البضاعة
+          </AppButton>
+          <AppButton variant="secondary" size="lg" onClick={onRequestCancel}>
             إلغاء وتراجع
-          </button>
+          </AppButton>
         </div>
       </div>
 
@@ -2121,22 +2111,24 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
             {/* Actions */}
             <div className="flex items-center gap-2.5 pt-2 border-t border-line dark:border-line-dark">
-              <button
-                type="button"
+              <AppButton
+                variant="warning"
+                size="md"
+                icon={Receipt}
                 onClick={handleConfirmCreditSave}
-                className="flex-1 h-11 px-3 bg-warn hover:bg-warn-hover text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+                className="flex-1"
               >
-                <Receipt className="w-4 h-4 shrink-0" />
-                <span>أيوه، احفظها آجل بالكامل</span>
-              </button>
-              <button
-                type="button"
+                أيوه، احفظها آجل بالكامل
+              </AppButton>
+              <AppButton
+                variant="primary"
+                size="md"
+                icon={Banknote}
                 onClick={handleCancelCreditToPay}
-                className="flex-1 h-11 px-3 bg-brand hover:bg-brand-hover text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+                className="flex-1"
               >
-                <Banknote className="w-4 h-4 shrink-0" />
-                <span>لا، هسدد كاش أو جزء</span>
-              </button>
+                لا، هسدد كاش أو جزء
+              </AppButton>
             </div>
           </div>
         </div>

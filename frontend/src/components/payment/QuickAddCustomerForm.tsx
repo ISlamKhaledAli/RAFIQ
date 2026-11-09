@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react';
+import { AppButton } from '../AppButton';
 import { AlertTriangle, Check, X } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import { RequiredMark } from '../RequiredMark';
@@ -68,33 +69,19 @@ export const QuickAddCustomerForm = ({
           <span className="flex-1 min-w-0 text-xs leading-snug text-ink dark:text-ink-dark line-clamp-2">
             الرقم ده متسجل باسم «<strong>{duplicateQuickCustomer.name}</strong>»
           </span>
-          <button
-            type="button"
-            onClick={() => onSelectDuplicateCustomer(duplicateQuickCustomer)}
-            className="h-8 px-3 shrink-0 rounded-lg border border-warn dark:border-warn-bright text-xs font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark hover:bg-warn-soft dark:hover:bg-warn-dark-soft transition-colors cursor-pointer"
-          >
+          <AppButton variant="secondary" size="sm" className="shrink-0" onClick={() => onSelectDuplicateCustomer(duplicateQuickCustomer)}>
             اختيار
-          </button>
+          </AppButton>
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-2 mt-auto">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="h-10 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-sm font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-        >
-          <X className="w-4 h-4" />
-          <span>إلغاء</span>
-        </button>
-        <button
-          type="submit"
-          disabled={!quickName.trim() || quickSaving}
-          className="h-10 rounded-lg bg-brand hover:bg-brand-hover dark:bg-brand-container dark:hover:bg-brand text-white text-sm font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Check className="w-4 h-4" />
-          <span>{quickSaving ? 'جاري الحفظ...' : 'حفظ'}</span>
-        </button>
+        <AppButton variant="secondary" size="md" icon={X} onClick={onCancel}>
+          إلغاء
+        </AppButton>
+        <AppButton type="submit" variant="primary" size="md" icon={Check} disabled={!quickName.trim() || quickSaving}>
+          {quickSaving ? 'جاري الحفظ...' : 'حفظ'}
+        </AppButton>
       </div>
     </form>
   );

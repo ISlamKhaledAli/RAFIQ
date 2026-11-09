@@ -1,4 +1,5 @@
 import React from 'react';
+import { AppButton } from '../AppButton';
 import { UserCheck } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import { PaymentStatusCard } from './PaymentStatusCard';
@@ -20,12 +21,6 @@ interface CashPaymentSectionProps {
   saveChangeToCustomerAccount: boolean;
   onToggleSaveChangeToCustomerAccount: (v: boolean) => void;
 }
-
-const PRESET_BASE =
-  'h-11 px-3 rounded-lg border text-sm font-bold tabular-nums transition-colors cursor-pointer active:scale-95 whitespace-nowrap';
-const PRESET_IDLE =
-  'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-line dark:border-line-dark hover:bg-brand-soft dark:hover:bg-brand-dark-soft hover:border-brand/50 dark:hover:border-brand-bright/50';
-const PRESET_SELECTED = 'bg-brand text-white border-brand dark:bg-brand-container dark:border-brand-bright';
 
 export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
   receivedInput,
@@ -78,47 +73,41 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <button
-            type="button"
+          <AppButton
+            variant={receivedPiasters === netTotalPiasters ? 'primary' : 'soft'}
+            size="lg"
             onClick={() => onSetPreset(netTotalPiasters)}
             aria-pressed={receivedPiasters === netTotalPiasters}
-            className={`${PRESET_BASE} ${
-              receivedPiasters === netTotalPiasters
-                ? PRESET_SELECTED
-                : 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand/40 dark:border-brand-bright/40 hover:bg-brand hover:text-white dark:hover:bg-brand dark:hover:text-white'
-            }`}
             title="استلام إجمالي الفاتورة بالضبط نقداً"
           >
             المبلغ بالظبط
-          </button>
+          </AppButton>
 
           {quickPresetsPiasters.filter((p) => p !== netTotalPiasters).map((amt) => (
-            <button
+            <AppButton
               key={amt}
-              type="button"
+              variant={receivedPiasters === amt ? 'primary' : 'secondary'}
+              size="lg"
+              className="tabular-nums"
               onClick={() => onSetPreset(amt)}
               aria-pressed={receivedPiasters === amt}
-              className={`${PRESET_BASE} ${receivedPiasters === amt ? PRESET_SELECTED : PRESET_IDLE}`}
             >
               {(amt / 100).toFixed(2)} ج.م
-            </button>
+            </AppButton>
           ))}
         </div>
 
-        <button
-          type="button"
+        <AppButton
+          variant={isCreditActive ? 'warningSoft' : 'secondary'}
+          size="lg"
+          fullWidth
+          icon={UserCheck}
           onClick={onQuickFullCredit}
           aria-pressed={isCreditActive}
-          className={`h-11 w-full px-4 rounded-lg border-2 text-sm font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] text-ink dark:text-ink-dark ${
-            isCreditActive
-              ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn dark:border-warn-bright'
-              : 'bg-surface dark:bg-surface-dark border-dashed border-warn/60 dark:border-warn-bright/50 hover:bg-warn-soft dark:hover:bg-warn-dark-soft'
-          }`}
           title="تسجيل الفاتورة على حساب العميل بالكامل (0 كاش مستلم)"
         >
-          <UserCheck className="w-4 h-4 shrink-0 text-warn dark:text-warn-bright" />
-          <span>على الحساب بالكامل (بدون كاش)</span>
-        </button>
+          على الحساب بالكامل (بدون كاش)
+        </AppButton>
       </section>
 
       <div className="flex-1 min-h-0">

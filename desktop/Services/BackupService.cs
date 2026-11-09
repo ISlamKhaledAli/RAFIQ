@@ -25,7 +25,6 @@ namespace RafiqPOS.Services
         public string FullPath { get; set; }
         public long SizeBytes { get; set; }
         public string CreatedAt { get; set; }
-        public bool IsVerified { get; set; }
     }
 
     public class DriveItem
@@ -55,6 +54,11 @@ namespace RafiqPOS.Services
         public int WarnAfterDays { get; set; }
         public int MaxCopies { get; set; }
         public List<BackupFileInfo> RecentBackups { get; set; }
+        public int TotalBackupCount { get; set; }
+        public string ListedFolder { get; set; }
+        // ok | unavailable (configured folder unreachable, local fallback listed) | unreadable (listing failed)
+        public string FolderStatus { get; set; }
+        public string FolderMessage { get; set; }
 
         public BackupStatusInfo()
         {
@@ -65,7 +69,16 @@ namespace RafiqPOS.Services
     public class BackupService
     {
         public const int MIN_GUARANTEED_COPIES = 3;
+        // Defaults apply only while a key was never saved. 14 daily + 8 weekly copies (max 30) cover a supermarket's
+        // audit/dispute window, and each backup is small, so the disk cost of keeping them is negligible.
+        public const int DEFAULT_RETENTION_DAYS = 14;
+        public const int DEFAULT_RETENTION_WEEKS = 8;
+        public const int DEFAULT_MAX_COPIES = 30;
+        public const int DEFAULT_WARN_AFTER_DAYS = 2;
+        public const string RETENTION_ROOT_ONLY_MESSAGE = "تعديل سياسة الاحتفاظ بالنسخ الاحتياطية متاح لحساب الروت فقط";
         public const long LOW_DISK_SPACE_THRESHOLD_BYTES = 500L * 1024L * 1024L; // 500 MB
+        public const int DEFAULT_LISTED_BACKUPS = 15;
+        public const int MAX_LISTED_BACKUPS = 200;
 
         private class BackupFileEntry
         {
@@ -74,6 +87,83 @@ namespace RafiqPOS.Services
             public DateTime Timestamp;
             public string DateKey;
             public long SizeBytes;
+        }
+
+        public static bool IsRetentionSettingKey(string key)
+        {
+            return key == "backup_retention_days" || key == "backup_retention_weeks" || key == "backup_max_copies";
+        }
+
+        private static int NormalizeRetentionDays(int value)
+        {
+            return ClampInt(value, 1, 365);
+        }
+
+        private static int NormalizeRetentionWeeks(int value)
+        {
+            return ClampInt(value, 1, 104);
+        }
+
+        private static int NormalizeMaxCopies(int value)
+        {
+            return ClampInt(value > 0 ? value : DEFAULT_MAX_COPIES, MIN_GUARANTEED_COPIES, MAX_LISTED_BACKUPS);
+        }
+
+        // A missing, empty, unparsable or non-positive stored value falls back to the default instead of becoming 0
+        private int ReadIntSetting(string key, int fallback)
+        {
+            int value;
+            if (!int.TryParse(_settingsRepo.Get(key, ""), out value) || value <= 0) return fallback;
+            return value;
+        }
+
+        public int GetRetentionDays()
+        {
+            return NormalizeRetentionDays(ReadIntSetting("backup_retention_days", DEFAULT_RETENTION_DAYS));
+        }
+
+        public int GetRetentionWeeks()
+        {
+            return NormalizeRetentionWeeks(ReadIntSetting("backup_retention_weeks", DEFAULT_RETENTION_WEEKS));
+        }
+
+        public int GetMaxCopies()
+        {
+            return NormalizeMaxCopies(ReadIntSetting("backup_max_copies", DEFAULT_MAX_COPIES));
+        }
+
+        public int GetWarnAfterDays()
+        {
+            return ClampInt(ReadIntSetting("backup_warn_after_days", DEFAULT_WARN_AFTER_DAYS), 1, 365);
+        }
+
+        // True when saving these values (after the same clamping SaveConfiguration applies) would change the effective policy
+        public bool RetentionWouldChange(int retentionDays, int retentionWeeks, int maxCopies)
+        {
+            return NormalizeRetentionDays(retentionDays) != GetRetentionDays()
+                || NormalizeRetentionWeeks(retentionWeeks) != GetRetentionWeeks()
+                || NormalizeMaxCopies(maxCopies) != GetMaxCopies();
+        }
+
+        // Raw settings writes are compared unclamped: the stored text would be the requested one
+        public bool IsRetentionSettingChange(string key, string value)
+        {
+            int requested;
+            if (!int.TryParse((value ?? "").Trim(), out requested)) return true;
+            if (key == "backup_retention_days") return requested != GetRetentionDays();
+            if (key == "backup_retention_weeks") return requested != GetRetentionWeeks();
+            if (key == "backup_max_copies") return requested != GetMaxCopies();
+            return false;
+        }
+
+        public string GetLastSuccessfulBackupAt()
+        {
+            try { return _settingsRepo.Get("backup_last_success_at", ""); }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر قراءة وقت آخر نسخة احتياطية: " + ex.Message);
+                return "";
+            }
         }
 
         public static bool TryParseBackupTimestamp(string filePath, out DateTime timestamp)
@@ -279,6 +369,8 @@ namespace RafiqPOS.Services
                 targetFolder = defaultFolder;
             }
 
+            string rawSnapshotPath = null;
+            string encryptedTempPath = null;
             try
             {
                 if (!Directory.Exists(targetFolder))
@@ -310,14 +402,26 @@ namespace RafiqPOS.Services
                 string fileName = string.Format("rafiq_backup_{0}.db", timestamp);
                 string backupFilePath = Path.Combine(targetFolder, fileName);
 
-                // If file already exists, delete to ensure SQLite starts with a fresh database
+                // The plain snapshot and the encrypted copy are staged under .raw/.tmp names, so a rafiq_backup_*.db file
+                // (what the list, retention and restore see) only ever appears complete
+                rawSnapshotPath = backupFilePath + ".raw";
+                encryptedTempPath = backupFilePath + ".tmp";
                 if (File.Exists(backupFilePath))
                 {
                     try { File.Delete(backupFilePath); } catch { }
                 }
+                if (File.Exists(rawSnapshotPath))
+                {
+                    try { File.Delete(rawSnapshotPath); } catch { }
+                }
+
+                // Counts before the snapshot: sales committed while the copy is encrypted may only make the backup older, never smaller
+                long baselineProducts;
+                long baselineSales;
+                ReadLiveCounts(out baselineProducts, out baselineSales);
 
                 // Use SQLite Online Backup API (thread-safe, non-blocking snapshot in WAL mode)
-                string destConnString = string.Format("Data Source={0};Version=3;", backupFilePath);
+                string destConnString = string.Format("Data Source={0};Version=3;", rawSnapshotPath);
 
                 using (var sourceConn = new SQLiteConnection(_connectionString))
                 using (var destConn = new SQLiteConnection(destConnString))
@@ -329,23 +433,25 @@ namespace RafiqPOS.Services
                 }
 
                 // Feature #168 & F-42: Encrypt the backup snapshot using dual-wrap envelope encryption (RFBK v2)
-                string rawSnapshotPath = backupFilePath + ".raw";
-                File.Move(backupFilePath, rawSnapshotPath);
                 string recoveryCode = GetOrCreateRecoveryCode();
-                _encryptionService.EncryptFileDualWrap(rawSnapshotPath, backupFilePath, recoveryCode);
+                _encryptionService.EncryptFileDualWrap(rawSnapshotPath, encryptedTempPath, recoveryCode);
                 try { File.Delete(rawSnapshotPath); } catch { }
+                File.Move(encryptedTempPath, backupFilePath);
 
                 // Verify the backup file immediately (Feature #125 / Task 125-1)
                 var fileInfo = new FileInfo(backupFilePath);
                 result.BackupFilePath = backupFilePath;
                 result.FileSizeBytes = fileInfo.Length;
 
-                bool integrityPassed = VerifyBackupIntegrity(backupFilePath, true);
+                long verifiedProducts;
+                long verifiedSales;
+                string verifyMessage;
+                bool integrityPassed = VerifyBackupCore(backupFilePath, true, baselineProducts, baselineSales, out verifiedProducts, out verifiedSales, out verifyMessage);
                 if (!integrityPassed)
                 {
                     try { File.Delete(backupFilePath); } catch { }
-                    result.Message = "فشل فحص سلامة النسخة الاحتياطية بعد إنشائها. تم حذف الملف غير السليم لحماية البيانات.";
-                    Logger.Error("فشل التحقق من سلامة ملف النسخة الاحتياطية: " + backupFilePath, null);
+                    result.Message = "فشل فحص سلامة النسخة الاحتياطية بعد إنشائها. تم حذف الملف غير السليم لحماية البيانات. " + verifyMessage;
+                    Logger.Error("فشل التحقق من سلامة ملف النسخة الاحتياطية: " + backupFilePath + " - " + verifyMessage, null);
                     _settingsRepo.Set("backup_last_status", "failed");
                     return result;
                 }
@@ -385,12 +491,9 @@ namespace RafiqPOS.Services
                 _settingsRepo.Set("backup_last_status", result.FallbackToLocal ? "warning" : "success");
 
                 // Prune old backups per retention policy (Task 9-3 & Senior Retention Engine)
-                int retentionDays = 7;
-                int retentionWeeks = 4;
-                int maxCopies = 20;
-                int.TryParse(_settingsRepo.Get("backup_retention_days", "7"), out retentionDays);
-                int.TryParse(_settingsRepo.Get("backup_retention_weeks", "4"), out retentionWeeks);
-                int.TryParse(_settingsRepo.Get("backup_max_copies", "20"), out maxCopies);
+                int retentionDays = GetRetentionDays();
+                int retentionWeeks = GetRetentionWeeks();
+                int maxCopies = GetMaxCopies();
 
                 PruneOldBackups(targetFolder, retentionDays, retentionWeeks, maxCopies);
 
@@ -434,6 +537,9 @@ namespace RafiqPOS.Services
             {
                 result.Message = "خطأ أثناء عملية النسخ الاحتياطي: " + ex.Message;
                 Logger.Error("خطأ في إنشاء النسخة الاحتياطية", ex);
+                // A half-written staging file must not linger next to the real backups (plain snapshot included)
+                if (rawSnapshotPath != null) { try { File.Delete(rawSnapshotPath); } catch { } }
+                if (encryptedTempPath != null) { try { File.Delete(encryptedTempPath); } catch { } }
                 _settingsRepo.Set("backup_last_status", "failed");
                 return result;
             }
@@ -468,20 +574,38 @@ namespace RafiqPOS.Services
             }
         }
 
-        public bool VerifyBackupIntegrity(string backupFilePath)
+        private void ReadLiveCounts(out long products, out long sales)
         {
-            return VerifyBackupIntegrity(backupFilePath, false);
+            products = 0;
+            sales = 0;
+            using (var mainConn = new SQLiteConnection(_connectionString))
+            {
+                mainConn.Open();
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products;", mainConn))
+                {
+                    object pRes = cmd.ExecuteScalar();
+                    if (pRes != null && pRes != DBNull.Value) products = Convert.ToInt64(pRes);
+                }
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sales;", mainConn))
+                {
+                    object sRes = cmd.ExecuteScalar();
+                    if (sRes != null && sRes != DBNull.Value) sales = Convert.ToInt64(sRes);
+                }
+            }
         }
 
-        public bool VerifyBackupIntegrity(string backupFilePath, bool compareWithActiveDb)
-        {
-            long pCount;
-            long sCount;
-            string msg;
-            return VerifyBackupDetailed(backupFilePath, compareWithActiveDb, out pCount, out sCount, out msg);
-        }
-
+        /// <summary>
+        /// Standalone check of an existing backup file (the list's "فحص" button): the file is only read, never modified, and the
+        /// live database is not opened. An encrypted backup is decrypted to a private temp copy that is always deleted afterwards.
+        /// </summary>
         public bool VerifyBackupDetailed(string backupFilePath, bool compareWithActiveDb, out long productsCount, out long salesCount, out string message)
+        {
+            return VerifyBackupCore(backupFilePath, compareWithActiveDb, -1, -1, out productsCount, out salesCount, out message);
+        }
+
+        // minProducts/minSales < 0 with compareWithActiveDb: exact match against the live counts read now (legacy behaviour);
+        // otherwise the backup must hold at least those counts (taken before the snapshot started)
+        private bool VerifyBackupCore(string backupFilePath, bool compareWithActiveDb, long minProducts, long minSales, out long productsCount, out long salesCount, out string message)
         {
             productsCount = 0;
             salesCount = 0;
@@ -489,6 +613,7 @@ namespace RafiqPOS.Services
 
             string fileToCheck = backupFilePath;
             string tempDecrypted = null;
+            bool wasEncrypted = false;
             try
             {
                 if (string.IsNullOrEmpty(backupFilePath) || !File.Exists(backupFilePath))
@@ -497,9 +622,16 @@ namespace RafiqPOS.Services
                     return false;
                 }
 
+                if (new FileInfo(backupFilePath).Length == 0)
+                {
+                    message = "ملف النسخة الاحتياطية فارغ (0 بايت) وغير صالح.";
+                    return false;
+                }
+
                 // Feature #168: If backup is encrypted, decrypt to temp staging for SQLite verification
                 if (EncryptionService.IsFileEncrypted(backupFilePath))
                 {
+                    wasEncrypted = true;
                     tempDecrypted = Path.Combine(Path.GetTempPath(), "rafiq_bk_verify_" + Guid.NewGuid().ToString("N") + ".tmp");
                     _encryptionService.DecryptFile(backupFilePath, tempDecrypted);
                     fileToCheck = tempDecrypted;
@@ -516,7 +648,7 @@ namespace RafiqPOS.Services
                         object res = cmd.ExecuteScalar();
                         if (res == null || !res.ToString().Equals("ok", StringComparison.OrdinalIgnoreCase))
                         {
-                            message = "بنية ملف قاعدة البيانات بها تلف داخلي (B-Tree corruption).";
+                            message = "بنية ملف قاعدة البيانات بها تلف داخلي.";
                             return false;
                         }
                     }
@@ -532,39 +664,45 @@ namespace RafiqPOS.Services
                         object sRes = cmd.ExecuteScalar();
                         if (sRes != null && sRes != DBNull.Value) salesCount = Convert.ToInt64(sRes);
                     }
+                }
 
-                    // 3. Optional comparison with active database (used right after CreateBackup snapshot)
-                    if (compareWithActiveDb)
+                // 3. Optional comparison with the active database (used right after the CreateBackup snapshot)
+                if (compareWithActiveDb)
+                {
+                    bool exact = minProducts < 0 || minSales < 0;
+                    long expectProducts = minProducts;
+                    long expectSales = minSales;
+                    if (exact)
                     {
-                        using (var mainConn = new SQLiteConnection(_connectionString))
-                        {
-                            mainConn.Open();
-                            long mainProducts = 0;
-                            long mainSales = 0;
+                        ReadLiveCounts(out expectProducts, out expectSales);
+                    }
 
-                            using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products;", mainConn))
-                            {
-                                object pRes = cmd.ExecuteScalar();
-                                if (pRes != null && pRes != DBNull.Value) mainProducts = Convert.ToInt64(pRes);
-                            }
-                            using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sales;", mainConn))
-                            {
-                                object sRes = cmd.ExecuteScalar();
-                                if (sRes != null && sRes != DBNull.Value) mainSales = Convert.ToInt64(sRes);
-                            }
-
-                            if (productsCount != mainProducts || salesCount != mainSales)
-                            {
-                                Logger.Warn(string.Format("فحص مطابقة النسخة الاحتياطية الفورية غير متطابق: أصناف (أصل {0} / نسخة {1})، فواتير (أصل {2} / نسخة {3})", mainProducts, productsCount, mainSales, salesCount));
-                                message = string.Format("النسخة مأخوذة ولكنها لا تطابق السجلات اللحظية للنظام (أصناف: أصل {0} / نسخة {1}، فواتير: أصل {2} / نسخة {3}).", mainProducts, productsCount, mainSales, salesCount);
-                                return false;
-                            }
-                        }
+                    bool mismatch = exact
+                        ? (productsCount != expectProducts || salesCount != expectSales)
+                        : (productsCount < expectProducts || salesCount < expectSales);
+                    if (mismatch)
+                    {
+                        Logger.Warn(string.Format("فحص مطابقة النسخة الاحتياطية الفورية غير متطابق: أصناف (أصل {0} / نسخة {1})، فواتير (أصل {2} / نسخة {3})", expectProducts, productsCount, expectSales, salesCount));
+                        message = string.Format("النسخة مأخوذة ولكنها لا تطابق السجلات اللحظية للنظام (أصناف: أصل {0} / نسخة {1}، فواتير: أصل {2} / نسخة {3}).", expectProducts, productsCount, expectSales, salesCount);
+                        return false;
                     }
                 }
 
-                message = string.Format("تم فحص النسخة الاحتياطية بنجاح: بنية B-Tree سليمة ومشفرة بأمان (تحتوي على {0} صنف و {1} فاتورة).", productsCount, salesCount);
+                message = string.Format("تم فحص النسخة الاحتياطية بنجاح: بنية الملف سليمة {0} (تحتوي على {1} صنف و {2} فاتورة).",
+                    wasEncrypted ? "ومشفرة بأمان" : "(نسخة قديمة غير مشفرة)", productsCount, salesCount);
                 return true;
+            }
+            catch (IOException ex)
+            {
+                Logger.Error("فحص سلامة النسخة الاحتياطية فشل (الملف مستخدم أو غير مقروء): " + backupFilePath, ex);
+                message = "تعذر قراءة ملف النسخة الاحتياطية (قد يكون مستخدماً من برنامج آخر أو الفلاشة غير متصلة): " + ex.Message;
+                return false;
+            }
+            catch (SQLiteException ex)
+            {
+                Logger.Error("فحص سلامة النسخة الاحتياطية فشل (قاعدة بيانات غير صالحة): " + backupFilePath, ex);
+                message = "الملف ليس نسخة احتياطية صالحة لرفيق أو أنه تالف: " + ex.Message;
+                return false;
             }
             catch (Exception ex)
             {
@@ -583,9 +721,7 @@ namespace RafiqPOS.Services
 
         public void PruneOldBackups(string folderPath, int keepDays, int keepWeeks)
         {
-            int maxCopies = 20;
-            int.TryParse(_settingsRepo.Get("backup_max_copies", "20"), out maxCopies);
-            PruneOldBackups(folderPath, keepDays, keepWeeks, maxCopies);
+            PruneOldBackups(folderPath, keepDays, keepWeeks, GetMaxCopies());
         }
 
         public void PruneOldBackups(string folderPath, int keepDays, int keepWeeks, int maxCopies)
@@ -678,8 +814,11 @@ namespace RafiqPOS.Services
                 DateTime cutoffDays = now.Date.AddDays(-keepDays);
                 DateTime cutoffWeeks = now.Date.AddDays(-(keepWeeks * 7));
 
-                // Traverse from newest to oldest to preserve the latest backup for each calendar week
+                // Traverse from newest to oldest to preserve the latest backup for each calendar week.
+                // Expired/duplicate copies are only collected here: the minimum-copies floor is applied afterwards oldest-first,
+                // otherwise the newest expired copies would be deleted first and the oldest would survive
                 var keptWeeks = new HashSet<string>();
+                var expiredCandidates = new List<BackupFileEntry>();
                 for (int i = entries.Count - 1; i >= 0; i--)
                 {
                     var e = entries[i];
@@ -694,11 +833,7 @@ namespace RafiqPOS.Services
                     // Expired past retention weeks: delete
                     if (e.Timestamp.Date < cutoffWeeks)
                     {
-                        if (entries.Count - filesToDelete.Count > MIN_GUARANTEED_COPIES)
-                        {
-                            filesToDelete.Add(e.FilePath);
-                            Logger.Info(string.Format("تنظيف استبقاء: تجاوزت النسخة الحد الأقصى للأسابيع ({0} أسابيع): {1}", keepWeeks, e.FileName));
-                        }
+                        expiredCandidates.Add(e);
                         continue;
                     }
 
@@ -711,11 +846,16 @@ namespace RafiqPOS.Services
                     }
                     else
                     {
-                        if (entries.Count - filesToDelete.Count > MIN_GUARANTEED_COPIES)
-                        {
-                            filesToDelete.Add(e.FilePath);
-                            Logger.Info(string.Format("تنظيف استبقاء: تكرار نسخة في نفس الأسبوع القديم: {0}", e.FileName));
-                        }
+                        expiredCandidates.Add(e);
+                    }
+                }
+
+                for (int i = expiredCandidates.Count - 1; i >= 0; i--)
+                {
+                    if (entries.Count - filesToDelete.Count > MIN_GUARANTEED_COPIES)
+                    {
+                        filesToDelete.Add(expiredCandidates[i].FilePath);
+                        Logger.Info(string.Format("تنظيف استبقاء: نسخة خارج سياسة الاستبقاء ({0} أيام / {1} أسابيع): {2}", keepDays, keepWeeks, expiredCandidates[i].FileName));
                     }
                 }
 
@@ -780,7 +920,7 @@ namespace RafiqPOS.Services
                             File.Delete(f);
                         }
 
-                        string rxCompanion = f.Replace("rafiq_backup_", "rafiq_rx_");
+                        string rxCompanion = Path.Combine(Path.GetDirectoryName(f), Path.GetFileName(f).Replace("rafiq_backup_", "rafiq_rx_"));
                         if (File.Exists(rxCompanion))
                         {
                             try { File.Delete(rxCompanion); } catch { }
@@ -860,6 +1000,12 @@ namespace RafiqPOS.Services
         /// </summary>
         public BackupStatusInfo GetStatus(string dateFrom, string dateTo)
         {
+            return GetStatus(dateFrom, dateTo, 0);
+        }
+
+        /// <summary>limit &lt;= 0 keeps the default cap; any limit is bounded by MAX_LISTED_BACKUPS. TotalBackupCount is the match count before the cap.</summary>
+        public BackupStatusInfo GetStatus(string dateFrom, string dateTo, int limit)
+        {
             var status = new BackupStatusInfo();
 
             string lastSuccess = _settingsRepo.Get("backup_last_success_at", "");
@@ -875,21 +1021,11 @@ namespace RafiqPOS.Services
             status.AutoOnClose = _settingsRepo.Get("backup_auto_on_close", "1") == "1";
             status.AutoDaily = _settingsRepo.Get("backup_auto_daily", "1") == "1";
 
-            int retDays = 7;
-            int.TryParse(_settingsRepo.Get("backup_retention_days", "7"), out retDays);
-            status.RetentionDays = retDays;
-
-            int retWeeks = 4;
-            int.TryParse(_settingsRepo.Get("backup_retention_weeks", "4"), out retWeeks);
-            status.RetentionWeeks = retWeeks;
-
-            int warnDays = 2;
-            int.TryParse(_settingsRepo.Get("backup_warn_after_days", "2"), out warnDays);
+            status.RetentionDays = GetRetentionDays();
+            status.RetentionWeeks = GetRetentionWeeks();
+            int warnDays = GetWarnAfterDays();
             status.WarnAfterDays = warnDays;
-
-            int maxCopies = 20;
-            int.TryParse(_settingsRepo.Get("backup_max_copies", "20"), out maxCopies);
-            status.MaxCopies = maxCopies;
+            status.MaxCopies = GetMaxCopies();
 
             // Check overdue condition (Task 9-6)
             if (string.IsNullOrEmpty(lastSuccess))
@@ -917,49 +1053,202 @@ namespace RafiqPOS.Services
                 }
             }
 
-            // List recent backups from folder
+            FillBackupList(status, dateFrom, dateTo, limit);
+            return status;
+        }
+
+        private class ListedBackup
+        {
+            public FileInfo Info;
+            public DateTime Timestamp;
+        }
+
+        // Lists only finished backups made by the app (rafiq_backup_*.db), newest first by the timestamp in the file name
+        // (a copy to a flash drive resets the file creation time, the name keeps the real moment)
+        private void FillBackupList(BackupStatusInfo status, string dateFrom, string dateTo, int limit)
+        {
+            status.FolderStatus = "ok";
+            string folder = status.ConfiguredFolder;
             try
             {
-                string folder = status.ConfiguredFolder;
-                if (Directory.Exists(folder))
+                if (string.IsNullOrWhiteSpace(folder))
                 {
-                    string[] files = Directory.GetFiles(folder, "rafiq_backup_*.db");
-                    Array.Sort(files);
-                    Array.Reverse(files);
+                    folder = GetDefaultBackupFolder();
+                }
+                else if (!Directory.Exists(folder))
+                {
+                    // CreateBackup falls back to the local safe folder when the configured one is unreachable, so the copies are there
+                    status.FolderStatus = "unavailable";
+                    status.FolderMessage = "تعذر الوصول إلى مجلد النسخ المحدد (الفلاشة غير متصلة أو المجلد غير موجود). المعروض هنا هو سجل المجلد المحلي الآمن بدلاً منه.";
+                    folder = GetDefaultBackupFolder();
+                }
+                status.ListedFolder = folder;
 
-                    string fromDay = NormalizeLocalDay(dateFrom);
-                    string toDay = NormalizeLocalDay(dateTo);
-                    if (fromDay != null && toDay != null && string.CompareOrdinal(fromDay, toDay) > 0)
+                string[] files = Directory.GetFiles(folder, "rafiq_backup_*.db");
+
+                string fromDay = NormalizeLocalDay(dateFrom);
+                string toDay = NormalizeLocalDay(dateTo);
+                if (fromDay != null && toDay != null && string.CompareOrdinal(fromDay, toDay) > 0)
+                {
+                    string swapDay = fromDay;
+                    fromDay = toDay;
+                    toDay = swapDay;
+                }
+
+                var matches = new List<ListedBackup>();
+                foreach (string file in files)
+                {
+                    if (!file.EndsWith(".db", StringComparison.OrdinalIgnoreCase)) continue;
+                    FileInfo fi;
+                    DateTime ts;
+                    try
                     {
-                        string swapDay = fromDay;
-                        fromDay = toDay;
-                        toDay = swapDay;
+                        fi = new FileInfo(file);
+                        if ((fi.Attributes & FileAttributes.Hidden) != 0) continue;
+                        if (!TryParseBackupTimestamp(file, out ts)) continue;
                     }
-                    int maxItems = (fromDay != null || toDay != null) ? 200 : 15;
-                    foreach (string file in files)
+                    catch
                     {
-                        if (status.RecentBackups.Count >= maxItems) break;
-                        var fi = new FileInfo(file);
-                        string fileDay = fi.CreationTime.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-                        if (fromDay != null && string.CompareOrdinal(fileDay, fromDay) < 0) continue;
-                        if (toDay != null && string.CompareOrdinal(fileDay, toDay) > 0) continue;
-                        status.RecentBackups.Add(new BackupFileInfo
-                        {
-                            FileName = fi.Name,
-                            FullPath = fi.FullName,
-                            SizeBytes = fi.Length,
-                            CreatedAt = fi.CreationTime.ToString("yyyy-MM-dd HH:mm"),
-                            IsVerified = true
-                        });
+                        continue;
                     }
+                    string fileDay = ts.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                    if (fromDay != null && string.CompareOrdinal(fileDay, fromDay) < 0) continue;
+                    if (toDay != null && string.CompareOrdinal(fileDay, toDay) > 0) continue;
+                    matches.Add(new ListedBackup { Info = fi, Timestamp = ts });
+                }
+
+                matches.Sort(delegate(ListedBackup a, ListedBackup b)
+                {
+                    int byTime = b.Timestamp.CompareTo(a.Timestamp);
+                    return byTime != 0 ? byTime : string.CompareOrdinal(b.Info.Name, a.Info.Name);
+                });
+
+                status.TotalBackupCount = matches.Count;
+                int maxItems = limit > 0
+                    ? Math.Min(limit, MAX_LISTED_BACKUPS)
+                    : ((fromDay != null || toDay != null) ? MAX_LISTED_BACKUPS : DEFAULT_LISTED_BACKUPS);
+                for (int i = 0; i < matches.Count && i < maxItems; i++)
+                {
+                    status.RecentBackups.Add(new BackupFileInfo
+                    {
+                        FileName = matches[i].Info.Name,
+                        FullPath = matches[i].Info.FullName,
+                        SizeBytes = matches[i].Info.Length,
+                        CreatedAt = matches[i].Timestamp.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)
+                    });
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Non-critical listing error
+                status.FolderStatus = "unreadable";
+                status.FolderMessage = "تعذر قراءة مجلد النسخ الاحتياطية: " + ex.Message;
+                Logger.Warn("تعذر عرض سجل النسخ الاحتياطية: " + ex.Message);
+            }
+        }
+
+        internal static bool IsPathInsideFolder(string fullPath, string folder)
+        {
+            if (string.IsNullOrWhiteSpace(folder)) return false;
+            try
+            {
+                string prefix = Path.GetFullPath(folder.Trim()).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+                return fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        internal static bool HasUnsafePathSyntax(string path)
+        {
+            if (path.StartsWith("\\\\?\\", StringComparison.Ordinal) || path.StartsWith("\\\\.\\", StringComparison.Ordinal)) return true;
+            if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 0 || path.IndexOf('*') >= 0 || path.IndexOf('?') >= 0) return true;
+            // ':' is only valid as the drive separator; anywhere else it addresses an alternate data stream
+            int colon = path.IndexOf(':');
+            return colon >= 0 && colon != 1;
+        }
+
+        /// <summary>Arabic reason when the configured backup folder is not a usable full path; null when blank (default folder) or fine.</summary>
+        public static string ValidateTargetFolder(string folder)
+        {
+            if (string.IsNullOrWhiteSpace(folder)) return null;
+            string trimmed = folder.Trim();
+            if (HasUnsafePathSyntax(trimmed))
+            {
+                return "مسار مجلد النسخ الاحتياطي غير صالح. اكتب مساراً كاملاً مثل E:\\RafiqBackups.";
+            }
+            bool driveRelative = trimmed.Length >= 2 && trimmed[1] == ':' && (trimmed.Length < 3 || (trimmed[2] != '\\' && trimmed[2] != '/'));
+            if (!Path.IsPathRooted(trimmed) || driveRelative)
+            {
+                return "يجب كتابة المسار الكامل لمجلد النسخ الاحتياطي (مثال: E:\\RafiqBackups) وليس مساراً نسبياً.";
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Gate for any path the UI sends to verify or restore a backup. Returns the Arabic reason, or null with the normalised
+        /// full path. Network (UNC) files are accepted only inside the configured backup folder; a flash-drive file typed by the
+        /// owner stays allowed (manual recovery) but must still be an existing regular .db file, never the live data folder.
+        /// </summary>
+        public static string ValidateRestoreSource(string path, string allowedFolder, string liveDataFolder, out string fullPath)
+        {
+            fullPath = null;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return "لم يتم تحديد ملف النسخة الاحتياطية.";
             }
 
-            return status;
+            string trimmed = path.Trim().Trim('"');
+            if (HasUnsafePathSyntax(trimmed))
+            {
+                return "مسار ملف النسخة الاحتياطية غير صالح أو غير مسموح.";
+            }
+            if (!Path.IsPathRooted(trimmed))
+            {
+                return "يجب تحديد المسار الكامل لملف النسخة الاحتياطية.";
+            }
+
+            string full;
+            try
+            {
+                full = Path.GetFullPath(trimmed);
+            }
+            catch (Exception)
+            {
+                return "مسار ملف النسخة الاحتياطية غير صالح.";
+            }
+
+            if (full.StartsWith("\\\\", StringComparison.Ordinal) && !IsPathInsideFolder(full, allowedFolder))
+            {
+                return "ملفات مسارات الشبكة غير مسموحة إلا إذا كانت داخل مجلد النسخ الاحتياطي المحدد في الإعدادات.";
+            }
+            if (!string.Equals(Path.GetExtension(full), ".db", StringComparison.OrdinalIgnoreCase))
+            {
+                return "الملف المحدد ليس نسخة احتياطية من رفيق (الامتداد المطلوب db).";
+            }
+            if (!File.Exists(full))
+            {
+                return "لم يتم العثور على ملف النسخة الاحتياطية المحددة.";
+            }
+            try
+            {
+                if ((File.GetAttributes(full) & FileAttributes.ReparsePoint) != 0)
+                {
+                    return "الملف المحدد اختصار أو رابط رمزي وليس ملف نسخة احتياطية فعلياً.";
+                }
+            }
+            catch (Exception)
+            {
+                return "تعذر قراءة خصائص ملف النسخة الاحتياطية.";
+            }
+            if (IsPathInsideFolder(full, liveDataFolder))
+            {
+                return "لا يمكن الاسترجاع من ملف داخل مجلد بيانات النظام الحالي.";
+            }
+
+            fullPath = full;
+            return null;
         }
 
         private static string NormalizeLocalDay(string value)
@@ -1019,17 +1308,25 @@ namespace RafiqPOS.Services
             return list;
         }
 
-        public void SaveConfiguration(string targetFolder, bool autoOnClose, bool autoDaily, int retentionDays, int retentionWeeks, int warnDays, int maxCopies = 20)
+        private static int ClampInt(int value, int min, int max)
         {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+
+        public void SaveConfiguration(string targetFolder, bool autoOnClose, bool autoDaily, int retentionDays, int retentionWeeks, int warnDays, int maxCopies = DEFAULT_MAX_COPIES)
+        {
+            // Bounds keep an out-of-range request from turning retention into "delete everything but 3 files" or "never prune"
             var dict = new Dictionary<string, string>
             {
                 { "backup_target_folder", targetFolder ?? "" },
                 { "backup_auto_on_close", autoOnClose ? "1" : "0" },
                 { "backup_auto_daily", autoDaily ? "1" : "0" },
-                { "backup_retention_days", retentionDays.ToString() },
-                { "backup_retention_weeks", retentionWeeks.ToString() },
-                { "backup_warn_after_days", warnDays.ToString() },
-                { "backup_max_copies", (maxCopies > 0 ? maxCopies : 20).ToString() }
+                { "backup_retention_days", NormalizeRetentionDays(retentionDays).ToString() },
+                { "backup_retention_weeks", NormalizeRetentionWeeks(retentionWeeks).ToString() },
+                { "backup_warn_after_days", ClampInt(warnDays, 1, 365).ToString() },
+                { "backup_max_copies", NormalizeMaxCopies(maxCopies).ToString() }
             };
             _settingsRepo.SaveBatch(dict);
         }

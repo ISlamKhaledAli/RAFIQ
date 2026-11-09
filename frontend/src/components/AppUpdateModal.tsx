@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { DownloadCloud, Sparkles, CheckCircle2, AlertTriangle, X, RefreshCw, Info, HardDriveDownload, Copy, ShieldCheck } from 'lucide-react';
 import { invoke, type AppUpdateInfo } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { AppButton } from './AppButton';
 import { deriveUpdateStatus, formatFileSize, isSafeDownloadUrl, isValidSha256, type UpdateStatus } from '../utils/appUpdateView';
 
 interface AppUpdateModalProps {
@@ -109,9 +110,11 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false, onUpdateInf
             </div>
           </div>
           <button
+            type="button"
             onClick={requestClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition-colors"
+            className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3"
             title="إغلاق"
+            aria-label="إغلاق"
           >
             <X className="w-5 h-5" />
           </button>
@@ -122,7 +125,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false, onUpdateInf
             type="button"
             onClick={() => void checkForUpdates()}
             disabled={isChecking}
-            className="w-full p-3 rounded-xl border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark text-right transition-all flex items-center gap-3 disabled:opacity-50"
+            className="w-full p-3 rounded-xl border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark text-right flex items-center gap-3 disabled:opacity-50"
           >
             <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft flex items-center justify-center text-brand-dark dark:text-brand-bright shrink-0">
               <RefreshCw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
@@ -201,17 +204,17 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false, onUpdateInf
                       value={updateInfo.downloadUrl}
                       dir="ltr"
                       onFocus={(e) => e.currentTarget.select()}
-                      className="flex-1 min-w-0 h-9 px-2.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark text-xs font-mono"
+                      className="flex-1 min-w-0 h-10 px-2.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark text-xs font-mono"
                       aria-label="رابط تحميل ملف التثبيت"
                     />
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="primary"
+                      icon={Copy}
                       onClick={() => void copyText(updateInfo.downloadUrl || '', 'تم نسخ رابط التحميل. افتحه في المتصفح لتنزيل ملف التثبيت.')}
-                      className="h-9 px-3 rounded-lg bg-brand-dark hover:bg-brand text-white dark:bg-brand-dark-soft dark:hover:bg-brand-dark-soft/80 dark:text-brand-bright dark:border dark:border-brand-bright/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+                      className="shrink-0"
                     >
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>نسخ رابط التحميل</span>
-                    </button>
+                      نسخ رابط التحميل
+                    </AppButton>
                   </div>
                   {isValidSha256(updateInfo.sha256) && (
                     <div className="flex items-start gap-2 text-micro text-ink-muted dark:text-ink-dark-muted">
@@ -241,7 +244,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false, onUpdateInf
             <div className="text-xs leading-relaxed">
               <strong className="block text-ink dark:text-ink-dark font-bold mb-1">طريقة تثبيت الإصدار الجديد (يدوياً وبأمان)</strong>
               <ol className="list-decimal ps-4 space-y-1">
-                <li>احصل على ملف التثبيت الرسمي الجديد (Setup): من رابط التحميل إن ظهر أعلاه، أو من الفني المعتمد على فلاشة USB لو لا يوجد إنترنت.</li>
+                <li>احصل على ملف التثبيت الرسمي الجديد: من رابط التحميل إن ظهر أعلاه، أو من الفني المعتمد على فلاشة USB لو لا يوجد إنترنت.</li>
                 <li>تأكد من إغلاق الوردية وعدم وجود عملية بيع مفتوحة، ثم أغلق رفيق.</li>
                 <li>شغّل ملف التثبيت الجديد فوق النسخة الحالية. بياناتك ومبيعاتك وإعداداتك محفوظة ولا تُمسح.</li>
               </ol>

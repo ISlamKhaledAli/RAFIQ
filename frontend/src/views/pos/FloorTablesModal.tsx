@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { AppButton } from '../../components/AppButton';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 import {
   X,
   UtensilsCrossed,
@@ -15,6 +17,7 @@ import {
   RefreshCw,
   ShoppingCart,
   Unlock,
+  Minus,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { CustomSelect } from '../../components/CustomSelect';
@@ -59,6 +62,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
 
   // Action sub-modes on selected occupied table
   const [actionMode, setActionMode] = useState<'none' | 'transfer' | 'merge' | 'split' | 'manage_floor'>('none');
+  const motionPanel = useMotionPanel(actionMode === 'manage_floor' ? 'manage' : 'map');
   const [targetTableId, setTargetTableId] = useState<string>('');
   const [splitQtys, setSplitQtys] = useState<Record<number, number>>({});
 
@@ -340,8 +344,8 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none" dir="rtl">
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
+    <div className="motion-modal-backdrop fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none" dir="rtl">
+      <div className="motion-modal-panel bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
         {/* Header */}
         <div className="px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -358,34 +362,18 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
 
           <div className="flex items-center gap-2">
             {canConfigureFloor && (
-              <button
-                type="button"
+              <AppButton
+                variant={actionMode === 'manage_floor' ? 'primary' : 'secondary'}
+                size="sm"
+                icon={Edit3}
+                aria-pressed={actionMode === 'manage_floor'}
                 onClick={() => setActionMode(actionMode === 'manage_floor' ? 'none' : 'manage_floor')}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border transition-all cursor-pointer ${
-                  actionMode === 'manage_floor'
-                    ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright border-brand dark:border-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
-                    : 'bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand dark:hover:border-brand-bright'
-                }`}
               >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>{actionMode === 'manage_floor' ? 'العودة لخريطة الصالة' : 'تعديل الطاولات والأقسام'}</span>
-              </button>
+                {actionMode === 'manage_floor' ? 'العودة لخريطة الصالة' : 'تعديل الطاولات والأقسام'}
+              </AppButton>
             )}
-            <button
-              type="button"
-              onClick={fetchTables}
-              className="p-2 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
-              title="تحديث الحالة"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <AppButton variant="secondary" size="sm" icon={RefreshCw} onClick={fetchTables} loading={loading} aria-label="تحديث الحالة" />
+            <AppButton variant="secondary" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
           </div>
         </div>
 
@@ -406,6 +394,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
         )}
 
         {/* Body */}
+        <div {...motionPanel} className="flex-1 min-h-0 flex flex-col">
         {actionMode === 'manage_floor' ? (
           <div className="p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Add / Edit Table Form */}
@@ -420,13 +409,13 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                   type="text"
                   value={editTableName}
                   onChange={(e) => setEditTableName(e.target.value)}
-                  placeholder="مثال: طاولة 10 أو VIP 3"
+                  placeholder="مثال: طاولة 10 أو طاولة كبار الزوار 3"
                   className="w-full px-3 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-sm font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">القسم / المنطقة (Zone)</label>
+                <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">القسم / المنطقة</label>
                 <input
                   type="text"
                   value={editZoneName}
@@ -461,25 +450,20 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black hover:opacity-95 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>{editTableId ? 'حفظ التعديلات' : 'إضافة الطاولة'}</span>
-                </button>
+                <AppButton type="submit" variant="primary" size="md" icon={Plus} disabled={loading} className="flex-1">
+                  {editTableId ? 'حفظ التعديلات' : 'إضافة الطاولة'}
+                </AppButton>
                 {editTableId && (
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="secondary"
+                    size="md"
                     onClick={() => {
                       setEditTableId('');
                       setEditTableName('');
                     }}
-                    className="px-3 py-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted cursor-pointer"
                   >
                     إلغاء
-                  </button>
+                  </AppButton>
                 )}
               </div>
             </form>
@@ -501,8 +485,11 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="subtle"
+                        size="xs"
+                        icon={Edit3}
+                        aria-label="تعديل الطاولة"
                         onClick={() => {
                           setEditTableId(t.id);
                           setEditTableName(t.name);
@@ -510,18 +497,9 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                           setEditCapacity(t.capacity);
                           setEditDisplayOrder(t.displayOrder);
                         }}
-                        className="p-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand/10 dark:hover:bg-brand-dark-soft text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright cursor-pointer"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
+                      />
                       {t.status === 'available' && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteFloorTable(t.id)}
-                          className="p-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-danger/10 dark:hover:bg-danger-dark-soft text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <AppButton variant="dangerSubtle" size="xs" icon={Trash2} aria-label="حذف الطاولة" onClick={() => handleDeleteFloorTable(t.id)} />
                       )}
                     </div>
                   </div>
@@ -595,7 +573,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                     statusLabel = 'مشغولة';
                   } else if (isBillPrinted) {
                     cardStyle = 'bg-warn/10 dark:bg-warn-dark-soft/60 border-warn/50 dark:border-warn-border/50 hover:border-warn';
-                    badgeStyle = 'bg-warn dark:bg-warn-dark-soft text-white dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40';
+                    badgeStyle = 'bg-warn-bright dark:bg-warn-dark-soft text-ink dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40';
                     statusLabel = 'طُبع الشيك';
                   }
 
@@ -609,7 +587,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                         setWaiterName(tbl.waiterName || '');
                         setGuestsCount(tbl.guestsCount > 0 ? tbl.guestsCount : tbl.capacity || 2);
                       }}
-                      className={`p-4 rounded-2xl border-2 text-right transition-all flex flex-col justify-between min-h-[128px] cursor-pointer ${cardStyle} ${
+                      className={`p-4 rounded-2xl border-2 text-right transition-all flex flex-col justify-between min-h-[8rem] cursor-pointer ${cardStyle} ${
                         isSelected ? 'ring-2 ring-brand dark:ring-brand-bright shadow-md' : ''
                       }`}
                     >
@@ -704,15 +682,16 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                       />
                     </div>
 
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="success"
+                      size="lg"
+                      fullWidth
+                      icon={Check}
                       disabled={loading}
                       onClick={() => handleOpenNewTable(selectedTable)}
-                      className="w-full py-3 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <Check className="w-4 h-4" />
-                      <span>فتح الطاولة وبدء تسجيل الأصناف</span>
-                    </button>
+                      فتح الطاولة وبدء تسجيل الأصناف
+                    </AppButton>
                   </div>
                 </div>
               ) : (
@@ -736,76 +715,63 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
 
                     {/* Primary Actions */}
                     <div className="grid grid-cols-2 gap-2 pt-2">
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="primary"
+                        size="md"
+                        icon={ShoppingCart}
                         onClick={() => handleLoadOccupiedTable(selectedTable)}
-                        className="col-span-2 py-2.5 px-3 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1.5 hover:opacity-95 cursor-pointer"
+                        className="col-span-2"
                       >
-                        <ShoppingCart className="w-4 h-4" />
-                        <span>استدعاء الطلب للكاشير (إضافة أصناف أو سداد)</span>
-                      </button>
+                        استدعاء الطلب للكاشير (إضافة أصناف أو سداد)
+                      </AppButton>
 
-                      <button
-                        type="button"
-                        onClick={() => handlePrintPreBill(selectedTable)}
-                        className="py-2 px-2.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright text-ink dark:text-ink-dark text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                        <span>طباعة شيك مبدئي</span>
-                      </button>
+                      <AppButton variant="secondary" size="sm" icon={FileText} onClick={() => handlePrintPreBill(selectedTable)}>
+                        طباعة شيك مبدئي
+                      </AppButton>
 
                       {canTransferMerge && (
-                        <button
-                          type="button"
+                        <AppButton
+                          variant={actionMode === 'transfer' ? 'primary' : 'secondary'}
+                          size="sm"
+                          icon={ArrowLeftRight}
+                          aria-pressed={actionMode === 'transfer'}
                           onClick={() => {
                             setActionMode(actionMode === 'transfer' ? 'none' : 'transfer');
                             setTargetTableId('');
                           }}
-                          className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
-                            actionMode === 'transfer'
-                              ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright border-brand dark:border-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
-                              : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand dark:hover:border-brand-bright'
-                          }`}
                         >
-                          <ArrowLeftRight className="w-3.5 h-3.5" />
-                          <span>نقل لطاولة</span>
-                        </button>
+                          نقل لطاولة
+                        </AppButton>
                       )}
 
                       {canTransferMerge && (
-                        <button
-                          type="button"
+                        <AppButton
+                          variant={actionMode === 'merge' ? 'primary' : 'secondary'}
+                          size="sm"
+                          icon={GitMerge}
+                          aria-pressed={actionMode === 'merge'}
                           onClick={() => {
                             setActionMode(actionMode === 'merge' ? 'none' : 'merge');
                             setTargetTableId('');
                           }}
-                          className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
-                            actionMode === 'merge'
-                              ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright border-brand dark:border-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
-                              : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand dark:hover:border-brand-bright'
-                          }`}
                         >
-                          <GitMerge className="w-3.5 h-3.5" />
-                          <span>دمج مع طاولة</span>
-                        </button>
+                          دمج مع طاولة
+                        </AppButton>
                       )}
 
                       {canSplitBill && selectedTableCartItems.length > 0 && (
-                        <button
-                          type="button"
+                        <AppButton
+                          variant={actionMode === 'split' ? 'primary' : 'secondary'}
+                          size="sm"
+                          icon={Scissors}
+                          aria-pressed={actionMode === 'split'}
                           onClick={() => {
                             setActionMode(actionMode === 'split' ? 'none' : 'split');
                             setSplitQtys({});
                           }}
-                          className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
-                            actionMode === 'split'
-                              ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright border-brand dark:border-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
-                              : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand dark:hover:border-brand-bright'
-                          }`}
                         >
-                          <Scissors className="w-3.5 h-3.5" />
-                          <span>تقسيم الفاتورة</span>
-                        </button>
+                          تقسيم الفاتورة
+                        </AppButton>
                       )}
                     </div>
                   </div>
@@ -824,14 +790,9 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                             .map((t) => ({ value: t.id, label: `${t.name} (${t.zoneName})` })),
                         ]}
                       />
-                      <button
-                        type="button"
-                        disabled={!targetTableId || loading}
-                        onClick={handleTransferTable}
-                        className="w-full py-2.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black disabled:opacity-50 cursor-pointer"
-                      >
+                      <AppButton variant="primary" size="md" fullWidth disabled={!targetTableId || loading} onClick={handleTransferTable}>
                         تأكيد النقل الفوري
-                      </button>
+                      </AppButton>
                     </div>
                   )}
 
@@ -851,14 +812,9 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                             })),
                         ]}
                       />
-                      <button
-                        type="button"
-                        disabled={!targetTableId || loading}
-                        onClick={handleMergeTables}
-                        className="w-full py-2.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black disabled:opacity-50 cursor-pointer"
-                      >
+                      <AppButton variant="primary" size="md" fullWidth disabled={!targetTableId || loading} onClick={handleMergeTables}>
                         تأكيد دمج الطاولتين
-                      </button>
+                      </AppButton>
                     </div>
                   )}
 
@@ -881,44 +837,39 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="secondary"
+                                  size="xs"
+                                  icon={Minus}
+                                  aria-label="إنقاص الكمية"
                                   onClick={() =>
                                     setSplitQtys((prev) => ({
                                       ...prev,
                                       [idx]: Math.max(0, (curUnits - 1) * 1000),
                                     }))
                                   }
-                                  className="w-7 h-7 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark font-black text-ink dark:text-ink-dark cursor-pointer"
-                                >
-                                  -
-                                </button>
+                                />
                                 <span className="w-7 text-center font-black text-brand dark:text-brand-bright">{curUnits}</span>
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="secondary"
+                                  size="xs"
+                                  icon={Plus}
+                                  aria-label="زيادة الكمية"
                                   onClick={() =>
                                     setSplitQtys((prev) => ({
                                       ...prev,
                                       [idx]: Math.min(maxUnits * 1000, (curUnits + 1) * 1000),
                                     }))
                                   }
-                                  className="w-7 h-7 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark font-black text-ink dark:text-ink-dark cursor-pointer"
-                                >
-                                  +
-                                </button>
+                                />
                               </div>
                             </div>
                           );
                         })}
                       </div>
-                      <button
-                        type="button"
-                        disabled={loading}
-                        onClick={handleExecuteSplit}
-                        className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black cursor-pointer"
-                      >
+                      <AppButton variant="success" size="md" fullWidth disabled={loading} onClick={handleExecuteSplit}>
                         فصل الأصناف المحددة وتحويلها للكاشير للسداد
-                      </button>
+                      </AppButton>
                     </div>
                   )}
 
@@ -941,14 +892,9 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                     )}
 
                     <div className="pt-2 border-t border-line dark:border-line-dark flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleCloseFreeTable(selectedTable)}
-                        className="flex items-center gap-1 text-micro font-bold text-danger dark:text-danger-bright hover:underline cursor-pointer"
-                      >
-                        <Unlock className="w-3.5 h-3.5" />
-                        <span>إخلاء الطاولة يدوياً (بدون فاتورة)</span>
-                      </button>
+                      <AppButton variant="dangerSoft" size="xs" icon={Unlock} onClick={() => handleCloseFreeTable(selectedTable)}>
+                        إخلاء الطاولة يدوياً (بدون فاتورة)
+                      </AppButton>
                     </div>
                   </div>
                 </div>
@@ -956,6 +902,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

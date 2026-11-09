@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ShieldAlert, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { ShieldAlert, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { UserDto } from '../bridge/ipc';
 import { isWeakPin, isValidPinFormat } from '../utils/pinPolicy';
 import { RequiredMark } from './RequiredMark';
+import { AppButton } from './AppButton';
 
 interface ForcedPinChangeFormProps {
   user: UserDto;
@@ -140,23 +141,18 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
           </div>
         )}
 
-        <button
+        <AppButton
           type="submit"
-          disabled={saving || !newPin || !newPinConfirm || (needsOldPin && !oldPin)}
-          className="w-full h-11 rounded-xl bg-brand dark:bg-brand-container hover:bg-brand-dark dark:hover:bg-brand text-white font-bold text-sm transition-all cursor-pointer flex items-center justify-center gap-2 mt-2 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 dark:focus-visible:ring-brand-bright/50 disabled:opacity-100 disabled:shadow-none disabled:bg-surface-3 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted disabled:border disabled:border-line dark:disabled:border-line-dark disabled:cursor-not-allowed"
+          variant="primary"
+          size="lg"
+          fullWidth
+          icon={CheckCircle2}
+          loading={saving}
+          disabled={!newPin || !newPinConfirm || (needsOldPin && !oldPin)}
+          className="mt-2"
         >
-          {saving ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>جاري التحديث والتأمين...</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="w-4 h-4" />
-              <span>حفظ ومتابعة الدخول</span>
-            </>
-          )}
-        </button>
+          {saving ? 'جاري التحديث والتأمين...' : 'حفظ ومتابعة الدخول'}
+        </AppButton>
       </form>
     </div>
   );

@@ -586,14 +586,15 @@ namespace RafiqPOS.Repositories
                     }
                 }
 
+                // A bare YYYY-MM-DD is a local calendar day (inclusive); anything longer is an exact timestamp bound
                 if (!string.IsNullOrEmpty(fromDate))
                 {
-                    filterClause += " AND s.created_at >= @fromDate ";
+                    filterClause += fromDate.Length == 10 ? " AND date(s.created_at, 'localtime') >= @fromDate " : " AND s.created_at >= @fromDate ";
                     parameters.Add(new SQLiteParameter("@fromDate", fromDate));
                 }
                 if (!string.IsNullOrEmpty(toDate))
                 {
-                    filterClause += " AND s.created_at <= @toDate ";
+                    filterClause += toDate.Length == 10 ? " AND date(s.created_at, 'localtime') <= @toDate " : " AND s.created_at <= @toDate ";
                     parameters.Add(new SQLiteParameter("@toDate", toDate));
                 }
 

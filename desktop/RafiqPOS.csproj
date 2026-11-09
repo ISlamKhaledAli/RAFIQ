@@ -83,6 +83,7 @@
     <Compile Include="Bridge\IpcDispatcher.Inventory.cs" />
     <Compile Include="Bridge\IpcDispatcher.Batch.cs" />
     <Compile Include="Bridge\IpcDispatcher.Printing.cs" />
+    <Compile Include="Bridge\IpcDispatcher.ReportFiles.cs" />
     <Compile Include="Bridge\IpcDispatcher.Auth.cs" />
     <Compile Include="Bridge\IpcDispatcher.Templates.cs" />
     <Compile Include="Bridge\IpcDispatcher.Reports.cs" />
@@ -183,6 +184,8 @@
     <Compile Include="Services\BackupService.cs" />
     <Compile Include="Services\ExcelService.cs" />
     <Compile Include="Services\PrinterService.cs" />
+    <Compile Include="Services\PrinterNameResolver.cs" />
+    <Compile Include="Services\ReportFileService.cs" />
     <Compile Include="Services\PrinterHardwareTestRunner.cs" />
     <Compile Include="Services\SecurityService.cs" />
     <Compile Include="Services\StoreTemplateService.cs" />

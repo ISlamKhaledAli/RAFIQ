@@ -137,8 +137,9 @@ describe('Main sidebar width keeps the longest label fully visible', () => {
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const app = readFileSync(fileURLToPath(new URL('../src/App.tsx', import.meta.url)), 'utf8');
-    assert.match(app, /'w-\[64px\] px-1\.5 py-2\.5 items-center' : 'w-\[256px\] p-2\.5'/);
-    assert.match(app, /<span className="truncate whitespace-nowrap" title=\{item\.label\}>\{item\.label\}<\/span>/);
+    assert.match(app, /isSidebarCollapsed \? 'w-\[64px\]' : 'w-\[256px\]'/);
+    assert.match(app, /showSidebarRail \? 'px-1\.5 py-2\.5 items-center' : 'p-2\.5'/);
+    assert.match(app, /<span className="motion-sidebar-label truncate whitespace-nowrap" title=\{item\.label\}>\{item\.label\}<\/span>/);
   });
 });
 

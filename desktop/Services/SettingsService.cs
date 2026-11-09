@@ -38,6 +38,9 @@ namespace RafiqPOS.Services
             if (!settings.ContainsKey("receipt_show_invoice_number")) settings["receipt_show_invoice_number"] = "1";
             if (!settings.ContainsKey("receipt_show_paid")) settings["receipt_show_paid"] = "1";
             if (!settings.ContainsKey("receipt_show_change")) settings["receipt_show_change"] = "1";
+            if (!settings.ContainsKey(UiMotionKey)) settings[UiMotionKey] = "0";
+            if (!settings.ContainsKey(UiMotionLevelKey)) settings[UiMotionLevelKey] = UiMotionLevelDefault;
+            if (!settings.ContainsKey(UiMotionStyleKey)) settings[UiMotionStyleKey] = UiMotionStyleDefault;
             if (!settings.ContainsKey(SignatureVisibleKey)) settings[SignatureVisibleKey] = "1";
             if (!settings.ContainsKey(SignatureImageKey)) settings[SignatureImageKey] = "";
             if (!settings.ContainsKey("store_logo_url") || settings["store_logo_url"] == "/logo.png" || settings["store_logo_url"] == "/receipt_logo.png")
@@ -67,6 +70,86 @@ namespace RafiqPOS.Services
             "رفيق للأنظمة والحلول البرمجية\nللدعم الفني والاستفسارات\nم. إسلام خالد - 01097782965\nشكرًا لثقتكم بنا",
             "للدعم الفني والاستفسارات\nم. إسلام خالد - 01097782965"
         };
+
+        // ---------- الحركات والانتقالات (تأثيرات الواجهة): يغيّرها الروت فقط ويقرأها الجميع ----------
+
+        /// <summary>"1" تفعّل الحركات والانتقالات، وغيابها أو "0" يعني مغلقة (الافتراضي، حفاظاً على الأجهزة الضعيفة)</summary>
+        public const string UiMotionKey = "ui_motion_enabled";
+        /// <summary>قوة الحركة: soft أو medium (الافتراضي) أو strong</summary>
+        public const string UiMotionLevelKey = "ui_motion_level";
+        /// <summary>شكل الحركة: slide (الافتراضي) أو fade أو zoom</summary>
+        public const string UiMotionStyleKey = "ui_motion_style";
+        public const string UiMotionLevelDefault = "medium";
+        public const string UiMotionStyleDefault = "slide";
+        public const string UiMotionRootOnlyMessage = "تفعيل الحركات والانتقالات متاح لحساب الروت فقط";
+        public const string UiMotionLookRootOnlyMessage = "تغيير شكل الحركات متاح لحساب الروت فقط";
+
+        public static bool IsUiMotionSettingKey(string key)
+        {
+            string k = (key ?? "").Trim();
+            return k == UiMotionKey || k == UiMotionLevelKey || k == UiMotionStyleKey;
+        }
+
+        public static string UiMotionRootOnlyMessageFor(string key)
+        {
+            return (key ?? "").Trim() == UiMotionKey ? UiMotionRootOnlyMessage : UiMotionLookRootOnlyMessage;
+        }
+
+        /// <summary>أي قيمة غير "1" أو "true" تُعد مغلقة</summary>
+        public static string NormalizeUiMotionValue(string value)
+        {
+            string v = (value ?? "").Trim().ToLowerInvariant();
+            return v == "1" || v == "true" ? "1" : "0";
+        }
+
+        /// <summary>أي قيمة غير soft وmedium وstrong تعود للافتراضي medium</summary>
+        public static string NormalizeUiMotionLevel(string value)
+        {
+            string v = (value ?? "").Trim().ToLowerInvariant();
+            return v == "soft" || v == "medium" || v == "strong" ? v : UiMotionLevelDefault;
+        }
+
+        /// <summary>أي قيمة غير slide وfade وzoom تعود للافتراضي slide</summary>
+        public static string NormalizeUiMotionStyle(string value)
+        {
+            string v = (value ?? "").Trim().ToLowerInvariant();
+            return v == "slide" || v == "fade" || v == "zoom" ? v : UiMotionStyleDefault;
+        }
+
+        /// <summary>القيمة الموحّدة لأي مفتاح من مفاتيح الحركات الثلاثة</summary>
+        public static string NormalizeUiMotionSettingValue(string key, string value)
+        {
+            string k = (key ?? "").Trim();
+            if (k == UiMotionLevelKey) return NormalizeUiMotionLevel(value);
+            if (k == UiMotionStyleKey) return NormalizeUiMotionStyle(value);
+            return NormalizeUiMotionValue(value);
+        }
+
+        public bool IsUiMotionEnabled()
+        {
+            return NormalizeUiMotionValue(_repo.Get(UiMotionKey, "0")) == "1";
+        }
+
+        public string GetUiMotionLevel()
+        {
+            return NormalizeUiMotionLevel(_repo.Get(UiMotionLevelKey, UiMotionLevelDefault));
+        }
+
+        public string GetUiMotionStyle()
+        {
+            return NormalizeUiMotionStyle(_repo.Get(UiMotionStyleKey, UiMotionStyleDefault));
+        }
+
+        /// <summary>هل القيمة المرسلة تغيّر المحفوظ فعلاً (بعد التوحيد)؟ إعادة إرسال القيمة نفسها ليست تغييراً</summary>
+        public bool IsUiMotionChange(string key, string value)
+        {
+            string k = (key ?? "").Trim();
+            string current;
+            if (k == UiMotionLevelKey) current = GetUiMotionLevel();
+            else if (k == UiMotionStyleKey) current = GetUiMotionStyle();
+            else current = IsUiMotionEnabled() ? "1" : "0";
+            return NormalizeUiMotionSettingValue(k, value) != current;
+        }
 
         // ---------- توقيع الإيصال أسفل الوصل (للروت فقط): ظهوره وصورته ----------
 

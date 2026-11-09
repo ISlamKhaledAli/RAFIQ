@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Printer, 
-  Search, 
   X, 
   Boxes
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
 import type { LowStockReportItem } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
-import { printReport } from '../utils/printReport';
+import { usePrintReport } from '../hooks/usePrintReport';
 import { formatUnitArabic } from '../utils/units';
+import { AppButton } from './AppButton';
 
 interface LowStockReportModalProps {
   isOpen: boolean;
@@ -70,9 +71,11 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
     return items.filter(item => item.stockMilli <= 0).length;
   }, [items]);
 
-  const handlePrint = () => {
-    void printReport({ kind: 'a4only' });
-  };
+  const { print: handlePrint, printing } = usePrintReport({
+    reportName: 'تقرير النواقص',
+    kind: 'a4only',
+    hasData: filteredItems.length > 0,
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -112,17 +115,15 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <AppButton variant="secondary" icon={Printer} onClick={handlePrint} loading={printing}>
+              طباعة أمر الشراء
+            </AppButton>
             <button
-              onClick={handlePrint}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-brand hover:bg-white/90 transition flex items-center gap-1.5 shadow-xs"
-            >
-              <Printer className="w-4 h-4" />
-              <span>طباعة أمر الشراء</span>
-            </button>
-            <button
+              type="button"
               onClick={onClose}
               className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
               title="إغلاق"
+              aria-label="إغلاق"
             >
               <X className="w-5 h-5" />
             </button>
@@ -161,20 +162,19 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
         </div>
 
         {/* Filters and Search Bar (hidden in print) */}
-        <div className="px-6 py-3 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث بالاسم أو الباركود أو القسم..."
-              className="w-full text-xs pr-9 pl-3 py-2 rounded-xl border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-            />
-          </div>
+        <div className="px-6 py-3 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-x-8 gap-y-3 print:hidden">
+          <SearchInput
+            size="sm"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="بحث بالاسم أو الباركود أو القسم..."
+            ariaLabel="بحث في تقرير النواقص"
+            className="flex-1 min-w-[18.75rem]"
+          />
 
           <div className="flex items-center gap-1.5 bg-canvas dark:bg-canvas-dark p-1 rounded-xl border border-line dark:border-line-dark text-xs">
             <button
+              type="button"
               onClick={() => setFilterMode('all')}
               className={`px-3 py-1.5 rounded-lg font-medium transition ${
                 filterMode === 'all' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -183,6 +183,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
               كل النواقص
             </button>
             <button
+              type="button"
               onClick={() => setFilterMode('zero')}
               className={`px-3 py-1.5 rounded-lg font-medium transition ${
                 filterMode === 'zero' ? 'bg-surface dark:bg-surface-dark text-danger dark:text-danger-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'

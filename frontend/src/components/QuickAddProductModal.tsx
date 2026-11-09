@@ -8,9 +8,11 @@ import { CustomSelect } from './CustomSelect';
 import { CustomDatePicker } from './CustomDatePicker';
 import { useFeatures } from '../context/useFeatures';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { isFormDirty } from '../utils/dirtyForm';
 import { getStoreTerminology } from '../utils/storeTerminology';
 import { parseCountedStockMilli } from './quickAddStock';
 import { RequiredMark } from './RequiredMark';
+import { AppButton } from './AppButton';
 
 interface QuickAddProductModalProps {
   isOpen: boolean;
@@ -82,6 +84,10 @@ export function QuickAddProductModal({
     setPriceEgp(initialPriceEgp || '');
     setCostEgp('');
     setCountedStock('');
+    setVariantSize('');
+    setVariantColor('');
+    setExpiryDate('');
+    setBatchNumber('');
     setError(null);
 
     let active = true;
@@ -186,7 +192,11 @@ export function QuickAddProductModal({
     }
   };
 
-  const isDirty = Boolean(name.trim() || priceEgp.trim() || costEgp.trim() || countedStock.trim() || variantSize.trim() || variantColor.trim() || expiryDate.trim());
+  // The name and price may arrive pre-filled (search text, drug reference): only a different value is a change
+  const isDirty = isFormDirty(
+    { name: initialName, priceEgp: initialPriceEgp, costEgp: '', countedStock: '', variantSize: '', variantColor: '', expiryDate: '' },
+    { name, priceEgp, costEgp, countedStock, variantSize, variantColor, expiryDate },
+  );
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -206,11 +216,11 @@ export function QuickAddProductModal({
       onClick={handleBackdropClick}
     >
       <div 
-        className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-lg overflow-hidden flex flex-col"
+        className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
         dir="rtl"
       >
         {/* Header */}
-        <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-b px-4 flex items-center justify-between">
+        <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-b px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright flex items-center justify-center">
               <Zap className="w-4 h-4 fill-warn/30 dark:fill-warn-bright/30" />
@@ -220,139 +230,147 @@ export function QuickAddProductModal({
               <span className="text-micro text-ink-muted dark:text-ink-dark-muted block leading-none">متابعة البيع الفوري دون مغادرة الشاشة</span>
             </div>
           </div>
-          <button 
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-7 h-7 rounded-md hover:bg-surface dark:hover:bg-surface-dark-2 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" title="إغلاق" />
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-3.5">
-          <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0">الحقول المميزة بعلامة * مطلوبة</p>
-          {/* Readonly Barcode Banner */}
-          <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-between">
-            <div className="flex items-center gap-2 text-ink dark:text-ink-dark">
-              <Barcode className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-              <span className="text-xs text-ink-muted dark:text-ink-dark-muted">الباركود الممسوح:</span>
-              <span className="font-mono font-bold text-xs text-brand dark:text-brand-bright tracking-wider select-all">{barcode}</span>
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5">
+            <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0">الحقول المميزة بعلامة * مطلوبة</p>
+            {/* Readonly Barcode Banner */}
+            <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-between">
+              <div className="flex items-center gap-2 text-ink dark:text-ink-dark">
+                <Barcode className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                <span className="text-xs text-ink-muted dark:text-ink-dark-muted">الباركود الممسوح:</span>
+                <span className="font-mono font-bold text-xs text-brand dark:text-brand-bright tracking-wider select-all">{barcode}</span>
+              </div>
+              <span className="text-micro font-semibold bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright px-2 py-0.5 rounded">
+                تلقائي
+              </span>
             </div>
-            <span className="text-micro font-semibold bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright px-2 py-0.5 rounded">
-              تلقائي
-            </span>
-          </div>
 
-          {/* Drug Reference Found Banner */}
-          {isFromDrugReference && (
-            <div className="p-2.5 rounded-lg bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 flex items-center gap-2 text-paid text-xs font-bold">
-              <Check className="w-4 h-4 shrink-0 text-paid" />
-              <span>تم العثور على الصنف في دليل الأدوية المرجعي وتعبئة الاسم والسعر تلقائياً</span>
-            </div>
-          )}
+            {/* Drug Reference Found Banner */}
+            {isFromDrugReference && (
+              <div className="p-2.5 rounded-lg bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 flex items-center gap-2 text-paid text-xs font-bold">
+                <Check className="w-4 h-4 shrink-0 text-paid" />
+                <span>تم العثور على الصنف في دليل الأدوية المرجعي وتعبئة الاسم والسعر تلقائياً</span>
+              </div>
+            )}
 
-          {/* Product Name Input */}
-          <div>
-            <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-              اسم الصنف <RequiredMark />
-            </label>
-            <input
-              ref={nameInputRef}
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="مثال: شيبسي عائلي بالجبنة"
-              className="w-full h-9 px-3 text-xs bg-canvas dark:bg-canvas-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-sans"
-              required
-            />
-          </div>
-
-          {/* Price and Cost Grid */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* Product Name Input */}
             <div>
               <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                سعر البيع (ج.م) <RequiredMark />
+                اسم الصنف <RequiredMark />
               </label>
               <input
+                ref={nameInputRef}
                 type="text"
-                inputMode="decimal"
-                value={priceEgp}
-                onChange={(e) => {
-                  const norm = normalizeArabicNumerals(e.target.value);
-                  if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
-                    setPriceEgp(norm);
-                  }
-                }}
-                onFocus={(e) => e.target.select()}
-                placeholder="0.00"
-                className="w-full h-9 px-3 text-xs bg-canvas dark:bg-canvas-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono font-bold text-left"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="مثال: شيبسي عائلي بالجبنة"
+                className="w-full h-9 px-3 text-xs bg-canvas dark:bg-canvas-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-sans"
                 required
               />
             </div>
 
+            {/* Price and Cost Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                  سعر البيع (ج.م) <RequiredMark />
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={priceEgp}
+                  onChange={(e) => {
+                    const norm = normalizeArabicNumerals(e.target.value);
+                    if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
+                      setPriceEgp(norm);
+                    }
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="0.00"
+                  className="w-full h-9 px-3 text-xs bg-canvas dark:bg-canvas-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono font-bold text-left"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+                  سعر التكلفة
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={costEgp}
+                  onChange={(e) => {
+                    const norm = normalizeArabicNumerals(e.target.value);
+                    if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
+                      setCostEgp(norm);
+                    }
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="0.00"
+                  className="w-full h-9 px-3 text-xs bg-canvas dark:bg-canvas-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono text-left"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                سعر التكلفة
+              <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                {unit === 'kg' ? 'الوزن الموجود فعلياً الآن (كجم)' : 'عدد القطع الموجودة فعلياً الآن'} <RequiredMark />
               </label>
               <input
                 type="text"
                 inputMode="decimal"
-                value={costEgp}
-                onChange={(e) => {
-                  const norm = normalizeArabicNumerals(e.target.value);
-                  if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
-                    setCostEgp(norm);
-                  }
-                }}
+                value={countedStock}
+                onChange={(e) => setCountedStock(normalizeArabicNumerals(e.target.value))}
                 onFocus={(e) => e.target.select()}
-                placeholder="0.00"
+                placeholder={unit === 'kg' ? '0.000' : '0'}
                 className="w-full h-9 px-3 text-xs bg-canvas dark:bg-canvas-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono text-left"
+                required
               />
+              <p className="mt-1 text-micro text-ink-muted dark:text-ink-dark-muted">يُسجَّل كرصيد افتتاحي للصنف؛ اكتب 0 إن لم تتوفر كمية.</p>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-              {unit === 'kg' ? 'الوزن الموجود فعلياً الآن (كجم)' : 'عدد القطع الموجودة فعلياً الآن'} <RequiredMark />
-            </label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={countedStock}
-              onChange={(e) => setCountedStock(normalizeArabicNumerals(e.target.value))}
-              onFocus={(e) => e.target.select()}
-              placeholder={unit === 'kg' ? '0.000' : '0'}
-              className="w-full h-9 px-3 text-xs bg-canvas dark:bg-canvas-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono text-left"
-              required
-            />
-            <p className="mt-1 text-micro text-ink-muted dark:text-ink-dark-muted">يُسجَّل كرصيد افتتاحي للصنف؛ اكتب 0 إن لم تتوفر كمية.</p>
-          </div>
+            {/* Unit & Category Grid */}
+            {isEnabled('feature_scale_weight') ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">نوع الوحدة</label>
+                  <div className="grid grid-cols-2 gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-lg border border-line dark:border-line-dark">
+                    <button
+                      type="button"
+                      onClick={() => setUnit('piece')}
+                      className={`py-1 text-xs font-bold rounded ${unit === 'piece' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'}`}
+                    >
+                      قطعة (عدد)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUnit('kg')}
+                      className={`py-1 text-xs font-bold rounded ${unit === 'kg' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'}`}
+                    >
+                      وزن (كجم)
+                    </button>
+                  </div>
+                </div>
 
-          {/* Unit & Category Grid */}
-          {isEnabled('feature_scale_weight') ? (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">نوع الوحدة</label>
-                <div className="grid grid-cols-2 gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-lg border border-line dark:border-line-dark">
-                  <button
-                    type="button"
-                    onClick={() => setUnit('piece')}
-                    className={`py-1 text-xs font-bold rounded ${unit === 'piece' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'}`}
-                  >
-                    قطعة (عدد)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUnit('kg')}
-                    className={`py-1 text-xs font-bold rounded ${unit === 'kg' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'}`}
-                  >
-                    وزن (كجم)
-                  </button>
+                <div>
+                  <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">التصنيف</label>
+                  <CustomSelect
+                    value={categoryId}
+                    onChange={setCategoryId}
+                    options={
+                      categories.length === 0
+                        ? [{ value: 'cat_general', label: 'عام / متنوع' }]
+                        : categories.map((c) => ({ value: c.id, label: c.name }))
+                    }
+                  />
                 </div>
               </div>
-
+            ) : (
               <div>
                 <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">التصنيف</label>
                 <CustomSelect
@@ -365,137 +383,114 @@ export function QuickAddProductModal({
                   }
                 />
               </div>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">التصنيف</label>
-              <CustomSelect
-                value={categoryId}
-                onChange={setCategoryId}
-                options={
-                  categories.length === 0
-                    ? [{ value: 'cat_general', label: 'عام / متنوع' }]
-                    : categories.map((c) => ({ value: c.id, label: c.name }))
-                }
-              />
-            </div>
-          )}
+            )}
 
-          {/* Optional Variants Fields (Feature #114) */}
-          {(isEnabled('feature_matrix_variants') || showVariants) ? (
-            <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-2">
-              <div className="flex items-center justify-between">
+            {/* Optional Variants Fields (Feature #114) */}
+            {(isEnabled('feature_matrix_variants') || showVariants) ? (
+              <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark">
+                    <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-brand-bright" />
+                    <span>{terminology.variantsTitle}</span>
+                  </div>
+                  {!isEnabled('feature_matrix_variants') && !variantSize && !variantColor && showVariants && (
+                    <button
+                      type="button"
+                      onClick={() => setShowVariants(false)}
+                      className="text-micro text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright font-medium hover:underline cursor-pointer"
+                    >
+                      إلغاء وإخفاء
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <input
+                      type="text"
+                      value={variantSize}
+                      onChange={(e) => setVariantSize(e.target.value)}
+                      placeholder={terminology.sizePlaceholder}
+                      className="w-full h-8 px-2.5 text-xs bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={variantColor}
+                      onChange={(e) => setVariantColor(e.target.value)}
+                      placeholder={terminology.colorPlaceholder}
+                      className="w-full h-8 px-2.5 text-xs bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-start">
+                <button
+                  type="button"
+                  onClick={() => setShowVariants(true)}
+                  className="text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Layers className="w-3 h-3 text-brand dark:text-brand-bright" />
+                  <span>{terminology.quickAddAction}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Optional Expiry Date Field (Feature #60) */}
+            {isEnabled('feature_expiry_dates') && (
+              <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-2">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark">
-                  <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-brand-bright" />
-                  <span>{terminology.variantsTitle}</span>
+                  <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-warn-bright" />
+                  <span>تاريخ الصلاحية والشحنة</span>
                 </div>
-                {!isEnabled('feature_matrix_variants') && !variantSize && !variantColor && showVariants && (
-                  <button
-                    type="button"
-                    onClick={() => setShowVariants(false)}
-                    className="text-micro text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright font-medium hover:underline cursor-pointer"
-                  >
-                    إلغاء وإخفاء
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <input
-                    type="text"
-                    value={variantSize}
-                    onChange={(e) => setVariantSize(e.target.value)}
-                    placeholder={terminology.sizePlaceholder}
-                    className="w-full h-8 px-2.5 text-xs bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand"
-                  />
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    value={variantColor}
-                    onChange={(e) => setVariantColor(e.target.value)}
-                    placeholder={terminology.colorPlaceholder}
-                    className="w-full h-8 px-2.5 text-xs bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <CustomDatePicker
+                      value={expiryDate}
+                      onChange={(val) => setExpiryDate(val)}
+                      placeholder="تاريخ الصلاحية"
+                      size="sm"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={batchNumber}
+                      onChange={(e) => setBatchNumber(e.target.value)}
+                      placeholder="كود الشحنة (تلقائي لو فارغ)"
+                      className="w-full h-[1.75rem] px-2.5 text-xs bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="flex justify-start">
-              <button
-                type="button"
-                onClick={() => setShowVariants(true)}
-                className="text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <Layers className="w-3 h-3 text-purple-600 dark:text-brand-bright" />
-                <span>{terminology.quickAddAction}</span>
-              </button>
-            </div>
-          )}
+            )}
 
-          {/* Optional Expiry Date Field (Feature #60) */}
-          {isEnabled('feature_expiry_dates') && (
-            <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark">
-                <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-warn-bright" />
-                <span>تاريخ الصلاحية والشحنة</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <CustomDatePicker
-                    value={expiryDate}
-                    onChange={(val) => setExpiryDate(val)}
-                    placeholder="تاريخ الصلاحية"
-                    size="sm"
-                  />
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    value={batchNumber}
-                    onChange={(e) => setBatchNumber(e.target.value)}
-                    placeholder="كود الشحنة (تلقائي لو فارغ)"
-                    className="w-full h-[28px] px-2.5 text-xs bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono"
-                  />
-                </div>
-              </div>
+            {/* Incomplete Data Notice (Task 108-3) */}
+            <div className="p-2.5 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 flex items-start gap-2 text-micro text-warn dark:text-warn-bright">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
+              <span>
+                سيتم وسم هذا الصنف كـ «ناقص البيانات» لكي يراجعه صاحب المحل في شاشة إدارة الأصناف لاحقاً.
+              </span>
             </div>
-          )}
 
-          {/* Incomplete Data Notice (Task 108-3) */}
-          <div className="p-2.5 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 flex items-start gap-2 text-micro text-warn dark:text-warn-bright">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
-            <span>
-              سيتم وسم هذا الصنف كـ «ناقص البيانات» لكي يراجعه صاحب المحل في شاشة إدارة الأصناف لاحقاً.
-            </span>
+            {/* Error Banner */}
+            {error && (
+              <div className="p-2 rounded bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-semibold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
           </div>
 
-          {/* Error Banner */}
-          {error && (
-            <div className="p-2 rounded bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-semibold flex items-center gap-1.5">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
           {/* Action Footer */}
-          <div className="pt-2 hairline-t flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => void requestClose()}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-semibold transition-colors disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer"
-            >
+          <div className="px-4 py-3 hairline-t bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-end gap-2 shrink-0">
+            <AppButton variant="secondary" onClick={() => void requestClose()} disabled={loading}>
               إلغاء (Esc)
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-brand text-white hover:bg-brand-hover text-xs font-bold shadow-sm transition-all disabled:opacity-60 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
-            >
-              <Check className="w-4 h-4" />
-              <span>{loading ? 'جاري الحفظ...' : 'حفظ وإضافة للسلة (Enter)'}</span>
-            </button>
+            </AppButton>
+            <AppButton type="submit" variant="primary" icon={Check} disabled={loading}>
+              {loading ? 'جاري الحفظ...' : 'حفظ وإضافة للسلة (Enter)'}
+            </AppButton>
           </div>
         </form>
       </div>

@@ -201,9 +201,9 @@ describe('pages register a real dirty flag', () => {
     const profile = read('views', 'settings', 'StoreProfileTab.tsx');
     const policies = read('views', 'settings', 'SalesPoliciesTab.tsx');
     const printer = read('views', 'settings', 'PrinterSettingsTab.tsx');
-    assert.ok(profile.includes('ref={saveBarRef}') && profile.includes('<UnsavedChangesChip />'));
-    assert.ok(policies.includes('ref={saveBarRef}') && policies.includes('<UnsavedChangesChip />'));
-    assert.ok(printer.includes('ref={saveBarRef}') && printer.includes('<UnsavedChangesChip />'));
+    assert.ok(profile.includes('ref={saveBarRef}') && profile.includes('<UnsavedChangesChip dirty='));
+    assert.ok(policies.includes('ref={saveBarRef}') && policies.includes('<UnsavedChangesChip dirty='));
+    assert.ok(printer.includes('ref={saveBarRef}') && printer.includes('<UnsavedChangesChip dirty='));
     assert.ok(settings.includes('saveBarRef={profileGuard.saveBarRef}') && settings.includes('saveBarRef={policiesGuard.saveBarRef}') && settings.includes('saveBarRef={printerGuard.saveBarRef}'));
   });
 
@@ -217,7 +217,7 @@ describe('pages register a real dirty flag', () => {
     const block = slice(page, "id: 'root-receipt-signature'", '});');
     assert.ok(block.includes('isDirty: dirty') && block.includes('save: () => handleSave()') && block.includes('discard: onDiscard') && block.includes('isActive,'));
     assert.ok(!block.includes('keepsStateWithinPage'), 'the page unmounts on a sub-tab switch, so that move must ask');
-    assert.ok(page.includes('const dirty = loaded && snapshot !== baseline;') && page.includes('ref={saveBarRef}') && page.includes('<UnsavedChangesChip />'));
+    assert.ok(page.includes('const dirty = loaded && snapshot !== baseline;') && page.includes('ref={saveBarRef}') && page.includes('<UnsavedChangesChip dirty='));
     const console_ = read('views', 'root', 'RootConsoleView.tsx');
     assert.ok(console_.includes('key={receiptGeneration}') && console_.includes('isActive={isActive}'));
   });
@@ -321,7 +321,7 @@ describe('pass 2: money drafts are guarded without bypassing their validation', 
 
   it('the action bar gets the ref and the chip; the payment status area is not touched', () => {
     assert.ok(newTab.includes('<div ref={saveBarRef} className="shrink-0 bg-surface'), 'ref on the sticky action bar');
-    assert.ok(newTab.includes('{dirty && ('), 'chip only while dirty');
+    assert.ok(newTab.includes('<UnsavedChangesChip dirty={dirty} />'), 'chip stays mounted and only toggles visibility');
     assert.ok(newTab.includes('onClick={handleSaveClick}') && newTab.includes('disabled={isSaving || lineItems.length === 0 || cashDrawerBlocked}'));
   });
 
@@ -339,7 +339,7 @@ describe('pass 2: money drafts are guarded without bypassing their validation', 
       const block = slice(src, `id: '${id}'`, '});');
       assert.ok(block.includes(`save: ${amount} ? ${submit} : undefined`), 'save only offered when there is an amount');
       assert.ok(block.includes('keepsStateWithinPage: true') && block.includes('isActive,') && block.includes('discard: resetTransactionForm'));
-      assert.ok(src.includes('ref={transactSaveBarRef}') && src.includes('<UnsavedChangesChip />'));
+      assert.ok(src.includes('ref={transactSaveBarRef}') && src.includes('<UnsavedChangesChip dirty={transactionDraftDirty} />'));
     });
   }
 
@@ -359,7 +359,7 @@ describe('pass 2: money drafts are guarded without bypassing their validation', 
   it('backup policy form: baseline from the loaded/saved values, toggles excluded, form unmounts with its sub-tab (so it asks there)', () => {
     const backup = read('components', 'BackupManager.tsx');
     const snap = slice(backup, 'function policySnapshotOf', '\n}');
-    assert.ok(snap.includes('folder.trim()') && snap.includes('|| 7') && snap.includes('|| 20'));
+    assert.ok(snap.includes('folder.trim()') && snap.includes('|| DEFAULT_RETENTION_DAYS') && snap.includes('|| DEFAULT_MAX_COPIES'));
     assert.ok(!/autoOnClose|autoDaily/.test(snap), 'the two auto-saving switches are not part of dirty');
     assert.equal(backup.match(/setPolicyBaseline\(policySnapshotOf\(/g).length, 2, 'both loads set the baseline');
     const save = slice(backup, 'const handleSavePolicy = async (): Promise<boolean> =>', 'const { saveBarRef: policySaveBarRef }');
@@ -367,7 +367,7 @@ describe('pass 2: money drafts are guarded without bypassing their validation', 
     assert.ok(save.includes('return true;') && save.includes('return false;'));
     const block = slice(backup, "id: 'backup-policy'", '});');
     assert.ok(block.includes('save: handleSavePolicy') && block.includes('isActive,') && !block.includes('keepsStateWithinPage'));
-    assert.ok(backup.includes('ref={policySaveBarRef}') && backup.includes('<UnsavedChangesChip />'));
+    assert.ok(backup.includes('ref={policySaveBarRef}') && backup.includes('<UnsavedChangesChip dirty={policyDirty} />'));
     assert.ok(settingsHasBackupActive());
   });
 
@@ -382,9 +382,9 @@ describe('pass 2: F1 opens the guide only on the cashier screen', () => {
     assert.ok(app.includes("e.key === 'F1' && activeTab !== 'pos'"), 'other pages: F1 returns to the cashier through the guard');
   });
 
-  it('the cashier opens the guide itself and the menu entry no longer advertises F1 everywhere', () => {
+  it('the cashier opens the guide itself and the menu entry shows just the key (F1)', () => {
     const keys = read('views', 'pos', 'usePosShortcuts.ts');
     assert.ok(/e\.key === 'F1'[\s\S]{0,120}setIsHelpModalOpen\(true\)/.test(keys));
-    assert.ok(app.includes("hint: 'F1 في الكاشير'"));
+    assert.ok(app.includes("hint: 'F1'"));
   });
 });

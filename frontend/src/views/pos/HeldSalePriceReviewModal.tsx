@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { AppButton } from '../../components/AppButton';
 import { formatArabicCurrency } from '../../utils/money';
 import type { HeldPriceChange } from './heldSalePricing';
 
@@ -35,8 +36,8 @@ export const HeldSalePriceReviewModal: React.FC<HeldSalePriceReviewModalProps> =
   if (!isOpen || !changes) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-xl border border-line dark:border-line-dark w-full max-w-lg p-5">
+    <div className="motion-modal-backdrop fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl">
+      <div className="motion-modal-panel bg-surface dark:bg-surface-dark rounded-lg shadow-xl border border-line dark:border-line-dark w-full max-w-lg p-5">
         <div className="flex items-center gap-2 mb-3 pb-2 hairline-b">
           <AlertTriangle className="w-5 h-5 text-warn dark:text-warn-bright shrink-0" />
           <h3 className="t-modal-title text-ink dark:text-ink-dark">تغيرت أسعار بعض أصناف الفاتورة المعلقة</h3>
@@ -72,22 +73,13 @@ export const HeldSalePriceReviewModal: React.FC<HeldSalePriceReviewModalProps> =
             البيع بسعر التعليق يحتاج اعتماد المشرف. عند إلغاء الاعتماد تُحدَّث الأصناف للأسعار الحالية.
           </p>
         )}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            autoFocus
-            onClick={onKeepHeldPrices}
-            className="flex-1 py-2.5 bg-brand hover:bg-brand-hover text-white font-bold rounded transition-colors cursor-pointer"
-          >
+        <div className="flex flex-wrap gap-2">
+          <AppButton variant="primary" size="lg" autoFocus onClick={onKeepHeldPrices} className="flex-1 min-w-fit">
             {keepRequiresApproval ? 'الإبقاء على أسعار التعليق (باعتماد المشرف)' : 'الإبقاء على أسعار التعليق'}
-          </button>
-          <button
-            type="button"
-            onClick={onUpdateToCurrentPrices}
-            className="flex-1 py-2.5 bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-line-dark text-ink dark:text-ink-dark font-semibold rounded transition-colors cursor-pointer"
-          >
+          </AppButton>
+          <AppButton variant="secondary" size="lg" onClick={onUpdateToCurrentPrices} className="flex-1 min-w-fit">
             التحديث للأسعار الحالية
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>

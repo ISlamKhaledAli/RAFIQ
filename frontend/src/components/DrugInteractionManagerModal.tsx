@@ -3,7 +3,6 @@ import {
   ShieldAlert,
   AlertTriangle,
   Info,
-  Search,
   Plus,
   Trash2,
   Edit2,
@@ -15,9 +14,11 @@ import {
   Pill,
   RefreshCw,
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { ConfirmModal } from './ConfirmModal';
+import { AppButton } from './AppButton';
 import { CustomSelect } from './CustomSelect';
 import { RequiredMark } from './RequiredMark';
 import type { DrugInteraction, DdiSeverity } from '../types/pharma';
@@ -291,7 +292,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
   ];
 
   const formSeverityOptions = [
-    { value: 'severe', label: 'حرج — مانع صرف قطعي (Hard Stop)' },
+    { value: 'severe', label: 'حرج — مانع صرف قطعي' },
     { value: 'moderate', label: 'متوسط — تحذير إرشادي وفصل زمني' },
     { value: 'minor', label: 'طفيف — إرشاد صيدلاني خفيف' },
   ];
@@ -318,7 +319,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
             </div>
             <div>
               <h2 id="ddi-manager-title" className="t-modal-title flex items-center gap-2">
-                إدارة جدول التفاعلات والتعارضات الدوائية (DDI)
+                إدارة جدول التفاعلات والتعارضات الدوائية
               </h2>
               <p className="text-xs text-white/90">
                 قاعدة البيانات السريرية المرجعية لفحص تعارضات الأدوية في شاشة البيع ({totalCount} تفاعل مسجل)
@@ -329,6 +330,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+            aria-label="إغلاق"
             title="إغلاق"
           >
             <X className="w-5 h-5" />
@@ -337,21 +339,19 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
         {/* Action Toolbar */}
         <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 flex-1 min-w-[17.5rem]">
             {/* Search */}
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
+            <SearchInput
+              size="sm"
+              value={search}
+              onChange={(value) => {
+                  setSearch(value);
                   setPage(1);
                 }}
-                placeholder="بحث بالمادة الفعالة أو آلية التفاعل أو التوصية..."
-                className="w-full pr-9 pl-3 py-2 text-xs bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
-              />
-            </div>
+              placeholder="بحث بالمادة الفعالة أو آلية التفاعل أو التوصية..."
+              ariaLabel="بحث في تفاعلات الأدوية"
+              className="flex-1 min-w-[16.25rem]"
+            />
 
             {/* Severity Filter */}
             <div className="w-44">
@@ -368,45 +368,40 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleOpenAdd}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-dark transition-colors cursor-pointer shadow-xs"
-            >
-              <Plus className="w-4 h-4" />
+            <AppButton variant="primary" size="sm" icon={Plus} onClick={handleOpenAdd}>
               إضافة تفاعل
-            </button>
+            </AppButton>
 
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="sm"
+              icon={UploadCloud}
               onClick={() => fileInputRef.current?.click()}
               disabled={isImporting}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
               title="استيراد تفاعلات من ملف إكسل"
             >
-              <UploadCloud className="w-4 h-4 text-brand dark:text-brand-bright" />
               {isImporting ? 'جاري الاستيراد...' : 'استيراد إكسل'}
-            </button>
+            </AppButton>
 
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="sm"
+              icon={FileSpreadsheet}
               onClick={handleExport}
               disabled={isExporting}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
               title="تصدير جدول التفاعلات لملف إكسل"
             >
-              <FileSpreadsheet className="w-4 h-4 text-paid dark:text-paid-bright" />
               {isExporting ? 'جاري التصدير...' : 'تصدير'}
-            </button>
+            </AppButton>
 
-            <button
-              type="button"
-              onClick={handleDownloadTemplate}
-              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
+            <AppButton
+              variant="secondary"
+              size="sm"
+              icon={Download}
+              aria-label="تحميل قالب إكسل فارغ"
               title="تحميل قالب إكسل فارغ"
-            >
-              <Download className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
-            </button>
+              onClick={handleDownloadTemplate}
+            />
 
             <input
               ref={fileInputRef}
@@ -435,13 +430,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               )}
               <span>{message.text}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setMessage(null)}
-              className="text-current hover:opacity-75 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={() => setMessage(null)} />
           </div>
         )}
 
@@ -505,22 +494,8 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                       </td>
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(item)}
-                            className="p-1.5 rounded-lg text-brand dark:text-brand-bright hover:bg-brand/10 dark:hover:bg-brand-dark-soft transition-colors cursor-pointer"
-                            title="تعديل"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteCandidate(item)}
-                            className="p-1.5 rounded-lg text-danger dark:text-danger-bright hover:bg-danger/10 dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
-                            title="حذف"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <AppButton variant="subtle" size="xs" icon={Edit2} aria-label="تعديل" onClick={() => handleOpenEdit(item)} />
+                          <AppButton variant="dangerSubtle" size="xs" icon={Trash2} aria-label="حذف" onClick={() => setDeleteCandidate(item)} />
                         </div>
                       </td>
                     </tr>
@@ -538,23 +513,13 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-40 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark disabled:cursor-not-allowed cursor-pointer font-medium"
-            >
+            <AppButton variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
               السابق
-            </button>
+            </AppButton>
             <span className="text-xs font-bold text-ink dark:text-ink-dark px-2">{page}</span>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-40 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark disabled:cursor-not-allowed cursor-pointer font-medium"
-            >
+            <AppButton variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
               التالي
-            </button>
+            </AppButton>
           </div>
         </div>
       </div>
@@ -566,7 +531,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
           onClick={() => setIsEditOpen(false)}
         >
           <div
-            className="w-full max-w-xl bg-surface dark:bg-surface-dark border-2 border-brand dark:border-brand-bright shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[90vh] text-ink dark:text-ink-dark"
+            className="w-full max-w-2xl bg-surface dark:bg-surface-dark border-2 border-brand dark:border-brand-bright shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[90vh] text-ink dark:text-ink-dark"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-brand dark:bg-brand-dark text-white px-5 py-3.5 flex items-center justify-between shrink-0">
@@ -577,132 +542,126 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               <button
                 type="button"
                 onClick={() => setIsEditOpen(false)}
+                aria-label="إغلاق"
                 className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveInteraction} className="p-5 flex-1 overflow-y-auto space-y-3.5">
-              {formError && (
-                <div className="p-2.5 rounded-lg bg-danger/10 dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold">
-                  {formError}
+            <form onSubmit={handleSaveInteraction} className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3.5">
+                {formError && (
+                  <div className="p-2.5 rounded-lg bg-danger/10 dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold">
+                    {formError}
+                  </div>
+                )}
+
+                <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0">الحقول المميزة بعلامة * مطلوبة</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
+                      المادة الفعالة الأولى (بالإنجليزية): <RequiredMark />
+                    </label>
+                    <input
+                      type="text"
+                      value={formA}
+                      onChange={(e) => setFormA(e.target.value)}
+                      placeholder="مثال: warfarin"
+                      className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark font-mono placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
+                      المادة الفعالة الثانية (بالإنجليزية): <RequiredMark />
+                    </label>
+                    <input
+                      type="text"
+                      value={formB}
+                      onChange={(e) => setFormB(e.target.value)}
+                      placeholder="مثال: diclofenac"
+                      className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark font-mono placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
+                      required
+                    />
+                  </div>
                 </div>
-              )}
 
-              <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0">الحقول المميزة بعلامة * مطلوبة</p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                    المادة الفعالة الأولى (بالإنجليزية): <RequiredMark />
+                    درجة الخطورة السريرية:
                   </label>
-                  <input
-                    type="text"
-                    value={formA}
-                    onChange={(e) => setFormA(e.target.value)}
-                    placeholder="مثال: warfarin"
-                    className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark font-mono placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
+                  <CustomSelect
+                    value={formSeverity}
+                    onChange={(val) => setFormSeverity(val as DdiSeverity)}
+                    options={formSeverityOptions}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
+                    شرح آلية التفاعل الصيدلانية: <RequiredMark />
+                  </label>
+                  <textarea
+                    value={formMech}
+                    onChange={(e) => setFormMech(e.target.value)}
+                    placeholder="شرح علمي لكيفية تأثير المادتين على بعضهما كبدياً أو امتصاصاً..."
+                    rows={2}
+                    className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 leading-relaxed"
                     required
                   />
                 </div>
+
                 <div>
                   <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                    المادة الفعالة الثانية (بالإنجليزية): <RequiredMark />
+                    الخطر السريري على المريض: <RequiredMark />
+                  </label>
+                  <textarea
+                    value={formRisk}
+                    onChange={(e) => setFormRisk(e.target.value)}
+                    placeholder="الأثر الخطير المتوقع: نزيف حاد، فشل امتصاص، تسمم، استطالة QT..."
+                    rows={2}
+                    className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 leading-relaxed"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
+                    التوصية الطبية العملية للصيدلي: <RequiredMark />
+                  </label>
+                  <textarea
+                    value={formRec}
+                    onChange={(e) => setFormRec(e.target.value)}
+                    placeholder="الإجراء الصيدلاني المطلوب: منع الجمع، الفصل بساعتين، خفض الجرعة..."
+                    rows={2}
+                    className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 leading-relaxed"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
+                    البديل الآمن المقترح:
                   </label>
                   <input
                     type="text"
-                    value={formB}
-                    onChange={(e) => setFormB(e.target.value)}
-                    placeholder="مثال: diclofenac"
-                    className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark font-mono placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
-                    required
+                    value={formAlt}
+                    onChange={(e) => setFormAlt(e.target.value)}
+                    placeholder="مثال: باراسيتامول (Paracetamol) أو بانتوبرازول (Pantoprazole)"
+                    className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  درجة الخطورة السريرية:
-                </label>
-                <CustomSelect
-                  value={formSeverity}
-                  onChange={(val) => setFormSeverity(val as DdiSeverity)}
-                  options={formSeverityOptions}
-                />
-              </div>
-
-              <div>
-                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  شرح آلية التفاعل الصيدلانية: <RequiredMark />
-                </label>
-                <textarea
-                  value={formMech}
-                  onChange={(e) => setFormMech(e.target.value)}
-                  placeholder="شرح علمي لكيفية تأثير المادتين على بعضهما كبدياً أو امتصاصاً..."
-                  rows={2}
-                  className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 leading-relaxed"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  الخطر السريري على المريض: <RequiredMark />
-                </label>
-                <textarea
-                  value={formRisk}
-                  onChange={(e) => setFormRisk(e.target.value)}
-                  placeholder="الأثر الخطير المتوقع: نزيف حاد، فشل امتصاص، تسمم، استطالة QT..."
-                  rows={2}
-                  className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 leading-relaxed"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  التوصية الطبية العملية للصيدلي: <RequiredMark />
-                </label>
-                <textarea
-                  value={formRec}
-                  onChange={(e) => setFormRec(e.target.value)}
-                  placeholder="الإجراء الصيدلاني المطلوب: منع الجمع، الفصل بساعتين، خفض الجرعة..."
-                  rows={2}
-                  className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 leading-relaxed"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  البديل الآمن المقترح:
-                </label>
-                <input
-                  type="text"
-                  value={formAlt}
-                  onChange={(e) => setFormAlt(e.target.value)}
-                  placeholder="مثال: باراسيتامول (Paracetamol) أو بانتوبرازول (Pantoprazole)"
-                  className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-line dark:border-line-dark">
-                <button
-                  type="button"
-                  onClick={() => setIsEditOpen(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-bold bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-                >
+              <div className="px-5 py-3 flex items-center justify-end gap-2 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
+                <AppButton variant="secondary" size="md" onClick={() => setIsEditOpen(false)}>
                   إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-dark disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-colors cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
+                </AppButton>
+                <AppButton variant="primary" size="md" icon={CheckCircle2} type="submit" disabled={saving}>
                   {saving ? 'جاري الحفظ...' : 'حفظ التفاعل'}
-                </button>
+                </AppButton>
               </div>
             </form>
           </div>

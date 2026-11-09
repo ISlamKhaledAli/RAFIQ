@@ -8,7 +8,6 @@ import {
   TrendingUp,
   TrendingDown,
   Phone,
-  Search,
   CheckCircle2,
   AlertCircle,
   Award,
@@ -17,8 +16,9 @@ import {
   Scale,
   ArrowLeftRight
 } from 'lucide-react';
+import { SearchInput } from '../../components/SearchInput';
 import { invoke } from '../../bridge/ipc';
-import { printReport } from '../../utils/printReport';
+import { usePrintReport } from '../../hooks/usePrintReport';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
@@ -37,6 +37,9 @@ import type {
   PaymentHistoryRecord
 } from '../../types/models';
 
+import { AppButton } from '../../components/AppButton';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 const PERIOD_OPTIONS: SelectOption[] = [
   { value: 'today', label: 'اليوم' },
   { value: 'week', label: 'آخر 7 أيام' },
@@ -80,6 +83,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeSection, setActiveSection] = useState<CustomerSection>('aging');
+  const motionPanel = useMotionPanel(activeSection);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -123,9 +127,11 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
     return d.name.toLowerCase().includes(q) || (d.phone && d.phone.includes(q));
   });
 
-  const handlePrint = () => {
-    void printReport({ kind: 'a4only' });
-  };
+  const { print: handlePrint, printing } = usePrintReport({
+    reportName: 'تقرير تحليلات العملاء',
+    kind: 'a4only',
+    hasData: creditOverview !== null,
+  });
 
   if (showLoading && !creditOverview) {
     return (
@@ -179,26 +185,14 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
             />
           )}
 
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="h-10 px-4 rounded-lg bg-brand-dark dark:bg-brand hover:bg-brand dark:hover:bg-brand-bright text-white text-sm font-bold flex items-center gap-2 transition-colors shadow-2xs cursor-pointer"
-            title="طباعة التقرير"
-          >
-            <Printer className="w-4 h-4" />
-            <span>طباعة التقرير</span>
-          </button>
+          <AppButton variant="primary" icon={Printer} onClick={handlePrint} loading={printing} title="طباعة التقرير">
+            طباعة التقرير
+          </AppButton>
 
           {onNavigateToCustomers && (
-            <button
-              type="button"
-              onClick={onNavigateToCustomers}
-              className="h-10 px-4 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-              title="الانتقال إلى سجل وإدارة العملاء"
-            >
-              <Users className="w-4 h-4" />
-              <span>إدارة العملاء</span>
-            </button>
+            <AppButton variant="secondary" icon={Users} onClick={onNavigateToCustomers} title="الانتقال إلى سجل وإدارة العملاء">
+              إدارة العملاء
+            </AppButton>
           )}
         </div>
       </div>
@@ -206,7 +200,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
       {/* 2. Top All-Time Credit KPIs (كروت الرصيد التراكمي الشامل لكافة العملاء) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 shrink-0">
         {/* KPI 1: Total Debts */}
-        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs hover:border-warn dark:hover:border-warn-bright hover:shadow-xs transition-all duration-200 flex flex-col justify-between min-h-[132px]">
+        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs flex flex-col justify-between min-h-[8.25rem]">
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1.5">
               <span className="font-bold text-ink dark:text-ink-dark text-sm">إجمالي ديون العملاء</span>
@@ -232,7 +226,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
         </div>
 
         {/* KPI 2: Customer Advance Credits */}
-        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs hover:border-paid dark:hover:border-paid-bright hover:shadow-xs transition-all duration-200 flex flex-col justify-between min-h-[132px]">
+        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs flex flex-col justify-between min-h-[8.25rem]">
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1.5">
               <span className="font-bold text-ink dark:text-ink-dark text-sm">أرصدة عملاء (تحت الحساب)</span>
@@ -258,7 +252,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
         </div>
 
         {/* KPI 3: Net Market Exposure */}
-        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs hover:border-brand dark:hover:border-brand-bright hover:shadow-xs transition-all duration-200 flex flex-col justify-between min-h-[132px]">
+        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs flex flex-col justify-between min-h-[8.25rem]">
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1.5">
               <span className="font-bold text-ink dark:text-ink-dark text-sm">صافي ذمة السوق للمحل</span>
@@ -279,7 +273,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
         </div>
 
         {/* KPI 4: Critical Debts */}
-        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs hover:border-danger dark:hover:border-danger-bright hover:shadow-xs transition-all duration-200 flex flex-col justify-between min-h-[132px]">
+        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs flex flex-col justify-between min-h-[8.25rem]">
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1.5">
               <span className="font-bold text-ink dark:text-ink-dark text-sm">ديون حرجة (+90 يوم)</span>
@@ -327,7 +321,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {/* Flow 1: Opening Debt */}
-            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs hover:border-line dark:hover:border-line-dark transition-all flex flex-col justify-between">
+            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
               <div className="text-sm font-bold text-ink-muted dark:text-ink-muted-dark mb-2">رصيد أول الفترة</div>
               <div className="t-kpi text-ink dark:text-ink-dark">
                 {formatArabicCurrency(creditOverview?.periodOpeningDebtsPiasters ?? (creditOverview?.totalOutstandingDebtsPiasters || 0))}
@@ -336,7 +330,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
             </div>
 
             {/* Flow 2: New Credit Sales */}
-            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs hover:border-warn/30 dark:hover:border-warn-bright/30 transition-all flex flex-col justify-between">
+            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between text-ink-muted dark:text-ink-muted-dark mb-2">
                 <span className="text-sm font-bold text-ink dark:text-ink-dark">شكك جديد</span>
                 <TrendingDown className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
@@ -348,7 +342,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
             </div>
 
             {/* Flow 3: Period Repayments */}
-            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs hover:border-paid/30 dark:hover:border-paid-bright/30 transition-all flex flex-col justify-between">
+            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between text-ink-muted dark:text-ink-muted-dark mb-2">
                 <span className="text-sm font-bold text-ink dark:text-ink-dark">سدادات اتحصلت</span>
                 <TrendingUp className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
@@ -360,7 +354,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
             </div>
 
             {/* Flow 4: Net Flow Delta */}
-            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs hover:border-brand/30 dark:hover:border-brand-bright/30 transition-all flex flex-col justify-between">
+            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between text-ink-muted dark:text-ink-muted-dark mb-2">
                 <span className="text-sm font-bold text-ink dark:text-ink-dark">حركة الديون</span>
                 <ArrowLeftRight className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
@@ -382,7 +376,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
             </div>
 
             {/* Flow 5: Closing Debt */}
-            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs hover:border-brand/30 dark:hover:border-brand-bright/30 transition-all flex flex-col justify-between">
+            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
               <div className="text-sm font-bold text-ink-muted dark:text-ink-muted-dark mb-2">شكك آخر الفترة</div>
               <div className="t-kpi text-brand-dark dark:text-brand-bright">
                 {formatArabicCurrency(creditOverview?.periodClosingDebtsPiasters ?? (creditOverview?.totalOutstandingDebtsPiasters || 0))}
@@ -391,7 +385,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
             </div>
 
             {/* Flow 6: Actual Payback Duration */}
-            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs hover:border-line dark:hover:border-line-dark transition-all flex flex-col justify-between">
+            <div className="bg-surface dark:bg-surface-dark border border-line/80 dark:border-line-dark/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between text-ink-muted dark:text-ink-muted-dark mb-2">
                 <span className="text-sm font-bold text-ink dark:text-ink-dark">متوسط وقت السداد</span>
                 <Clock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark" />
@@ -417,7 +411,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
       </div>
 
       {/* 4. Dynamic Tab Content */}
-      <div className="flex-1 pb-4">
+      <div {...motionPanel} className="flex-1 pb-4">
         {/* SECTION A: Debt Aging Analysis */}
         {activeSection === 'aging' && (
           <div className="space-y-5">
@@ -519,16 +513,14 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
               </p>
 
               <div className="flex items-center gap-2">
-                <div className="relative w-56">
-                  <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark absolute right-2.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="بحث باسم العميل أو الهاتف..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full h-8 pr-8 pl-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-muted-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                  />
-                </div>
+                <SearchInput
+                  size="sm"
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder="بحث باسم العميل أو الهاتف..."
+                  ariaLabel="بحث في تحليلات العملاء"
+                  className="w-72"
+                />
               </div>
             </div>
 
@@ -565,7 +557,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
                             {d.phone ? (
                               <>
                                 <Phone className="w-3 h-3 text-ink-muted dark:text-ink-muted-dark" />
-                                <span>{d.phone}</span>
+                                <span>{formatPhoneDisplay(d.phone)}</span>
                               </>
                             ) : (
                               '—'
@@ -595,7 +587,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
                           <td className="py-3.5 px-3.5 font-mono text-xs text-ink-muted dark:text-ink-muted-dark">
                             {d.lastTransactionDate || '—'}
                           </td>
-                          <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-muted-dark max-w-[150px] truncate" title={d.notes}>
+                          <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-muted-dark max-w-[9.375rem] truncate" title={d.notes}>
                             {d.notes || '—'}
                           </td>
                         </tr>
@@ -616,7 +608,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
                 <h2 className="t-section-title text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5">
                   <Award className="w-4 h-4 text-paid dark:text-paid-bright" />
-                  <span>أكثر العملاء شراءً (Top Buyers)</span>
+                  <span>أكثر العملاء شراءً</span>
                 </h2>
                 <p className="text-sm mt-1 text-ink-muted dark:text-ink-muted-dark mb-5">
                   العملاء الأعلى في إجمالي قيمة المشتريات خلال الفترة
@@ -652,7 +644,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
                 <h2 className="t-section-title text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span>أكثر العملاء التزاماً بالسداد (Top Payers)</span>
+                  <span>أكثر العملاء التزاماً بالسداد</span>
                 </h2>
                 <p className="text-sm mt-1 text-ink-muted dark:text-ink-muted-dark mb-5">
                   العملاء الأكثر وفاءً والتزاماً بتسديد ديونهم ومستحقاتهم
@@ -697,7 +689,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
                     <div key={c.customerId} className="p-2.5 bg-danger-soft/30 dark:bg-danger-dark-soft/30 rounded-lg border border-danger/20 dark:border-danger-bright/20 flex items-center justify-between text-xs">
                       <div>
                         <div className="font-bold text-ink dark:text-ink-dark">{c.customerName}</div>
-                        <div className="font-mono text-xs text-ink-muted dark:text-ink-muted-dark">{c.phone || 'بدون هاتف'}</div>
+                        <div className="font-mono text-xs text-ink-muted dark:text-ink-muted-dark">{formatPhoneDisplay(c.phone) || 'بدون هاتف'}</div>
                       </div>
                       <div className="font-mono font-bold text-danger dark:text-danger-bright">
                         {formatArabicCurrency(c.balancePiasters)}
@@ -791,7 +783,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
                             {formatArabicCurrency(p.newBalancePiasters)}
                           </td>
                           <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-muted-dark">{p.cashierName || 'المدير'}</td>
-                          <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-muted-dark max-w-[200px] truncate" title={p.notes}>
+                          <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-muted-dark max-w-[12.5rem] truncate" title={p.notes}>
                             {p.notes || '—'}
                           </td>
                         </tr>

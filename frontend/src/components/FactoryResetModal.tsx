@@ -5,7 +5,7 @@ import {
   AlertTriangle, 
   ShieldAlert, 
   CheckCircle2, 
-  Loader2, 
+  RefreshCw,
   HardDrive,
   Database,
   FileSpreadsheet,
@@ -13,7 +13,12 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import { RequiredMark } from './RequiredMark';
+import { AppButton } from './AppButton';
+
+// The host takes a verified backup before it wipes anything, which can outlast the 15 s default
+const RESET_TIMEOUT_MS = 180000;
 
 interface FactoryResetModalProps {
   isOpen: boolean;
@@ -24,13 +29,6 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { handleBackdropClick } = useModalDismiss({
-    isOpen,
-    onClose,
-    isDirty: false,
-  });
-
-  const [wipeBackups, setWipeBackups] = useState(true);
   const [confirmWord, setConfirmWord] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -41,6 +39,13 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
     deletedProductsCount?: number;
     deletedCustomersCount?: number;
   } | null>(null);
+
+  const { handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && !loading,
+    onClose,
+    isDirty: false,
+  });
+  const motionPanel = useMotionPanel(successResult ? 'done' : 'confirm');
 
   if (!isOpen) return null;
 
@@ -59,23 +64,18 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
         deletedSalesCount?: number;
         deletedProductsCount?: number;
         deletedCustomersCount?: number;
-      }>('system:factoryReset', { wipeBackups });
+      }>('system:factoryReset', { confirmWord: confirmWord.trim() }, RESET_TIMEOUT_MS);
 
       if (res && res.success) {
         setSuccessResult(res);
 
-        // Clear local browser storage
+        // The wiped store no longer matches anything the browser side remembers
         try {
           localStorage.clear();
           sessionStorage.clear();
         } catch {
-          // ignore
+          // storage unavailable: the reload below starts from the host state anyway
         }
-
-        // Auto reload after brief success acknowledgment
-        setTimeout(() => {
-          window.location.reload();
-        }, 1800);
       } else {
         setErrorMessage(res?.message || 'تعذر إتمام عملية مسح وتصفير البيانات.');
         setLoading(false);
@@ -116,25 +116,28 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 cursor-pointer"
+            className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-50"
             title="إغلاق"
+            aria-label="إغلاق"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-5 flex flex-col gap-4">
+        <div {...motionPanel} className="p-5 flex flex-col gap-4">
           {successResult ? (
-            <div className="p-5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-bright/30 rounded-xl flex flex-col items-center justify-center text-center gap-2.5 animate-in fade-in">
+            <div className="p-5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-bright/30 rounded-xl flex flex-col items-center justify-center text-center gap-2.5">
               <CheckCircle2 className="w-10 h-10 text-paid dark:text-paid-bright" />
-              <div className="text-sm font-bold text-paid dark:text-paid-bright">
+              <div className="text-sm font-bold text-paid dark:text-paid-bright leading-relaxed">
                 {successResult.message}
               </div>
-              <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0">
-                جاري إعادة تحميل البرنامج الآن لبدء التهيئة الجديدة فوراً...
+              <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
+                لن يُعاد تحميل البرنامج تلقائياً. أعد تحميل الشاشة عندما تكون جاهزاً لبدء الإعداد الأول وتسجيل الدخول بحساب صاحب المحل الأولي.
               </p>
-              <Loader2 className="w-5 h-5 animate-spin text-paid dark:text-paid-bright mt-1" />
+              <AppButton variant="success" icon={RefreshCw} onClick={() => window.location.reload()} className="mt-1">
+                إعادة تحميل الآن
+              </AppButton>
             </div>
           ) : (
             <>
@@ -144,10 +147,17 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
                 <div className="text-xs leading-relaxed space-y-1">
                   <div className="font-bold">تحذير حرج — هذه العملية لا يمكن التراجع عنها:</div>
                   <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0">
-                    سيتم مسح كافة البيانات المسجلة على هذا الجهاز، بما في ذلك المبيعات والمخزن والديون ليعود البرنامج جديداً ونظيفاً تماماً 100%.
+                    سيتم مسح المبيعات والمخزن والديون والزبائن والموردين والورديات والإعدادات على هذا الجهاز. يُحذف كل الموظفين ويعود حساب صاحب المحل برقمه الأولي (1234) وحساب الكاشير برقمه الأولي (0000) مع إلزام تغييرهما، ثم يظهر معالج الإعداد الأول. يُمسح سجل المراجعة ويُسجَّل فيه قيد التصفير فقط.
                   </p>
                 </div>
               </div>
+
+              {/* What stays */}
+              <div className="p-3 rounded-lg bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-bright/30 text-xs leading-relaxed text-ink dark:text-ink-dark">
+                <span className="font-bold text-paid dark:text-paid-bright">ما يبقى كما هو: </span>
+                ملفات النسخ الاحتياطي السابقة كلها، والترخيص وتفعيله. ويؤخذ قبل المسح نسخة احتياطية موثقة تلقائياً؛ وإن تعذر أخذها أو كانت هناك وردية مفتوحة فلن يُحذف شيء.
+              </div>
+
 
               {/* What will be deleted breakdown */}
               <div className="grid grid-cols-2 gap-2 text-micro">
@@ -168,24 +178,6 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
                   <span>الخزينة والورديات والمدفوعات</span>
                 </div>
               </div>
-
-              {/* Backup Wipe Option Checkbox */}
-              <label className="p-3 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-start gap-3 cursor-pointer hover:bg-surface dark:hover:bg-surface-dark transition-colors">
-                <input
-                  type="checkbox"
-                  checked={wipeBackups}
-                  onChange={(e) => setWipeBackups(e.target.checked)}
-                  className="mt-0.5 rounded text-danger focus:ring-danger w-4 h-4 cursor-pointer"
-                />
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-bold text-xs text-ink dark:text-ink-dark">
-                    مسح كافة ملفات النسخ الاحتياطي السابقة من الجهاز (تنظيف شامل لكافة النسخ)
-                  </span>
-                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
-                    حذف أي ملفات باك أب قديمة ومسح الذاكرة المؤقتة لضمان بداية نظيفة وخالية من أي سجلات سابقة.
-                  </span>
-                </div>
-              </label>
 
               {/* Confirmation Input */}
               <div className="flex flex-col gap-1.5 pt-1">
@@ -214,33 +206,19 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
         {/* Actions Footer */}
         {!successResult && (
           <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 font-bold text-xs transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" onClick={onClose} disabled={loading}>
               إلغاء وتراجع
-            </button>
+            </AppButton>
 
-            <button
-              type="button"
+            <AppButton
+              variant="danger"
+              icon={Trash2}
+              loading={loading}
               onClick={() => void handleExecuteReset()}
-              disabled={!isConfirmed || loading}
-              className="px-5 py-2.5 rounded-lg bg-danger hover:bg-danger-hover text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              disabled={!isConfirmed}
             >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>جاري تصفير ومسح كافة البيانات...</span>
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4" />
-                  <span>تأكيد مسح وتصفير كافة البيانات الآن</span>
-                </>
-              )}
-            </button>
+              {loading ? 'جاري تصفير ومسح كافة البيانات...' : 'تأكيد مسح وتصفير كافة البيانات الآن'}
+            </AppButton>
           </div>
         )}
       </div>

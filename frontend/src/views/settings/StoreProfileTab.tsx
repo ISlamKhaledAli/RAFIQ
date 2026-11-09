@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
+import { AppButton } from '../../components/AppButton';
 import { optimizeImageForThermal } from '../../utils/thermalImageOptimizer';
 import { ReceiptPaper } from '../../components/ReceiptPaper';
 import {
@@ -22,6 +23,7 @@ import {
   receiptTextLimitError,
 } from '../../utils/receiptLayout';
 import { FIELD_INPUT_CLASS, Field, ReceiptTextField, SettingsCard, ToggleRow } from './settingsParts';
+import MotionHeight from '../../components/MotionHeight';
 import { BUILT_IN_SIGNATURE_IMAGES } from '../../utils/signatureDefaults';
 
 interface StoreProfileTabProps {
@@ -150,7 +152,7 @@ export const StoreProfileTab = ({
   } else if (hasTextError) {
     statusNode = <span className="text-danger dark:text-danger-bright font-semibold">قصّر نصوص الوصل ثم احفظ</span>;
   } else if (dirty) {
-    statusNode = <UnsavedChangesChip />;
+    statusNode = null;
   } else if (saved) {
     statusNode = (
       <span className="flex items-center gap-2 text-paid dark:text-paid-bright font-bold">
@@ -214,6 +216,7 @@ export const StoreProfileTab = ({
           </div>
         </SettingsCard>
 
+        <MotionHeight>
         <SettingsCard
           icon={ImageIcon}
           title="شعار الوصل"
@@ -266,14 +269,9 @@ export const StoreProfileTab = ({
                     />
                   </label>
                   {!isDefaultLogo && (
-                    <button
-                      type="button"
-                      onClick={() => setStoreLogoUrl?.(DEFAULT_LOGO_URL)}
-                      className="h-10 px-4 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      <span>الشعار الافتراضي</span>
-                    </button>
+                    <AppButton variant="secondary" icon={RotateCcw} onClick={() => setStoreLogoUrl?.(DEFAULT_LOGO_URL)}>
+                      الشعار الافتراضي
+                    </AppButton>
                   )}
                 </div>
               </div>
@@ -287,6 +285,7 @@ export const StoreProfileTab = ({
             </div>
           )}
         </SettingsCard>
+        </MotionHeight>
 
         <SettingsCard
           icon={FileText}
@@ -340,17 +339,17 @@ export const StoreProfileTab = ({
         </SettingsCard>
 
         <div ref={saveBarRef} className="sticky bottom-0 z-10 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-md rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs" role="status">
-            {statusNode}
+          <div className="text-xs inline-grid items-center">
+            <div className="col-start-1 row-start-1">
+              <UnsavedChangesChip dirty={dirty && !saveLoading && !hasTextError} />
+            </div>
+            <div className="col-start-1 row-start-1" role="status">
+              {statusNode}
+            </div>
           </div>
-          <button
-            type="submit"
-            disabled={saveLoading || hasTextError || !dirty}
-            className="h-11 px-6 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-muted-dark disabled:cursor-not-allowed text-white dark:text-surface-dark rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
-          >
-            <Save className="w-4 h-4" />
-            <span>حفظ التغييرات</span>
-          </button>
+          <AppButton type="submit" variant="primary" size="lg" icon={Save} loading={saveLoading} disabled={hasTextError || !dirty}>
+            حفظ التغييرات
+          </AppButton>
         </div>
       </form>
 
@@ -397,14 +396,9 @@ export const StoreProfileTab = ({
             الأسماء والأصناف في المعاينة أمثلة فقط، والوصل الحقيقي يطبع بيانات الفاتورة الفعلية.
           </p>
           {onOpenPrinterSettings && (
-            <button
-              type="button"
-              onClick={onOpenPrinterSettings}
-              className="h-10 px-4 self-start bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>عرض الورق واختبار الطباعة</span>
-            </button>
+            <AppButton variant="secondary" icon={Printer} onClick={onOpenPrinterSettings} className="self-start">
+              عرض الورق واختبار الطباعة
+            </AppButton>
           )}
         </SettingsCard>
       </aside>

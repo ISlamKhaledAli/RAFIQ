@@ -3,6 +3,7 @@ import { X, Sliders, Plus, Trash2, Link2, CheckCircle2 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import { formatArabicCurrency } from '../utils/money';
+import { AppButton } from './AppButton';
 import type { ModifierGroup } from '../types/cafe';
 import type { Product } from '../types/models';
 
@@ -187,8 +188,8 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="motion-modal-backdrop fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
+      <div className="motion-modal-panel bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -196,20 +197,13 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="t-modal-title text-ink dark:text-ink-dark">إدارة مجموعات الإضافات وتخصيصات الأصناف (Modifiers)</h2>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">إدارة مجموعات الإضافات               وتخصيصات الأصناف</h2>              <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 تعريف مجموعات التخصيص (مستوى السكر، نوع الحليب، الصوصات، الإضافات المدفوعة) وربطها بأصناف المنيو
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger/10 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="secondary" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {(errorMsg || successMsg) && (
@@ -253,19 +247,13 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                     type="checkbox"
                     checked={newIsRequired}
                     onChange={(e) => setNewIsRequired(e.target.checked)}
-                    className="rounded border-line dark:border-line-dark text-brand accent-brand"
                   />
                   <span>اختيار إجباري</span>
                 </label>
               </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1 hover:opacity-90 transition-opacity"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>إنشاء مجموعة إضافات</span>
-              </button>
+              <AppButton type="submit" variant="primary" icon={Plus} disabled={loading} fullWidth>
+                إنشاء مجموعة إضافات
+              </AppButton>
             </form>
 
             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -285,16 +273,16 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                       {(g.options || []).length} خيارات • {g.selectionType === 'single' ? 'واحد' : 'متعدد'}
                     </div>
                   </div>
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="dangerSubtle"
+                    size="xs"
+                    icon={Trash2}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeleteGroup(g.id);
                     }}
-                    className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    aria-label="حذف المجموعة"
+                  />
                 </div>
               ))}
             </div>
@@ -334,7 +322,6 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                           type="checkbox"
                           checked={newOptIsDefault}
                           onChange={(e) => setNewOptIsDefault(e.target.checked)}
-                          className="accent-brand"
                         />
                         <span>خيار افتراضي</span>
                       </label>
@@ -371,14 +358,9 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                     </div>
                   )}
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-2 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1 hover:opacity-90 transition-opacity"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>إضافة الخيار للمجموعة</span>
-                  </button>
+                  <AppButton type="submit" variant="primary" icon={Plus} disabled={loading} fullWidth>
+                    إضافة الخيار للمجموعة
+                  </AppButton>
                 </form>
 
                 <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -393,13 +375,13 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                           {opt.extraPricePiasters > 0 ? `+${formatArabicCurrency(opt.extraPricePiasters)}` : 'مجاناً'}
                         </span>
                       </div>
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="dangerSubtle"
+                        size="xs"
+                        icon={Trash2}
                         onClick={() => handleDeleteOption(opt.id)}
-                        className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        aria-label="حذف الخيار"
+                      />
                     </div>
                   ))}
                 </div>
@@ -447,22 +429,15 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleLinkGroup(g.id)}
-                          className="rounded border-line dark:border-line-dark text-brand accent-brand"
                         />
                       </label>
                     );
                   })}
                 </div>
 
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={handleSaveProductLinks}
-                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black flex items-center justify-center gap-1.5 hover:opacity-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-opacity shadow-sm"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>حفظ ربط الإضافات بالصنف</span>
-                </button>
+                <AppButton variant="success" icon={CheckCircle2} disabled={loading} onClick={handleSaveProductLinks} fullWidth>
+                  حفظ ربط الإضافات بالصنف
+                </AppButton>
               </>
             )}
           </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { AppButton } from './AppButton';
 import {
   Layers,
   X,
@@ -183,13 +184,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
               </p>
             </div>
           </div>
-          <button
-            onClick={() => void requestClose()}
-            className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-line/40 dark:hover:bg-line-dark/40 rounded-lg transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" />
         </div>
 
         {/* Content */}
@@ -212,17 +207,17 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                   <span className="text-ink-muted dark:text-ink-dark-muted font-medium">
                     تصفية نشطة: {selectedColor && `${terminology.colorLabel}: ${selectedColor}`} {selectedSize && `• ${terminology.sizeLabel}: ${selectedSize}`}
                   </span>
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="soft"
+                    size="xs"
+                    icon={RefreshCw}
                     onClick={() => {
                       setSelectedColor(null);
                       setSelectedSize(null);
                     }}
-                    className="text-brand dark:text-brand-bright hover:underline font-bold flex items-center gap-1 text-micro cursor-pointer"
                   >
-                    <RefreshCw className="w-3 h-3" />
                     عرض الكل
-                  </button>
+                  </AppButton>
                 </div>
               )}
 
@@ -232,13 +227,9 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">1. تصفية بـ{terminology.colorLabel}:</label>
                     {selectedColor && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedColor(null)}
-                        className="text-micro text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright cursor-pointer"
-                      >
+                      <AppButton variant="subtle" size="xs" className="-my-1" onClick={() => setSelectedColor(null)}>
                         إلغاء التحديد
-                      </button>
+                      </AppButton>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -275,13 +266,9 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">2. {terminology.filterBySizeLabel}</label>
                     {selectedSize && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSize(null)}
-                        className="text-micro text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright cursor-pointer"
-                      >
+                      <AppButton variant="subtle" size="xs" className="-my-1" onClick={() => setSelectedSize(null)}>
                         إلغاء التحديد
-                      </button>
+                      </AppButton>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -298,7 +285,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                           }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono transition-all border cursor-pointer ${
                             isSelected
-                              ? 'bg-paid text-white border-paid shadow-sm'
+                              ? 'bg-paid text-white border-paid dark:bg-paid-dark-soft dark:text-paid-bright dark:border-paid-bright shadow-sm dark:ring-1 dark:ring-inset dark:ring-paid-bright/40'
                               : isAvailableForSelectedColor
                               ? 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-paid/40 dark:hover:border-paid-dark-border hover:bg-surface-2 dark:hover:bg-surface-dark-3'
                               : 'bg-surface-2/40 dark:bg-surface-dark-2/40 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted opacity-40 hover:opacity-80'
@@ -386,33 +373,23 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                             <div className="flex items-center gap-1">
                               {mode === 'purchase' ? (
                                 <>
-                                  <button
-                                    type="button"
+                                  <AppButton
+                                    variant="secondary"
+                                    size="xs"
+                                    icon={Plus}
                                     onClick={() => handlePick(v, true)}
-                                    className="px-2 py-1 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright text-micro font-bold text-brand dark:text-brand-bright flex items-center gap-1 transition-colors cursor-pointer"
                                     title="إضافة إلى الفاتورة مع إبقاء النافذة مفتوحة لاختيار باقي الخيارات"
                                   >
-                                    <Plus className="w-3 h-3" />
-                                    <span>+ متابعة</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handlePick(v, false)}
-                                    className="px-2.5 py-1 rounded-lg bg-brand dark:bg-brand-bright hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark text-micro font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                                  >
-                                    <Check className="w-3 h-3" />
-                                    <span>إضافة وإنهاء</span>
-                                  </button>
+                                    متابعة
+                                  </AppButton>
+                                  <AppButton variant="primary" size="xs" icon={Check} onClick={() => handlePick(v, false)}>
+                                    إضافة وإنهاء
+                                  </AppButton>
                                 </>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handlePick(v, false)}
-                                  className="px-3 py-1.5 rounded-lg bg-brand dark:bg-brand-bright hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>إضافة للسلة</span>
-                                </button>
+                                <AppButton variant="primary" size="sm" icon={Check} onClick={() => handlePick(v, false)}>
+                                  إضافة للسلة
+                                </AppButton>
                               )}
                             </div>
                           </div>

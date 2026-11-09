@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { CustomDateRangePicker } from './CustomDatePicker';
+import { AppButton } from './AppButton';
 import { EMPTY_EXPIRY_RANGE, isExpiryRangeActive, type ExpiryRange } from '../utils/expiryRange';
 
 interface ExpiryRangeFilterProps {
@@ -24,14 +25,14 @@ export const ExpiryRangeFilter: React.FC<ExpiryRangeFilterProps> = ({ value, onC
       size={size}
     />
     {isExpiryRangeActive(value) && (
-      <button
-        type="button"
+      <AppButton
+        variant="subtle"
+        size="xs"
+        icon={X}
         onClick={() => onChange({ ...EMPTY_EXPIRY_RANGE })}
-        className="p-1 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer transition-colors"
+        aria-label="إلغاء فلتر تاريخ الانتهاء"
         title="إلغاء فلتر تاريخ الانتهاء"
-      >
-        <X className="w-4 h-4" />
-      </button>
+      />
     )}
   </div>
 );

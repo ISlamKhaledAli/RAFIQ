@@ -42,6 +42,7 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.IsTrue(SecurityService.Login("cash_sd1", StaffPin).Success, "شرط مسبق: الحساب يدخل قبل الحذف");
 
             LoginAs(OwnerId);
+            Assert.IsTrue(ContainsDtoId(SecurityService.GetAllUsers(), c.Id), "شرط مسبق: المالك يرى كاشيره قبل الحذف");
             Assert.IsTrue(SecurityService.DeleteUser(c.Id));
 
             Assert.IsNull(UserRepo.GetById(c.Id), "GetById لا يرى المحذوف");
@@ -402,7 +403,7 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.IsFalse(ContainsDtoId(list, c2.Id), "المحذوف غائب عن users:getAll");
             Assert.IsFalse(ContainsDtoId(list, m2.Id));
             Assert.IsTrue(ContainsDtoId(list, m1.Id));
-            Assert.IsTrue(ContainsDtoId(list, OwnerId));
+            Assert.IsFalse(ContainsDtoId(list, OwnerId), "المالك لا يظهر لنفسه في قائمة الموظفين");
         }
 
         // ---------- helpers ----------

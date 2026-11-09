@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { AppButton } from './AppButton';
 import { 
   Smartphone, 
   Wallet, 
@@ -194,7 +195,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
       onKeyDown={handleKeyDown}
       dir="rtl"
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl h-[min(38.8125rem,92vh)] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl h-[min(38.8125rem,92vh)] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95">
 
         {/* Fixed outer box: every state (customer, quick-add, account) is laid out inside it, so the dialog never changes size. */}
         {/* Header */}
@@ -205,7 +206,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
             </div>
             <div className="min-w-0">
               <h2 className="t-modal-title leading-tight m-0 text-ink dark:text-ink-dark">
-                {isInstapay ? 'سداد الفاتورة عبر انستاباي (InstaPay)' : 'سداد الفاتورة عبر المحفظة الإلكترونية'}
+                {isInstapay ? 'سداد الفاتورة عبر إنستاباي' : 'سداد الفاتورة عبر المحفظة الإلكترونية'}
               </h2>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 mt-1">
                 {isInstapay
@@ -215,15 +216,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-11 h-11 shrink-0 rounded-lg border border-transparent hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark focus-visible:border-brand dark:focus-visible:border-brand-bright transition-colors cursor-pointer"
-            title="إغلاق"
-            aria-label="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="lg" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" className="shrink-0" />
         </div>
 
         {/* Body: section 1 = amount + receiving account, section 2 = customer + confirmation */}
@@ -350,24 +343,13 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
 
         {/* Footer: always visible, outside the scrolling body */}
         <div className="px-5 py-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="h-12 px-5 rounded-xl text-sm font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark focus-visible:border-brand dark:focus-visible:border-brand-bright transition-colors cursor-pointer flex items-center gap-2 active:scale-98"
-          >
-            <ArrowRight className="w-4 h-4" />
-            <span>رجوع للسلة</span>
-          </button>
+          <AppButton variant="secondary" size="lg" icon={ArrowRight} className="h-12" onClick={() => void requestClose()}>
+            رجوع للسلة
+          </AppButton>
 
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={loading}
-            className="h-12 flex-1 px-6 rounded-xl text-base font-black text-white bg-paid hover:bg-paid-hover border border-paid-hover dark:border-paid-bright/50 focus-visible:border-paid-bright transition-colors shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40 disabled:pointer-events-none"
-          >
-            <CheckCircle2 className="w-5 h-5 shrink-0" />
-            <span>{loading ? 'جاري حفظ الفاتورة...' : 'تأكيد استلام التحويل'}</span>
-          </button>
+          <AppButton variant="success" size="lg" icon={CheckCircle2} onClick={handleConfirm} disabled={loading} className="h-12 flex-1">
+            {loading ? 'جاري حفظ الفاتورة...' : 'تأكيد استلام التحويل'}
+          </AppButton>
         </div>
 
       </div>

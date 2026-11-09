@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type FC, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { MENU_ITEM, MENU_ITEM_DANGER, MENU_ITEM_ICON, MENU_ITEM_ICON_DANGER } from '../utils/buttonStyles';
 
 export interface HeaderMenuItem {
   id: string;
@@ -94,7 +95,7 @@ export const HeaderMenu: FC<HeaderMenuProps> = ({
           role="menu"
           aria-label={ariaLabel}
           onKeyDown={onPanelKeyDown}
-          className={`absolute top-full mt-1.5 z-50 w-60 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xl overflow-hidden text-right ${
+          className={`motion-popup absolute top-full mt-1.5 z-50 w-60 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xl overflow-hidden text-right ${
             panelAlign === 'left' ? 'left-0' : 'right-0'
           }`}
         >
@@ -113,14 +114,12 @@ export const HeaderMenu: FC<HeaderMenuProps> = ({
                       close();
                       item.onSelect();
                     }}
-                    className={`w-full h-9 px-2.5 rounded-lg flex items-center gap-2.5 text-sm font-semibold transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-brand dark:focus-visible:ring-brand-bright ${
-                      isDanger
-                        ? 'text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft'
-                        : 'text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3'
-                    }`}
+                    className={isDanger ? MENU_ITEM_DANGER : MENU_ITEM}
                   >
-                    <Icon className={`w-4 h-4 shrink-0 ${isDanger ? 'text-danger dark:text-danger-bright' : 'text-brand dark:text-brand-bright'}`} />
-                    <span className="flex-1 text-right truncate">{item.label}</span>
+                    <span className={isDanger ? MENU_ITEM_ICON_DANGER : MENU_ITEM_ICON}>
+                      <Icon className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="flex-1 min-w-0 text-right truncate">{item.label}</span>
                     {item.hint && (
                       <kbd className="px-1.5 rounded text-micro font-mono font-bold bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
                         {item.hint}

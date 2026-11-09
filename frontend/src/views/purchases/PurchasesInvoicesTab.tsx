@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ShoppingCart,
   Plus,
-  Search,
   Filter,
   Eye,
   TrendingUp,
@@ -10,8 +10,18 @@ import {
   Building2,
   HelpCircle,
   Tag,
+  MoreHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
+import { AppButton } from '../../components/AppButton';
+import {
+  MENU_PANEL,
+  MENU_ITEM,
+  MENU_ITEM_ICON,
+  TABLE_ACTION_TRIGGER,
+} from '../../utils/buttonStyles';
+import { SearchInput } from '../../components/SearchInput';
 import { DateFilterControl } from '../../components/DateFilterControl';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
@@ -29,6 +39,7 @@ import {
   isDateFilterActive,
 } from '../../utils/dateFilter';
 import { PURCHASES_LOAD_LIMIT } from './purchasesQuery';
+import { remToPx } from '../../utils/textScale';
 
 interface PurchasesInvoicesTabProps {
   purchases: Purchase[];
@@ -63,6 +74,67 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
   onPrintLabels,
 }) => {
   const showLoading = useSmoothLoading(loading, 300);
+  const [activeMenu, setActiveMenu] = useState<{
+    purchase: Purchase;
+    top: number;
+    left: number;
+    openUpwards: boolean;
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the options menu on outside click, Escape, scroll outside the menu, or resize
+  useEffect(() => {
+    if (!activeMenu) return;
+
+    const close = () => setActiveMenu(null);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) close();
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    const handleScroll = (e: Event) => {
+      if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
+      close();
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [activeMenu]);
+
+  const handleToggleMenu = (purchase: Purchase, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (activeMenu?.purchase.id === purchase.id) {
+      setActiveMenu(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuEstimatedHeight = remToPx(6.875);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpwards = spaceBelow < menuEstimatedHeight && rect.top > menuEstimatedHeight;
+
+    const menuWidth = remToPx(14.375);
+    let left = rect.left;
+    if (left + menuWidth > window.innerWidth - 12) left = window.innerWidth - menuWidth - 12;
+    if (left < 12) left = 12;
+
+    setActiveMenu({
+      purchase,
+      top: openUpwards ? rect.top - 6 : rect.bottom + 6,
+      left,
+      openUpwards,
+    });
+  };
+
   const canCreatePurchase = usePermission('purchases.create');
   const isDateActive = isDateFilterActive(dateFilter);
   const periodLabel = describeDateFilter(dateFilter);
@@ -112,8 +184,11 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
       {/* KPI Cards Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
         <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
-          <div>
-            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block">
+          <div className="min-w-0">
+            <span
+              className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block truncate"
+              title={isDateActive ? `إجمالي فواتير شراء البضاعة (${periodLabel})` : undefined}
+            >
               إجمالي فواتير شراء البضاعة{isDateActive ? ` (${periodLabel})` : ''}
             </span>
             <span className="text-lg sm:text-xl font-bold font-mono text-ink dark:text-ink-dark mt-0.5 block">
@@ -161,64 +236,59 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
 
       {/* Filter and Actions Bar */}
       <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
-        <div className="flex-1 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[12rem] max-w-md">
-            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="دور برقم الفاتورة، اسم الشركة، أو رقم فاتورة المورد..."
-              value={purchaseSearchQuery}
-              onChange={(e) => setPurchaseSearchQuery(e.target.value)}
-              className="w-full h-10 pr-9 pl-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted">
-            <Filter className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-            <span>طريقة السداد:</span>
-            <CustomSelect
-              value={purchasePaymentFilter}
-              onChange={(val) => setPurchasePaymentFilter(val)}
-              options={[
-                { value: 'all', label: 'كل الفواتير' },
-                { value: 'PAID', label: 'خالصة ومدفوعة بالكامل (كاش)' },
-                { value: 'OVERPAID', label: 'مدفوع بزيادة (رصيد لنا)' },
-                { value: 'CREDIT', label: 'آجل (على الحساب)' },
-                { value: 'PARTIAL', label: 'مدفوع جزء منها والباقي آجل' },
-              ]}
-              className="w-44"
-              size="md"
-            />
-          </div>
-
-          <DateFilterControl
-            value={dateFilter}
-            onChange={onDateFilterChange}
+        <div className="flex-1 flex flex-wrap items-center gap-x-8 gap-y-3">
+          <SearchInput
             size="md"
-            selectWidthClass="w-44 sm:w-48"
+            value={purchaseSearchQuery}
+            onChange={setPurchaseSearchQuery}
+            placeholder="دور برقم الفاتورة، اسم الشركة، أو رقم فاتورة المورد..."
+            ariaLabel="بحث في فواتير الشراء"
+            className="flex-1 min-w-[15rem] max-w-md"
           />
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted">
+              <Filter className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
+              <span>طريقة السداد:</span>
+              <CustomSelect
+                value={purchasePaymentFilter}
+                onChange={(val) => setPurchasePaymentFilter(val)}
+                options={[
+                  { value: 'all', label: 'كل الفواتير' },
+                  { value: 'PAID', label: 'خالصة ومدفوعة بالكامل' },
+                  { value: 'OVERPAID', label: 'مدفوع بزيادة (رصيد لنا)' },
+                  { value: 'CREDIT', label: 'آجل (على الحساب)' },
+                  { value: 'PARTIAL', label: 'مدفوع جزء منها والباقي آجل' },
+                ]}
+                className="w-44"
+                size="md"
+              />
+            </div>
+
+            <DateFilterControl
+              value={dateFilter}
+              onChange={onDateFilterChange}
+              size="md"
+              selectWidthClass="w-44 sm:w-48"
+            />
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => openHelpCenter('purchases')}
-            className="h-10 w-10 flex items-center justify-center bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-paid dark:text-paid-bright rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
-            title="شرح ودليل فواتير المشتريات والموردين"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </button>
-
           {canCreatePurchase && (
-          <button
-            type="button"
-            onClick={onOpenNewInvoice}
-            className="h-10 px-4 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>فاتورة شراء جديدة</span>
-          </button>
+          <AppButton variant="primary" size="md" icon={Plus} onClick={onOpenNewInvoice}>
+            فاتورة شراء جديدة
+          </AppButton>
           )}
+
+          <AppButton
+            variant="secondary"
+            size="md"
+            icon={HelpCircle}
+            aria-label="شرح ودليل فواتير المشتريات والموردين"
+            title="شرح ودليل فواتير المشتريات والموردين"
+            onClick={() => openHelpCenter('purchases')}
+          />
         </div>
       </div>
 
@@ -227,12 +297,12 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
         <div className="h-11 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark grid grid-cols-12 px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
           <div className="col-span-1">رقم الفاتورة</div>
           <div className="col-span-2">تاريخ استلام البضاعة</div>
-          <div className="col-span-3">المورد / الشركة</div>
+          <div className="col-span-2">المورد / الشركة</div>
           <div className="col-span-2 text-center">رقم وصل المورد</div>
           <div className="col-span-1 text-center">إجمالي الفاتورة</div>
           <div className="col-span-1 text-center">الباقي علينا</div>
           <div className="col-span-1 text-center">حالة الدفع</div>
-          <div className="col-span-1 text-left">تفاصيل</div>
+          <div className="col-span-2 text-center">خيارات</div>
         </div>
 
         <div className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark">
@@ -248,13 +318,9 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                 {isDateActive ? `مفيش فواتير شراء في الفترة دي (${periodLabel})` : 'مفيش فواتير شراء مطابقة للي بتدور عليه'}
               </span>
               {hasAnyFilter && (
-                <button
-                  type="button"
-                  onClick={resetAllFilters}
-                  className="h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
-                >
+                <AppButton variant="soft" size="md" onClick={resetAllFilters}>
                   مسح الفلاتر وعرض كل الفواتير
-                </button>
+                </AppButton>
               )}
             </div>
           ) : (
@@ -273,7 +339,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                     day: 'numeric',
                   })}
                 </div>
-                <div className="col-span-3 font-semibold text-ink dark:text-ink-dark truncate">
+                <div className="col-span-2 font-semibold text-ink dark:text-ink-dark truncate" title={pur.supplierName || undefined}>
                   {pur.supplierName || 'مورد عام / بدون تحديد'}
                 </div>
                 <div className="col-span-2 text-center font-mono text-ink-muted dark:text-ink-dark-muted">
@@ -293,7 +359,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                 </div>
                 <div className="col-span-1 text-center">
                   {pur.paymentStatus === 'PAID' && (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/30">
                       {pur.paymentSource === 'instapay'
                         ? 'إنستاباي'
                         : pur.paymentSource === 'vodafone_cash'
@@ -319,24 +385,18 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="col-span-1 text-left flex items-center justify-end gap-1">
-                  {onPrintLabels && (
-                    <button
-                      type="button"
-                      onClick={() => onPrintLabels(pur)}
-                      className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-soft/20 rounded-lg transition-colors cursor-pointer"
-                      title="طباعة ملصقات الباركود لأصناف الفاتورة"
-                    >
-                      <Tag className="w-4 h-4" />
-                    </button>
-                  )}
+                <div className="col-span-2 text-center">
                   <button
                     type="button"
-                    onClick={() => onSelectPurchase(pur)}
-                    className="p-1.5 text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-emerald-300 hover:bg-brand-soft dark:hover:bg-brand-soft/20 rounded-lg transition-colors cursor-pointer"
-                    title="عرض تفاصيل الفاتورة وبنودها"
+                    onClick={(e) => handleToggleMenu(pur, e)}
+                    aria-expanded={activeMenu?.purchase.id === pur.id}
+                    aria-haspopup="menu"
+                    className={TABLE_ACTION_TRIGGER}
+                    title="قائمة خيارات الفاتورة"
                   >
-                    <Eye className="w-4 h-4" />
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                    <span>خيارات</span>
+                    <ChevronDown className="w-3 h-3" />
                   </button>
                 </div>
               </div>
@@ -361,6 +421,61 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
         pageSizeOptions={[15, 25, 50, 100]}
         itemLabel="فاتورة شراء"
       />
+
+      {activeMenu &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            style={{
+              position: 'fixed',
+              top: activeMenu.top,
+              left: activeMenu.left,
+              transform: activeMenu.openUpwards ? 'translateY(-100%)' : 'none',
+              width: '14.375rem',
+              zIndex: 9999,
+            }}
+            onWheel={(e) => e.stopPropagation()}
+            className={`${MENU_PANEL} font-sans`}
+            dir="rtl"
+          >
+            <div className="flex flex-col gap-0.5">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const pur = activeMenu.purchase;
+                  setActiveMenu(null);
+                  onSelectPurchase(pur);
+                }}
+                className={MENU_ITEM}
+              >
+                <span className={MENU_ITEM_ICON}>
+                  <Eye className="w-3.5 h-3.5" />
+                </span>
+                <span className="flex-1 min-w-0 truncate">عرض التفاصيل والبنود</span>
+              </button>
+              {onPrintLabels && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    const pur = activeMenu.purchase;
+                    setActiveMenu(null);
+                    onPrintLabels(pur);
+                  }}
+                  className={MENU_ITEM}
+                >
+                  <span className={MENU_ITEM_ICON}>
+                    <Tag className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="flex-1 min-w-0 truncate">طباعة ملصقات الباركود</span>
+                </button>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

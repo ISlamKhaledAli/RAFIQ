@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Building2, X, Calendar, Percent, Coins, ArrowUpRight, ArrowDownLeft, Info } from 'lucide-react';
+import { AppButton } from '../../components/AppButton';
 import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useFormBaseline } from '../../hooks/useFormBaseline';
+import { isFormDirty } from '../../utils/dirtyForm';
 import { useFeatures } from '../../context/useFeatures';
 import { RequiredMark } from '../../components/RequiredMark';
 
@@ -66,13 +69,10 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
     }
   };
 
-  const isDirty = Boolean(
-    form.name.trim() ||
-    form.companyName.trim() ||
-    form.phone.trim() ||
-    form.address.trim() ||
-    form.notes.trim() ||
-    (form.balanceEGP && form.balanceEGP !== '0')
+  const baseline = useFormBaseline(isOpen, form);
+  const isDirty = isFormDirty(
+    { ...baseline, balanceEGP: parseFloat(normalizeArabicNumerals(baseline.balanceEGP)) || 0 },
+    { ...form, balanceEGP: parseFloat(normalizeArabicNumerals(form.balanceEGP)) || 0 },
   );
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
@@ -92,7 +92,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
         <div className="h-14 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs">
@@ -102,214 +102,204 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
               {form.id ? 'تعديل بيانات المورد والشركة' : 'تسجيل مورد أو شركة جديدة'}
             </h3>
           </div>
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" title="إغلاق" onClick={() => void requestClose()} />
         </div>
 
-        <form onSubmit={onSave} className="p-5 space-y-3.5 flex-1 overflow-y-auto">
-          <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
-          <div>
-            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-              اسم المورد أو المندوب <RequiredMark />
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="مثلاً: شركة النيل للتوزيع / أ. محمد"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={onSave} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3.5">
+            <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
             <div>
-              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">اسم الشركة أو التوكيل</label>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
+                اسم المورد أو المندوب <RequiredMark />
+              </label>
               <input
                 type="text"
-                placeholder="مثلاً: توكيل شيبسي وأغذية"
-                value={form.companyName}
-                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                required
+                placeholder="مثلاً: شركة النيل للتوزيع / أ. محمد"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
               />
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">رقم الموبايل / الهاتف</label>
-              <input
-                type="text"
-                placeholder="010XXXXXXXX"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">العنوان أو مكان المخزن</label>
-            <input
-              type="text"
-              placeholder="مثلاً: المنيا - ملوى"
-              value={form.address}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-              className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
-            />
-          </div>
-
-          {!form.id && (
-            <div className="p-3.5 bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Coins className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span className="text-xs font-bold text-ink dark:text-ink-dark">
-                    حساب أول المدة (إن وجد)
-                  </span>
-                </div>
-                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
-                  سيبه صفر لو مورد جديد خالص
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleDirectionChange('due')}
-                  className={`h-9 px-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    balanceDirection === 'due'
-                      ? 'bg-surface dark:bg-surface-dark border-danger/40 dark:border-danger-bright/40 text-danger dark:text-danger-bright shadow-2xs'
-                      : 'bg-transparent border-line/60 dark:border-line-dark/60 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                  }`}
-                >
-                  <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
-                  <span>له فلوس علينا (مستحق له)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleDirectionChange('advance')}
-                  className={`h-9 px-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    balanceDirection === 'advance'
-                      ? 'bg-surface dark:bg-surface-dark border-paid/40 dark:border-paid-bright/40 text-paid dark:text-paid-bright shadow-2xs'
-                      : 'bg-transparent border-line/60 dark:border-line-dark/60 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                  }`}
-                >
-                  <ArrowDownLeft className="w-3.5 h-3.5 shrink-0" />
-                  <span>دافعين له مقدم (لنا رصيد)</span>
-                </button>
-              </div>
-
-              <div className="relative">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">اسم الشركة أو التوكيل</label>
                 <input
                   type="text"
-                  inputMode="decimal"
-                  value={displayAmount === '0' ? '' : displayAmount}
-                  onChange={handleAmountChange}
-                  onFocus={(e) => e.target.select()}
-                  placeholder="0.00"
-                  className="w-full h-10 pr-3 pl-12 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors text-right"
+                  placeholder="مثلاً: توكيل شيبسي وأغذية"
+                  value={form.companyName}
+                  onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                  className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
                 />
-                <span className="absolute left-3 top-2.5 text-xs font-bold text-ink-muted dark:text-ink-dark-muted pointer-events-none">
-                  ج.م
-                </span>
               </div>
 
-              <div className="text-micro flex items-center gap-1.5 text-ink-muted dark:text-ink-dark-muted">
-                <Info className="w-3.5 h-3.5 shrink-0" />
-                {numericAmount === 0 ? (
-                  <span>الحساب سيبدأ من الصفر (خالص تماماً لا له ولا عليه).</span>
-                ) : balanceDirection === 'due' ? (
-                  <span>
-                    المورد هيبدأ دائن بمستحقات له علينا:{' '}
-                    <strong className="font-mono text-danger dark:text-danger-bright font-bold">
-                      {formatArabicCurrency(Math.round(numericAmount * 100), true)}
-                    </strong>{' '}
-                    تُسدد له لاحقاً.
-                  </span>
-                ) : (
-                  <span>
-                    المورد هيبدأ مدين برصيد مقدم لنا عنده:{' '}
-                    <strong className="font-mono text-paid dark:text-paid-bright font-bold">
-                      {formatArabicCurrency(Math.round(numericAmount * 100), true)}
-                    </strong>{' '}
-                    تُخصم من الفواتير القادمة.
-                  </span>
-                )}
+              <div>
+                <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">رقم الموبايل / الهاتف</label>
+                <input
+                  type="text"
+                  placeholder="010XXXXXXXX"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
+                />
               </div>
             </div>
-          )}
 
-          <div>
-            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">ملاحظات إضافية</label>
-            <textarea
-              rows={2}
-              placeholder="مواعيد التوريد، أيام زيارة المندوب، إلخ..."
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="w-full p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark resize-none transition-colors"
-            />
-          </div>
+            <div>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">العنوان أو مكان المخزن</label>
+              <input
+                type="text"
+                placeholder="مثلاً: المنيا - ملوى"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
+              />
+            </div>
 
-          {isEnabled('feature_expiry_returns') && (
-            <div className="p-3 bg-brand-soft/30 dark:bg-brand-soft/10 border border-brand/20 rounded-xl space-y-2.5">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-brand dark:text-brand-bright">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>سياسة مرتجع الصلاحية للمورد (صيدلية)</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
-                    نافذة القبول (أيام قبل الانتهاء)
-                  </label>
+            {!form.id && (
+              <div className="p-3.5 bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-brand dark:text-brand-bright" />
+                    <span className="text-xs font-bold text-ink dark:text-ink-dark">
+                      حساب أول المدة (إن وجد)
+                    </span>
+                  </div>
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
+                    سيبه صفر لو مورد جديد خالص
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDirectionChange('due')}
+                    aria-pressed={balanceDirection === 'due'}
+                    className={`h-10 px-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
+                      balanceDirection === 'due'
+                        ? 'bg-surface dark:bg-surface-dark border-danger/40 dark:border-danger-bright/40 text-danger dark:text-danger-bright shadow-2xs'
+                        : 'bg-transparent border-line/60 dark:border-line-dark/60 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                    }`}
+                  >
+                    <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+                    <span>له فلوس علينا (مستحق له)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDirectionChange('advance')}
+                    aria-pressed={balanceDirection === 'advance'}
+                    className={`h-10 px-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
+                      balanceDirection === 'advance'
+                        ? 'bg-surface dark:bg-surface-dark border-paid/40 dark:border-paid-bright/40 text-paid dark:text-paid-bright shadow-2xs'
+                        : 'bg-transparent border-line/60 dark:border-line-dark/60 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                    }`}
+                  >
+                    <ArrowDownLeft className="w-3.5 h-3.5 shrink-0" />
+                    <span>دافعين له مقدم (لنا رصيد)</span>
+                  </button>
+                </div>
+
+                <div className="relative">
                   <input
                     type="text"
-                    inputMode="numeric"
-                    placeholder="30"
-                    value={form.expiryReturnWindowDays || ''}
-                    onChange={(e) => setForm({ ...form, expiryReturnWindowDays: normalizeArabicNumerals(e.target.value).replace(/[^\d]/g, '') })}
-                    className="w-full h-9 px-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                    inputMode="decimal"
+                    value={displayAmount === '0' ? '' : displayAmount}
+                    onChange={handleAmountChange}
+                    onFocus={(e) => e.target.select()}
+                    placeholder="0.00"
+                    className="w-full h-10 pr-3 pl-12 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors text-right"
                   />
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-ink-muted dark:text-ink-dark-muted pointer-events-none">
+                    ج.م
+                  </span>
                 </div>
-                <div>
-                  <label className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
-                    نسبة التعويض المالي (%)
-                  </label>
-                  <div className="relative">
+
+                <div className="text-micro flex items-center gap-1.5 text-ink-muted dark:text-ink-dark-muted">
+                  <Info className="w-3.5 h-3.5 shrink-0" />
+                  {numericAmount === 0 ? (
+                    <span>الحساب سيبدأ من الصفر (خالص تماماً لا له ولا عليه).</span>
+                  ) : balanceDirection === 'due' ? (
+                    <span>
+                      المورد هيبدأ دائن بمستحقات له علينا:{' '}
+                      <strong className="font-mono text-danger dark:text-danger-bright font-bold">
+                        {formatArabicCurrency(Math.round(numericAmount * 100), true)}
+                      </strong>{' '}
+                      تُسدد له لاحقاً.
+                    </span>
+                  ) : (
+                    <span>
+                      المورد هيبدأ مدين برصيد مقدم لنا عنده:{' '}
+                      <strong className="font-mono text-paid dark:text-paid-bright font-bold">
+                        {formatArabicCurrency(Math.round(numericAmount * 100), true)}
+                      </strong>{' '}
+                      تُخصم من الفواتير القادمة.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">ملاحظات إضافية</label>
+              <textarea
+                rows={2}
+                placeholder="مواعيد التوريد، أيام زيارة المندوب، إلخ..."
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className="w-full p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark resize-none transition-colors"
+              />
+            </div>
+
+            {isEnabled('feature_expiry_returns') && (
+              <div className="p-3 bg-brand-soft/30 dark:bg-brand-soft/10 border border-brand/20 rounded-xl space-y-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-brand dark:text-brand-bright">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>سياسة مرتجع الصلاحية للمورد (صيدلية)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
+                      نافذة القبول (أيام قبل الانتهاء)
+                    </label>
                     <input
                       type="text"
                       inputMode="numeric"
-                      placeholder="100"
-                      value={form.expiryReturnCreditPercent || ''}
-                      onChange={(e) => setForm({ ...form, expiryReturnCreditPercent: normalizeArabicNumerals(e.target.value).replace(/[^\d]/g, '') })}
-                      className="w-full h-9 pl-7 pr-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                      placeholder="30"
+                      value={form.expiryReturnWindowDays || ''}
+                      onChange={(e) => setForm({ ...form, expiryReturnWindowDays: normalizeArabicNumerals(e.target.value).replace(/[^\d]/g, '') })}
+                      className="w-full h-9 px-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                     />
-                    <Percent className="w-3.5 h-3.5 text-ink-muted absolute left-2 top-2.5 pointer-events-none" />
+                  </div>
+                  <div>
+                    <label className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
+                      نسبة التعويض المالي (%)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="100"
+                        value={form.expiryReturnCreditPercent || ''}
+                        onChange={(e) => setForm({ ...form, expiryReturnCreditPercent: normalizeArabicNumerals(e.target.value).replace(/[^\d]/g, '') })}
+                        className="w-full h-9 pl-7 pr-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                      />
+                      <Percent className="w-3.5 h-3.5 text-ink-muted absolute left-2 top-2.5 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          <div className="flex items-center gap-2 pt-3 border-t border-line dark:border-line-dark">
-            <button
-              type="submit"
-              className="flex-1 h-10 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
-            >
+          <div className="flex items-center gap-2 px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
+            <AppButton type="submit" variant="primary" size="md" className="flex-1">
               حفظ بيانات المورد في المحل
-            </button>
-            <button
-              type="button"
-              onClick={() => void requestClose()}
-              className="px-4 h-10 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="md" onClick={() => void requestClose()}>
               إلغاء
-            </button>
+            </AppButton>
           </div>
         </form>
       </div>

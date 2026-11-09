@@ -1,9 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { RotateCcw, X, Info } from 'lucide-react';
 
+import { AppButton } from './AppButton';
 export interface UndoToastProps {
   message: string;
   durationMs?: number;
+  /** The parent already removed the item: the toast stays mounted only to play its exit, so the countdown and Ctrl+Z are off */
+  exiting?: boolean;
   onUndo: () => void;
   onDismiss: () => void;
 }
@@ -11,6 +14,7 @@ export interface UndoToastProps {
 export const UndoToast: React.FC<UndoToastProps> = ({
   message,
   durationMs = 6000,
+  exiting = false,
   onUndo,
   onDismiss,
 }) => {
@@ -39,6 +43,7 @@ export const UndoToast: React.FC<UndoToastProps> = ({
   };
 
   useEffect(() => {
+    if (exiting) return undefined;
     isFinishedRef.current = false;
     const startTime = Date.now();
 
@@ -72,10 +77,15 @@ export const UndoToast: React.FC<UndoToastProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
     };
     // Reset countdown when message changes (a new item is removed) or duration changes
-  }, [durationMs, message]);
+  }, [durationMs, message, exiting]);
 
   return (
-    <div data-undo-toast="true" className="fixed bottom-6 left-6 z-40 max-w-sm w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark shadow-2xl dark:shadow-black/60 rounded-xl overflow-hidden animate-in slide-in-from-bottom-3 duration-200 select-none">
+    <div
+      data-undo-toast="true"
+      className="motion-exit-toast-bottom fixed bottom-6 left-6 z-50 max-w-sm w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark shadow-2xl dark:shadow-black/60 rounded-xl overflow-hidden animate-in slide-in-from-bottom-3 duration-200 select-none"
+      data-exiting={exiting || undefined}
+      inert={exiting || undefined}
+    >
       <div className="p-3.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center shrink-0">
@@ -85,24 +95,11 @@ export const UndoToast: React.FC<UndoToastProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleUndo}
-            title="تراجع عن الحذف (Ctrl+Z)"
-            className="h-[32px] px-3 bg-brand-dark hover:bg-brand dark:bg-paid dark:hover:bg-paid-hover text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>تراجع</span>
-          </button>
+          <AppButton variant="primary" size="sm" icon={RotateCcw} onClick={handleUndo} title="تراجع عن الحذف (Ctrl+Z)">
+            تراجع
+          </AppButton>
 
-          <button
-            type="button"
-            onClick={handleDismiss}
-            title="إغلاق التنبيه"
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-white hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} onClick={handleDismiss} title="إغلاق التنبيه" aria-label="إغلاق التنبيه" />
         </div>
       </div>
 

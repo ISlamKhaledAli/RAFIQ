@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { RequiredMark } from './RequiredMark';
+import MotionHeight from './MotionHeight';
 
 /** Shared building blocks for the quick-button add modal and the quick-button manager. */
 
@@ -11,19 +12,6 @@ export const QUICK_FIELD =
 /** Roomier 44px field for the quick-add modal (the manager keeps the compact 40px one). */
 export const QUICK_FIELD_LG =
   'w-full h-11 px-3.5 text-sm bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder:text-ink-muted/60 dark:placeholder:text-ink-dark-muted/60 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand/20 transition-colors';
-
-export const QUICK_BTN =
-  'h-10 px-4 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-export const QUICK_BTN_SECONDARY =
-  'bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2';
-export const QUICK_BTN_LG =
-  'h-11 px-5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-export const QUICK_BTN_PRIMARY = 'bg-brand hover:bg-brand-hover text-white shadow-xs';
-export const QUICK_BTN_ICON =
-  'w-10 h-10 shrink-0 rounded-lg inline-flex items-center justify-center border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
-
-export const QUICK_BTN_ICON_LG =
-  'w-11 h-11 shrink-0 rounded-lg inline-flex items-center justify-center border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
 
 export const FieldLabel = ({ children, required = false }: { children: ReactNode; required?: boolean }) => (
   <span className="block text-sm font-bold text-ink dark:text-ink-dark mb-1.5">
@@ -50,7 +38,7 @@ export const FormSection = ({ title, hint, card = false, children }: { title: st
 export const ExtrasSection = ({ summary, children }: { summary: string; children: ReactNode }) => {
   const [open, setOpen] = useState(false);
   return (
-    <section className="shrink-0 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 overflow-hidden">
+    <MotionHeight className="shrink-0 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -68,7 +56,7 @@ export const ExtrasSection = ({ summary, children }: { summary: string; children
       {open && (
         <div className="p-4 border-t border-line dark:border-line-dark flex flex-col gap-4">{children}</div>
       )}
-    </section>
+    </MotionHeight>
   );
 };
 

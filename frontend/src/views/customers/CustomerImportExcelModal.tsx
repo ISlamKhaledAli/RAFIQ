@@ -11,6 +11,9 @@ import {
 import type { CustomerImportPreviewResult, CustomerImportResult } from '../../types/models';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 export interface CustomerImportExcelModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -41,6 +44,7 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
   onExecuteImport,
 }) => {
   const isDirty = Boolean(importPreview && !importResult);
+  const motionPanel = useMotionPanel(importResult ? 'result' : importPreview ? 'preview' : 'pick');
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -66,17 +70,12 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
               <p className="text-micro text-ink-muted dark:text-ink-dark-muted">نقل بيانات العملاء وأرصدة الدفتر القديم دفعة واحدة إلى النظام في ثوانٍ</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="w-7 h-7 rounded hover:bg-surface dark:hover:bg-surface-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} onClick={requestClose} aria-label="إغلاق" />
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <MotionHeight className="flex-1 overflow-y-auto p-5">
+        <div {...motionPanel} className="space-y-4">
           {/* Error Alert */}
           {importError && (
             <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 rounded text-xs text-danger dark:text-danger-bright flex items-center gap-2">
@@ -123,15 +122,17 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
                   قم بتحميل قالب الإكسل المنسق خصيصاً بنظام رفيق، والذي يحتوي على الأعمدة: اسم العميل، الهاتف، الرصيد الافتتاحي، وحد الائتمان.
                 </p>
               </div>
-              <button
-                type="button"
+              <AppButton
+                variant="secondary"
+                size="sm"
+                icon={Download}
+                fullWidth
+                className="mt-3"
                 onClick={onDownloadTemplate}
                 disabled={isDownloadingTemplate}
-                className="mt-3 w-full h-8 px-3 rounded bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark flex items-center justify-center gap-1.5 shadow-xs transition-colors"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>{isDownloadingTemplate ? 'جاري التحميل...' : 'تحميل نموذج العملاء (.xlsx)'}</span>
-              </button>
+                {isDownloadingTemplate ? 'جاري التحميل...' : 'تحميل نموذج العملاء (.xlsx)'}
+              </AppButton>
             </div>
 
             {/* Upload File Box */}
@@ -216,7 +217,7 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
                         <td className="px-3 py-1.5 font-mono text-center text-ink-muted dark:text-ink-dark-muted">
                           {row.creditLimitFormatted || '—'}
                         </td>
-                        <td className="px-3 py-1.5 text-ink-muted dark:text-ink-dark-muted text-micro truncate max-w-[140px]" title={row.notes}>
+                        <td className="px-3 py-1.5 text-ink-muted dark:text-ink-dark-muted text-micro truncate max-w-[8.75rem]" title={row.notes}>
                           {row.notes || '—'}
                         </td>
                         <td className="px-3 py-1.5 text-center">
@@ -243,28 +244,19 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
             </div>
           )}
         </div>
+        </MotionHeight>
 
         {/* Modal Footer */}
         <div className="h-14 px-5 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-line dark:border-line-dark flex items-center justify-between shrink-0">
-          <button
-            type="button"
-            onClick={requestClose}
-            className="px-4 py-1.5 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-semibold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
-          >
+          <AppButton variant="secondary" onClick={requestClose}>
             إلغاء
-          </button>
+          </AppButton>
 
           <div className="flex items-center gap-2">
             {importPreview && importPreview.validRowsCount > 0 && !importResult && (
-              <button
-                type="button"
-                onClick={onExecuteImport}
-                disabled={isImporting}
-                className="px-5 py-2 rounded bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{isImporting ? 'جاري الاستيراد والحفظ...' : 'تأكيد واستيراد العملاء إلى النظام'}</span>
-              </button>
+              <AppButton variant="primary" icon={CheckCircle2} onClick={onExecuteImport} loading={isImporting}>
+                {isImporting ? 'جاري الاستيراد والحفظ...' : 'تأكيد واستيراد العملاء إلى النظام'}
+              </AppButton>
             )}
           </div>
         </div>

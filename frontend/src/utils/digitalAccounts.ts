@@ -29,8 +29,6 @@ function isBetterReceiver(candidate: ReceivingCandidate, current: ReceivingCandi
   return (candidate.createdAt || '') < (current.createdAt || '');
 }
 
-const EGYPT_MOBILE = /^01[0125]\d{8}$/;
-
 /** Digits and separators only (no letters / @): a phone or card style number rather than an InstaPay handle. */
 export function isNumericAccountValue(value: string): boolean {
   return /^[\d\s-]+$/.test(value.trim());
@@ -41,13 +39,6 @@ export function rawAccountValue(value: string | null | undefined): string {
   const trimmed = (value ?? '').trim();
   if (!trimmed) return '';
   return isNumericAccountValue(trimmed) ? trimmed.replace(/\D/g, '') : trimmed;
-}
-
-/** Reading format: 01012345678 -> 0101 234 5678. Anything else (other lengths, handles) is shown as typed. */
-export function formatAccountValue(value: string | null | undefined): string {
-  const raw = rawAccountValue(value);
-  if (EGYPT_MOBILE.test(raw)) return `${raw.slice(0, 4)} ${raw.slice(4, 7)} ${raw.slice(7)}`;
-  return raw;
 }
 
 export interface ReceivingNumbers {

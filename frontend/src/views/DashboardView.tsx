@@ -34,11 +34,15 @@ import { ExpenseModal } from '../components/ExpenseModal';
 import { DuePatientsModal } from '../components/DuePatientsModal';
 import { PatientProfileModal } from './customers/PatientProfileModal';
 import { formatArabicCurrency } from '../utils/money';
+import { formatPhoneDisplay } from '../utils/phoneFormat';
 import { RafiqLoadingState } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
 
 
 
+import { AppButton } from '../components/AppButton';
+import { ClickableCard, ClickableChevron, ClickableHint } from '../components/ClickableCard';
+import { useNavAccess } from '../hooks/useNavAccess';
 const MONEY_2DP: Intl.NumberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
 type PaymentTone = 'paid' | 'warn' | 'brand';
@@ -82,6 +86,7 @@ export function DashboardView({
   const canSeeStock = hasPermission('stock.view');
   const canSeePatients = hasPermission('patients.view');
   const canCreateExpense = hasPermission('expenses.create');
+  const navAccess = useNavAccess();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [unclosedAlert, setUnclosedAlert] = useState<UnclosedDayAlert | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -351,6 +356,15 @@ export function DashboardView({
     return list;
   }, [todayCashAmount, todayCreditAmount, todayCardAmount, todayInstapayAmount, todayVodafoneCashAmount]);
 
+  // undefined = the user cannot reach that page, so the card renders plain instead of looking clickable
+  const openLossReport = onNavigateSubTab
+    ? () => onNavigateSubTab('inventory')
+    : navAccess.products ? () => onNavigateToProducts('movements') : undefined;
+  const openDebtsReport = onNavigateSubTab
+    ? () => onNavigateSubTab('customers')
+    : onNavigateToCustomers && navAccess.customers ? onNavigateToCustomers : undefined;
+  const openLowStockProducts = navAccess.products ? () => onNavigateToProducts('catalog', 'lowStock') : undefined;
+
   if (showLoading && !summary) {
     return (
       <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark items-center justify-center select-none p-5" dir="rtl">
@@ -376,52 +390,43 @@ export function DashboardView({
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           {canCreateExpense && (
-          <button
-            type="button"
+          <AppButton
+            variant="dangerSoft"
+            icon={Receipt}
             onClick={() => setIsExpenseModalOpen(true)}
-            className="flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-bold bg-surface dark:bg-surface-dark hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright border border-line dark:border-line-dark hover:border-danger/40 dark:hover:border-danger-bright/40 transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
             title="تسجيل مصاريف ونثريات طلعت من درج الكاشير"
           >
-            <Receipt className="w-4 h-4" />
-            <span>تسجيل مصروف</span>
-          </button>
+            تسجيل مصروف
+          </AppButton>
           )}
 
           {canCloseDay && (
-          <button
-            type="button"
+          <AppButton
+            variant={summary?.isDayClosed ? 'success' : 'primary'}
+            icon={summary?.isDayClosed ? CheckCircle2 : Lock}
             onClick={() => {
               setClosingTargetDate(undefined);
               setIsClosingModalOpen(true);
             }}
-            className={`flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-bold transition-all shadow-xs cursor-pointer active:translate-y-0.5 ${
-              summary?.isDayClosed
-                ? 'bg-paid dark:bg-paid-dark-soft text-white dark:text-paid-bright border border-paid/30 dark:border-paid-dark-border hover:bg-paid/90 dark:hover:bg-paid-dark-soft/80'
-                : 'bg-brand dark:bg-brand-container text-white dark:text-white hover:bg-brand-dark dark:hover:bg-brand border border-brand/20 dark:border-brand-bright/40'
-            }`}
             title={summary?.isDayClosed ? 'اليومية مقفولة ومعتمدة - اضغط لعرض التقرير والطباعة' : 'تقفيل اليومية ومطابقة كاش الدرج'}
           >
-            {summary?.isDayClosed ? (
-              <>
-                <CheckCircle2 className="w-4 h-4 text-emerald-100" />
-                <span>اليومية مقفولة (#{summary.closingNumber})</span>
-              </>
-            ) : (
-              <>
-                <Lock className="w-4 h-4 text-white dark:text-emerald-100" />
-                <span>تقفيل اليومية</span>
-              </>
-            )}
-          </button>
+            {/* Keyed so the label cross-fades with the variant swap when the day gets closed (motion on only) */}
+            <span key={summary?.isDayClosed ? 'closed' : 'open'} className="motion-swap-in">
+              {summary?.isDayClosed ? `اليومية مقفولة (#${summary.closingNumber})` : 'تقفيل اليومية'}
+            </span>
+          </AppButton>
           )}
         </div>
       </div>
 
       {/* Live Hourly Peak Ticker Banner */}
       {hourlyData && hourlyData.peakHourSalesPiasters > 0 && (
-        <div 
-          onClick={() => onNavigateSubTab && onNavigateSubTab('revenue')}
-          className="bg-warn-soft dark:bg-warn-dark-soft hover:bg-warn-soft/80 dark:hover:bg-warn-dark-soft/80 border border-warn/20 dark:border-warn-bright/30 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs text-ink dark:text-ink-dark cursor-pointer transition-all shadow-2xs group shrink-0"
+        <ClickableCard
+          variant="banner"
+          tone="warn"
+          onClick={onNavigateSubTab ? () => onNavigateSubTab('revenue') : undefined}
+          title="عرض تحليل الإيرادات وساعات الذروة"
+          className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs text-ink dark:text-ink-dark shadow-2xs shrink-0"
         >
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-md bg-warn dark:bg-warn-bright text-white dark:text-surface-dark flex items-center justify-center font-bold">
@@ -435,8 +440,8 @@ export function DashboardView({
               </span>
             </div>
           </div>
-          <ChevronLeft className="w-4 h-4 text-warn dark:text-warn-bright group-hover:-translate-x-1 transition-transform shrink-0" />
-        </div>
+          <ClickableChevron className="w-4 h-4" />
+        </ClickableCard>
       )}
 
       {/* Unclosed Previous Business Day Warning Alert Banner (Story 87 / Task 49-5) */}
@@ -460,17 +465,18 @@ export function DashboardView({
               </p>
             </div>
           </div>
-          <button
-            type="button"
+          <AppButton
+            variant="warning"
+            size="sm"
+            icon={Lock}
+            className="shrink-0"
             onClick={() => {
               setClosingTargetDate(unclosedAlert.unclosedDate);
               setIsClosingModalOpen(true);
             }}
-            className="px-4 py-2 bg-warn hover:bg-warn-hover dark:bg-warn-bright dark:text-surface-dark text-white rounded-lg text-xs font-bold transition shadow-xs shrink-0 cursor-pointer active:translate-y-0.5 flex items-center gap-1.5 justify-center"
           >
-            <Lock className="w-3.5 h-3.5" />
-            <span>تقفيل يومية {unclosedAlert.unclosedDate} دلوقتي</span>
-          </button>
+            تقفيل يومية {unclosedAlert.unclosedDate} دلوقتي
+          </AppButton>
         </div>
       )}
 
@@ -507,18 +513,15 @@ export function DashboardView({
               </p>
             </div>
           </div>
-          <button
-            type="button"
+          <AppButton
+            variant={batchSummary.expiredCount > 0 ? 'danger' : 'warning'}
+            size="sm"
+            icon={Clock}
+            className="shrink-0"
             onClick={() => onNavigateToProducts('batches')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold text-white transition shadow-xs shrink-0 cursor-pointer active:translate-y-0.5 flex items-center gap-1.5 justify-center ${
-              batchSummary.expiredCount > 0
-                ? 'bg-danger hover:bg-danger/90'
-                : 'bg-warn hover:bg-warn/90'
-            }`}
           >
-            <Clock className="w-3.5 h-3.5" />
-            <span>شوف البضاعة وتواريخ الصلاحية</span>
-          </button>
+            شوف البضاعة وتواريخ الصلاحية
+          </AppButton>
         </div>
       )}
 
@@ -543,31 +546,25 @@ export function DashboardView({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsDueModalOpen(true)}
-            className="px-4 py-2 bg-warn hover:bg-warn-hover dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark rounded-lg text-xs font-bold transition shadow-xs shrink-0 cursor-pointer active:translate-y-0.5 flex items-center gap-1.5 justify-center"
-          >
-            <HeartPulse className="w-3.5 h-3.5" />
-            <span>عرض تفاصيل المرضى المستحقين</span>
-          </button>
+          <AppButton variant="warning" size="sm" icon={HeartPulse} className="shrink-0" onClick={() => setIsDueModalOpen(true)}>
+            عرض تفاصيل المرضى المستحقين
+          </AppButton>
         </div>
       )}
 
       {/* 2. FINANCIAL & OPERATIONAL KPI METRICS (6 roomy cards, 3 per row) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 shrink-0">
         {/* KPI 1: Today Sales */}
-        <div 
-          onClick={() => {
-            if (onNavigateSubTab) onNavigateSubTab('revenue');
-          }}
-          className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs hover:border-paid dark:hover:border-paid-bright hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-4 min-h-[132px] cursor-pointer group"
+        <ClickableCard
+          tone="paid"
+          onClick={onNavigateSubTab ? () => onNavigateSubTab('revenue') : undefined}
+          className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-4 min-h-[8.25rem]"
           title="عرض كشف تحليلات المبيعات التفصيلي"
         >
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted mb-2">
               <span className="font-bold text-ink dark:text-ink-dark text-sm">مبيعات النهاردة</span>
-              <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/40 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/40 flex items-center justify-center shadow-2xs">
                 <ShoppingCart className="w-4 h-4 stroke-[2.5]" />
               </div>
             </div>
@@ -587,12 +584,9 @@ export function DashboardView({
                 </span>
               ) : null}
             </span>
-            <span className="text-paid dark:text-paid-bright font-bold text-xs flex items-center gap-0.5 group-hover:underline whitespace-nowrap shrink-0">
-              كشف الحساب
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </span>
+            {onNavigateSubTab && <ClickableHint label="كشف الحساب" />}
           </div>
-        </div>
+        </ClickableCard>
 
         {/* KPI 2: Today Net Profit / Loss */}
         {(() => {
@@ -601,13 +595,12 @@ export function DashboardView({
           const absNetProfit = Math.abs(netProfit);
 
           return (
-            <div 
-              onClick={() => {
-                if (onNavigateSubTab) onNavigateSubTab('revenue');
-              }}
+            <ClickableCard
+              tone={isLoss ? 'danger' : 'paid'}
+              onClick={onNavigateSubTab ? () => onNavigateSubTab('revenue') : undefined}
               className={`bg-surface dark:bg-surface-dark rounded-xl border ${
-                isLoss ? 'border-danger-border dark:border-danger-bright/40 hover:border-danger dark:hover:border-danger-bright' : 'border-line dark:border-line-dark hover:border-paid dark:hover:border-paid-bright'
-              } p-4 sm:p-5 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-4 min-h-[132px] cursor-pointer group`}
+                isLoss ? 'border-danger-border dark:border-danger-bright/40' : 'border-line dark:border-line-dark'
+              } p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-4 min-h-[8.25rem]`}
               title="عرض تقرير أرباح ومبيعات الفترة"
             >
               <div>
@@ -641,23 +634,23 @@ export function DashboardView({
                     بعد التوالف
                   </span>
                 )}
+                {onNavigateSubTab && <ClickableHint label="تقرير الأرباح" />}
               </div>
-            </div>
+            </ClickableCard>
           );
         })()}
 
         {/* KPI 3: Inventory Loss / Shrinkage */}
-        <div 
-          onClick={() => {
-            if (onNavigateSubTab) onNavigateSubTab('inventory');
-            else onNavigateToProducts('movements');
-          }}
-          className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs hover:border-amber-400 dark:hover:border-amber-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-4 min-h-[132px] cursor-pointer group"
+        <ClickableCard
+          tone="warn"
+          onClick={openLossReport}
+          className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-4 min-h-[8.25rem]"
+          title="عرض تحليل التوالف وحركة المخزن"
         >
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted mb-1.5">
               <span className="font-bold text-ink dark:text-ink-dark text-xs">توالف وعجز الجرد</span>
-              <div className="w-7 h-7 rounded-lg bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
+              <div className="w-7 h-7 rounded-lg bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 flex items-center justify-center shadow-2xs">
                 <Scale className="w-3.5 h-3.5" />
               </div>
             </div>
@@ -672,16 +665,13 @@ export function DashboardView({
               <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
             </div>
           </div>
-          <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted gap-1">
-            <span className="text-paid dark:text-paid-bright font-bold text-micro flex items-center gap-0.5 group-hover:underline whitespace-nowrap shrink-0 mr-auto">
-              كشف التوالف
-              <ChevronLeft className="w-3 h-3" />
-            </span>
+          <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-end text-micro text-ink-muted dark:text-ink-dark-muted gap-1">
+            {openLossReport && <ClickableHint label="كشف التوالف" />}
           </div>
-        </div>
+        </ClickableCard>
 
-        {/* KPI 4: Invoices Count */}
-        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs hover:border-brand dark:hover:border-brand-bright hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-4 min-h-[132px]">
+        {/* KPI 4: Invoices Count (display only: no action, so no hover affordance) */}
+        <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-4 min-h-[8.25rem]">
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted mb-1.5">
               <span className="font-bold text-ink dark:text-ink-dark text-xs">فواتير البيع النهاردة</span>
@@ -719,15 +709,16 @@ export function DashboardView({
           const nonSalesDelta = summary ? (summary.cashDrawerPiasters - (summary.todayCashPiasters || 0)) : 0;
 
           return (
-            <div 
+            <ClickableCard
+              tone="brand"
               onClick={canCloseDay ? () => setIsClosingModalOpen(true) : undefined}
-              className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs hover:border-brand dark:hover:border-brand-bright hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-4 min-h-[132px] cursor-pointer group"
+              className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-4 min-h-[8.25rem]"
               title="عرض كشف درج الكاشير وتقفيل الوردية"
             >
               <div>
                 <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted mb-2">
                   <span className="font-bold text-ink dark:text-ink-dark text-sm">كاش الدرج دلوقتي</span>
-                  <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/40 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+                  <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/40 flex items-center justify-center shadow-2xs">
                     <Wallet className="w-4 h-4 stroke-[2.5]" />
                   </div>
                 </div>
@@ -757,24 +748,23 @@ export function DashboardView({
                     'نقدية الدرج الفعلية'
                   )}
                 </span>
+                {canCloseDay && <ClickableHint label="كشف الدرج" />}
               </div>
-            </div>
+            </ClickableCard>
           );
         })()}
 
         {/* KPI 6: Today's Credit Sales & Cumulative Debts */}
-        <div 
-          onClick={() => {
-            if (onNavigateSubTab) onNavigateSubTab('customers');
-            else if (onNavigateToCustomers) onNavigateToCustomers();
-          }}
-          className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs hover:border-amber-400 dark:hover:border-amber-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-4 min-h-[132px] cursor-pointer group"
+        <ClickableCard
+          tone="warn"
+          onClick={openDebtsReport}
+          className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-4 min-h-[8.25rem]"
           title="مبيعات الشكك والآجل المسجلة النهاردة، مع بيان إجمالي مديونية الزبائن في دفتر الشكك"
         >
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted mb-1.5">
               <span className="font-bold text-ink dark:text-ink-dark text-xs">شكك النهاردة</span>
-              <div className="w-7 h-7 rounded-lg bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+              <div className="w-7 h-7 rounded-lg bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 flex items-center justify-center shadow-2xs">
                 <Users className="w-3.5 h-3.5" />
               </div>
             </div>
@@ -791,18 +781,15 @@ export function DashboardView({
             <span className="truncate min-w-0" title={`إجمالي كل الشكك لعدد ${summary?.debtorsCount || 0} عميل`}>
               إجمالي برة: <strong className="text-danger dark:text-danger-bright font-mono font-bold tabular-nums">{summary ? ((summary.totalCustomerDebtsPiasters || 0) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '0'}</strong> ج.م
             </span>
-            <span className="text-paid dark:text-paid-bright font-bold text-micro flex items-center gap-0.5 group-hover:underline whitespace-nowrap shrink-0">
-              دفتر الشكك
-              <ChevronLeft className="w-3 h-3" />
-            </span>
+            {openDebtsReport && <ClickableHint label="دفتر الشكك" />}
           </div>
-        </div>
+        </ClickableCard>
       </div>
 
       {/* 3. PAYMENT-METHOD BREAKDOWN + DRAWER MOVEMENT (roomy cards, no squeezed rows) */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 shrink-0">
         <section className="xl:col-span-2 bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xs overflow-hidden">
-          <div className="min-h-[52px] bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="min-h-[3.25rem] bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 py-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-bold text-ink dark:text-ink-dark">
               <CreditCard className="w-4 h-4 text-paid dark:text-paid-bright" />
               <span>مبيعات النهاردة حسب طريقة الدفع</span>
@@ -837,9 +824,9 @@ export function DashboardView({
 
         <section className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xs overflow-hidden flex flex-col justify-between">
           <div>
-            <div className="min-h-[52px] bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 py-3 flex items-center justify-between text-sm font-bold text-ink dark:text-ink-dark">
+            <div className="min-h-[3.25rem] bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 py-3 flex items-center justify-between text-sm font-bold text-ink dark:text-ink-dark">
               <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-paid dark:text-paid-bright" />
+                <Wallet className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                 <span>حركة درج الكاشير النهاردة</span>
               </div>
               <span className="text-2xs font-normal text-ink-muted dark:text-ink-dark-muted">
@@ -890,9 +877,9 @@ export function DashboardView({
               <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-medium font-mono">مترتبة من الأكتر للأقل</span>
             </div>
 
-            <div className="p-0 overflow-y-auto max-h-[260px]">
+            <div className="p-0 overflow-y-auto max-h-[16.25rem]">
               {summary && summary.topSellingProducts && summary.topSellingProducts.length > 0 ? (
-                <table className="w-full text-right text-xs">
+                <table className="w-full text-right text-sm">
                   <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-b border-line dark:border-line-dark text-micro">
                     <tr>
                       <th className="py-2 px-3 font-medium w-12 text-center">الترتيب</th>
@@ -947,20 +934,15 @@ export function DashboardView({
                   </span>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => onNavigateToProducts('movements')}
-                className="px-2.5 py-0.5 rounded bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-brand-dark dark:text-brand-bright text-micro font-bold flex items-center gap-1 border border-line dark:border-line-dark shadow-2xs transition-colors cursor-pointer"
-              >
-                <Boxes className="w-3 h-3 text-brand dark:text-brand-bright" />
+              <AppButton variant="secondary" size="xs" icon={Boxes} onClick={() => onNavigateToProducts('movements')}>
                 <span>دفتر حركة البضاعة</span>
                 <ChevronLeft className="w-3 h-3" />
-              </button>
+              </AppButton>
             </div>
 
-            <div className="p-0 overflow-y-auto max-h-[260px]">
+            <div className="p-0 overflow-y-auto max-h-[16.25rem]">
               {summary && summary.recentAdjustments && summary.recentAdjustments.length > 0 ? (
-                <table className="w-full text-right text-xs">
+                <table className="w-full text-right text-sm">
                   <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-b border-line dark:border-line-dark text-micro">
                     <tr>
                       <th className="py-2 px-3 font-medium">اسم الصنف</th>
@@ -1036,30 +1018,29 @@ export function DashboardView({
                 )}
               </div>
               <div className="flex items-center gap-1.5">
-                <button 
+                <AppButton
+                  variant="primary"
+                  size="xs"
                   onClick={() => onNavigateSubTab ? onNavigateSubTab('inventory') : setIsLowStockModalOpen(true)}
-                  className="px-2 py-0.5 rounded bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white text-micro font-bold transition-all shadow-2xs cursor-pointer"
                   title="تحليل النواقص وعمل طلب شراء"
                 >
                   طلب بضاعة
-                </button>
-                <button 
-                  onClick={() => onNavigateToProducts('catalog', 'lowStock')}
-                  className="px-2 py-0.5 rounded bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark text-micro font-bold transition-all shadow-2xs border border-line dark:border-line-dark cursor-pointer"
-                >
+                </AppButton>
+                <AppButton variant="soft" size="xs" onClick={() => onNavigateToProducts('catalog', 'lowStock')}>
                   كل النواقص
-                </button>
+                </AppButton>
               </div>
             </div>
 
-            <div className="p-3 divide-y divide-line dark:divide-line-dark max-h-[220px] overflow-y-auto">
+            <div className="p-3 divide-y divide-line dark:divide-line-dark max-h-[13.75rem] overflow-y-auto">
               {summary && summary.lowStockProducts && summary.lowStockProducts.length > 0 ? (
                 summary.lowStockProducts.map((p) => (
-                  <div 
-                    key={p.productId} 
-                    onClick={() => onNavigateToProducts('catalog', 'lowStock')}
-                    className="py-2 flex items-center justify-between gap-3 text-xs hover:bg-surface-2 dark:hover:bg-surface-dark-2 -mx-1 px-1 rounded transition-colors cursor-pointer"
-                    title="اضغط عشان تفتح الصنف في إدارة المخزن"
+                  <ClickableCard
+                    key={p.productId}
+                    variant="row"
+                    onClick={openLowStockProducts}
+                    className="py-2 flex items-center justify-between gap-3 text-xs -mx-1 px-1"
+                    title="فتح قائمة النواقص في إدارة المخزن"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-ink dark:text-ink-dark truncate whitespace-nowrap" title={p.productName}>{p.productName}</div>
@@ -1076,7 +1057,8 @@ export function DashboardView({
                     }`}>
                       {p.currentStock <= 0 ? 'خلصت خالص' : `متبقي: ${p.currentStock}`}
                     </span>
-                  </div>
+                    {openLowStockProducts && <ClickableChevron className="w-3.5 h-3.5" />}
+                  </ClickableCard>
                 ))
               ) : (
                 <div className="py-6 text-center text-ink-muted dark:text-ink-dark-muted text-xs">
@@ -1091,28 +1073,29 @@ export function DashboardView({
           <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark flex flex-col overflow-hidden shadow-2xs">
             <div className="h-10 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-1.5 text-ink dark:text-ink-dark font-bold text-xs">
-                <Users className="w-4 h-4 text-paid dark:text-paid-bright" />
+                <Users className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                 <span>أكتر زباين عليهم حساب (شكك)</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <button 
+                <AppButton
+                  variant="primary"
+                  size="xs"
                   onClick={() => onNavigateSubTab ? onNavigateSubTab('customers') : setIsDebtorsModalOpen(true)}
-                  className="px-2 py-0.5 rounded bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white text-micro font-bold transition-all shadow-2xs cursor-pointer"
                   title="كشف حسابات وديون الزباين بالتفصيل"
                 >
                   كشف الحسابات
-                </button>
+                </AppButton>
               </div>
             </div>
 
-            <div className="p-3 divide-y divide-line dark:divide-line-dark max-h-[190px] overflow-y-auto">
+            <div className="p-3 divide-y divide-line dark:divide-line-dark max-h-[11.875rem] overflow-y-auto">
               {summary && summary.topDebtors && summary.topDebtors.length > 0 ? (
                 summary.topDebtors.map((d) => (
                   <div key={d.customerId} className="py-2 flex items-center justify-between text-xs">
                     <div>
                       <div className="font-bold text-ink dark:text-ink-dark">{d.customerName}</div>
                       {d.customerPhone && (
-                        <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">{d.customerPhone}</div>
+                        <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">{formatPhoneDisplay(d.customerPhone)}</div>
                       )}
                     </div>
                     <span className="font-mono font-bold text-danger dark:text-danger-bright text-xs tabular-nums">

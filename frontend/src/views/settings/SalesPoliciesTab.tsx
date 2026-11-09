@@ -11,6 +11,8 @@ import {
 } from '../../utils/controlledMandatoryFields';
 import { FIELD_INPUT_CLASS, Field, SettingsCard, ToggleRow } from './settingsParts';
 import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
 
 interface SalesPoliciesTabProps {
   allowNegativeStock: boolean;
@@ -129,10 +131,11 @@ export const SalesPoliciesTab = ({
               warning={requireOpenShiftToSell ? null : 'المبيعات دون وردية يصعب ربطها بعهدة كاشير محدد، ويصعب مراجعة فروق الدرج وقت التقفيل.'}
             />
             {onToggleVat && (
+              <MotionHeight>
               <div className="flex flex-col">
                 <ToggleRow
                   icon={BadgePercent}
-                  title="تفعيل ضريبة القيمة المضافة (VAT)"
+                  title="تفعيل ضريبة القيمة المضافة"
                   description="مفعّل: استخراج وحساب نسبة الضريبة من مبيعات الأصناف الخاضعة وإظهارها في الفواتير والتقارير المالية. متوقف: للمتاجر غير المسجلة ضريبياً لإخفاء أي بنود أو حسابات للضريبة."
                   checked={Boolean(vatEnabled)}
                   onChange={onToggleVat}
@@ -150,14 +153,9 @@ export const SalesPoliciesTab = ({
                         <span>الرقم الضريبي للمنشأة (المطبوع على الفاتورة)</span>
                       </div>
                       {onOpenStoreProfile && (
-                        <button
-                          type="button"
-                          onClick={onOpenStoreProfile}
-                          className="text-xs font-semibold text-paid dark:text-paid-bright hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>فتح بيانات المحل بالكامل</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </button>
+                        <AppButton variant="subtle" size="xs" icon={ExternalLink} iconPosition="end" onClick={onOpenStoreProfile}>
+                          فتح بيانات المحل بالكامل
+                        </AppButton>
                       )}
                     </div>
 
@@ -180,6 +178,7 @@ export const SalesPoliciesTab = ({
                   </div>
                 )}
               </div>
+              </MotionHeight>
             )}
           </div>
         </SettingsCard>
@@ -207,25 +206,20 @@ export const SalesPoliciesTab = ({
                   </span>
                 </div>
               </Field>
-              <button
-                type="submit"
-                disabled={!creditLimitDirty || saveLoading}
-                className="h-11 px-5 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-muted-dark disabled:cursor-not-allowed text-white dark:text-surface-dark rounded-lg text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer"
-              >
-                <Save className="w-4 h-4" />
-                <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ الحد'}</span>
-              </button>
-              {creditLimitDirty && (
-                <div className="h-11 flex items-center" role="status">
-                  <UnsavedChangesChip />
+              <AppButton type="submit" variant="primary" size="lg" icon={Save} loading={saveLoading} disabled={!creditLimitDirty}>
+                {saveLoading ? 'جاري الحفظ...' : 'حفظ الحد'}
+              </AppButton>
+              <div className="h-11 grid items-center">
+                <div className="col-start-1 row-start-1">
+                  <UnsavedChangesChip dirty={creditLimitDirty} />
                 </div>
-              )}
-              {saved && !creditLimitDirty && (
-                <span className="h-11 flex items-center gap-1.5 text-xs font-bold text-paid dark:text-paid-bright">
-                  <CheckCircle className="w-4 h-4" />
-                  تم الحفظ
-                </span>
-              )}
+                {saved && !creditLimitDirty && (
+                  <span className="col-start-1 row-start-1 flex items-center gap-1.5 text-xs font-bold text-paid dark:text-paid-bright">
+                    <CheckCircle className="w-4 h-4" />
+                    تم الحفظ
+                  </span>
+                )}
+              </div>
             </div>
           </SettingsCard>
         </form>
