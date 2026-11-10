@@ -2464,7 +2464,7 @@ namespace RafiqPOS.Services
             "customers.payment", "customers.payment_cancel", "customers.credit_sale", "customers.credit_limit_override",
             "customers.credit_limit", "customers.opening_balance",
             "reports.sales", "reports.profit", "reports.inventory", "reports.customers", "reports.cashier", "reports.daily_closing",
-            "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license", "system.updates",
+            "settings.store", "settings.printer", "settings.templates", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license", "system.updates",
             "users.view", "users.create", "users.edit", "users.deactivate", "users.reset_pin", "users.delegate",
             "audit_log.view", "expenses.view", "expenses.create", "expenses.edit", "expenses.delete", "expenses.cancel",
             "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.history", "epay.analytics", "epay.cancel", "epay.balance_adjust",
@@ -2716,6 +2716,7 @@ namespace RafiqPOS.Services
             // Settings
             p["settings.store"] = isAdmin;
             p["settings.printer"] = isAdmin;
+            p["settings.templates"] = isAdmin;
             p["settings.barcode"] = isAdmin;
             p["settings.features"] = isRoot; // محصورة بحساب المشرف الأعلى (Root) فقط افتراضياً
             p["settings.backup"] = isAdmin;
