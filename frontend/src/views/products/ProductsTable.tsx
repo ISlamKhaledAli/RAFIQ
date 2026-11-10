@@ -29,6 +29,7 @@ import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { getStoreTerminology } from '../../utils/storeTerminology';
 import { useFeatures } from '../../context/useFeatures';
 import { AppButton } from '../../components/AppButton';
+import { RafiqTooltip } from '../../components/RafiqTooltip';
 import { MENU_PANEL, MENU_ITEM, MENU_ITEM_DANGER, MENU_ITEM_ICON, MENU_ITEM_ICON_DANGER, MENU_DIVIDER, TABLE_ACTION_TRIGGER } from '../../utils/buttonStyles';
 import { remToPx } from '../../utils/textScale';
 
@@ -207,7 +208,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                       }
                     }}
                     className="cursor-pointer"
-                    title={selectedProductIds.length > 0 ? 'إلغاء التحديد' : 'تحديد أصناف هذه الصفحة'}
                   />
                   <span>#</span>
                 </div>
@@ -216,8 +216,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               <th className="px-2 text-right min-w-[11rem]">اسم الصنف</th>
               <th className="w-36 px-2 text-right">سعر البيع</th>
               <th className="w-28 px-2 text-right">سعر الشراء (التكلفة)</th>
-              <th className="w-32 px-2 text-center" title="رصيد المخزن الحالي / حد التنبيه بالنواقص">
-                رصيد المخزن / النواقص
+              <th className="w-32 px-2 text-center">
+                <RafiqTooltip content="رصيد المخزن الحالي / حد التنبيه بالنواقص">
+                  <span className="cursor-help">رصيد المخزن / النواقص</span>
+                </RafiqTooltip>
               </th>
               <th className="w-24 px-2 text-center">حالة الصنف</th>
               <th className="w-28 px-2 text-center">خيارات الصنف</th>
@@ -332,12 +334,15 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                       <div className="flex items-center gap-1">
                         <span className="truncate">{prod.barcode || <span className="text-ink-muted/50 dark:text-ink-dark-muted/70">—</span>}</span>
                         {prod.barcodes && prod.barcodes.length > 1 && (
-                          <span
-                            className="px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro text-ink-muted dark:text-ink-dark-muted shrink-0 font-bold"
-                            title={`باركودات إضافية مسجلة للصنف:\n${prod.barcodes.join('\n')}`}
+                          <RafiqTooltip
+                            content={`باركودات إضافية مسجلة للصنف:\n${prod.barcodes.map((b) => `• ${b}`).join('\n')}`}
                           >
-                            +{prod.barcodes.length - 1}
-                          </span>
+                            <span
+                              className="px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro text-ink-muted dark:text-ink-dark-muted shrink-0 font-bold cursor-help"
+                            >
+                              +{prod.barcodes.length - 1}
+                            </span>
+                          </RafiqTooltip>
                         )}
                       </div>
                     </td>
@@ -347,78 +352,90 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-ink dark:text-ink-dark">{prod.name}</span>
                         {isKg && (
-                          <span
-                            className="shrink-0 px-2 py-0.5 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-micro font-bold rounded-full flex items-center gap-0.5"
-                            title="يباع بالوزن (ميزان)"
-                          >
-                            <Scale className="w-2.5 h-2.5" />
-                            <span>وزن</span>
-                          </span>
+                          <RafiqTooltip content="يباع بالوزن (ميزان إلكتروني)">
+                            <span
+                              className="shrink-0 px-2 py-0.5 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-micro font-bold rounded-full flex items-center gap-0.5 cursor-help"
+                            >
+                              <Scale className="w-2.5 h-2.5" />
+                              <span>وزن</span>
+                            </span>
+                          </RafiqTooltip>
                         )}
                         {isEnabled('feature_multi_units') && prod.units && prod.units.length > 1 && (
-                          <span
-                            className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid/20 dark:border-paid/30"
-                            title={`وحدات البيع والعبوات المسجلة للصنف:\n${prod.units.map((u) => `• ${formatUnitArabic(u.unitName)} (يحتوي على ${u.conversionFactor} ${baseUnitClean})`).join('\n')}`}
+                          <RafiqTooltip
+                            content={`وحدات البيع والعبوات المسجلة للصنف:\n${prod.units.map((u) => `• ${formatUnitArabic(u.unitName)} (يحتوي على ${u.conversionFactor} ${baseUnitClean})`).join('\n')}`}
                           >
-                            {prod.units.length === 2 ? 'وحدتان' : `${prod.units.length} وحدات`}
-                          </span>
+                            <span
+                              className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid/20 dark:border-paid/30 cursor-help"
+                            >
+                              {prod.units.length === 2 ? 'وحدتان' : `${prod.units.length} وحدات`}
+                            </span>
+                          </RafiqTooltip>
                         )}
                         {isEnabled('feature_taxes') && prod.taxRatePercent > 0 && (
-                          <span className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid-border dark:border-paid-dark-border">
-                            {prod.taxRatePercent}% ضريبة
-                          </span>
+                          <RafiqTooltip content={`تطبق ضريبة قيمة مضافة بنسبة ${prod.taxRatePercent}% على هذا الصنف`}>
+                            <span className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid-border dark:border-paid-dark-border cursor-help">
+                              {prod.taxRatePercent}% ضريبة
+                            </span>
+                          </RafiqTooltip>
                         )}
                         {isEnabled('feature_matrix_variants') && prod.hasVariants && (
-                          <span
-                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
-                            title={terminology.variantsTitle}
-                          >
-                            <Layers className="w-2.5 h-2.5" />
-                            <span>{terminology.variantsTitle}</span>
-                          </span>
+                          <RafiqTooltip content={terminology.variantsTitle}>
+                            <span
+                              className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1 cursor-help"
+                            >
+                              <Layers className="w-2.5 h-2.5" />
+                              <span>{terminology.variantsTitle}</span>
+                            </span>
+                          </RafiqTooltip>
                         )}
                         {isEnabled('feature_matrix_variants') && prod.variantColor && prod.variantSize && !/^[-—–_./\\]+$/.test(prod.variantColor.trim()) && !/^[-—–_./\\]+$/.test(prod.variantSize.trim()) && (
-                          <span
-                            className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro font-mono font-bold text-ink-muted dark:text-ink-dark-muted"
-                            title={`تركيبة: ${prod.variantColor} - ${prod.variantSize}`}
-                          >
-                            {prod.variantColor} | {prod.variantSize}
-                          </span>
+                          <RafiqTooltip content={`تركيبة: ${prod.variantColor} - ${prod.variantSize}`}>
+                            <span
+                              className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro font-mono font-bold text-ink-muted dark:text-ink-dark-muted cursor-help"
+                            >
+                              {prod.variantColor} | {prod.variantSize}
+                            </span>
+                          </RafiqTooltip>
                         )}
                         {isEnabled('feature_loose_selling') && prod.isLooseSellable && (
-                          <span
-                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
-                            title="صنف مفكوك يباع بالتجزئة"
-                          >
-                            <Boxes className="w-2.5 h-2.5" />
-                            <span>تجزئة</span>
-                          </span>
+                          <RafiqTooltip content="صنف مفكوك يباع بالتجزئة">
+                            <span
+                              className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1 cursor-help"
+                            >
+                              <Boxes className="w-2.5 h-2.5" />
+                              <span>تجزئة</span>
+                            </span>
+                          </RafiqTooltip>
                         )}
                         {isEnabled('feature_loose_selling') && openPackage && (
-                          <span
-                            className="shrink-0 px-2 py-0.5 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold rounded-full border border-warn-border dark:border-warn-bright/30 flex items-center gap-1"
-                            title="يوجد عبوة مفتوحة بالمخزن"
-                          >
-                            <Box className="w-2.5 h-2.5" />
-                            <span>علبة مفتوحة</span>
-                          </span>
+                          <RafiqTooltip content="يوجد عبوة مفتوحة بالمخزن">
+                            <span
+                              className="shrink-0 px-2 py-0.5 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold rounded-full border border-warn-border dark:border-warn-bright/30 flex items-center gap-1 cursor-help"
+                            >
+                              <Box className="w-2.5 h-2.5" />
+                              <span>علبة مفتوحة</span>
+                            </span>
+                          </RafiqTooltip>
                         )}
                         {isEnabled('feature_shelf_locations') && prod.locationCode && (
-                          <span
-                            className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro font-mono font-bold text-ink dark:text-ink-dark flex items-center gap-1"
-                            title={`موقع التخزين والرف: ${prod.locationCode}${prod.locationName ? ` (${prod.locationName})` : ''}`}
-                          >
-                            <span>[{prod.locationCode}]</span>
-                          </span>
+                          <RafiqTooltip content={`موقع التخزين والرف: ${prod.locationCode}${prod.locationName ? ` (${prod.locationName})` : ''}`}>
+                            <span
+                              className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro font-mono font-bold text-ink dark:text-ink-dark flex items-center gap-1 cursor-help"
+                            >
+                              <span>[{prod.locationCode}]</span>
+                            </span>
+                          </RafiqTooltip>
                         )}
                         {prod.isColdChain && (
-                          <span
-                            className="shrink-0 px-2 py-0.5 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-micro font-bold rounded-full border border-cyan-200 dark:border-cyan-800 flex items-center gap-1"
-                            title="سلسلة تبريد (يحفظ في الثلاجة 2-8 مئوية)"
-                          >
-                            <Snowflake className="w-2.5 h-2.5" />
-                            <span>ثلاجة</span>
-                          </span>
+                          <RafiqTooltip content="سلسلة تبريد (يحفظ في الثلاجة 2-8 درجات مئوية)">
+                            <span
+                              className="shrink-0 px-2 py-0.5 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-micro font-bold rounded-full border border-cyan-200 dark:border-cyan-800 flex items-center gap-1 cursor-help"
+                            >
+                              <Snowflake className="w-2.5 h-2.5" />
+                              <span>ثلاجة</span>
+                            </span>
+                          </RafiqTooltip>
                         )}
                       </div>
                     </td>
@@ -436,19 +453,21 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         ) : null}
                         {effectiveCost > 0 &&
                           (effectivePrice < effectiveCost ? (
-                            <span
-                              className="text-micro px-1.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 font-bold shrink-0"
-                              title="سعر البيع أقل من التكلفة (خسارة)"
-                            >
-                              خسارة
-                            </span>
+                            <RafiqTooltip content="سعر البيع أقل من التكلفة (خسارة مادية)">
+                              <span
+                                className="text-micro px-1.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 font-bold shrink-0 cursor-help"
+                              >
+                                خسارة
+                              </span>
+                            </RafiqTooltip>
                           ) : (
-                            <span
-                              className="text-micro px-1.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border font-bold shrink-0"
-                              title="نسبة الربح من التكلفة"
-                            >
-                              +{(((effectivePrice - effectiveCost) / effectiveCost) * 100).toFixed(0)}%
-                            </span>
+                            <RafiqTooltip content="نسبة هامش الربح المحسوبة من سعر التكلفة">
+                              <span
+                                className="text-micro px-1.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border font-bold shrink-0 cursor-help"
+                              >
+                                +{(((effectivePrice - effectiveCost) / effectiveCost) * 100).toFixed(0)}%
+                              </span>
+                            </RafiqTooltip>
                           ))}
                       </div>
                     </td>
@@ -460,37 +479,35 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                     {/* 6. Stock / Min Stock */}
                     <td className="w-32 px-2 text-center whitespace-nowrap">
-                      <div
-                        onClick={() => onSelectProdForMovements(prod)}
-                        className="inline-flex flex-col items-center justify-center font-mono tabular-nums leading-tight cursor-pointer hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg px-2 py-0.5 group transition-colors"
-                        title="دوس هنا لعرض دفتر حركة الصنف بالمخزن"
-                      >
-                        <span className="font-bold text-ink dark:text-ink-dark text-sm group-hover:text-paid dark:group-hover:text-brand-bright underline decoration-dotted underline-offset-2">
-                          {stockDisplay}
-                        </span>
-                        {compoundStock ? (
-                          <span
-                            className="text-micro text-paid dark:text-paid-bright font-bold truncate max-w-[8.125rem]"
-                            title={`المخزون المركب: ${compoundStock}`}
-                          >
-                            {compoundStock}
+                      <RafiqTooltip content="انقر لعرض دفتر كشف حركة الصنف بالمخزن ومتابعة الوارد والمنصرف">
+                        <div
+                          onClick={() => onSelectProdForMovements(prod)}
+                          className="inline-flex flex-col items-center justify-center font-mono tabular-nums leading-tight cursor-pointer hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg px-2 py-0.5 group transition-colors"
+                        >
+                          <span className="font-bold text-ink dark:text-ink-dark text-sm group-hover:text-paid dark:group-hover:text-brand-bright underline decoration-dotted underline-offset-2">
+                            {stockDisplay}
                           </span>
-                        ) : unitBreakdown ? (
-                          <span
-                            className="text-micro text-paid dark:text-paid-bright font-bold truncate max-w-[6.875rem]"
-                            title={`المكافئ بالوحدة الكبيرة: ${unitBreakdown}`}
-                          >
-                            ≈ {unitBreakdown}
-                          </span>
-                        ) : (
-                          <span
-                            className="text-micro text-ink-muted dark:text-ink-dark-muted"
-                            title={`حد النواقص: ${minStockDisplay} ${isKg ? 'كجم' : 'قطعة'}`}
-                          >
-                            حد {minStockDisplay}
-                          </span>
-                        )}
-                      </div>
+                          {compoundStock ? (
+                            <span
+                              className="text-micro text-paid dark:text-paid-bright font-bold truncate max-w-[8.125rem]"
+                            >
+                              {compoundStock}
+                            </span>
+                          ) : unitBreakdown ? (
+                            <span
+                              className="text-micro text-paid dark:text-paid-bright font-bold truncate max-w-[6.875rem]"
+                            >
+                              ≈ {unitBreakdown}
+                            </span>
+                          ) : (
+                            <span
+                              className="text-micro text-ink-muted dark:text-ink-dark-muted"
+                            >
+                              حد {minStockDisplay}
+                            </span>
+                          )}
+                        </div>
+                      </RafiqTooltip>
                     </td>
 
                     {/* 7. Status */}
@@ -502,22 +519,23 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                     {/* 8. Actions */}
                     <td className="w-28 px-2 text-center whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleMenu(prod, e)}
-                        aria-haspopup="menu"
-                        aria-expanded={activeMenu?.product.id === prod.id}
-                        className={`${TABLE_ACTION_TRIGGER} select-none`}
-                        title="قائمة إجراءات وخيارات الصنف"
-                      >
-                        <MoreHorizontal className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                        <span>خيارات</span>
-                        <ChevronDown
-                          className={`w-3 h-3 text-ink-muted dark:text-ink-dark-muted transition-transform duration-150 ${
-                            activeMenu?.product.id === prod.id ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </button>
+                      <RafiqTooltip content="قائمة إجراءات وخيارات الصنف">
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleMenu(prod, e)}
+                          aria-haspopup="menu"
+                          aria-expanded={activeMenu?.product.id === prod.id}
+                          className={`${TABLE_ACTION_TRIGGER} select-none`}
+                        >
+                          <MoreHorizontal className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                          <span>خيارات</span>
+                          <ChevronDown
+                            className={`w-3 h-3 text-ink-muted dark:text-ink-dark-muted transition-transform duration-150 ${
+                              activeMenu?.product.id === prod.id ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </button>
+                      </RafiqTooltip>
                     </td>
                   </tr>
                 );
