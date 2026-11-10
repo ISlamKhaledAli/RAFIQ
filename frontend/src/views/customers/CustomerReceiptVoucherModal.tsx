@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Printer, X, FileText } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry } from '../../types/models';
-import { formatArabicCurrency } from '../../utils/money';
+import { formatArabicCurrency, tafqeetCurrency } from '../../utils/money';
 import { usePrintReport } from '../../hooks/usePrintReport';
 import { DEFAULT_DEVELOPER_SIGNATURE, splitReceiptText } from '../../utils/receiptLayout';
-
+import { invoke } from '../../bridge/ipc';
 import { AppButton } from '../../components/AppButton';
+
 export interface CustomerReceiptVoucherModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -20,6 +21,49 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
   entry,
 }) => {
   const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');
+  const [storeInfo, setStoreInfo] = useState({
+    name: 'متجر رفيق التجاري',
+    address: '',
+    phone: '',
+    logoUrl: '/receipt_logo_square.png',
+    customHeader: 'سند قبض نقدية - إيصال استلام أموال',
+    customFooter: 'يعتبر هذا السند لاغياً إذا لم يكن ممهوراً بتوقيع الصراف وختم المحل الرسمي.',
+    showLogo: true,
+    showSignatures: true,
+    showBreakdown: true,
+    showTafqeet: true,
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let mounted = true;
+    void (async () => {
+      try {
+        const s = await invoke<Record<string, string>>('settings:getAll');
+        if (!mounted || !s) return;
+        setStoreInfo({
+          name: s.store_name || 'متجر رفيق التجاري',
+          address: s.store_address || '',
+          phone: s.store_phone || '',
+          logoUrl: s.store_logo_url || '/receipt_logo_square.png',
+          customHeader: s.doc_template_receipt_voucher_custom_header || 'سند قبض نقدية - إيصال استلام أموال',
+          customFooter: s.doc_template_receipt_voucher_custom_footer !== undefined ? s.doc_template_receipt_voucher_custom_footer : 'يعتبر هذا السند لاغياً إذا لم يكن ممهوراً بتوقيع الصراف وختم المحل الرسمي.',
+          showLogo: s.doc_template_receipt_voucher_show_logo !== '0',
+          showSignatures: s.doc_template_receipt_voucher_show_signatures !== '0',
+          showBreakdown: s.doc_template_receipt_voucher_show_breakdown !== '0',
+          showTafqeet: s.doc_template_receipt_voucher_show_tafqeet !== '0',
+        });
+        if (s.doc_template_receipt_voucher_paper === 'a4') {
+          setPrintMode('a4');
+        }
+      } catch (e) {
+        console.error('Failed to load store settings for voucher', e);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -97,9 +141,19 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
           >
             {/* Store Header */}
             <div className="text-center pb-3 border-b-2 border-black mb-3">
-              <h2 className="text-base font-extrabold mb-0.5">رفيق لنقاط البيع وإدارة المتاجر</h2>
+              {storeInfo.showLogo && storeInfo.logoUrl && (
+                <div className="flex justify-center mb-1">
+                  <img src={storeInfo.logoUrl} alt="Logo" className="max-h-10 object-contain" />
+                </div>
+              )}
+              <h2 className="text-base font-extrabold mb-0.5">{storeInfo.name}</h2>
+              {(storeInfo.address || storeInfo.phone) && (
+                <p className="text-micro text-neutral-600 mb-1">
+                  {storeInfo.address} {storeInfo.phone && `| هاتف: ${storeInfo.phone}`}
+                </p>
+              )}
               <div className="inline-block px-3 py-1 bg-neutral-100 border border-neutral-300 rounded font-bold text-xs mt-1">
-                سند قبض نقدية #{voucherNumber}
+                {storeInfo.customHeader} #{voucherNumber}
               </div>
               <p className="text-micro text-neutral-500 font-mono mt-1">
                 التاريخ: {new Date(entry.createdAt).toLocaleString('ar-EG-u-nu-latn')}
@@ -132,39 +186,57 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
               </div>
             </div>
 
+            {/* Tafqeet Words */}
+            {storeInfo.showTafqeet && (
+              <div className="p-1.5 bg-neutral-100 border border-neutral-300 rounded font-bold text-micro text-center mb-3">
+                المبلغ بالحروف: {tafqeetCurrency(amountPiasters)}
+              </div>
+            )}
+
             {/* Balance Accounting Breakdown */}
-            <div className="border border-neutral-300 rounded p-2.5 mb-4 text-xs bg-neutral-50 space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-neutral-600">الرصيد السابق قبل السداد:</span>
-                <span className="font-mono font-bold">{formatArabicCurrency(balanceBeforePiasters)}</span>
+            {storeInfo.showBreakdown && (
+              <div className="border border-neutral-300 rounded p-2.5 mb-4 text-xs bg-neutral-50 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-neutral-600">الرصيد السابق قبل السداد:</span>
+                  <span className="font-mono font-bold">{formatArabicCurrency(balanceBeforePiasters)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-700">
+                  <span>المبلغ المسدد نقداً:</span>
+                  <span className="font-mono font-bold">- {formatArabicCurrency(amountPiasters)}</span>
+                </div>
+                <div className="flex justify-between border-t border-neutral-300 pt-1 font-bold">
+                  <span>الرصيد المتبقي بعد السداد:</span>
+                  <span className="font-mono text-neutral-900">
+                    {balanceAfterPiasters > 0
+                      ? `${formatArabicCurrency(balanceAfterPiasters)} (عليه)`
+                      : balanceAfterPiasters < 0
+                      ? `${formatArabicCurrency(Math.abs(balanceAfterPiasters))} (له)`
+                      : 'خالص تماماً'}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between text-emerald-700">
-                <span>المبلغ المسدد نقداً:</span>
-                <span className="font-mono font-bold">- {formatArabicCurrency(amountPiasters)}</span>
-              </div>
-              <div className="flex justify-between border-t border-neutral-300 pt-1 font-bold">
-                <span>الرصيد المتبقي بعد السداد:</span>
-                <span className="font-mono text-neutral-900">
-                  {balanceAfterPiasters > 0
-                    ? `${formatArabicCurrency(balanceAfterPiasters)} (عليه)`
-                    : balanceAfterPiasters < 0
-                    ? `${formatArabicCurrency(Math.abs(balanceAfterPiasters))} (له)`
-                    : 'خالص تماماً'}
-                </span>
-              </div>
-            </div>
+            )}
 
             {/* Signatures */}
-            <div className="pt-3 border-t border-neutral-300 grid grid-cols-2 gap-4 text-center text-micro text-neutral-600">
-              <div>
-                <span className="block font-bold">المستلم (الكاشير)</span>
-                <span className="block mt-6 border-b border-neutral-400 w-24 mx-auto"></span>
+            {storeInfo.showSignatures && (
+              <div className="pt-3 border-t border-neutral-300 grid grid-cols-2 gap-4 text-center text-micro text-neutral-600">
+                <div>
+                  <span className="block font-bold">المستلم (الكاشير)</span>
+                  <span className="block mt-6 border-b border-neutral-400 w-24 mx-auto"></span>
+                </div>
+                <div>
+                  <span className="block font-bold">توقيع العميل / الدافع</span>
+                  <span className="block mt-6 border-b border-neutral-400 w-24 mx-auto"></span>
+                </div>
               </div>
-              <div>
-                <span className="block font-bold">توقيع العميل / الدافع</span>
-                <span className="block mt-6 border-b border-neutral-400 w-24 mx-auto"></span>
+            )}
+
+            {/* Policy / Custom Footer */}
+            {storeInfo.customFooter && (
+              <div className="text-center text-micro text-neutral-600 mt-2 border-t border-dashed border-neutral-300 pt-1.5 leading-snug">
+                {storeInfo.customFooter}
               </div>
-            </div>
+            )}
 
             <div className="mt-4 pt-2 border-t border-dashed border-neutral-300 text-center text-micro text-neutral-400">
               {splitReceiptText(DEFAULT_DEVELOPER_SIGNATURE).map((line, i) => (

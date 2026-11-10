@@ -2784,6 +2784,7 @@ namespace RafiqPOS.Services
 
         private float RenderDailyClosingPage(Graphics g, DailyClosing closing, string storeName, int printWidth)
         {
+            var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
             bool isCompact = (printWidth <= 210);
 
             var fontTitle = new Font("Arial", isCompact ? 10f : 11f, FontStyle.Bold);
@@ -2814,8 +2815,13 @@ namespace RafiqPOS.Services
             };
 
             // 1. Store Header
+            string headerTitle = "تقرير إقفال اليومية والوردية";
+            if (store.ContainsKey("doc_template_daily_closing_custom_header") && !string.IsNullOrWhiteSpace(store["doc_template_daily_closing_custom_header"]))
+            {
+                headerTitle = store["doc_template_daily_closing_custom_header"].Trim();
+            }
             drawBlock(storeName, fontTitle, centerFormat, 3f);
-            drawBlock("تقرير إقفال اليومية والوردية", fontHeader, centerFormat, 4f);
+            drawBlock(headerTitle, fontHeader, centerFormat, 4f);
 
             g.DrawLine(Pens.Black, 0, y, contentWidth, y);
             y += 6;
@@ -2973,6 +2979,22 @@ namespace RafiqPOS.Services
             // 5. Profitability & Footer
             drawRow("الربح التقريبي لليوم:", (closing.GrossProfitPiasters / 100.0).ToString("N2") + " ج.م", true);
             y += 8;
+
+            string closingFooter = store.ContainsKey("doc_template_daily_closing_custom_footer") && !string.IsNullOrWhiteSpace(store["doc_template_daily_closing_custom_footer"])
+                ? store["doc_template_daily_closing_custom_footer"].Trim()
+                : null;
+            if (!string.IsNullOrEmpty(closingFooter))
+            {
+                drawBlock(closingFooter, fontSmall, centerFormat, 3f);
+            }
+
+            bool showClosingSignatures = !store.ContainsKey("doc_template_daily_closing_show_signatures") || store["doc_template_daily_closing_show_signatures"] != "0";
+            if (showClosingSignatures)
+            {
+                y += 6;
+                drawBlock("توقيع كاشير الوردية: __________________", fontSmall, rightFormat, 2f);
+                drawBlock("اعتماد المشرف المالي: __________________", fontSmall, rightFormat, 4f);
+            }
 
             drawBlock("سجل إقفال رسمي ومختوم رقمياً • لا يُعدّل بعد الحفظ", fontSmall, centerFormat, 3f);
             drawBlock("نظام رفيق لنقاط البيع وإدارة المتاجر", fontSmall, centerFormat, 6f);
