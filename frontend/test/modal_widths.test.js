@@ -20,8 +20,8 @@ const FORMS = [
   {
     file: 'components/ExpenseModal.tsx',
     width: 'max-w-2xl',
-    panel: /rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl max-h-\[90vh\] flex flex-col overflow-hidden/,
-    body: /<MotionHeight className="flex-1 min-h-0 overflow-y-auto p-5 bg-canvas/,
+    panel: /rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl max-h-\[(?:90|92)vh\] flex flex-col overflow-hidden/,
+    body: /<MotionHeight className="flex-1 min-h-0 overflow-y-auto (?:overflow-x-hidden )?(?:p-4 sm:)?p-5 bg-canvas/,
     footer: /<div className="px-5 py-3 [^"]*flex justify-end gap-2 shrink-0">/,
   },
   {
