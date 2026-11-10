@@ -259,7 +259,7 @@ export const StoreProfileTab = ({
             <ScrollText className="w-4 h-4 shrink-0" />
             <span>معاينة وتخصيص باقي الفواتير والمستندات</span>
             <span className="text-micro px-1.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold">
-              7 نماذج
+              5 نماذج
             </span>
           </button>
         </div>

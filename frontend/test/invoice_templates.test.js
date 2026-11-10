@@ -33,10 +33,11 @@ describe('Invoice & Document Templates Suite: Live Preview, Styling & RBAC Invar
   it('4. Real paper isolation: simulated printed paper remains crisp black-on-white regardless of app theme', () => {
     assert.ok(templatesSrc.includes('bg-white text-black'), 'Physical paper must be simulated as white thermal/A4 sheet');
     assert.ok(templatesSrc.includes('border-neutral-300') || templatesSrc.includes('border-line'), 'Paper must have realistic physical outline');
+    assert.ok(templatesSrc.includes('data-print-root'), 'Paper container must carry data-print-root for exact print targeting');
   });
 
-  it('5. Covers all 7 required business document templates with live renderers', () => {
-    const docs = ['return', 'purchase', 'receipt_voucher', 'payment_voucher', 'daily_closing', 'quotation', 'statement'];
+  it('5. Covers all 5 core retail document templates with live renderers and zero tax toggles', () => {
+    const docs = ['return', 'purchase', 'receipt_voucher', 'payment_voucher', 'daily_closing'];
     for (const doc of docs) {
       assert.ok(templatesSrc.includes(`'${doc}'`), `Must support document type: ${doc}`);
     }
@@ -45,11 +46,31 @@ describe('Invoice & Document Templates Suite: Live Preview, Styling & RBAC Invar
     assert.ok(templatesSrc.includes('renderReceiptVoucherContent'), 'Must render Customer Receipt Voucher');
     assert.ok(templatesSrc.includes('renderPaymentVoucherContent'), 'Must render Cash Payment Voucher');
     assert.ok(templatesSrc.includes('renderDailyClosingContent'), 'Must render Shift Z-Report Closing');
-    assert.ok(templatesSrc.includes('renderQuotationContent'), 'Must render Price Quotation');
-    assert.ok(templatesSrc.includes('renderStatementContent'), 'Must render Statement of Account');
+
+    // Quotation and Statement of Account must not be in templates tab
+    assert.ok(!templatesSrc.includes("'quotation'"), 'Quotation must be removed from templates tab');
+    assert.ok(!templatesSrc.includes("'statement'"), 'Statement must be removed from templates tab');
+
+    // Zero tax toggles
+    assert.ok(!templatesSrc.includes('إظهار الرقم الضريبي'), 'Tax toggle must be removed');
+    assert.ok(!templatesSrc.includes('showTaxNumber'), 'showTaxNumber must not exist');
   });
 
-  it('6. Supports physical paper size simulation (80mm, 57mm, A4) with live zoom controls', () => {
+  it('6. Dynamic sample data mode (standard vs detailed) responds in preview', () => {
+    assert.ok(templatesSrc.includes('sampleMode'), 'Must support sampleMode in state');
+    assert.ok(templatesSrc.includes("'standard'"), 'Must support standard (single item) mode');
+    assert.ok(templatesSrc.includes("'detailed'"), 'Must support detailed (multi items) mode');
+    assert.ok(templatesSrc.includes('صنف فردي'), 'Must have single item button');
+    assert.ok(templatesSrc.includes('أصناف متعددة'), 'Must have multi items button');
+  });
+
+  it('7. Clean cashier display without weird terminal suffixes like (نقطة 1#)', () => {
+    assert.ok(!templatesSrc.includes('(نقطة #1)'), 'Must not have (نقطة #1)');
+    assert.ok(!templatesSrc.includes('(نقطة 1#)'), 'Must not have (نقطة 1#)');
+    assert.ok(templatesSrc.includes('أحمد محمود'), 'Must display clean cashier name');
+  });
+
+  it('8. Supports physical paper size simulation (80mm, 57mm, A4) with live zoom controls', () => {
     assert.ok(templatesSrc.includes("'80mm'"));
     assert.ok(templatesSrc.includes("'57mm'"));
     assert.ok(templatesSrc.includes("'a4'"));
@@ -57,25 +78,26 @@ describe('Invoice & Document Templates Suite: Live Preview, Styling & RBAC Invar
     assert.ok(templatesSrc.includes('setZoomLevel'));
   });
 
-  it('7. Integrates Arabic Tafqeet for integer financial amounts in vouchers', () => {
+  it('9. Integrates Arabic Tafqeet for integer financial amounts in vouchers', () => {
     assert.ok(templatesSrc.includes('tafqeetCurrency'), 'Must use enterprise Arabic Tafqeet helper');
     assert.ok(templatesSrc.includes('formatArabicCurrency'), 'Must use Egyptian currency formatter');
   });
 
-  it('8. Authentic Code 128 Barcode generation in receipt preview', () => {
+  it('10. Authentic Code 128 Barcode generation in receipt preview', () => {
     assert.ok(templatesSrc.includes('encodeInvoiceBarcode'));
     assert.ok(templatesSrc.includes('layoutReceiptBarcode'));
     assert.ok(templatesSrc.includes('BarcodeSnippet'));
   });
 
-  it('9. StoreProfileTab wiring: templates sub-tab registered cleanly alongside the mother sales invoice', () => {
+  it('11. StoreProfileTab wiring: templates sub-tab registered cleanly alongside the mother sales invoice', () => {
     const storeProfileSrc = read('views', 'settings', 'StoreProfileTab.tsx');
     assert.ok(storeProfileSrc.includes('InvoiceTemplatesTab'), 'StoreProfileTab must render InvoiceTemplatesTab');
     assert.ok(storeProfileSrc.includes('profileViewMode'), 'StoreProfileTab must provide tab switching between mother invoice and other templates');
     assert.ok(storeProfileSrc.includes('معاينة وتخصيص باقي الفواتير والمستندات'), 'Must offer clear Arabic tab title');
+    assert.ok(storeProfileSrc.includes('5 نماذج'), 'Must reflect 5 models');
   });
 
-  it('10. RBAC and Permissions Matrix: registered in SecurityService.cs and permissionGroups.ts', () => {
+  it('12. RBAC and Permissions Matrix: registered in SecurityService.cs and permissionGroups.ts', () => {
     assert.ok(permGroupsSrc.includes('settings.templates'), 'Must be in permissionGroups.ts');
     assert.ok(securityServiceSrc.includes('settings.templates'), 'Must be in SecurityService.cs ALL_PERMISSIONS');
   });
