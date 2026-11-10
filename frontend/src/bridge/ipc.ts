@@ -1087,6 +1087,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         isLocked,
         remainingLockoutSeconds: remainingSec,
         failedAttempts: mockFailedAttempts,
+        idleTimeoutMinutes: mockIdleTimeoutMinutes,
         protectedActions: getMockProtectedActions(),
       };
     }
@@ -1476,7 +1477,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'security:setIdleTimeout': {
-      mockIdleTimeoutMinutes = payload?.minutes || 15;
+      mockIdleTimeoutMinutes = typeof payload?.minutes === 'number' ? payload.minutes : 15;
       return { minutes: mockIdleTimeoutMinutes };
     }
 

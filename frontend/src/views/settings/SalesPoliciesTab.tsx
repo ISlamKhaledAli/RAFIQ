@@ -13,6 +13,7 @@ import { FIELD_INPUT_CLASS, Field, SettingsCard, ToggleRow } from './settingsPar
 import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
 import { AppButton } from '../../components/AppButton';
 import MotionHeight from '../../components/MotionHeight';
+import { CustomSelect, type SelectOption } from '../../components/CustomSelect';
 
 interface SalesPoliciesTabProps {
   allowNegativeStock: boolean;
@@ -45,6 +46,15 @@ const MANDATORY_FIELD_ROWS: { key: keyof ControlledMandatoryFields; title: strin
   { key: 'requirePrescriptionNo', title: 'رقم الروشتة أو إذن الصرف', subject: 'رقم الروشتة' },
 ];
 
+const IDLE_TIMEOUT_OPTIONS: SelectOption[] = [
+  { value: '0', label: 'معطّل (بدون قفل تلقائي)' },
+  { value: '5', label: 'بعد 5 دقائق من الخمول' },
+  { value: '15', label: 'بعد 15 دقيقة (الافتراضي)' },
+  { value: '30', label: 'بعد 30 دقيقة' },
+  { value: '60', label: 'بعد ساعة كاملة (60 دقيقة)' },
+  { value: '120', label: 'بعد ساعتين (120 دقيقة)' },
+];
+
 /** Operating rules of the till (stock, shifts, credit, controlled drugs). Admin-only on the server, so the screen is too. */
 export const SalesPoliciesTab = ({
   allowNegativeStock,
@@ -72,6 +82,41 @@ export const SalesPoliciesTab = ({
   const [mandatoryFields, setMandatoryFields] = useState<ControlledMandatoryFields | null>(null);
   const [mandatoryLoadFailed, setMandatoryLoadFailed] = useState(false);
   const [mandatorySaving, setMandatorySaving] = useState(false);
+
+  const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState<number>(15);
+  const [idleTimeoutSaving, setIdleTimeoutSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    invoke<any>('security:getStatus')
+      .then((status) => {
+        if (active && status && typeof status.idleTimeoutMinutes === 'number') {
+          setIdleTimeoutMinutes(status.idleTimeoutMinutes);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleIdleTimeoutChange = async (valStr: string) => {
+    const val = parseInt(valStr, 10);
+    if (isNaN(val)) return;
+    const prev = idleTimeoutMinutes;
+    setIdleTimeoutMinutes(val);
+    setIdleTimeoutSaving(true);
+    try {
+      await invoke('security:setIdleTimeout', { minutes: val });
+      window.dispatchEvent(new CustomEvent('rafiq:idle-timeout-changed', { detail: val }));
+    } catch (err: unknown) {
+      setIdleTimeoutMinutes(prev);
+      const msg = err instanceof Error ? err.message : String(err);
+      void rafiqAlert({ title: 'تعذر تعديل مهلة الخمول', message: msg, variant: 'error' });
+    } finally {
+      setIdleTimeoutSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!pharmacyEnabled) return;
@@ -180,6 +225,31 @@ export const SalesPoliciesTab = ({
               </div>
               </MotionHeight>
             )}
+            <div className="py-3 px-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-center shrink-0 mt-0.5">
+                  <Clock className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-ink dark:text-ink-dark">
+                    قفل الشاشة التلقائي عند الخمول
+                  </div>
+                  <div className="text-micro text-ink-muted dark:text-ink-muted-dark mt-0.5 leading-relaxed">
+                    {idleTimeoutMinutes === 0
+                      ? 'معطّل: لن يسجل النظام الخروج تلقائياً عند ترك الجهاز.'
+                      : `يقفل النظام الشاشة تلقائياً بعد ${idleTimeoutMinutes} دقيقة من عدم النشاط لحماية الدرج والمبيعات.`}
+                  </div>
+                </div>
+              </div>
+              <div className="w-full sm:w-60 shrink-0">
+                <CustomSelect
+                  value={String(idleTimeoutMinutes)}
+                  onChange={(val) => void handleIdleTimeoutChange(val)}
+                  options={IDLE_TIMEOUT_OPTIONS}
+                  disabled={idleTimeoutSaving}
+                />
+              </div>
+            </div>
           </div>
         </SettingsCard>
 

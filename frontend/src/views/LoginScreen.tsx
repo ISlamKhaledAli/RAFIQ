@@ -56,6 +56,25 @@ export const LoginScreen: React.FC = () => {
   const [rootLoading, setRootLoading] = useState<boolean>(false);
   const [copiedChallenge, setCopiedChallenge] = useState<boolean>(false);
 
+  // Inactivity / idle logout feedback banner
+  const [logoutReason, setLogoutReason] = useState<string | null>(null);
+  const [logoutIdleMinutes, setLogoutIdleMinutes] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const reason = sessionStorage.getItem('rafiq_logout_reason');
+      if (reason) {
+        setLogoutReason(reason);
+        const min = sessionStorage.getItem('rafiq_logout_idle_minutes');
+        if (min) setLogoutIdleMinutes(min);
+        sessionStorage.removeItem('rafiq_logout_reason');
+        sessionStorage.removeItem('rafiq_logout_idle_minutes');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const handleOpenRootModal = async () => {
     setRootError('');
     setRootTokenInput('');
@@ -93,6 +112,11 @@ export const LoginScreen: React.FC = () => {
         token: cleanToken,
       });
       if (res?.success && res?.user) {
+        try {
+          sessionStorage.setItem('rafiq_just_logged_in', '1');
+        } catch {
+          // ignore
+        }
         setIsRootModalOpen(false);
         await refreshUser();
       } else {
@@ -437,6 +461,15 @@ export const LoginScreen: React.FC = () => {
                     })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {logoutReason === 'idle' && (
+              <div className="mb-4 p-3.5 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/25 dark:border-warn-bright/30 flex items-start gap-2.5 text-xs font-bold text-warn dark:text-warn-bright animate-in fade-in">
+                <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="flex-1 leading-relaxed">
+                  تم قفل الشاشة تلقائياً لعدم النشاط بعد {logoutIdleMinutes || '15'} دقيقة لحماية المتجر ونقطة البيع. أدخل الرقم السري للمتابعة.
+                </div>
               </div>
             )}
 
