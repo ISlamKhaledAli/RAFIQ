@@ -102,6 +102,7 @@ import { DEFAULT_REGISTRY } from '../context/featureTypes.ts';
 import { DEFAULT_DEVELOPER_SIGNATURE } from '../utils/receiptLayout.ts';
 import { matchesDateFilter } from '../utils/dateFilter.ts';
 import { filterVisibleStaff, getTier } from '../utils/roleLabels.ts';
+import { detectDeviceHardwareTier } from '../utils/motion.ts';
 
 const pendingRequests = new Map<string, {
   action: string;
@@ -3349,13 +3350,18 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'settings:getStoreProfile': {
       const profile = getMockAppSettings();
+      const detected = detectDeviceHardwareTier();
       return {
         storeName: profile.store_name,
         storePhone: profile.store_phone,
         storeAddress: profile.store_address,
         uiMotionEnabled: profile.ui_motion_enabled === '1',
-        uiMotionLevel: profile.ui_motion_level,
-        uiMotionStyle: profile.ui_motion_style,
+        uiMotionLevel: profile.ui_motion_level || detected.level,
+        uiMotionStyle: profile.ui_motion_style || 'fade',
+        deviceHardwareTier: detected.tier,
+        deviceHardwareTierArabic: detected.tierArabic,
+        deviceHardwareSummary: detected.summary,
+        detectedMotionLevel: detected.level,
       };
     }
 
@@ -4514,9 +4520,9 @@ const DEFAULT_APP_SETTINGS: Record<string, string> = {
   scanner_prefix: '',
   scanner_suffix: 'Enter',
   scanner_min_length: '3',
-  ui_motion_enabled: '0',
+  ui_motion_enabled: '1',
   ui_motion_level: 'medium',
-  ui_motion_style: 'slide',
+  ui_motion_style: 'fade',
 };
 
 function getMockAppSettings(): Record<string, string> {

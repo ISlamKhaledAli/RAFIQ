@@ -1,12 +1,13 @@
-// App-wide animation switch. Root turns it on from the root console (setting `ui_motion_enabled`, off by default).
+// App-wide animation switch. Enabled by default with fade style, and automatically adapts to device hardware tier.
+// Root can change or disable it from the developer console (settings `ui_motion_enabled`, `ui_motion_level`, `ui_motion_style`).
 // It only sets `html[data-motion]`; every animation rule in index.css is scoped under html[data-motion="on"],
 // so with the switch off the UI is exactly what it was before. Root also picks the strength (`ui_motion_level`) and the
-// look (`ui_motion_style`); they only set html[data-motion-level] / html[data-motion-style], which index.css turns into variables.
+// look (`ui_motion_style`); they set html[data-motion-level] / html[data-motion-style], which index.css turns into variables.
 // Pure helpers: storage and root are injected.
 
 export const MOTION_SETTING_KEY = 'ui_motion_enabled';
 export const MOTION_STORAGE_KEY = 'rafiq_ui_motion';
-export const DEFAULT_MOTION_ENABLED = false;
+export const DEFAULT_MOTION_ENABLED = true;
 
 export const MOTION_LEVEL_SETTING_KEY = 'ui_motion_level';
 export const MOTION_LEVEL_STORAGE_KEY = 'rafiq_ui_motion_level';
@@ -18,7 +19,54 @@ export const MOTION_STYLE_SETTING_KEY = 'ui_motion_style';
 export const MOTION_STYLE_STORAGE_KEY = 'rafiq_ui_motion_style';
 export const MOTION_STYLES = ['slide', 'fade', 'zoom'] as const;
 export type MotionStyle = (typeof MOTION_STYLES)[number];
-export const DEFAULT_MOTION_STYLE: MotionStyle = 'slide';
+export const DEFAULT_MOTION_STYLE: MotionStyle = 'fade';
+
+export interface DeviceHardwareTierInfo {
+  tier: 'weak' | 'medium' | 'strong';
+  tierArabic: 'ضعيف' | 'متوسط' | 'قوي';
+  level: MotionLevel;
+  summary: string;
+}
+
+/** Detects hardware specs and classifies device tier into weak ('soft'), medium ('medium'), or strong ('strong'). */
+export function detectDeviceHardwareTier(): DeviceHardwareTierInfo {
+  let memGb: number | undefined;
+  let cores: number | undefined;
+
+  if (typeof navigator !== 'undefined') {
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    memGb = nav.deviceMemory;
+    cores = nav.hardwareConcurrency;
+  }
+
+  const effectiveCores = typeof cores === 'number' && cores > 0 ? cores : 4;
+  const effectiveMemGb = typeof memGb === 'number' && memGb > 0 ? memGb : 4;
+
+  if (effectiveMemGb < 3.5 || (effectiveMemGb <= 4 && effectiveCores <= 2) || effectiveCores <= 1) {
+    return {
+      tier: 'weak',
+      tierArabic: 'ضعيف',
+      level: 'soft',
+      summary: `ذاكرة تقريبية ${effectiveMemGb}GB • ${effectiveCores} معالجات`,
+    };
+  }
+
+  if (effectiveMemGb >= 7.5 && effectiveCores >= 4) {
+    return {
+      tier: 'strong',
+      tierArabic: 'قوي',
+      level: 'strong',
+      summary: `ذاكرة تقريبية ${effectiveMemGb}GB • ${effectiveCores} معالجات`,
+    };
+  }
+
+  return {
+    tier: 'medium',
+    tierArabic: 'متوسط',
+    level: 'medium',
+    summary: `ذاكرة تقريبية ${effectiveMemGb}GB • ${effectiveCores} معالجات`,
+  };
+}
 
 export interface MotionStorage {
   getItem(key: string): string | null;
@@ -35,25 +83,30 @@ export function parseMotionLevel(raw: unknown): MotionLevel {
   return (MOTION_LEVELS as readonly string[]).includes(v) ? (v as MotionLevel) : DEFAULT_MOTION_LEVEL;
 }
 
-/** Unknown, blank or garbage values fall back to the default (slide). */
+/** Unknown, blank or garbage values fall back to the default (fade). */
 export function parseMotionStyle(raw: unknown): MotionStyle {
   const v = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
   return (MOTION_STYLES as readonly string[]).includes(v) ? (v as MotionStyle) : DEFAULT_MOTION_STYLE;
 }
 
-/** Only an explicit on value enables motion; missing, blank or garbage values stay off. */
+/** Missing, undefined, null or blank values fall back to DEFAULT_MOTION_ENABLED (true). Explicit '0'/'false'/'off' turns it off. */
 export function parseMotionSetting(raw: unknown): boolean {
   if (raw === true) return true;
+  if (raw === false) return false;
   if (typeof raw !== 'string') return DEFAULT_MOTION_ENABLED;
   const v = raw.trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'on';
+  if (v === '0' || v === 'false' || v === 'off' || v === 'no') return false;
+  if (v === '1' || v === 'true' || v === 'on' || v === 'yes') return true;
+  return DEFAULT_MOTION_ENABLED;
 }
 
 export function loadCachedMotion(storage: Pick<MotionStorage, 'getItem'>): boolean {
   try {
-    return parseMotionSetting(storage.getItem(MOTION_STORAGE_KEY));
+    const raw = storage.getItem(MOTION_STORAGE_KEY);
+    if (raw === null || raw === undefined) return DEFAULT_MOTION_ENABLED;
+    return parseMotionSetting(raw);
   } catch {
-    // Storage can be blocked; stay at the default (off).
+    // Storage can be blocked; stay at the default (on).
     return DEFAULT_MOTION_ENABLED;
   }
 }
@@ -91,15 +144,19 @@ export function setMotionEnabled(root: MotionRoot, storage: MotionStorage, enabl
 
 export function loadCachedMotionLevel(storage: Pick<MotionStorage, 'getItem'>): MotionLevel {
   try {
-    return parseMotionLevel(storage.getItem(MOTION_LEVEL_STORAGE_KEY));
+    const raw = storage.getItem(MOTION_LEVEL_STORAGE_KEY);
+    if (raw === null || raw === undefined) return detectDeviceHardwareTier().level;
+    return parseMotionLevel(raw);
   } catch {
-    return DEFAULT_MOTION_LEVEL;
+    return detectDeviceHardwareTier().level;
   }
 }
 
 export function loadCachedMotionStyle(storage: Pick<MotionStorage, 'getItem'>): MotionStyle {
   try {
-    return parseMotionStyle(storage.getItem(MOTION_STYLE_STORAGE_KEY));
+    const raw = storage.getItem(MOTION_STYLE_STORAGE_KEY);
+    if (raw === null || raw === undefined) return DEFAULT_MOTION_STYLE;
+    return parseMotionStyle(raw);
   } catch {
     return DEFAULT_MOTION_STYLE;
   }

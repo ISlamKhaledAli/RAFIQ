@@ -12,6 +12,7 @@ import {
   MOTION_STYLE_STORAGE_KEY,
   applyMotionLevel,
   applyMotionStyle,
+  detectDeviceHardwareTier,
   loadCachedMotionLevel,
   loadCachedMotionStyle,
   parseMotionLevel,
@@ -38,7 +39,7 @@ describe('motion level and style parsing', () => {
     assert.deepEqual([...MOTION_LEVELS], ['soft', 'medium', 'strong']);
     assert.deepEqual([...MOTION_STYLES], ['slide', 'fade', 'zoom']);
     assert.equal(DEFAULT_MOTION_LEVEL, 'medium');
-    assert.equal(DEFAULT_MOTION_STYLE, 'slide');
+    assert.equal(DEFAULT_MOTION_STYLE, 'fade');
   });
 
   it('accepts known values (any case, padded) and falls back to the default for everything else', () => {
@@ -47,7 +48,17 @@ describe('motion level and style parsing', () => {
     for (const bad of [undefined, null, '', 'high', 'banana', 1, true, {}]) assert.equal(parseMotionLevel(bad), 'medium');
     assert.equal(parseMotionStyle('fade'), 'fade');
     assert.equal(parseMotionStyle(' Zoom '), 'zoom');
-    for (const bad of [undefined, null, '', 'flip', 'spin', 0, false, []]) assert.equal(parseMotionStyle(bad), 'slide');
+    for (const bad of [undefined, null, '', 'flip', 'spin', 0, false, []]) assert.equal(parseMotionStyle(bad), 'fade');
+  });
+});
+
+describe('device hardware tier auto-detection', () => {
+  it('detects a valid tier with level, Arabic label and summary', () => {
+    const info = detectDeviceHardwareTier();
+    assert.ok(['weak', 'medium', 'strong'].includes(info.tier));
+    assert.ok(['ضعيف', 'متوسط', 'قوي'].includes(info.tierArabic));
+    assert.ok(['soft', 'medium', 'strong'].includes(info.level));
+    assert.ok(typeof info.summary === 'string' && info.summary.length > 0);
   });
 });
 
@@ -64,7 +75,7 @@ describe('motion level and style on the html element and in the cache', () => {
     const root = fakeRoot();
     const storage = memoryStorage();
     assert.equal(loadCachedMotionLevel(storage), 'medium');
-    assert.equal(loadCachedMotionStyle(storage), 'slide');
+    assert.equal(loadCachedMotionStyle(storage), 'fade');
     setMotionLevel(root, storage, 'soft');
     setMotionStyle(root, storage, 'fade');
     assert.equal(storage.data[MOTION_LEVEL_STORAGE_KEY], 'soft');
@@ -77,7 +88,7 @@ describe('motion level and style on the html element and in the cache', () => {
   it('survives blocked storage', () => {
     const blocked = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
     assert.equal(loadCachedMotionLevel(blocked), 'medium');
-    assert.equal(loadCachedMotionStyle(blocked), 'slide');
+    assert.equal(loadCachedMotionStyle(blocked), 'fade');
     const root = fakeRoot();
     setMotionLevel(root, blocked, 'strong');
     setMotionStyle(root, blocked, 'zoom');
@@ -95,7 +106,7 @@ describe('motion level and style on the html element and in the cache', () => {
 
     await syncMotionFromHost(async () => ({ uiMotionEnabled: true, uiMotionLevel: 'extreme', uiMotionStyle: 'spin' }), root, storage);
     assert.equal(root.dataset.motionLevel, 'medium');
-    assert.equal(root.dataset.motionStyle, 'slide');
+    assert.equal(root.dataset.motionStyle, 'fade');
 
     const older = fakeRoot();
     const cached = memoryStorage({ [MOTION_LEVEL_STORAGE_KEY]: 'soft', [MOTION_STYLE_STORAGE_KEY]: 'fade' });
@@ -155,7 +166,7 @@ describe('root card controls and the mock bridge', () => {
     assert.match(ipc, /uiMotionLevel: profile\.ui_motion_level/);
     assert.match(ipc, /uiMotionStyle: profile\.ui_motion_style/);
     assert.match(ipc, /ui_motion_level: 'medium'/);
-    assert.match(ipc, /ui_motion_style: 'slide'/);
+    assert.match(ipc, /ui_motion_style: 'fade'/);
   });
 });
 
@@ -167,7 +178,7 @@ describe('host contract for level and style (source pins; NUnit S67 runs the beh
     assert.ok(settings.includes('"ui_motion_level"'));
     assert.ok(settings.includes('"ui_motion_style"'));
     assert.ok(settings.includes('UiMotionLevelDefault = "medium"'));
-    assert.ok(settings.includes('UiMotionStyleDefault = "slide"'));
+    assert.ok(settings.includes('UiMotionStyleDefault = "fade"'));
     assert.ok(settings.includes('تغيير شكل الحركات متاح لحساب الروت فقط'));
     assert.match(settings, /NormalizeUiMotionLevel/);
     assert.match(settings, /NormalizeUiMotionStyle/);

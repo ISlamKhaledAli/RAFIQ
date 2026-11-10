@@ -7,7 +7,7 @@
 ; الاسم القديم قبل التعريب الكامل: يُستخدم فقط لتنظيف اختصارات الإصدارات السابقة عند الترقية
 #define MyOldAppName "رفيق POS"
 #define MyAppEnglishName "Rafiq POS"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "ISlam Khaled Ali"
 #define MyAppCopyright "Copyright © 2026 ISlam Khaled Ali. All rights reserved."
 #define MyAppExeName "RafiqPOS.exe"

@@ -38,8 +38,8 @@ namespace RafiqPOS.Services
             if (!settings.ContainsKey("receipt_show_invoice_number")) settings["receipt_show_invoice_number"] = "1";
             if (!settings.ContainsKey("receipt_show_paid")) settings["receipt_show_paid"] = "1";
             if (!settings.ContainsKey("receipt_show_change")) settings["receipt_show_change"] = "1";
-            if (!settings.ContainsKey(UiMotionKey)) settings[UiMotionKey] = "0";
-            if (!settings.ContainsKey(UiMotionLevelKey)) settings[UiMotionLevelKey] = UiMotionLevelDefault;
+            if (!settings.ContainsKey(UiMotionKey)) settings[UiMotionKey] = UiMotionDefault;
+            if (!settings.ContainsKey(UiMotionLevelKey)) settings[UiMotionLevelKey] = GetDetectedDefaultMotionLevel();
             if (!settings.ContainsKey(UiMotionStyleKey)) settings[UiMotionStyleKey] = UiMotionStyleDefault;
             if (!settings.ContainsKey(SignatureVisibleKey)) settings[SignatureVisibleKey] = "1";
             if (!settings.ContainsKey(SignatureImageKey)) settings[SignatureImageKey] = "";
@@ -73,16 +73,29 @@ namespace RafiqPOS.Services
 
         // ---------- الحركات والانتقالات (تأثيرات الواجهة): يغيّرها الروت فقط ويقرأها الجميع ----------
 
-        /// <summary>"1" تفعّل الحركات والانتقالات، وغيابها أو "0" يعني مغلقة (الافتراضي، حفاظاً على الأجهزة الضعيفة)</summary>
+        /// <summary>"1" تفعّل الحركات والانتقالات (مفعّلة افتراضياً)، و"0" تعني مغلقة</summary>
         public const string UiMotionKey = "ui_motion_enabled";
-        /// <summary>قوة الحركة: soft أو medium (الافتراضي) أو strong</summary>
+        /// <summary>قوة الحركة: soft (ضعيف) أو medium (متوسط) أو strong (قوي)</summary>
         public const string UiMotionLevelKey = "ui_motion_level";
-        /// <summary>شكل الحركة: slide (الافتراضي) أو fade أو zoom</summary>
+        /// <summary>شكل الحركة: fade (الافتراضي تلاشي) أو slide أو zoom</summary>
         public const string UiMotionStyleKey = "ui_motion_style";
         public const string UiMotionLevelDefault = "medium";
-        public const string UiMotionStyleDefault = "slide";
+        public const string UiMotionStyleDefault = "fade";
+        public const string UiMotionDefault = "1";
         public const string UiMotionRootOnlyMessage = "تفعيل الحركات والانتقالات متاح لحساب الروت فقط";
         public const string UiMotionLookRootOnlyMessage = "تغيير شكل الحركات متاح لحساب الروت فقط";
+
+        public static string GetDetectedDefaultMotionLevel()
+        {
+            try
+            {
+                return DeviceTierDetector.DetectMotionLevel();
+            }
+            catch
+            {
+                return UiMotionLevelDefault;
+            }
+        }
 
         public static bool IsUiMotionSettingKey(string key)
         {
@@ -95,21 +108,21 @@ namespace RafiqPOS.Services
             return (key ?? "").Trim() == UiMotionKey ? UiMotionRootOnlyMessage : UiMotionLookRootOnlyMessage;
         }
 
-        /// <summary>أي قيمة غير "1" أو "true" تُعد مغلقة</summary>
+        /// <summary>أي قيمة غير "0" أو "false" تُعد مفعّلة إذا كانت 1 أو true، والقيم الفارغة تعود للافتراضي</summary>
         public static string NormalizeUiMotionValue(string value)
         {
             string v = (value ?? "").Trim().ToLowerInvariant();
             return v == "1" || v == "true" ? "1" : "0";
         }
 
-        /// <summary>أي قيمة غير soft وmedium وstrong تعود للافتراضي medium</summary>
+        /// <summary>أي قيمة غير soft وmedium وstrong تعود للافتراضي المحسوب للجهاز</summary>
         public static string NormalizeUiMotionLevel(string value)
         {
             string v = (value ?? "").Trim().ToLowerInvariant();
-            return v == "soft" || v == "medium" || v == "strong" ? v : UiMotionLevelDefault;
+            return v == "soft" || v == "medium" || v == "strong" ? v : GetDetectedDefaultMotionLevel();
         }
 
-        /// <summary>أي قيمة غير slide وfade وzoom تعود للافتراضي slide</summary>
+        /// <summary>أي قيمة غير slide وfade وzoom تعود للافتراضي fade</summary>
         public static string NormalizeUiMotionStyle(string value)
         {
             string v = (value ?? "").Trim().ToLowerInvariant();
@@ -127,17 +140,42 @@ namespace RafiqPOS.Services
 
         public bool IsUiMotionEnabled()
         {
-            return NormalizeUiMotionValue(_repo.Get(UiMotionKey, "0")) == "1";
+            return NormalizeUiMotionValue(_repo.Get(UiMotionKey, UiMotionDefault)) == "1";
         }
 
         public string GetUiMotionLevel()
         {
-            return NormalizeUiMotionLevel(_repo.Get(UiMotionLevelKey, UiMotionLevelDefault));
+            string saved = _repo.Get(UiMotionLevelKey, "");
+            if (string.IsNullOrEmpty(saved))
+            {
+                return GetDetectedDefaultMotionLevel();
+            }
+            return NormalizeUiMotionLevel(saved);
         }
 
         public string GetUiMotionStyle()
         {
             return NormalizeUiMotionStyle(_repo.Get(UiMotionStyleKey, UiMotionStyleDefault));
+        }
+
+        public string GetDeviceHardwareTier()
+        {
+            return DeviceTierDetector.DetectTier().ToString().ToLowerInvariant();
+        }
+
+        public string GetDeviceHardwareTierArabic()
+        {
+            return DeviceTierDetector.GetTierArabicName(DeviceTierDetector.DetectTier());
+        }
+
+        public string GetDeviceHardwareSummary()
+        {
+            return DeviceTierDetector.GetDeviceSummary();
+        }
+
+        public string GetDetectedMotionLevel()
+        {
+            return DeviceTierDetector.DetectMotionLevel();
         }
 
         /// <summary>هل القيمة المرسلة تغيّر المحفوظ فعلاً (بعد التوحيد)؟ إعادة إرسال القيمة نفسها ليست تغييراً</summary>

@@ -356,25 +356,65 @@ export const adminTemplate = `
       <!-- VIEW 4: OTA RELEASES & FLEET MANAGEMENT                              -->
       <!-- ===================================================================== -->
       <div id="releasesView" class="hidden space-y-5" style="display:none; flex-direction:column;">
-        <div class="flex items-center justify-end">
-          <button onclick="openModal('publishReleaseModal')" class="h-11 px-5 bg-[#006d41] hover:bg-[#005634] text-white rounded-xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-xs cursor-pointer active:scale-95">
+        
+        <!-- Summary Stats Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs flex items-center justify-between">
+            <div class="space-y-1">
+              <span class="text-xs font-bold text-slate-500 block">إجمالي التحديثات المنشورة</span>
+              <strong id="statTotalReleases" class="font-black text-2xl sm:text-3xl text-slate-900 font-mono">0</strong>
+            </div>
+            <div class="w-11 h-11 rounded-2xl bg-cyan-50 text-cyan-700 border border-cyan-200/60 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs flex items-center justify-between">
+            <div class="space-y-1">
+              <span class="text-xs font-bold text-slate-500 block">منشورة ومتاحة للمحلات</span>
+              <strong id="statActiveReleases" class="font-black text-2xl sm:text-3xl text-emerald-700 font-mono">0</strong>
+            </div>
+            <div class="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200/60 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs flex items-center justify-between">
+            <div class="space-y-1">
+              <span class="text-xs font-bold text-slate-500 block">موقوفة طارئاً (Kill Switch)</span>
+              <strong id="statPausedReleases" class="font-black text-2xl sm:text-3xl text-rose-600 font-mono">0</strong>
+            </div>
+            <div class="w-11 h-11 rounded-2xl bg-rose-50 text-rose-700 border border-rose-200/60 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Toolbar: Search + Action -->
+        <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="relative w-full sm:w-80">
+            <input type="text" id="releasesSearchInput" oninput="filterReleasesTable()" placeholder="ابحث برقم الإصدار، العنوان، أو الهاش..." class="w-full h-10 pr-9 pl-4 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006d41] transition">
+            <svg class="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <button onclick="openModal('publishReleaseModal')" class="w-full sm:w-auto h-10 px-5 bg-[#006d41] hover:bg-[#005634] text-white rounded-xl text-xs sm:text-sm font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-95 shrink-0">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            <span>نشر تحديث جديد</span>
+            <span>نشر تحديث هوائي جديد</span>
           </button>
         </div>
 
-        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <!-- Table Card Container -->
+        <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div class="overflow-x-auto custom-scroll w-full">
-            <table class="w-full text-right border-collapse text-xs min-w-[850px]">
+            <table class="w-full text-right border-collapse text-xs min-w-[920px]">
               <thead class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200/80">
                 <tr>
-                  <th class="px-4 py-3 text-center w-12 font-mono">#</th>
-                  <th class="px-4 py-3 font-mono">الإصدار (Version)</th>
-                  <th class="px-4 py-3">عنوان التحديث والملاحظات</th>
-                  <th class="px-4 py-3 font-mono">بصمة SHA-256 والحجم</th>
-                  <th class="px-4 py-3 text-center">النوع</th>
-                  <th class="px-4 py-3 text-center">حالة النشر</th>
-                  <th class="px-4 py-3 text-center w-36">مفتاح الطوارئ (Kill Switch)</th>
+                  <th class="px-4 py-3.5 text-center w-12 font-mono">#</th>
+                  <th class="px-4 py-3.5 font-mono w-48">الإصدار وتاريخ النشر</th>
+                  <th class="px-4 py-3.5">عنوان التحديث والملاحظات</th>
+                  <th class="px-4 py-3.5 font-mono min-w-[220px]">حزمة التحديث والهاش (SHA-256)</th>
+                  <th class="px-4 py-3.5 text-center w-32">نوع التحديث</th>
+                  <th class="px-4 py-3.5 text-center w-36">حالة التوزيع</th>
+                  <th class="px-4 py-3.5 text-center w-48">التحكم والإجراءات</th>
                 </tr>
               </thead>
               <tbody id="releasesTableBody" class="divide-y divide-slate-100 font-medium text-slate-700">
@@ -694,70 +734,84 @@ export const adminTemplate = `
 
   <!-- Modal 5: Publish Release Modal -->
   <div id="publishReleaseModal" style="display:none !important;" class="modal-backdrop hidden">
-    <div class="modal-card p-5 sm:p-7 max-w-xl sm:max-w-2xl w-full space-y-4 max-h-[90vh] overflow-y-auto custom-scroll">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-        <h3 class="text-base sm:text-lg font-black text-slate-900">نشر تحديث هوائي جديد (Publish OTA Release)</h3>
+    <div class="modal-card modal-card-clipped max-w-xl sm:max-w-2xl w-full max-h-[90vh] sm:max-h-[85vh] flex flex-col text-right overflow-hidden shadow-2xl rounded-[22px] border border-slate-200 bg-white">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0 bg-white rounded-t-[22px]">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/60 flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <h3 class="text-base sm:text-lg font-black text-slate-900">نشر تحديث هوائي جديد (Publish OTA Release)</h3>
+        </div>
         <button type="button" onclick="closeModal('publishReleaseModal')" class="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
 
-      <form novalidate onsubmit="handlePublishRelease(event)" class="space-y-3.5 text-right">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">رقم الإصدار (Version) *:</label>
-            <input type="text" id="pubVersion" required placeholder="مثال: 1.1.0" class="w-full font-mono text-xs sm:text-sm">
+      <!-- Scrollable Form Body -->
+      <form id="publishReleaseForm" novalidate onsubmit="handlePublishRelease(event)" class="flex flex-col flex-1 min-h-0">
+        <div class="p-5 sm:p-6 overflow-y-auto flex-1 space-y-4 custom-scroll">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">رقم الإصدار (Version) *:</label>
+              <input type="text" id="pubVersion" required placeholder="مثال: 1.1.0" class="w-full font-mono text-xs sm:text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ الإصدار:</label>
+              <input type="date" id="pubDate" required class="w-full text-xs sm:text-sm">
+            </div>
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ الإصدار:</label>
-            <input type="date" id="pubDate" required class="w-full text-xs sm:text-sm">
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">عنوان التحديث *:</label>
-          <input type="text" id="pubTitle" required placeholder="تحديث الأمان والأداء السحابي" class="w-full text-xs sm:text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">رابط الحزمة (Package URL):</label>
-          <input type="url" id="pubUrl" placeholder="https://cdn.rafiqpos.com/updates/v1.1.0.pkg" class="w-full font-mono text-xs sm:text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">بصمة SHA-256 للحزمة:</label>
-          <input type="text" id="pubSha" placeholder="a1b2c3d4..." class="w-full font-mono text-xs sm:text-sm">
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">حجم الحزمة (بالميجابايت):</label>
-            <input type="number" step="0.1" id="pubSize" placeholder="15.5" class="w-full text-xs sm:text-sm">
+            <label class="block text-xs font-bold text-slate-700 mb-1">عنوان التحديث *:</label>
+            <input type="text" id="pubTitle" required placeholder="تحديث الأمان والأداء السحابي" class="w-full text-xs sm:text-sm">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">تحديث إجباري؟</label>
-            <div class="custom-select-container" id="wrapper-pubMandatory">
-            <input type="hidden" id="pubMandatory" value="0">
-            <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect('pubMandatory', event)">
-              <span class="custom-select-label">اختياري (موصى به)</span>
-              <svg class="custom-select-chevron w-4 h-4 text-[#006D41] transition-transform duration-200 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            <div id="options-pubMandatory" class="custom-select-options hidden">
-              <div class="custom-option selected" data-value="0" onclick="selectCustomOption('pubMandatory', '0', 'اختياري (موصى به)', event)">
-                <span>اختياري (موصى به)</span>
-                <svg class="custom-option-check w-4 h-4 text-[#006D41]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div class="custom-option" data-value="1" onclick="selectCustomOption('pubMandatory', '1', 'إجباري وحرج', event)">
-                <span>إجباري وحرج</span>
-                <svg class="custom-option-check w-4 h-4 text-[#006D41] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <label class="block text-xs font-bold text-slate-700 mb-1">رابط الحزمة (Package URL) *:</label>
+            <input type="url" id="pubUrl" required placeholder="https://github.com/.../RafiqPOS_Update_v1.0.1.zip" class="w-full font-mono text-xs sm:text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">بصمة SHA-256 للحزمة *:</label>
+            <input type="text" id="pubSha" required placeholder="F867345C354BA14896B75A4EA33997F9DCA52D32B55876AB3C1014FDAFDE311F" class="w-full font-mono text-xs sm:text-sm uppercase">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">حجم الحزمة (بالميجابايت):</label>
+              <input type="number" step="0.1" id="pubSize" placeholder="31.5" class="w-full text-xs sm:text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">تحديث إجباري؟</label>
+              <div class="custom-select-container" id="wrapper-pubMandatory">
+                <input type="hidden" id="pubMandatory" value="0">
+                <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect('pubMandatory', event)">
+                  <span class="custom-select-label">اختياري (موصى به)</span>
+                  <svg class="custom-select-chevron w-4 h-4 text-[#006D41] transition-transform duration-200 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div id="options-pubMandatory" class="custom-select-options hidden">
+                  <div class="custom-option selected" data-value="0" onclick="selectCustomOption('pubMandatory', '0', 'اختياري (موصى به)', event)">
+                    <span>اختياري (موصى به)</span>
+                    <svg class="custom-option-check w-4 h-4 text-[#006D41]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-option" data-value="1" onclick="selectCustomOption('pubMandatory', '1', 'إجباري وحرج', event)">
+                    <span>إجباري وحرج</span>
+                    <svg class="custom-option-check w-4 h-4 text-[#006D41] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">سجل التغييرات (Changelog):</label>
+            <textarea id="pubChangelog" rows="3" placeholder="- تحسين سرعة البحث...\n- إصلاح مشكلة الطباعة..." class="w-full text-xs sm:text-sm"></textarea>
           </div>
         </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">سجل التغييرات (Changelog):</label>
-          <textarea id="pubChangelog" rows="3" placeholder="- تحسين سرعة البحث...\n- إصلاح مشكلة الطباعة..." class="w-full text-xs sm:text-sm"></textarea>
-        </div>
-        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-3 border-t border-slate-100">
-          <button type="button" onclick="closeModal('publishReleaseModal')" class="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs sm:text-sm hover:bg-slate-50 transition cursor-pointer text-center">إلغاء</button>
-          <button type="submit" class="w-full sm:w-auto px-6 py-2.5 bg-[#006d41] hover:bg-[#005634] text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 text-center">نشر التحديث الآن</button>
+
+        <!-- Fixed Modal Footer -->
+        <div class="flex items-center justify-end gap-3 px-6 py-3.5 border-t border-slate-100 shrink-0 bg-slate-50/80 rounded-b-[22px]">
+          <button type="button" onclick="closeModal('publishReleaseModal')" class="px-5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 font-bold text-xs sm:text-sm hover:bg-slate-100 transition cursor-pointer text-center shadow-xs">إلغاء</button>
+          <button type="submit" class="px-6 py-2.5 bg-[#006d41] hover:bg-[#005634] text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 text-center flex items-center gap-2">
+            <span>نشر التحديث الآن</span>
+          </button>
         </div>
       </form>
     </div>
@@ -848,24 +902,58 @@ export const adminTemplate = `
       </div>
 
       <!-- Scrollable Modal Body -->
-      <div class="p-4 sm:p-5 pb-8 sm:pb-10 overflow-y-auto flex-1 space-y-3.5 custom-scroll">
+      <div class="p-4 sm:p-6 pb-8 sm:pb-10 overflow-y-auto flex-1 space-y-4 custom-scroll">
 
-      <!-- License Context Banner -->
-      <div id="rescueLicenseBanner" class="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs min-w-0 overflow-hidden">
-        <div class="flex items-center gap-3">
-          <div class="space-y-0.5">
-            <span class="text-[10px] text-emerald-800 font-bold block">المنشأة:</span>
-            <strong id="rescueShopNameDisplay" class="text-emerald-950 font-black text-xs">سوبرماركت البركة</strong>
+      <!-- License Context Banner (Luxury Enterprise Identity Card) -->
+      <div id="rescueLicenseBanner" class="p-4 sm:p-5 bg-gradient-to-br from-slate-50 via-white to-slate-50 border border-slate-200/90 rounded-2xl shadow-2xs space-y-3.5">
+        <!-- Row 1: Shop Brand & License Credentials -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-[#004d3f] text-white flex items-center justify-center shrink-0 shadow-xs border border-emerald-500/30">
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-slate-400 font-bold">اسم المنشأة:</span>
+                <strong id="rescueShopNameDisplay" class="text-slate-900 font-black text-base sm:text-lg tracking-tight">سوبرماركت البركة</strong>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-xs text-slate-400 font-bold">كود الترخيص:</span>
+                <span id="rescueLicenseKeyDisplay" class="font-mono font-black text-xs text-slate-800 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 select-all tracking-wider">RFQ-XXXX-XXXX</span>
+                <button type="button" onclick="copyFromElementText('rescueLicenseKeyDisplay', 'كود الترخيص')" class="p-1 rounded-md text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition cursor-pointer" title="نسخ كود الترخيص">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="w-px h-6 bg-emerald-200"></div>
-          <div class="space-y-0.5">
-            <span class="text-[10px] text-emerald-800 font-bold block">رمز الترخيص:</span>
-            <span id="rescueLicenseKeyDisplay" class="font-mono text-emerald-900 font-bold text-xs select-all">RFQ-XXXX-XXXX</span>
+          
+          <div id="rescueStatusPillWrapper" class="shrink-0 self-start sm:self-auto">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-black text-xs shadow-2xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>جهاز مربوط ومحقق</span>
+            </span>
           </div>
         </div>
-        <div class="space-y-0.5 text-left">
-          <span class="text-[10px] text-emerald-800 font-bold block text-right">بصمة الجهاز (HWID):</span>
-          <span id="rescueHwidDisplay" class="font-mono text-[11px] text-emerald-900 font-bold bg-white px-2 py-0.5 rounded border border-emerald-200 select-all block break-all text-left [overflow-wrap:anywhere] max-w-full" dir="ltr">...</span>
+
+        <!-- Row 2: Device Fingerprint (HWID) Single-Line Luxury Bar -->
+        <div class="space-y-1.5 pt-0.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-black text-slate-700 flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-emerald-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span>بصمة الجهاز المعتمدة (Machine Fingerprint / HWID):</span>
+            </span>
+            <span class="text-[11px] text-slate-400 font-medium hidden sm:inline">بصمة مشفرة وفريدة مرتبطة بالترخيص</span>
+          </div>
+
+          <div class="flex items-center gap-2 bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
+            <div class="flex-1 overflow-hidden">
+              <span id="rescueHwidDisplay" class="font-mono text-xs sm:text-sm font-black text-slate-800 select-all block truncate text-left tracking-wider" dir="ltr" title="بصمة الجهاز كاملة">...</span>
+            </div>
+            <button type="button" onclick="copyRescueHwid(this)" class="px-3.5 py-1.5 rounded-lg bg-[#006d41] hover:bg-[#005634] text-white font-black text-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs active:scale-95" title="نسخ بصمة الجهاز">
+              <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>نسخ البصمة</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -875,72 +963,74 @@ export const adminTemplate = `
         <span>هذا الترخيص جديد ولم يتم تفعيله بعد على كمبيوتر العميل (بانتظار التفعيل). إذا كان الجهاز معطلاً أوفلاين، أدخل بصمة جهازه أدناه.</span>
       </div>
 
-      <!-- 3 Primary Rescue Tool Cards (Spacious, Zero-Cramping Grid) -->
-      <div class="grid grid-cols-3 gap-1.5 sm:gap-2.5 p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold">
-        <button type="button" id="btnRescueTabRootSession" onclick="switchRescueSubTab('root-session')" class="p-2 sm:p-3 rounded-xl text-center transition flex flex-col items-center justify-center gap-1 sm:gap-1.5 bg-white text-purple-900 shadow-xs cursor-pointer border border-purple-200/50">
-          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+      <!-- 3 Primary Rescue Tool Cards -->
+      <div class="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold">
+        <button type="button" id="btnRescueTabRootSession" onclick="switchRescueSubTab('root-session')" class="p-2.5 sm:p-3.5 rounded-xl text-center transition flex flex-col items-center justify-center gap-1.5 bg-white text-purple-900 shadow-xs cursor-pointer border border-purple-200/50">
+          <div class="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
           </div>
-          <span class="font-black text-[11px] sm:text-xs leading-none truncate w-full">جلسة مطور</span>
-          <span class="hidden sm:block text-[10px] text-purple-700/70 font-normal">فتح وضع المطور 15 دقيقة</span>
+          <span class="font-black text-xs sm:text-sm leading-tight">جلسة مطور</span>
+          <span class="hidden sm:block text-xs text-purple-700/70 font-normal">فتح وضع المطور 15 دقيقة</span>
         </button>
 
-        <button type="button" id="btnRescueTabPinRecovery" onclick="switchRescueSubTab('pin-recovery')" class="p-2 sm:p-3 rounded-xl text-center transition flex flex-col items-center justify-center gap-1 sm:gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer border border-transparent">
-          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+        <button type="button" id="btnRescueTabPinRecovery" onclick="switchRescueSubTab('pin-recovery')" class="p-2.5 sm:p-3.5 rounded-xl text-center transition flex flex-col items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer border border-transparent">
+          <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
-          <span class="font-black text-[11px] sm:text-xs leading-none truncate w-full">استعادة PIN</span>
-          <span class="hidden sm:block text-[10px] text-slate-400 font-normal">تصفير رمز PIN للكاشير</span>
+          <span class="font-black text-xs sm:text-sm leading-tight">استعادة PIN</span>
+          <span class="hidden sm:block text-xs text-slate-400 font-normal">تصفير رمز PIN للكاشير</span>
         </button>
 
-        <button type="button" id="btnRescueTabClockReset" onclick="switchRescueSubTab('clock-reset')" class="p-2 sm:p-3 rounded-xl text-center transition flex flex-col items-center justify-center gap-1 sm:gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer border border-transparent">
-          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+        <button type="button" id="btnRescueTabClockReset" onclick="switchRescueSubTab('clock-reset')" class="p-2.5 sm:p-3.5 rounded-xl text-center transition flex flex-col items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer border border-transparent">
+          <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
           </div>
-          <span class="font-black text-[11px] sm:text-xs leading-none truncate w-full">فك قفل الساعة</span>
-          <span class="hidden sm:block text-[10px] text-slate-400 font-normal">فك تلاعب التاريخ والوقت</span>
+          <span class="font-black text-xs sm:text-sm leading-tight">فك قفل الساعة</span>
+          <span class="hidden sm:block text-xs text-slate-400 font-normal">فك تلاعب التاريخ والوقت</span>
         </button>
       </div>
 
       <!-- Tool 1: Developer Root Session (SEC-01) -->
-      <div id="rescueSecRootSession" class="space-y-3">
-        <div class="bg-purple-50 p-3 rounded-xl border border-purple-200/80 text-[11px] text-purple-900 leading-relaxed">
+      <div id="rescueSecRootSession" class="space-y-4">
+        <div class="bg-purple-50 p-3.5 rounded-xl border border-purple-200/80 text-xs text-purple-900 leading-relaxed font-medium">
           حل تحدي التشفير المؤقت (HMAC-SHA256 Challenge) لفتح صلاحيات وضع المطور لمدة 15 دقيقة على شاشة الكاشير.
         </div>
         
-        <!-- Known Bound HWID Badge -->
-        <div id="rootBoundFpBox" class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 min-w-0 overflow-hidden">
-          <span class="text-slate-500 font-bold shrink-0">بصمة جهاز العميل (مثبتة تلقائياً):</span>
-          <span id="rootBoundFpDisplay" class="font-mono font-bold text-slate-800 select-all break-all text-left [overflow-wrap:anywhere] text-[11px] leading-tight block max-w-full" dir="ltr"></span>
+        <!-- Known Bound HWID Badge (Clean, Zero Duplication) -->
+        <div id="rootBoundFpBox" class="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200/90 text-xs flex items-center gap-2.5 text-emerald-950 font-bold">
+          <div class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <span>بصمة جهاز العميل مثبتة ومحققة تلقائياً من الترخيص المسجل أعلاه.</span>
         </div>
 
-        <form novalidate onsubmit="handleRootSessionChallenge(event)" class="space-y-3">
+        <form novalidate onsubmit="handleRootSessionChallenge(event)" class="space-y-4">
           <div id="rootUnboundFpBox" style="display:none;">
-            <label class="block text-xs font-bold text-slate-700 mb-1">بصمة الجهاز (HWID) *:</label>
-            <input type="text" id="rootManualFpInput" placeholder="أدخل بصمة الجهاز الظاهرة على شاشة العميل..." class="w-full font-mono text-xs text-left" dir="ltr">
+            <label class="block text-xs font-black text-slate-700 mb-1.5">بصمة الجهاز (HWID) *:</label>
+            <input type="text" id="rootManualFpInput" placeholder="أدخل بصمة الجهاز الظاهرة على شاشة العميل..." class="w-full font-mono text-sm text-left h-11 px-3.5 rounded-xl border border-slate-200" dir="ltr">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">كود التحدي الظاهر على شاشة العميل (Challenge Code) *:</label>
-            <input type="text" id="rootChallengeInput" required placeholder="مثال: 7WA8-G7J2-0B أو RFQ-DBG-..." class="w-full font-mono text-xs text-left font-bold" dir="ltr">
+            <label class="block text-xs font-black text-slate-700 mb-1.5">كود التحدي الظاهر على شاشة العميل (Challenge Code) *:</label>
+            <input type="text" id="rootChallengeInput" required placeholder="مثال: 7WA8-G7J2-0B أو RFQ-DBG-..." class="w-full font-mono text-sm text-left font-bold h-11 px-3.5 rounded-xl border border-slate-200 tracking-wider" dir="ltr">
           </div>
-          <button type="submit" id="btnRootSubmit" class="w-full py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer">
+          <button type="submit" id="btnRootSubmit" class="w-full h-11 bg-purple-700 hover:bg-purple-800 text-white font-black rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-[0.99]">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
             <span>توليد رمز الاستجابة المؤقت (15 دقيقة)</span>
           </button>
         </form>
 
         <!-- Result Box 1 -->
-        <div id="rootSessionResultBox" style="display:none;" class="p-3.5 bg-purple-50 rounded-2xl border border-purple-300 space-y-2">
-          <div class="flex items-center justify-between text-xs font-bold text-purple-900">
+        <div id="rootSessionResultBox" style="display:none;" class="p-4 bg-purple-50 rounded-2xl border border-purple-300 space-y-2.5">
+          <div class="flex items-center justify-between text-xs font-black text-purple-900">
             <span class="flex items-center gap-1.5">
               <svg class="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
               <span>تم توليد رمز جلسة المطور بنجاح!</span>
             </span>
           </div>
           <div class="flex items-center gap-2">
-            <input type="text" id="rootSessionResultToken" readonly class="w-full font-mono text-xs font-bold bg-slate-900 text-purple-300 p-2.5 rounded-xl border border-slate-800 select-all text-left" dir="ltr" onclick="this.select()">
-            <button type="button" onclick="copyFromInput('rootSessionResultToken', 'رمز جلسة المطور')" class="px-3 py-2.5 bg-purple-900 hover:bg-purple-950 text-white font-bold rounded-xl text-xs transition shrink-0 flex items-center gap-1 cursor-pointer">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <input type="text" id="rootSessionResultToken" readonly class="w-full font-mono text-sm font-black bg-slate-900 text-purple-300 h-11 px-3.5 rounded-xl border border-slate-800 select-all text-left" dir="ltr" onclick="this.select()">
+            <button type="button" onclick="copyFromInput('rootSessionResultToken', 'رمز جلسة المطور')" class="h-11 px-4 bg-purple-900 hover:bg-purple-950 text-white font-black rounded-xl text-xs sm:text-sm transition shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <span>نسخ الرمز</span>
             </button>
           </div>
@@ -948,42 +1038,41 @@ export const adminTemplate = `
       </div>
 
       <!-- Tool 2: PIN Recovery (SEC-02) -->
-      <div id="rescueSecPinRecovery" style="display:none;" class="space-y-3">
-        <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200/80 text-[11px] text-emerald-900 leading-relaxed">
+      <div id="rescueSecPinRecovery" style="display:none;" class="space-y-4">
+        <div class="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200/80 text-xs text-emerald-900 leading-relaxed font-medium">
           حل كود تحدي PIN الظاهر للكاشير لفتح النظام وتصفير الرمز السري في حالات نسيان كلمة المرور.
         </div>
 
-        <div id="pinBoundNotice" class="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 space-y-1.5 min-w-0 overflow-hidden">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 min-w-0">
-            <span class="font-bold shrink-0">بصمة الجهاز المربوطة:</span>
-            <span id="pinBoundFpDisplay" class="font-mono font-bold text-emerald-800 select-all break-all text-left [overflow-wrap:anywhere] text-[11px] leading-tight block max-w-full" dir="ltr"></span>
+        <div id="pinBoundNotice" class="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200/90 text-xs flex items-center gap-2.5 text-emerald-950 font-bold">
+          <div class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
-          <div class="text-[11px] text-emerald-700">الترخيص مربوط ومحقق بالسيرفر، انقر أدناه لتوليد كود فك PIN فوراً بنقرة واحدة.</div>
+          <span>بصمة جهاز العميل مربوطة ومحققة بالسيرفر، انقر أدناه لتوليد كود فك PIN فوراً.</span>
         </div>
 
-        <form novalidate onsubmit="handleDirectPinRecovery(event)" class="space-y-3">
+        <form novalidate onsubmit="handleDirectPinRecovery(event)" class="space-y-4">
           <div id="pinUnboundInputBox" style="display:none;">
-            <label class="block text-xs font-bold text-slate-700 mb-1">كود تحدي PIN أو بصمة الجهاز *:</label>
-            <input type="text" id="directRecCodeInput" placeholder="أدخل بصمة الجهاز أو كود التحدي..." class="w-full font-mono text-xs text-left font-bold" dir="ltr">
+            <label class="block text-xs font-black text-slate-700 mb-1.5">كود تحدي PIN أو بصمة الجهاز *:</label>
+            <input type="text" id="directRecCodeInput" placeholder="أدخل بصمة الجهاز أو كود التحدي..." class="w-full font-mono text-sm text-left font-bold h-11 px-3.5 rounded-xl border border-slate-200" dir="ltr">
           </div>
-          <button type="submit" id="btnPinRecoverySubmit" class="w-full py-2.5 bg-[#006d41] hover:bg-[#005634] text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer">
+          <button type="submit" id="btnPinRecoverySubmit" class="w-full h-11 bg-[#006d41] hover:bg-[#005634] text-white font-black rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-[0.99]">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             <span>توليد رمز استعادة PIN فوراً</span>
           </button>
         </form>
 
         <!-- Result Box 2 -->
-        <div id="pinRecoveryResultBox" style="display:none;" class="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-300 space-y-2">
-          <div class="flex items-center justify-between text-xs font-bold text-emerald-900">
+        <div id="pinRecoveryResultBox" style="display:none;" class="p-4 bg-emerald-50 rounded-2xl border border-emerald-300 space-y-2.5">
+          <div class="flex items-center justify-between text-xs font-black text-emerald-900">
             <span class="flex items-center gap-1.5">
               <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
               <span>تم توليد كود استعادة PIN بنجاح!</span>
             </span>
           </div>
           <div class="flex items-center gap-2">
-            <input type="text" id="pinRecoveryResultToken" readonly class="w-full font-mono text-xs font-bold bg-slate-900 text-emerald-300 p-2.5 rounded-xl border border-slate-800 select-all text-left" dir="ltr" onclick="this.select()">
-            <button type="button" onclick="copyFromInput('pinRecoveryResultToken', 'رمز استعادة PIN')" class="px-3 py-2.5 bg-[#00372d] hover:bg-[#00261f] text-white font-bold rounded-xl text-xs transition shrink-0 flex items-center gap-1 cursor-pointer">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <input type="text" id="pinRecoveryResultToken" readonly class="w-full font-mono text-sm font-black bg-slate-900 text-emerald-300 h-11 px-3.5 rounded-xl border border-slate-800 select-all text-left" dir="ltr" onclick="this.select()">
+            <button type="button" onclick="copyFromInput('pinRecoveryResultToken', 'رمز استعادة PIN')" class="h-11 px-4 bg-[#00372d] hover:bg-[#00261f] text-white font-black rounded-xl text-xs sm:text-sm transition shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <span>نسخ الرمز</span>
             </button>
           </div>
@@ -991,42 +1080,41 @@ export const adminTemplate = `
       </div>
 
       <!-- Tool 3: Clock Reset (BUG-06) -->
-      <div id="rescueSecClockReset" style="display:none;" class="space-y-3">
-        <div class="bg-blue-50 p-3 rounded-xl border border-blue-200/80 text-[11px] text-blue-900 leading-relaxed">
+      <div id="rescueSecClockReset" style="display:none;" class="space-y-4">
+        <div class="bg-blue-50 p-3.5 rounded-xl border border-blue-200/80 text-xs text-blue-900 leading-relaxed font-medium">
           فك قفل التلاعب بالتاريخ والتوقيت في بيئة العميل الأوفلاين وإعادة مزامنة ساعة النظام.
         </div>
 
-        <div id="clockBoundNotice" class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-900 space-y-1.5 min-w-0 overflow-hidden">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 min-w-0">
-            <span class="font-bold shrink-0">بصمة الجهاز المربوطة:</span>
-            <span id="clockBoundFpDisplay" class="font-mono font-bold text-blue-800 select-all break-all text-left [overflow-wrap:anywhere] text-[11px] leading-tight block max-w-full" dir="ltr"></span>
+        <div id="clockBoundNotice" class="p-3 bg-blue-50/70 rounded-xl border border-blue-200/90 text-xs flex items-center gap-2.5 text-blue-950 font-bold">
+          <div class="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
-          <div class="text-[11px] text-blue-700">الترخيص مربوط ومحقق بالسيرفر، انقر أدناه لتوليد كود فك حظر الساعة فوراً.</div>
+          <span>بصمة جهاز العميل مربوطة ومحققة بالسيرفر، انقر أدناه لتوليد كود فك حظر الساعة فوراً.</span>
         </div>
 
-        <form novalidate onsubmit="handleClockReset(event)" class="space-y-3">
+        <form novalidate onsubmit="handleClockReset(event)" class="space-y-4">
           <div id="clockUnboundInputBox" style="display:none;">
-            <label class="block text-xs font-bold text-slate-700 mb-1">كود ساعة العميل أو بصمة الجهاز *:</label>
-            <input type="text" id="clockResetCodeInput" placeholder="أدخل بصمة الجهاز أو كود ساعة العميل..." class="w-full font-mono text-xs text-left font-bold" dir="ltr">
+            <label class="block text-xs font-black text-slate-700 mb-1.5">كود ساعة العميل أو بصمة الجهاز *:</label>
+            <input type="text" id="clockResetCodeInput" placeholder="أدخل بصمة الجهاز أو كود ساعة العميل..." class="w-full font-mono text-sm text-left font-bold h-11 px-3.5 rounded-xl border border-slate-200" dir="ltr">
           </div>
-          <button type="submit" id="btnClockResetSubmit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer">
+          <button type="submit" id="btnClockResetSubmit" class="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-[0.99]">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
             <span>توليد كود فك حظر الساعة فوراً</span>
           </button>
         </form>
 
         <!-- Result Box 3 -->
-        <div id="clockResetResultBox" style="display:none;" class="p-3.5 bg-blue-50 rounded-2xl border border-blue-300 space-y-2">
-          <div class="flex items-center justify-between text-xs font-bold text-blue-900">
+        <div id="clockResetResultBox" style="display:none;" class="p-4 bg-blue-50 rounded-2xl border border-blue-300 space-y-2.5">
+          <div class="flex items-center justify-between text-xs font-black text-blue-900">
             <span class="flex items-center gap-1.5">
               <svg class="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
               <span>تم توليد رمز فك حظر الساعة بنجاح!</span>
             </span>
           </div>
           <div class="flex items-center gap-2">
-            <input type="text" id="clockResetResultToken" readonly class="w-full font-mono text-xs font-bold bg-slate-900 text-sky-300 p-2.5 rounded-xl border border-slate-800 select-all text-left" dir="ltr" onclick="this.select()">
-            <button type="button" onclick="copyFromInput('clockResetResultToken', 'رمز ضبط الساعة')" class="px-3 py-2.5 bg-blue-900 hover:bg-blue-950 text-white font-bold rounded-xl text-xs transition shrink-0 flex items-center gap-1 cursor-pointer">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <input type="text" id="clockResetResultToken" readonly class="w-full font-mono text-sm font-black bg-slate-900 text-sky-300 h-11 px-3.5 rounded-xl border border-slate-800 select-all text-left" dir="ltr" onclick="this.select()">
+            <button type="button" onclick="copyFromInput('clockResetResultToken', 'رمز ضبط الساعة')" class="h-11 px-4 bg-blue-900 hover:bg-blue-950 text-white font-black rounded-xl text-xs sm:text-sm transition shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <span>نسخ الرمز</span>
             </button>
           </div>

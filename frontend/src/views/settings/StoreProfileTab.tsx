@@ -10,11 +10,18 @@ import {
   Printer,
   CheckCircle,
   UserRound,
+  Type,
+  Layers,
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
 import { AppButton } from '../../components/AppButton';
-import { optimizeImageForThermal } from '../../utils/thermalImageOptimizer';
+import {
+  optimizeImageForThermal,
+  detectImageComplexity,
+  generateThermal1BitSimulation,
+  type ThermalOptimizeMode,
+} from '../../utils/thermalImageOptimizer';
 import { ReceiptPaper } from '../../components/ReceiptPaper';
 import {
   buildReceiptModel,
@@ -109,6 +116,10 @@ export const StoreProfileTab = ({
 }: StoreProfileTabProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
+  const [rawLogoSource, setRawLogoSource] = useState<string | null>(null);
+  const [logoMode, setLogoMode] = useState<ThermalOptimizeMode>('crisp');
+  const [isThermalSim, setIsThermalSim] = useState(false);
+  const [thermalSimUrl, setThermalSimUrl] = useState('');
 
   const headerError = receiptTextLimitError(receiptHeader);
   const footerError = receiptTextLimitError(receiptFooter);
@@ -134,16 +145,65 @@ export const StoreProfileTab = ({
     };
     reader.onload = async () => {
       if (typeof reader.result === 'string') {
+        const raw = reader.result;
+        setRawLogoSource(raw);
         try {
-          // Auto-optimize to recommended thermal dimensions & pure high contrast monochrome
-          setStoreLogoUrl(await optimizeImageForThermal(reader.result));
+          const tempImg = new Image();
+          tempImg.onload = async () => {
+            let autoMode: ThermalOptimizeMode = 'crisp';
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.min(200, tempImg.width);
+              canvas.height = Math.min(200, tempImg.height);
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(tempImg, 0, 0, canvas.width, canvas.height);
+                const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                autoMode = detectImageComplexity(data.data, canvas.width, canvas.height);
+              }
+            } catch {
+              // fallback to crisp
+            }
+            setLogoMode(autoMode);
+            const optimized = await optimizeImageForThermal(raw, { mode: autoMode });
+            setStoreLogoUrl(optimized);
+            const sim = await generateThermal1BitSimulation(optimized);
+            setThermalSimUrl(sim);
+            setIsUploading(false);
+          };
+          tempImg.onerror = async () => {
+            const optimized = await optimizeImageForThermal(raw, { mode: 'crisp' });
+            setStoreLogoUrl(optimized);
+            setIsUploading(false);
+          };
+          tempImg.src = raw;
         } catch {
-          setStoreLogoUrl(reader.result);
+          setStoreLogoUrl(raw);
+          setIsUploading(false);
         }
+      } else {
+        setIsUploading(false);
       }
-      setIsUploading(false);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleModeChange = async (nextMode: ThermalOptimizeMode) => {
+    if (nextMode === logoMode || !setStoreLogoUrl) return;
+    setLogoMode(nextMode);
+    const src = rawLogoSource || storeLogoUrl;
+    if (!src || isDefaultLogo) return;
+    setIsUploading(true);
+    try {
+      const optimized = await optimizeImageForThermal(src, { mode: nextMode });
+      setStoreLogoUrl(optimized);
+      const sim = await generateThermal1BitSimulation(optimized);
+      setThermalSimUrl(sim);
+    } catch (err) {
+      console.warn('Thermal logo mode change fallback:', err);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   let statusNode;
@@ -230,56 +290,125 @@ export const StoreProfileTab = ({
           }
         >
           {showReceiptLogo && (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-4 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4">
-                <div className="w-20 h-14 rounded-lg border border-line dark:border-line-dark bg-white p-1 flex items-center justify-center overflow-hidden shrink-0">
-                  <img
-                    src={storeLogoUrl}
-                    alt="معاينة الشعار"
-                    className="max-h-full max-w-full object-contain"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = DEFAULT_LOGO_URL;
-                    }}
-                  />
-                </div>
-                <div className="flex-1 min-w-48 flex flex-col gap-1">
-                  <span className="t-label text-ink dark:text-ink-dark">
-                    {isDefaultLogo ? 'شعار رفيق الافتراضي' : 'شعار المحل المخصص'}
-                  </span>
-                  <span className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                    {isDefaultLogo
-                      ? 'ارفع شعار محلك ليحل محله على الوصل.'
-                      : 'جُهّز تلقائياً للطباعة الحرارية: أبيض وأسود عالي التباين.'}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label
-                    className={`h-10 px-4 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
-                      isUploading ? 'opacity-60 pointer-events-none' : 'cursor-pointer'
-                    }`}
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>{isUploading ? 'جاري تجهيز الشعار...' : 'رفع شعار جديد'}</span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      disabled={isUploading}
-                      onChange={handleLogoUpload}
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-4 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="w-24 h-16 rounded-lg border border-line dark:border-line-dark bg-white p-1.5 flex items-center justify-center overflow-hidden shrink-0 shadow-xs relative">
+                    <img
+                      src={isThermalSim && thermalSimUrl ? thermalSimUrl : storeLogoUrl}
+                      alt="معاينة الشعار"
+                      className="max-h-full max-w-full object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = DEFAULT_LOGO_URL;
+                      }}
                     />
-                  </label>
-                  {!isDefaultLogo && (
-                    <AppButton variant="secondary" icon={RotateCcw} onClick={() => setStoreLogoUrl?.(DEFAULT_LOGO_URL)}>
-                      الشعار الافتراضي
-                    </AppButton>
-                  )}
+                    {isThermalSim && (
+                      <span dir="ltr" className="absolute bottom-1 right-1 text-micro font-bold px-1.5 py-0.5 rounded bg-ink text-white dark:bg-canvas-dark dark:text-paid-bright dark:border dark:border-paid-bright/30 leading-none shadow-xs">
+                        1-Bit
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-48 flex flex-col gap-1">
+                    <span className="t-label text-ink dark:text-ink-dark">
+                      {isDefaultLogo ? 'شعار رفيق الافتراضي' : 'شعار المحل المخصص'}
+                    </span>
+                    <span className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                      {isDefaultLogo
+                        ? 'ارفع شعار محلك ليحل محله على الوصل.'
+                        : 'معالج تلقائياً بتقنية تشتيت النقط الحرارية وتعويض تمدد الحبر.'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label
+                      className={`h-10 px-4 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
+                        isUploading ? 'opacity-60 pointer-events-none' : 'cursor-pointer'
+                      }`}
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>{isUploading ? 'جاري تجهيز الشعار...' : 'رفع شعار جديد'}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        disabled={isUploading}
+                        onChange={handleLogoUpload}
+                      />
+                    </label>
+                    {!isDefaultLogo && (
+                      <AppButton variant="secondary" icon={RotateCcw} onClick={() => {
+                        setRawLogoSource(null);
+                        setThermalSimUrl('');
+                        setIsThermalSim(false);
+                        setStoreLogoUrl?.(DEFAULT_LOGO_URL);
+                      }}>
+                        الشعار الافتراضي
+                      </AppButton>
+                    )}
+                  </div>
                 </div>
+
+                {!isDefaultLogo && (
+                  <div className="pt-3 border-t border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-ink-muted dark:text-ink-muted-dark">
+                        نمط المعالجة الحرارية:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleModeChange('crisp')}
+                        disabled={isUploading}
+                        aria-pressed={logoMode === 'crisp'}
+                        className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border ${
+                          logoMode === 'crisp'
+                            ? 'bg-brand dark:bg-paid-bright text-white dark:text-surface-dark border-transparent shadow-xs'
+                            : 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                        }`}
+                      >
+                        <Type className="w-3.5 h-3.5" />
+                        <span>خطوط ونصوص حادة</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleModeChange('dither')}
+                        disabled={isUploading}
+                        aria-pressed={logoMode === 'dither'}
+                        className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border ${
+                          logoMode === 'dither'
+                            ? 'bg-brand dark:bg-paid-bright text-white dark:text-surface-dark border-transparent shadow-xs'
+                            : 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>تدرجات وتفاصيل دقيقة</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsThermalSim(!isThermalSim)}
+                      aria-pressed={isThermalSim}
+                      className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border ${
+                        isThermalSim
+                          ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid dark:border-paid-bright/40 shadow-xs'
+                          : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-muted-dark border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-ink-dark'
+                      }`}
+                      title="محاكاة ما يطبعه سن الطابعة الحرارية بالضبط بنقاط الأبيض والأسود"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>معاينة سن الطابعة (1-Bit)</span>
+                    </button>
+                  </div>
+                )}
               </div>
+
               {logoError ? (
                 <span className="text-xs font-semibold text-danger dark:text-danger-bright">{logoError}</span>
               ) : (
-                <span className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                  الأفضل صورة مربعة أو عريضة بخلفية بيضاء أو شفافة. يقوم النظام بتجهيزها تلقائياً بأعلى نقاء للطباعة الحرارية بدون بهتان أو بكسلة.
+                <span className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
+                  <span>
+                    يقوم رفيق تلقائياً بتنظيف خلفيات كاميرا الهاتف، تعويض تمدد الحبر الحراري، وقص الحواف الفارغة لضمان أقصى نقاء.
+                  </span>
                 </span>
               )}
             </div>

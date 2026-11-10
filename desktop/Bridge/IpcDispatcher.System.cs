@@ -409,7 +409,11 @@ namespace RafiqPOS.Bridge
                         storeAddress = sAddr,
                         uiMotionEnabled = DatabaseService.Settings.IsUiMotionEnabled(),
                         uiMotionLevel = DatabaseService.Settings.GetUiMotionLevel(),
-                        uiMotionStyle = DatabaseService.Settings.GetUiMotionStyle()
+                        uiMotionStyle = DatabaseService.Settings.GetUiMotionStyle(),
+                        deviceHardwareTier = DatabaseService.Settings.GetDeviceHardwareTier(),
+                        deviceHardwareTierArabic = DatabaseService.Settings.GetDeviceHardwareTierArabic(),
+                        deviceHardwareSummary = DatabaseService.Settings.GetDeviceHardwareSummary(),
+                        detectedMotionLevel = DatabaseService.Settings.GetDetectedMotionLevel()
                     });
                     return true;
 

@@ -1992,9 +1992,11 @@ export const adminStyles = `    :root {
     }
     .custom-select-options {
       position: absolute !important;
-      top: calc(100% + 6px) !important;
+      top: calc(100% + 6px);
+      bottom: auto;
       left: 0 !important;
       right: 0 !important;
+      min-height: 48px !important;
       max-height: 260px !important;
       overflow-y: auto !important;
       background: #ffffff !important;
@@ -2003,20 +2005,21 @@ export const adminStyles = `    :root {
       box-shadow: 0 20px 40px -4px rgba(0, 0, 0, 0.28) !important;
       z-index: 99999 !important;
       padding: 6px !important;
+      padding-inline-start: 8px !important;
+      padding-inline-end: 6px !important;
       display: flex !important;
       flex-direction: column !important;
       gap: 2px !important;
       scrollbar-width: thin !important;
-      scrollbar-color: #006D41 #E6F2ED !important;
+      scrollbar-color: #006D41 rgba(0, 55, 45, 0.05) !important;
+    }
+    .custom-select-container.drop-up .custom-select-options {
+      top: auto !important;
+      bottom: calc(100% + 6px) !important;
+      box-shadow: 0 -15px 35px -4px rgba(0, 0, 0, 0.22) !important;
     }
     .custom-select-options::-webkit-scrollbar {
       width: 6px !important;
-    }
-    .custom-select-options {
-      scrollbar-width: thin !important;
-      scrollbar-color: #006D41 rgba(0, 55, 45, 0.05) !important;
-      padding-inline-start: 8px !important;
-      padding-inline-end: 6px !important;
     }
     .custom-select-options::-webkit-scrollbar-track {
       background: rgba(0, 55, 45, 0.05) !important;
@@ -2048,6 +2051,8 @@ export const adminStyles = `    :root {
       justify-content: space-between !important;
       transition: background 0.12s ease !important;
       user-select: none !important;
+      min-height: 40px !important;
+      flex-shrink: 0 !important;
     }
     .custom-option:hover {
       background-color: #f1f5f9 !important;
@@ -2064,14 +2069,15 @@ export const adminStyles = `    :root {
     .floating-action-dropdown {
       position: fixed !important;
       z-index: 99999 !important;
-      width: 280px !important;
+      width: 275px !important;
+      max-height: calc(100vh - 20px) !important;
+      overflow-y: auto !important;
       background: #ffffff !important;
       border: 1px solid #cbd5e1 !important;
-      border-radius: 16px !important;
-      box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-      padding: 8px !important;
+      border-radius: 14px !important;
+      box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.22), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+      padding: 6px !important;
       animation: menuPop 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
-      overflow: hidden !important;
       pointer-events: auto !important;
     }
     @keyframes menuPop {
@@ -2082,21 +2088,34 @@ export const adminStyles = `    :root {
       width: 100% !important;
       display: flex !important;
       align-items: center !important;
-      gap: 12px !important;
-      padding: 11px 14px !important;
-      border-radius: 10px !important;
+      gap: 10px !important;
+      padding: 8px 10px !important;
+      border-radius: 8px !important;
       background: transparent !important;
       border: none !important;
       text-align: right !important;
       cursor: pointer !important;
-      font-size: 13.5px !important;
+      font-size: 13px !important;
       font-weight: 700 !important;
       font-family: inherit !important;
       transition: background 0.12s ease !important;
       user-select: none !important;
     }
     .menu-item:hover {
+      background-color: #f8fafc !important;
+    }
+    .menu-section-label {
+      font-size: 10px !important;
+      font-weight: 800 !important;
+      color: #94a3b8 !important;
+      padding: 6px 10px 2px 10px !important;
+      text-align: right !important;
+      user-select: none !important;
+    }
+    .menu-divider-line {
+      height: 1px !important;
       background-color: #f1f5f9 !important;
+      margin: 4px 4px !important;
     }
 
     /* ========================================================================= */

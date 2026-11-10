@@ -775,7 +775,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     ).all<ReleaseRecord>();
 
     return new Response(
-      JSON.stringify({ success: true, releases: releases.results || [] }),
+      JSON.stringify({ success: true, releases: releases.results || [], data: releases.results || [] }),
       { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
     );
   }
@@ -787,14 +787,17 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       release_date?: string;
       title?: string;
       changelog?: string;
-      download_url: string;
+      download_url?: string;
+      package_url?: string;
       sha256: string;
       file_size_bytes?: number;
-      is_mandatory?: boolean;
-      is_published?: boolean;
+      size_bytes?: number;
+      is_mandatory?: boolean | number;
+      is_published?: boolean | number;
     }>();
 
-    if (!body.version || !body.download_url || !body.sha256) {
+    const rawUrl = (body.download_url || body.package_url || '').trim();
+    if (!body.version || !rawUrl || !body.sha256) {
       return new Response(
         JSON.stringify({ success: false, message: 'بيانات رقم الإصدار ورابط التحميل وبصمة الهاش (SHA-256) إلزامية' }),
         { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
@@ -806,9 +809,9 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     const releaseDate = body.release_date ? body.release_date.trim() : new Date().toISOString().slice(0, 10);
     const title = body.title && body.title.trim() ? body.title.trim() : ('إصدار رفيق v' + cleanVersion);
     const changelog = body.changelog && body.changelog.trim() ? body.changelog.trim() : 'تحسينات عامة واستقرار إضافي للنظام.';
-    const downloadUrl = body.download_url.trim();
+    const downloadUrl = rawUrl;
     const sha256 = body.sha256.trim().toUpperCase();
-    const fileSizeBytes = Number(body.file_size_bytes) || 0;
+    const fileSizeBytes = Number(body.file_size_bytes ?? body.size_bytes) || 0;
     const isMandatory = body.is_mandatory ? 1 : 0;
     const isPublished = body.is_published !== undefined ? (body.is_published ? 1 : 0) : 1;
 
@@ -882,7 +885,8 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
         { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
     }
-    const newCan = lic.can_receive_updates === 1 ? 0 : 1;
+    const currentCan = lic.can_receive_updates === 0 ? 0 : 1;
+    const newCan = currentCan === 1 ? 0 : 1;
     await env.DB.prepare("UPDATE licenses SET can_receive_updates = ?, updated_at = datetime('now') WHERE id = ?")
       .bind(newCan, licId)
       .run();
@@ -890,7 +894,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     return new Response(
       JSON.stringify({
         success: true,
-        message: newCan === 1 ? 'تم تفعيل استلام التحديثات الهوائية لهذا المحل' : 'تم إيقاف استلام التحديثات الهوائية لهذا المحل',
+        message: newCan === 1 ? `تم تفعيل استلام التحديثات الهوائية لمتجر (${lic.shop_name})` : `تم إيقاف استلام التحديثات الهوائية لمتجر (${lic.shop_name})`,
         can_receive_updates: newCan
       }),
       { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
