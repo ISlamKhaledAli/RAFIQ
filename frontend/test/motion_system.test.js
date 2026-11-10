@@ -26,17 +26,19 @@ const marker = css.indexOf('Opt-in motion');
 const motionCss = css.slice(marker);
 
 describe('motion setting and plumbing', () => {
-  it('uses the ui_motion_enabled key and is off by default', () => {
+  it('uses the ui_motion_enabled key and is on by default', () => {
     assert.equal(MOTION_SETTING_KEY, 'ui_motion_enabled');
-    assert.equal(DEFAULT_MOTION_ENABLED, false);
-    assert.equal(parseMotionSetting(undefined), false);
-    assert.equal(parseMotionSetting(null), false);
-    assert.equal(parseMotionSetting(''), false);
+    assert.equal(DEFAULT_MOTION_ENABLED, true);
+    assert.equal(parseMotionSetting(undefined), true);
+    assert.equal(parseMotionSetting(null), true);
+    assert.equal(parseMotionSetting(''), true);
     assert.equal(parseMotionSetting('0'), false);
-    assert.equal(parseMotionSetting('garbage'), false);
+    assert.equal(parseMotionSetting('false'), false);
+    assert.equal(parseMotionSetting('off'), false);
     assert.equal(parseMotionSetting('1'), true);
     assert.equal(parseMotionSetting(' TRUE '), true);
     assert.equal(parseMotionSetting(true), true);
+    assert.equal(parseMotionSetting(false), false);
   });
 
   it('sets html data-motion and caches the value for the next first paint', () => {
@@ -50,12 +52,12 @@ describe('motion setting and plumbing', () => {
     setMotionEnabled(root, storage, true);
     assert.equal(storage.data[MOTION_STORAGE_KEY], '1');
     assert.equal(loadCachedMotion(storage), true);
-    assert.equal(loadCachedMotion(memoryStorage()), false);
+    assert.equal(loadCachedMotion(memoryStorage()), true);
   });
 
   it('survives blocked storage', () => {
     const blocked = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
-    assert.equal(loadCachedMotion(blocked), false);
+    assert.equal(loadCachedMotion(blocked), true);
     const root = fakeRoot();
     setMotionEnabled(root, blocked, true);
     assert.equal(root.dataset.motion, 'on');
@@ -231,7 +233,7 @@ describe('root-only toggle', () => {
   it('lives in the root console with the owner wording and a honest hint', () => {
     assert.match(read('src/views/root/RootFeaturesPage.tsx'), /<RootMotionCard \/>/);
     assert.ok(card.includes('الحركات والانتقالات (تأثيرات الواجهة)'));
-    assert.ok(card.includes('مغلقة افتراضياً. فعّلها فقط على الأجهزة القوية؛ قد تبطئ الأجهزة القديمة'));
+    assert.ok(card.includes('مفعّلة افتراضياً بنمط تلاشي ناعم وتتكيف تلقائياً مع فئة أداء الجهاز'));
     assert.match(card, /ToggleRow/);
     assert.match(card, /settings:save/);
     assert.match(card, /setMotionEnabled\(/);

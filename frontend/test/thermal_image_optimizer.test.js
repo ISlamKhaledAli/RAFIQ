@@ -7,6 +7,9 @@ import {
   findLogoContentBounds,
   fitThermalLogoDimensions,
   transformThermalPixel,
+  applyFloydSteinbergDither,
+  detectImageComplexity,
+  autoLevelPixels,
   THERMAL_LOGO_MAX_WIDTH,
   THERMAL_LOGO_MAX_HEIGHT,
   THERMAL_LUMA_DARK_THRESHOLD,
@@ -121,15 +124,97 @@ describe('Thermal Image Optimizer: High-contrast monochrome & anti-aliasing engi
     assert.ok(midGrey.a > 0 && midGrey.a < 255, `Edge pixel has smooth intermediate alpha (got ${midGrey.a})`);
   });
 
+  it('applyFloydSteinbergDither: creates balanced halftone dots and preserves gradients without black blobs', () => {
+    const width = 10;
+    const height = 10;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+
+    // Fill with 50% gray
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i] = 128;
+      pixels[i + 1] = 128;
+      pixels[i + 2] = 128;
+      pixels[i + 3] = 255;
+    }
+
+    applyFloydSteinbergDither(pixels, width, height, 1.0);
+
+    let blackCount = 0;
+    let whiteCount = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i + 3] === 255 && pixels[i] === 0) blackCount++;
+      if (pixels[i + 3] === 0) whiteCount++;
+    }
+
+    const total = width * height;
+    assert.equal(blackCount + whiteCount, total, 'Every pixel is strictly either 1-bit black or transparent');
+    // For 50% gray, black dots should be approx 45-55%
+    const blackRatio = blackCount / total;
+    assert.ok(blackRatio >= 0.4 && blackRatio <= 0.6, `Black ratio around 50% (got ${blackRatio})`);
+  });
+
+  it('detectImageComplexity: distinguishes crisp line-art from shaded gradients', () => {
+    const width = 10;
+    const height = 10;
+    const lineArtPixels = new Uint8ClampedArray(width * height * 4);
+    // Line art: almost all pure black or pure white
+    for (let i = 0; i < lineArtPixels.length; i += 4) {
+      const isBlack = i % 8 === 0;
+      lineArtPixels[i] = isBlack ? 0 : 255;
+      lineArtPixels[i + 1] = isBlack ? 0 : 255;
+      lineArtPixels[i + 2] = isBlack ? 0 : 255;
+      lineArtPixels[i + 3] = 255;
+    }
+    assert.equal(detectImageComplexity(lineArtPixels, width, height), 'crisp');
+
+    // Gradient / Photo: lots of midtones
+    const gradientPixels = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < gradientPixels.length; i += 4) {
+      const shade = Math.round(((i / 4) / (width * height)) * 255);
+      gradientPixels[i] = shade;
+      gradientPixels[i + 1] = shade;
+      gradientPixels[i + 2] = shade;
+      gradientPixels[i + 3] = 255;
+    }
+    assert.equal(detectImageComplexity(gradientPixels, width, height), 'dither');
+  });
+
+  it('autoLevelPixels: cleans off-white camera backgrounds and expands dynamic range', () => {
+    const width = 5;
+    const height = 5;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+
+    // Simulate dirty camera background: background is 220, dark text is 40
+    for (let i = 0; i < pixels.length; i += 4) {
+      const isText = i === 12 * 4; // one pixel of text
+      const luma = isText ? 40 : 220;
+      pixels[i] = luma;
+      pixels[i + 1] = luma;
+      pixels[i + 2] = luma;
+      pixels[i + 3] = 255;
+    }
+
+    autoLevelPixels(pixels, width, height, 0.0, 0.9);
+
+    // Background should become pure white/transparent (a=0)
+    assert.equal(pixels[3], 0, 'Off-white background clamped to transparent');
+  });
+
   it('receipt layout invariant: physical receipt bounding boxes in C# and Frontend match strictly', () => {
-    // Verify Frontend ReceiptPaper.tsx enforces exact thermal clamping box
-    const receiptPaper = fs.readFileSync(path.resolve('src', 'components', 'ReceiptPaper.tsx'), 'utf8');
+    const receiptPaperPath = fs.existsSync(path.resolve('src', 'components', 'ReceiptPaper.tsx'))
+      ? path.resolve('src', 'components', 'ReceiptPaper.tsx')
+      : path.resolve('frontend', 'src', 'components', 'ReceiptPaper.tsx');
+
+    const printerServicePath = fs.existsSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'))
+      ? path.resolve('..', 'desktop', 'Services', 'PrinterService.cs')
+      : path.resolve('desktop', 'Services', 'PrinterService.cs');
+
+    const receiptPaper = fs.readFileSync(receiptPaperPath, 'utf8');
     assert.ok(receiptPaper.includes("max-h-[48px]"), 'Frontend clamps 80mm height to 48px');
     assert.ok(receiptPaper.includes("max-w-[130px]"), 'Frontend clamps 80mm width to 130px');
     assert.ok(receiptPaper.includes("max-w-[90px]"), 'Frontend clamps 57mm width to 90px');
 
-    // Verify C# PrinterService.cs enforces identical floating-point bounds
-    const printerService = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'), 'utf8');
+    const printerService = fs.readFileSync(printerServicePath, 'utf8');
     assert.ok(printerService.includes('float maxW = p.Compact ? 90f : 130f;'), 'C# matches 130f / 90f max width');
     assert.ok(printerService.includes('float maxH = p.Compact ? 38f : 48f;'), 'C# matches 48f / 38f max height');
     assert.ok(printerService.includes('p.Y += drawH + 3f;'), 'C# advances Y strictly by drawH + 3f');

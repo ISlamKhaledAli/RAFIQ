@@ -96,6 +96,7 @@
     <Compile Include="Common\LicenseTokenVerifier.cs" />
     <Compile Include="Common\RootOtpHelper.cs" />
     <Compile Include="Common\OsDetector.cs" />
+    <Compile Include="Common\DeviceTierDetector.cs" />
     <Compile Include="Common\Logger.cs" />
     <Compile Include="Common\TimeGuard.cs" />
     <Compile Include="Common\LocalDateRange.cs" />

@@ -54,7 +54,7 @@ ${adminStyles}
 </head>
 <body class="bg-[#f8fafc] text-[#0f172a] select-none">
 ${adminTemplate}
-  <script src="/admin/assets/app.js"></script>
+  <script src="/admin/assets/app.js?v=${Date.now()}"></script>
 </body>
 </html>`;
 

@@ -44,10 +44,11 @@ export async function handleCheckUpdate(request: Request, env: Env): Promise<Res
     if (url.searchParams.get('current_version')) currentVersion = url.searchParams.get('current_version')!;
     if (url.searchParams.get('version')) currentVersion = url.searchParams.get('version')!;
 
-    // 1. Check License Entitlement if licenseKey provided
-    if (licenseKey) {
+    // 1. Check License Entitlement if licenseKey or machineFingerprint provided
+    let license: LicenseRecord | null = null;
+    if (licenseKey && licenseKey.trim().length > 0) {
       const normalizedKey = licenseKey.trim().toUpperCase();
-      const license = await env.DB.prepare(
+      license = await env.DB.prepare(
         'SELECT * FROM licenses WHERE license_key = ?'
       ).bind(normalizedKey).first<LicenseRecord>();
 
@@ -63,7 +64,14 @@ export async function handleCheckUpdate(request: Request, env: Env): Promise<Res
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
         });
       }
+    } else if (machineFingerprint && machineFingerprint.trim().length > 0) {
+      const cleanFp = machineFingerprint.trim().toUpperCase();
+      license = await env.DB.prepare(
+        'SELECT * FROM licenses WHERE machine_fingerprint = ? ORDER BY created_at DESC LIMIT 1'
+      ).bind(cleanFp).first<LicenseRecord>();
+    }
 
+    if (license) {
       if (license.status !== 'active') {
         const resp: CheckUpdateResponse = {
           hasUpdate: false,

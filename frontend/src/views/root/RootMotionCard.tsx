@@ -1,5 +1,5 @@
-import { useState, type ComponentType } from 'react';
-import { Activity, Blend, Feather, Gauge, Maximize2, MoveVertical, Play, Zap } from 'lucide-react';
+import { useEffect, useState, type ComponentType } from 'react';
+import { Activity, Blend, Cpu, Feather, Gauge, Maximize2, MoveVertical, Play, Zap } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { AppButton } from '../../components/AppButton';
 import { useMotionPanel } from '../../hooks/useMotionPanel';
@@ -7,6 +7,7 @@ import {
   MOTION_LEVEL_SETTING_KEY,
   MOTION_SETTING_KEY,
   MOTION_STYLE_SETTING_KEY,
+  detectDeviceHardwareTier,
   parseMotionLevel,
   parseMotionStyle,
   setMotionEnabled,
@@ -25,14 +26,14 @@ interface ChoiceOption<T extends string> {
 }
 
 const LEVEL_OPTIONS: ChoiceOption<MotionLevel>[] = [
-  { value: 'soft', label: 'خفيفة', description: 'حركة قصيرة وهادئة، الأخف على الأجهزة الضعيفة.', icon: Feather },
-  { value: 'medium', label: 'متوسطة', description: 'التوازن الافتراضي بين الوضوح والسرعة.', icon: Activity },
+  { value: 'soft', label: 'خفيفة', description: 'حركة قصيرة وهادئة، الأخف وتناسب الأجهزة الضعيفة.', icon: Feather },
+  { value: 'medium', label: 'متوسطة', description: 'التوازن الافتراضي بين الوضوح والسرعة، تناسب الأجهزة المتوسطة.', icon: Activity },
   { value: 'strong', label: 'قوية', description: 'حركة أطول وأوضح، تناسب الأجهزة القوية فقط.', icon: Zap },
 ];
 
 const STYLE_OPTIONS: ChoiceOption<MotionStyle>[] = [
+  { value: 'fade', label: 'تلاشي', description: 'تظهر العناصر بتلاشي هادئ دون تحريك مكانها (الافتراضي).', icon: Blend },
   { value: 'slide', label: 'انزلاق', description: 'تظهر العناصر وهي تنزلق إلى مكانها.', icon: MoveVertical },
-  { value: 'fade', label: 'تلاشي', description: 'تظهر العناصر بتلاشي هادئ دون تحريك مكانها.', icon: Blend },
   { value: 'zoom', label: 'تكبير', description: 'تظهر العناصر وهي تكبر من حجم أصغر قليلاً.', icon: Maximize2 },
 ];
 
@@ -98,9 +99,16 @@ function osReducesMotion(): boolean {
   }
 }
 
+interface HardwareInfo {
+  tier: string;
+  tierArabic: string;
+  summary: string;
+  detectedLevel: MotionLevel;
+}
+
 /**
- * Root-only switch, strength and look of the interface animations. Every change saves at once and applies live
- * (no restart); the host rejects the write for anyone but root, so hiding this card is not the only protection.
+ * Root-only switch, strength and look of the interface animations. Enabled by default with fade style,
+ * and automatically sets intensity according to detected hardware tier. Every change saves at once and applies live.
  */
 export const RootMotionCard = () => {
   const [enabled, setEnabled] = useState(isMotionOn);
@@ -111,6 +119,39 @@ export const RootMotionCard = () => {
   const [previewRun, setPreviewRun] = useState(0);
   const preview = useMotionPanel(String(previewRun));
   const replay = () => setPreviewRun((n) => n + 1);
+
+  const [hardwareInfo, setHardwareInfo] = useState<HardwareInfo>(() => {
+    const fallback = detectDeviceHardwareTier();
+    return {
+      tier: fallback.tier,
+      tierArabic: fallback.tierArabic,
+      summary: fallback.summary,
+      detectedLevel: fallback.level,
+    };
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    invoke('settings:getStoreProfile')
+      .then((res: unknown) => {
+        if (!isMounted || !res || typeof res !== 'object') return;
+        const profile = res as Record<string, unknown>;
+        if (profile.deviceHardwareTier || profile.deviceHardwareTierArabic) {
+          setHardwareInfo({
+            tier: (profile.deviceHardwareTier as string) || 'medium',
+            tierArabic: (profile.deviceHardwareTierArabic as string) || 'متوسط',
+            summary: (profile.deviceHardwareSummary as string) || '',
+            detectedLevel: (profile.detectedMotionLevel as MotionLevel) || 'medium',
+          });
+        }
+      })
+      .catch(() => {
+        // Fallback already in place
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // The value is already applied live; a failed save puts the previous one back and shows the host message
   const persist = async (key: string, value: string, revert: () => void) => {
@@ -168,7 +209,7 @@ export const RootMotionCard = () => {
       <div className="flex flex-col">
         <ToggleRow
           title="تفعيل الحركات والانتقالات"
-          description="مغلقة افتراضياً. فعّلها فقط على الأجهزة القوية؛ قد تبطئ الأجهزة القديمة. تتوقف تلقائياً إذا كان ويندوز مضبوطاً على تقليل الحركة."
+          description="مفعّلة افتراضياً بنمط تلاشي ناعم وتتكيف تلقائياً مع فئة أداء الجهاز (ضعيف أو متوسط أو قوي). تتوقف تلقائياً إذا كان ويندوز مضبوطاً على تقليل الحركة."
           checked={enabled}
           onChange={handleEnabled}
           disabled={saving}
@@ -178,6 +219,57 @@ export const RootMotionCard = () => {
             هذا الجهاز مضبوط على تقليل الحركة (إعداد ويندوز: عرض الحركات)، لذلك لن تظهر أي حركة هنا حتى مع تفعيل الخيار. فعّل عرض الحركات في إعدادات ويندوز لتراها.
           </div>
         )}
+
+        <div className="mb-4 p-3.5 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-2 rounded-lg ${
+                hardwareInfo.tier === 'strong'
+                  ? 'bg-paid-soft text-paid dark:bg-paid-dark-soft dark:text-paid-bright'
+                  : hardwareInfo.tier === 'weak'
+                    ? 'bg-warn-soft text-warn dark:bg-warn-dark-soft dark:text-warn-bright'
+                    : 'bg-brand-soft text-brand dark:bg-brand-dark-soft dark:text-brand-bright'
+              }`}
+            >
+              <Cpu className="w-5 h-5 shrink-0" />
+            </div>
+            <div className="flex flex-col">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-ink dark:text-ink-dark">فئة أداء هذا الجهاز:</span>
+                <span
+                  className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                    hardwareInfo.tier === 'strong'
+                      ? 'bg-paid-soft text-paid dark:bg-paid-dark-soft dark:text-paid-bright'
+                      : hardwareInfo.tier === 'weak'
+                        ? 'bg-warn-soft text-warn dark:bg-warn-dark-soft dark:text-warn-bright'
+                        : 'bg-brand-soft text-brand dark:bg-brand-dark-soft dark:text-brand-bright'
+                  }`}
+                >
+                  جهاز {hardwareInfo.tierArabic}
+                </span>
+                <span className="text-xs text-ink-muted dark:text-ink-muted-dark">
+                  (القوة الافتراضية المناسبة: {LEVEL_OPTIONS.find((o) => o.value === hardwareInfo.detectedLevel)?.label || 'متوسطة'})
+                </span>
+              </div>
+              {hardwareInfo.summary && (
+                <span className="text-xs text-ink-muted dark:text-ink-muted-dark mt-1 font-mono">
+                  {hardwareInfo.summary}
+                </span>
+              )}
+            </div>
+          </div>
+          {level !== hardwareInfo.detectedLevel && (
+            <button
+              type="button"
+              disabled={!enabled || saving}
+              onClick={() => handleLevel(hardwareInfo.detectedLevel)}
+              className="text-xs text-brand hover:underline font-bold self-start sm:self-auto cursor-pointer disabled:opacity-50"
+            >
+              ضبط تلقائي ({LEVEL_OPTIONS.find((o) => o.value === hardwareInfo.detectedLevel)?.label})
+            </button>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-4">
           <ChoiceGroup title="قوة الحركة" options={LEVEL_OPTIONS} value={level} onChange={handleLevel} disabled={!enabled || saving} />
           <ChoiceGroup title="شكل الحركة" options={STYLE_OPTIONS} value={style} onChange={handleStyle} disabled={!enabled || saving} />

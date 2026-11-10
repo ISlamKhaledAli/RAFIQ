@@ -259,6 +259,19 @@ export const adminScripts = `
       if (!document.querySelector('.modal-backdrop.active')) {
         document.body.style.overflow = '';
       }
+      document.querySelectorAll('.custom-select-options').forEach(function(m) {
+        m.classList.add('hidden');
+        m.style.removeProperty('top');
+        m.style.removeProperty('bottom');
+        m.style.removeProperty('max-height');
+      });
+      document.querySelectorAll('.custom-select-chevron').forEach(function(c) {
+        c.classList.remove('rotate-180');
+      });
+      document.querySelectorAll('.custom-select-container').forEach(function(w) {
+        w.classList.remove('open');
+        w.classList.remove('drop-up');
+      });
     }
 
     function showConfirm(title, message, onConfirm) {
@@ -281,6 +294,23 @@ export const adminScripts = `
     // Modal Global Escape Key & Backdrop Click Handlers
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
+        var openDropdown = document.querySelector('.custom-select-container.open');
+        if (openDropdown) {
+          document.querySelectorAll('.custom-select-options').forEach(function(m) {
+            m.classList.add('hidden');
+            m.style.removeProperty('top');
+            m.style.removeProperty('bottom');
+            m.style.removeProperty('max-height');
+          });
+          document.querySelectorAll('.custom-select-chevron').forEach(function(c) {
+            c.classList.remove('rotate-180');
+          });
+          document.querySelectorAll('.custom-select-container').forEach(function(w) {
+            w.classList.remove('open');
+            w.classList.remove('drop-up');
+          });
+          return;
+        }
         document.querySelectorAll('.modal-backdrop.active').forEach(function(m) {
           closeModal(m.id);
         });
@@ -302,6 +332,12 @@ export const adminScripts = `
         return;
       }
       activeMainTab = tab;
+      try {
+        localStorage.setItem('rafiq_admin_active_tab', tab);
+        if (window.location.hash !== '#' + tab) {
+          window.location.hash = '#' + tab;
+        }
+      } catch (_) {}
       var tabs = [
         { id: 'licenses', el: document.getElementById('licensesView'), btn: document.getElementById('tabBtnLicenses') },
         { id: 'logs', el: document.getElementById('logsView'), btn: document.getElementById('tabBtnLogs') },
@@ -702,9 +738,16 @@ export const adminScripts = `
           }
         });
         var menu = document.getElementById('options-' + id);
-        if (menu) menu.classList.add('hidden');
+        if (menu) {
+          menu.classList.add('hidden');
+          menu.style.removeProperty('top');
+          menu.style.removeProperty('bottom');
+          menu.style.removeProperty('max-height');
+        }
         var chevron = wrapper.querySelector('.custom-select-chevron');
         if (chevron) chevron.classList.remove('rotate-180');
+        wrapper.classList.remove('open');
+        wrapper.classList.remove('drop-up');
       }
 
       // Context callbacks
@@ -728,12 +771,16 @@ export const adminScripts = `
       // Close all other custom selects
       document.querySelectorAll('.custom-select-options').forEach(function(m) {
         m.classList.add('hidden');
+        m.style.removeProperty('top');
+        m.style.removeProperty('bottom');
+        m.style.removeProperty('max-height');
       });
       document.querySelectorAll('.custom-select-chevron').forEach(function(c) {
         c.classList.remove('rotate-180');
       });
       document.querySelectorAll('.custom-select-container').forEach(function(w) {
         w.classList.remove('open');
+        w.classList.remove('drop-up');
       });
 
       if (isClosed) {
@@ -746,12 +793,34 @@ export const adminScripts = `
           // Smart auto-flip upward if select is near bottom of viewport/modal
           var rect = wrapper.getBoundingClientRect();
           var spaceBelow = window.innerHeight - rect.bottom;
-          if (spaceBelow < 280 && rect.top > 240) {
-            menu.style.top = 'auto';
-            menu.style.bottom = 'calc(100% + 6px)';
+          var spaceAbove = rect.top;
+
+          // If space below is less than 280px and space above is greater than space below, flip upward
+          if (spaceBelow < 280 && spaceAbove > spaceBelow) {
+            wrapper.classList.add('drop-up');
+            menu.style.setProperty('top', 'auto', 'important');
+            menu.style.setProperty('bottom', 'calc(100% + 6px)', 'important');
+            if (spaceAbove < 280) {
+              menu.style.setProperty('max-height', Math.max(140, Math.floor(spaceAbove - 24)) + 'px', 'important');
+            } else {
+              menu.style.removeProperty('max-height');
+            }
           } else {
-            menu.style.top = 'calc(100% + 6px)';
-            menu.style.bottom = 'auto';
+            wrapper.classList.remove('drop-up');
+            menu.style.setProperty('top', 'calc(100% + 6px)', 'important');
+            menu.style.setProperty('bottom', 'auto', 'important');
+            if (spaceBelow < 280) {
+              menu.style.setProperty('max-height', Math.max(140, Math.floor(spaceBelow - 24)) + 'px', 'important');
+            } else {
+              menu.style.removeProperty('max-height');
+            }
+          }
+
+          var selectedOpt = menu.querySelector('.custom-option.selected');
+          if (selectedOpt) {
+            try {
+              selectedOpt.scrollIntoView({ block: 'nearest' });
+            } catch (_) {}
           }
         }
       }
@@ -762,12 +831,16 @@ export const adminScripts = `
       if (!e.target.closest('.custom-select-container')) {
         document.querySelectorAll('.custom-select-options').forEach(function(m) {
           m.classList.add('hidden');
+          m.style.removeProperty('top');
+          m.style.removeProperty('bottom');
+          m.style.removeProperty('max-height');
         });
         document.querySelectorAll('.custom-select-chevron').forEach(function(c) {
           c.classList.remove('rotate-180');
         });
         document.querySelectorAll('.custom-select-container').forEach(function(w) {
           w.classList.remove('open');
+          w.classList.remove('drop-up');
         });
       }
     });
@@ -822,8 +895,16 @@ export const adminScripts = `
         ? '<svg class="w-4 h-4 text-rose-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
         : '<svg class="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
 
+      var isUpdBlocked = lic.can_receive_updates === 0;
+      var updTitle = isUpdBlocked ? 'تفعيل استلام التحديثات' : 'إيقاف استلام التحديثات';
+      var updDesc = isUpdBlocked ? 'السماح لهذا المحل بتلقي الإصدارات الجديدة' : 'حجب التحديثات عن هذا المحل مؤقتاً';
+      var updClass = isUpdBlocked ? 'text-emerald-700 hover:bg-emerald-50' : 'text-amber-800 hover:bg-amber-50';
+      var updIcon = isUpdBlocked
+        ? '<svg class="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
+        : '<svg class="w-4 h-4 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
       menu.innerHTML = [
-        '<div class="p-1.5 space-y-1 text-right">',
+        '<div class="space-y-0.5 text-right">',
         '  <button type="button" data-id="' + escapeHtml(lic.id) + '" class="menu-item text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 cursor-pointer" onclick="closeActionMenu(); openShareModal(this.dataset.id);">',
         '    <svg class="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
         '    <div class="flex-1 text-right">',
@@ -838,6 +919,15 @@ export const adminScripts = `
         '      <div class="text-[10px] text-slate-400 font-normal mt-0.5">تعديل اسم المنشأة أو تجديد الاشتراك</div>',
         '    </div>',
         '  </button>',
+        '  <div class="menu-divider-line"></div>',
+        '  <div class="menu-section-label">الدعم الفني والتحديثات</div>',
+        '  <button type="button" data-id="' + escapeHtml(lic.id) + '" data-name="' + escapeHtml(lic.shop_name) + '" class="menu-item ' + updClass + ' cursor-pointer" onclick="closeActionMenu(); toggleLicenseUpdates(this.dataset.id, this.dataset.name);">',
+        '    ' + updIcon,
+        '    <div class="flex-1 text-right">',
+        '      <div class="leading-tight font-bold">' + updTitle + '</div>',
+        '      <div class="text-[10px] text-slate-400 font-normal mt-0.5">' + updDesc + '</div>',
+        '    </div>',
+        '  </button>',
         '  <button type="button" data-id="' + escapeHtml(lic.id) + '" data-name="' + escapeHtml(lic.shop_name) + '" class="menu-item text-slate-800 hover:bg-amber-50 hover:text-amber-800 cursor-pointer" onclick="closeActionMenu(); resetDevice(this.dataset.id, this.dataset.name);">',
         '    <svg class="w-4 h-4 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>',
         '    <div class="flex-1 text-right">',
@@ -845,14 +935,15 @@ export const adminScripts = `
         '      <div class="text-[10px] text-slate-400 font-normal mt-0.5">تصفير البصمة لنقل الترخيص لكمبيوتر آخر</div>',
         '    </div>',
         '  </button>',
-        '  <button type="button" data-id="' + escapeHtml(lic.id) + '" class="menu-item text-slate-800 hover:bg-emerald-50 hover:text-emerald-900 cursor-pointer" onclick="closeActionMenu(); openRescueModal(this.dataset.id);">',
-        '    <svg class="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+        '  <button type="button" data-id="' + escapeHtml(lic.id) + '" class="menu-item text-slate-800 hover:bg-teal-50 hover:text-teal-900 cursor-pointer" onclick="closeActionMenu(); openRescueModal(this.dataset.id);">',
+        '    <svg class="w-4 h-4 text-teal-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
         '    <div class="flex-1 text-right">',
-        '      <div class="leading-tight font-bold text-emerald-900">أدوات الإنقاذ والدعم الفني</div>',
+        '      <div class="leading-tight font-bold text-teal-900">أدوات الإنقاذ والدعم الفني</div>',
         '      <div class="text-[10px] text-slate-400 font-normal mt-0.5">كود أوفلاين، فك قفل الساعة، وجلسة المطور</div>',
         '    </div>',
         '  </button>',
-        '  <div class="h-px bg-slate-100 my-1"></div>',
+        '  <div class="menu-divider-line"></div>',
+        '  <div class="menu-section-label">المنطقة الحرجة</div>',
         '  <button type="button" data-id="' + escapeHtml(lic.id) + '" data-name="' + escapeHtml(lic.shop_name) + '" data-action="' + statusAction + '" class="menu-item ' + statusClass + ' cursor-pointer" onclick="closeActionMenu(); toggleStatus(this.dataset.id, this.dataset.name, this.dataset.action);">',
         '    ' + statusIcon,
         '    <div class="flex-1 text-right">',
@@ -860,7 +951,6 @@ export const adminScripts = `
         '      <div class="text-[10px] opacity-75 font-normal mt-0.5">' + statusDesc + '</div>',
         '    </div>',
         '  </button>',
-        '  <div class="h-px bg-slate-100 my-1"></div>',
         '  <button type="button" data-id="' + escapeHtml(lic.id) + '" data-name="' + escapeHtml(lic.shop_name) + '" class="menu-item text-rose-700 hover:bg-rose-50 hover:text-rose-800 cursor-pointer" onclick="closeActionMenu(); deleteLicense(this.dataset.id, this.dataset.name);">',
         '    <svg class="w-4 h-4 text-rose-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
         '    <div class="flex-1 text-right">',
@@ -873,14 +963,18 @@ export const adminScripts = `
 
       document.body.appendChild(menu);
 
-      var menuWidth = 250;
-      var menuHeight = 340;
+      var menuWidth = 275;
+      var menuHeight = menu.offsetHeight || 440;
       var top = rect.bottom + 6;
       var left = rect.right - menuWidth;
 
       if (top + menuHeight > window.innerHeight && rect.top > menuHeight) {
-        top = rect.top - menuHeight - 6;
+        top = Math.max(8, rect.top - menuHeight - 6);
+      } else if (top + menuHeight > window.innerHeight) {
+        top = Math.max(8, window.innerHeight - menuHeight - 8);
       }
+      if (left < 10) left = 10;
+      if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
       if (left < 10) left = 10;
       if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
 
@@ -992,6 +1086,10 @@ export const adminScripts = `
           ? '<span class="font-mono text-xs sm:text-sm text-slate-800 font-bold cursor-pointer hover:text-emerald-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200" data-id="' + escapeHtml(lic.id) + '" onclick="openDeviceModal(this.dataset.id)">...' + escapeHtml(lic.machine_fingerprint.slice(-14)) + '</span>'
           : '<span class="text-slate-400 text-xs font-semibold">بانتظار التفعيل</span>';
 
+        var updBadge = lic.can_receive_updates === 0
+          ? '<div class="mt-1"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="ممنوع من استلام التحديثات الهوائية"><svg class="w-2.5 h-2.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>التحديثات محجوبة</span></div>'
+          : '<div class="mt-1"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/70 border border-emerald-200/80 px-1.5 py-0.5 rounded" title="مؤهل لتلقي التحديثات"><svg class="w-2.5 h-2.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>مستحق للتحديث</span></div>';
+
         tr.innerHTML = [
           '<td class="px-4 py-4 text-center font-mono text-slate-500 font-bold text-xs sm:text-sm">' + rowNumber + '</td>',
           '<td class="px-4 py-4">',
@@ -1002,7 +1100,7 @@ export const adminScripts = `
           '    </button>',
           '  </div>',
           '</td>',
-          '<td class="px-4 py-4 font-black text-slate-900 text-sm sm:text-base">' + escapeHtml(lic.shop_name) + '</td>',
+          '<td class="px-4 py-4"><div class="font-black text-slate-900 text-sm sm:text-base">' + escapeHtml(lic.shop_name) + '</div>' + updBadge + '</td>',
           '<td class="px-4 py-4 font-mono font-bold text-slate-700 text-xs sm:text-sm">' + (lic.owner_phone ? escapeHtml(lic.owner_phone) : '<span class="text-slate-400">-</span>') + '</td>',
           '<td class="px-4 py-4">' + planPill + '</td>',
           '<td class="px-4 py-4 font-mono font-bold text-xs sm:text-sm">' + expHtml + '</td>',
@@ -1082,11 +1180,16 @@ export const adminScripts = `
           validityText = diffDays <= 0 ? 'منتهي الصلاحية' : 'متبقي ' + diffDays + ' يوم (' + expDate.toISOString().split('T')[0] + ')';
         }
 
+        var updBadge = lic.can_receive_updates === 0
+          ? '<div class="mt-1"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="ممنوع من استلام التحديثات الهوائية"><svg class="w-2.5 h-2.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>التحديثات محجوبة</span></div>'
+          : '<div class="mt-1"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/70 border border-emerald-200/80 px-1.5 py-0.5 rounded" title="مؤهل لتلقي التحديثات"><svg class="w-2.5 h-2.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>مستحق للتحديث</span></div>';
+
         card.innerHTML = [
           '<div class="flex items-start justify-between pb-3 border-b border-slate-100 gap-3">',
           '  <div>',
           '    <h4 class="font-black text-slate-900 text-base sm:text-lg leading-snug">' + escapeHtml(lic.shop_name) + '</h4>',
           '    <div class="text-xs text-slate-500 font-bold mt-1">' + (lic.notes ? escapeHtml(lic.notes) : 'منشأة تجارية') + '</div>',
+          '    ' + updBadge,
           '  </div>',
           '  <div class="flex items-center gap-2 shrink-0">',
           '    ' + planPill,
@@ -1238,8 +1341,22 @@ export const adminScripts = `
       var customWrapper = document.getElementById('customDaysWrapper');
       if (customWrapper) customWrapper.style.display = 'none';
 
-      // 3. Reset select to lifetime
+      // 3. Reset select to lifetime and ensure dropdown is closed
       setCustomSelectValue('durationSelect', 'lifetime');
+      var durMenu = document.getElementById('options-durationSelect');
+      if (durMenu) {
+        durMenu.classList.add('hidden');
+        durMenu.style.removeProperty('top');
+        durMenu.style.removeProperty('bottom');
+        durMenu.style.removeProperty('max-height');
+      }
+      var durWrapper = document.getElementById('wrapper-durationSelect');
+      if (durWrapper) {
+        durWrapper.classList.remove('open');
+        durWrapper.classList.remove('drop-up');
+        var durChevron = durWrapper.querySelector('.custom-select-chevron');
+        if (durChevron) durChevron.classList.remove('rotate-180');
+      }
 
       // 4. Set requested mode
       switchLicenseCreateMode(type === 'offline' ? 'offline' : 'online');
@@ -1543,6 +1660,24 @@ export const adminScripts = `
       );
     }
 
+    async function toggleLicenseUpdates(id, name) {
+      try {
+        var res = await fetch('/api/admin/licenses/' + id + '/toggle-updates', {
+          method: 'POST',
+          headers: { 'X-Admin-Secret': getSecret() }
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast(data.message || 'تم تحديث حالة استلام التحديثات بنجاح!');
+          loadLicenses();
+        } else {
+          showToast(data.message || 'فشل تعديل حالة التحديثات', true);
+        }
+      } catch (err) {
+        showToast('حدث خطأ أثناء الاتصال بالسيرفر', true);
+      }
+    }
+
     function deleteLicense(id, name) {
       showConfirm(
         'حذف الترخيص',
@@ -1717,6 +1852,30 @@ export const adminScripts = `
     // ==========================================
     // ALL-IN-ONE OFFLINE RESCUE & SUPPORT MODAL
     // ==========================================
+    function copyRescueHwid(btnElement) {
+      var textToCopy = '';
+      if (currentRescueLicId) {
+        var lic = allLicenses.find(function(l) { return l.id === currentRescueLicId; });
+        if (lic && lic.machine_fingerprint) textToCopy = lic.machine_fingerprint.trim();
+      }
+      if (!textToCopy) {
+        var hwidEl = document.getElementById('rescueHwidDisplay');
+        if (hwidEl && hwidEl.textContent) textToCopy = hwidEl.textContent.trim();
+      }
+      if (!textToCopy || textToCopy === '...' || textToCopy.indexOf('بانتظار') !== -1) {
+        showToast('لا توجد بصمة جهاز مسجلة لنسخها', 'warning');
+        return;
+      }
+      navigator.clipboard.writeText(textToCopy).then(function() {
+        showToast('تم نسخ بصمة الجهاز (HWID) بنجاح');
+        if (btnElement) {
+          var orig = btnElement.innerHTML;
+          btnElement.innerHTML = '<svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>تم النسخ!</span>';
+          setTimeout(function() { btnElement.innerHTML = orig; }, 1500);
+        }
+      });
+    }
+
     function openRescueModal(licId, defaultTab) {
       currentRescueLicId = licId || null;
 
@@ -1744,42 +1903,46 @@ export const adminScripts = `
       var licKeyDisplay = document.getElementById('rescueLicenseKeyDisplay');
       var hwidDisplay = document.getElementById('rescueHwidDisplay');
       var unboundAlert = document.getElementById('rescueUnboundAlert');
+      var statusWrapper = document.getElementById('rescueStatusPillWrapper');
 
       var lic = licId ? allLicenses.find(function(l) { return l.id === licId; }) : null;
 
       if (lic) {
-        if (banner) banner.style.setProperty('display', 'flex', 'important');
+        if (banner) banner.style.setProperty('display', 'block', 'important');
         if (shopDisplay) shopDisplay.textContent = lic.shop_name || 'بدون اسم';
         if (licKeyDisplay) licKeyDisplay.textContent = lic.license_key || '—';
 
         var hwid = (lic.machine_fingerprint || '').trim();
 
         if (hwid) {
-          if (hwidDisplay) hwidDisplay.textContent = hwid;
+          if (hwidDisplay) {
+            hwidDisplay.textContent = hwid;
+            hwidDisplay.title = 'بصمة الجهاز كاملة: ' + hwid;
+          }
+          if (statusWrapper) {
+            statusWrapper.innerHTML = '<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-black text-xs shadow-2xs">' +
+              '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>' +
+              '<span>جهاز مربوط ومحقق</span>' +
+              '</span>';
+          }
           if (unboundAlert) unboundAlert.style.setProperty('display', 'none', 'important');
 
           // Tool 1: SEC-01 Developer Root Session
           var rootBound = document.getElementById('rootBoundFpBox');
-          var rootBoundDisp = document.getElementById('rootBoundFpDisplay');
           var rootUnbound = document.getElementById('rootUnboundFpBox');
           if (rootBound) rootBound.style.setProperty('display', 'flex', 'important');
-          if (rootBoundDisp) rootBoundDisp.textContent = hwid;
           if (rootUnbound) rootUnbound.style.setProperty('display', 'none', 'important');
 
           // Tool 2: SEC-02 PIN Recovery
           var pinNotice = document.getElementById('pinBoundNotice');
-          var pinBoundDisp = document.getElementById('pinBoundFpDisplay');
           var pinUnbound = document.getElementById('pinUnboundInputBox');
-          if (pinNotice) pinNotice.style.setProperty('display', 'block', 'important');
-          if (pinBoundDisp) pinBoundDisp.textContent = hwid;
+          if (pinNotice) pinNotice.style.setProperty('display', 'flex', 'important');
           if (pinUnbound) pinUnbound.style.setProperty('display', 'none', 'important');
 
           // Tool 3: BUG-06 Clock Reset
           var clockNotice = document.getElementById('clockBoundNotice');
-          var clockBoundDisp = document.getElementById('clockBoundFpDisplay');
           var clockUnbound = document.getElementById('clockUnboundInputBox');
-          if (clockNotice) clockNotice.style.setProperty('display', 'block', 'important');
-          if (clockBoundDisp) clockBoundDisp.textContent = hwid;
+          if (clockNotice) clockNotice.style.setProperty('display', 'flex', 'important');
           if (clockUnbound) clockUnbound.style.setProperty('display', 'none', 'important');
 
           // Expandable Offline RSA Generator
@@ -1789,7 +1952,16 @@ export const adminScripts = `
           if (offlineShopInput) offlineShopInput.value = lic.shop_name || '';
         } else {
           // License is pending / unbound
-          if (hwidDisplay) hwidDisplay.textContent = 'بانتظار التفعيل (غير مربوط بجهاز)';
+          if (hwidDisplay) {
+            hwidDisplay.textContent = 'بانتظار التفعيل (لم يتم ربط جهاز حتى الآن)';
+            hwidDisplay.title = 'الترخيص غير مقترن بجهاز';
+          }
+          if (statusWrapper) {
+            statusWrapper.innerHTML = '<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200/80 font-black text-xs shadow-2xs">' +
+              '<span class="w-2 h-2 rounded-full bg-amber-500"></span>' +
+              '<span>بانتظار التفعيل</span>' +
+              '</span>';
+          }
           if (unboundAlert) unboundAlert.style.setProperty('display', 'flex', 'important');
 
           var rootBound = document.getElementById('rootBoundFpBox');
@@ -2149,7 +2321,7 @@ export const adminScripts = `
         });
         var data = await res.json();
         if (data.success) {
-          allReleases = data.data || [];
+          allReleases = data.releases || data.data || [];
           var b = document.getElementById('badgeReleasesCount');
           if (b) b.textContent = allReleases.length;
           renderReleasesTable();
@@ -2159,32 +2331,84 @@ export const adminScripts = `
       }
     }
 
+    function filterReleasesTable() {
+      renderReleasesTable();
+    }
+
     function renderReleasesTable() {
       var tbody = document.getElementById('releasesTableBody');
       if (!tbody) return;
       tbody.innerHTML = '';
 
-      if (allReleases.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-400 font-bold text-xs">لا توجد تحديثات منشورة حتى الآن</td></tr>';
+      var totalCount = allReleases.length;
+      var activeCount = allReleases.filter(function(r) { return r.is_published === 1 || r.is_active === 1; }).length;
+      var pausedCount = totalCount - activeCount;
+
+      var stTot = document.getElementById('statTotalReleases');
+      var stAct = document.getElementById('statActiveReleases');
+      var stPau = document.getElementById('statPausedReleases');
+      if (stTot) stTot.textContent = totalCount;
+      if (stAct) stAct.textContent = activeCount;
+      if (stPau) stPau.textContent = pausedCount;
+
+      var qEl = document.getElementById('releasesSearchInput');
+      var query = qEl ? qEl.value.trim().toLowerCase() : '';
+
+      var displayList = allReleases.filter(function(rel) {
+        if (!query) return true;
+        return (rel.version || '').toLowerCase().indexOf(query) !== -1 ||
+               (rel.title || '').toLowerCase().indexOf(query) !== -1 ||
+               (rel.changelog || '').toLowerCase().indexOf(query) !== -1 ||
+               (rel.sha256 || '').toLowerCase().indexOf(query) !== -1;
+      });
+
+      if (displayList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-slate-400 font-bold text-xs bg-slate-50/50">' +
+          (query ? 'لا توجد إصدارات تطابق كلمة البحث' : 'لا توجد تحديثات منشورة حتى الآن') + '</td></tr>';
         return;
       }
 
-      allReleases.forEach(function(rel, idx) {
+      displayList.forEach(function(rel, idx) {
         var tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
-        var isActive = rel.is_active === 1;
+        var isPublished = (rel.is_published === 1 || rel.is_active === 1);
+        var sizeMb = rel.file_size_bytes ? (rel.file_size_bytes / (1024 * 1024)).toFixed(1) + ' MB' : '31.5 MB';
+        var dateFormatted = rel.release_date || (rel.created_at ? rel.created_at.split('T')[0] : '—');
+        var shortSha = rel.sha256 ? (escapeHtml(rel.sha256.slice(0, 8)) + '...' + escapeHtml(rel.sha256.slice(-8))) : '—';
 
         tr.innerHTML = [
-          '<td class="px-4 py-3 text-center font-mono text-slate-400">' + (idx + 1) + '</td>',
-          '<td class="px-4 py-3 font-mono font-bold text-slate-900">' + escapeHtml(rel.version) + '</td>',
-          '<td class="px-4 py-3 font-bold text-slate-800">' + escapeHtml(rel.title) + '</td>',
-          '<td class="px-4 py-3 font-mono text-slate-500 text-[11px]">' + (rel.sha256 ? escapeHtml(rel.sha256.slice(0, 16)) + '...' : '-') + '</td>',
-          '<td class="px-4 py-3 text-center">' + (rel.is_mandatory ? '<span class="pill pill-disabled">إجباري</span>' : '<span class="pill pill-pending">اختياري</span>') + '</td>',
-          '<td class="px-4 py-3 text-center">' + (isActive ? '<span class="pill pill-active">منشور ونشط</span>' : '<span class="pill pill-disabled">معطل (Kill Switch)</span>') + '</td>',
-          '<td class="px-4 py-3 text-center">',
-          '  <button data-id="' + escapeHtml(rel.id) + '" data-active="' + (rel.is_active ? '1' : '0') + '" onclick="toggleReleaseStatus(this.dataset.id, this.dataset.active == 1)" class="px-3 py-1 rounded-xl font-bold text-xs transition ' + (isActive ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100') + '">',
-          '    ' + (isActive ? 'إيقاف طارئ' : 'إعادة تفعيل'),
-          '  </button>',
+          '<td class="px-4 py-3.5 text-center font-mono text-slate-400 font-bold text-xs">' + (idx + 1) + '</td>',
+          '<td class="px-4 py-3.5">',
+          '  <div class="flex items-center gap-2">',
+          '    <span class="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-mono font-black text-xs border border-emerald-200 shadow-2xs">v' + escapeHtml(rel.version) + '</span>',
+          '    <span class="text-[11px] font-bold text-slate-500">' + dateFormatted + '</span>',
+          '  </div>',
+          '</td>',
+          '<td class="px-4 py-3.5">',
+          '  <div class="font-black text-slate-900 text-xs sm:text-sm leading-tight">' + escapeHtml(rel.title) + '</div>',
+          '  <div class="text-[11px] text-slate-400 font-medium mt-0.5 max-w-xs truncate" title="' + escapeHtml(rel.changelog || '') + '">' + (rel.changelog ? escapeHtml(rel.changelog) : 'تحسينات عامة واستقرار إضافي للنظام') + '</div>',
+          '</td>',
+          '<td class="px-4 py-3.5 font-mono">',
+          '  <div class="flex items-center gap-2">',
+          '    <span class="text-xs font-bold text-slate-700">' + sizeMb + '</span>',
+          '    ' + (rel.download_url ? '<a href="' + escapeHtml(rel.download_url) + '" target="_blank" class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline" title="تحميل ملف التحديث"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>تحميل</span></a>' : ''),
+          '  </div>',
+          '  <div class="inline-flex items-center gap-1.5 font-mono text-[11px] text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 mt-1" title="بصمة SHA-256">',
+          '    <span>' + shortSha + '</span>',
+          '    ' + (rel.sha256 ? '<button type="button" data-hash="' + escapeHtml(rel.sha256) + '" onclick="copyKey(this.dataset.hash, this)" class="text-slate-400 hover:text-slate-700 transition cursor-pointer" title="نسخ البصمة كاملة"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>' : ''),
+          '  </div>',
+          '</td>',
+          '<td class="px-4 py-3.5 text-center">' + (rel.is_mandatory ? '<span class="pill pill-disabled">إجباري وحرج</span>' : '<span class="pill pill-trial">تحديث اختياري</span>') + '</td>',
+          '<td class="px-4 py-3.5 text-center">' + (isPublished ? '<span class="pill pill-active"><span class="pulse-dot"></span>منشور ومتاح</span>' : '<span class="pill pill-disabled">موقوف (Kill Switch)</span>') + '</td>',
+          '<td class="px-4 py-3.5 text-center">',
+          '  <div class="flex items-center justify-center gap-1.5">',
+          '    <button type="button" data-id="' + escapeHtml(rel.id) + '" data-active="' + (isPublished ? '1' : '0') + '" onclick="toggleReleaseStatus(this.dataset.id, this.dataset.active == 1)" class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer ' + (isPublished ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/80' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/80') + '">',
+          '      ' + (isPublished ? '<svg class="w-3.5 h-3.5 text-rose-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg><span>إيقاف طارئ</span>' : '<svg class="w-3.5 h-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span>تفعيل النشر</span>'),
+          '    </button>',
+          '    <button type="button" data-id="' + escapeHtml(rel.id) + '" data-ver="' + escapeHtml(rel.version) + '" onclick="deleteRelease(this.dataset.id, this.dataset.ver)" class="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition border border-transparent hover:border-rose-200 cursor-pointer" title="حذف سجل الإصدار">',
+          '      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+          '    </button>',
+          '  </div>',
           '</td>'
         ].join('');
 
@@ -2192,12 +2416,41 @@ export const adminScripts = `
       });
     }
 
+    function deleteRelease(id, ver) {
+      showConfirm(
+        'حذف سجل الإصدار',
+        'هل تريد بالتأكيد حذف سجل الإصدار (v' + ver + ') نهائياً من السيرفر؟ لن يؤثر هذا على أجهزة المحلات التي قامت بالتحميل مسبقاً.',
+        async function() {
+          try {
+            var res = await fetch('/api/admin/releases/' + id + '/delete', {
+              method: 'POST',
+              headers: { 'X-Admin-Secret': getSecret() }
+            });
+            var data = await res.json();
+            if (data.success) {
+              showToast(data.message || 'تم حذف الإصدار بنجاح');
+              loadReleases();
+            } else {
+              showToast(data.message || 'فشل حذف الإصدار', true);
+            }
+          } catch (_) {
+            showToast('حدث خطأ أثناء الاتصال بالسيرفر', true);
+          }
+        }
+      );
+    }
+
     async function handlePublishRelease(e) {
       e.preventDefault();
       var vEl = document.getElementById('pubVersion');
       var tEl = document.getElementById('pubTitle');
+      var uEl = document.getElementById('pubUrl');
+      var sEl = document.getElementById('pubSha');
+
       var ver = (vEl ? vEl.value : '').trim();
       var title = (tEl ? tEl.value : '').trim();
+      var url = (uEl ? uEl.value : '').trim();
+      var sha = (sEl ? sEl.value : '').trim();
 
       if (!ver) {
         markInputInvalid(vEl, 'يرجى إدخال رقم الإصدار (مثل 1.1.0)');
@@ -2207,16 +2460,26 @@ export const adminScripts = `
         markInputInvalid(tEl, 'يرجى إدخال عنوان التحديث الهوائي');
         return;
       }
+      if (!url) {
+        markInputInvalid(uEl, 'يرجى إدخال رابط تحميل الحزمة (URL)');
+        return;
+      }
+      if (!sha) {
+        markInputInvalid(sEl, 'يرجى إدخال بصمة SHA-256 للحزمة');
+        return;
+      }
 
       var payload = {
         version: ver,
-        release_date: document.getElementById('pubDate').value,
+        release_date: document.getElementById('pubDate').value || new Date().toISOString().slice(0, 10),
         title: title,
-        package_url: document.getElementById('pubUrl').value.trim(),
-        sha256: document.getElementById('pubSha').value.trim(),
-        size_bytes: Math.round((parseFloat(document.getElementById('pubSize').value) || 0) * 1024 * 1024),
+        download_url: url,
+        package_url: url,
+        sha256: sha,
+        file_size_bytes: Math.round((parseFloat(document.getElementById('pubSize').value) || 31.5) * 1024 * 1024),
+        size_bytes: Math.round((parseFloat(document.getElementById('pubSize').value) || 31.5) * 1024 * 1024),
         is_mandatory: parseInt(document.getElementById('pubMandatory').value) || 0,
-        changelog: document.getElementById('pubChangelog').value.trim()
+        changelog: (document.getElementById('pubChangelog').value || '').trim()
       };
 
       try {
@@ -2303,8 +2566,31 @@ export const adminScripts = `
         setViewMode('table', false);
       }
 
-      loadLicenses();
+      // Restore active tab (URL hash first, then localStorage, fallback to 'licenses')
+      var targetTab = 'licenses';
+      try {
+        var hash = window.location.hash ? window.location.hash.replace('#', '') : '';
+        if (hash === 'licenses' || hash === 'releases' || hash === 'logs') {
+          targetTab = hash;
+        } else {
+          var savedTab = localStorage.getItem('rafiq_admin_active_tab');
+          if (savedTab === 'licenses' || savedTab === 'releases' || savedTab === 'logs') {
+            targetTab = savedTab;
+          }
+        }
+      } catch (_) {}
+
+      switchMainTab(targetTab);
     }
+
+    window.addEventListener('hashchange', function() {
+      try {
+        var hash = window.location.hash ? window.location.hash.replace('#', '') : '';
+        if ((hash === 'licenses' || hash === 'releases' || hash === 'logs') && hash !== activeMainTab) {
+          switchMainTab(hash);
+        }
+      } catch (_) {}
+    });
 
     // Auto-boot reliably on DOM ready or immediate if already interactive
     function bootDashboard() {

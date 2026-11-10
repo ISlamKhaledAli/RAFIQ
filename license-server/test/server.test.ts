@@ -329,6 +329,8 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.ok(html.includes('licensesPaginationBar'), 'Must have Licenses pagination bar');
       assert.ok(html.includes('logsPaginationBar'), 'Must have Logs pagination bar');
       assert.ok(html.includes('/admin/assets/tailwind.min.js'), 'Must load self-hosted Tailwind bundle');
+      assert.ok(html.includes('.custom-select-container.drop-up .custom-select-options'), 'Must support drop-up custom select style');
+      assert.ok(!html.includes('top: calc(100% + 6px) !important;'), 'Must not have top !important that prevents drop-up');
     });
 
     it('Serves Self-Hosted Tailwind bundle on GET /admin/assets/tailwind.min.js', async () => {
