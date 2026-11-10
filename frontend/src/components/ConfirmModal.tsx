@@ -108,9 +108,15 @@ export const ConfirmModal = ({
             <div className={`p-3 rounded text-micro border leading-relaxed flex items-start gap-2 ${
               effectiveVariant === 'danger'
                 ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright' 
+                : effectiveVariant === 'paid'
+                ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-dark-border text-paid dark:text-paid-bright'
                 : 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
             }`}>
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              {effectiveVariant === 'paid' ? (
+                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              )}
               <span>{consequence}</span>
             </div>
           )}

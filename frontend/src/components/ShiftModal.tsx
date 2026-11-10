@@ -120,6 +120,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
   const [closeShiftNotes, setCloseShiftNotes] = useState<string>('');
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState<boolean>(false);
   const [confirmNotice, setConfirmNotice] = useState<string>('');
+  const [confirmVariant, setConfirmVariant] = useState<'danger' | 'paid' | 'brand'>('paid');
   // Once the cashier types a count, background refreshes must not overwrite it with the expected cash
   const actualCashEditedRef = useRef(false);
 
@@ -356,15 +357,20 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
 
     const diff = actualCashPiasters - shiftSummary.expectedCashPiasters;
     let diffNotice = '';
+    let variant: 'danger' | 'paid' | 'brand' = 'paid';
     if (diff < 0) {
       diffNotice = `يوجد عجز في الدرج قدره ${formatArabicCurrency(Math.abs(diff))}. `;
+      variant = 'danger';
     } else if (diff > 0) {
       diffNotice = `توجد زيادة في الدرج قدرها ${formatArabicCurrency(diff)}. `;
+      variant = 'brand';
     } else {
       diffNotice = 'الدرج متطابق تماماً بدون عجز أو زيادة. ';
+      variant = 'paid';
     }
 
     setConfirmNotice(diffNotice);
+    setConfirmVariant(variant);
     setIsConfirmCloseOpen(true);
   };
 
@@ -546,8 +552,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               onClick={() => selectTab('close')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all mr-auto ${
                 activeTab === 'close'
-                  ? 'bg-danger text-white dark:bg-danger-dark-soft dark:text-danger-bright dark:ring-1 dark:ring-inset dark:ring-danger-bright/40 shadow-xs'
-                  : 'text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark'
               }`}
             >
               <Lock className="w-3.5 h-3.5" />
@@ -1103,12 +1109,12 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       value={closeShiftNotes}
                       onChange={(e) => setCloseShiftNotes(e.target.value)}
                       placeholder="مثال: تسليم الدرج للكاشير المناوب بدون مشاكل"
-                      className="w-full h-10 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:ring-2 focus:ring-danger"
+                      className="w-full h-10 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:ring-2 focus:ring-brand"
                     />
                   </div>
 
                   <AppButton
-                    variant="danger"
+                    variant={currentDiffPiasters < 0 ? 'danger' : 'primary'}
                     size="lg"
                     icon={Lock}
                     fullWidth
@@ -1142,7 +1148,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         consequence="لن يمكنك التراجع أو تسجيل أي مبيعات جديدة على هذه الوردية بعد تشميعها وإغلاقها."
         confirmText="تأكيد التشميع والإغلاق"
         cancelText="تراجع ومراجعة الدرج"
-        isDanger={true}
+        variant={confirmVariant}
         onConfirm={() => void executeCloseShift()}
         onCancel={() => setIsConfirmCloseOpen(false)}
       />
