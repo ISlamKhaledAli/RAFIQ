@@ -23,6 +23,7 @@ import { formatArabicCurrency } from '../../utils/money';
 import { useFeatures } from '../../context/useFeatures';
 import { usePermission } from '../../utils/usePermission';
 import { AppButton } from '../../components/AppButton';
+import { RafiqTooltip } from '../../components/RafiqTooltip';
 
 // Shared look of the secondary action row (h-11, readable label, tokens only); icons drop below xl so five buttons fit one row.
 const SECONDARY_BTN =
@@ -64,11 +65,12 @@ const PayButtonGuard: React.FC<PayButtonGuardProps> = ({ notice, children }) => 
   <div className="relative flex-1 min-w-0 flex">
     {children}
     {notice && (
-      <div
-        className="absolute inset-0 rounded-xl cursor-not-allowed"
-        title={notice.message}
-        onClick={notice.onBlockedAttempt}
-      />
+      <RafiqTooltip content={notice.message} wrapperClassName="absolute inset-0">
+        <div
+          className="w-full h-full rounded-xl cursor-not-allowed"
+          onClick={notice.onBlockedAttempt}
+        />
+      </RafiqTooltip>
     )}
   </div>
 );
@@ -193,13 +195,14 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
 
           {/* DDI Clinical Status: conflicts are shown by the warning banner above the cart; only the all-clear state lives here */}
           {(isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy')) && cart.length >= 2 && ddiResult && !ddiResult.hasInteractions && (
-            <div
-              className="h-7 px-2.5 rounded-lg border border-paid/30 dark:border-paid-dark-border bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-xs font-semibold flex items-center gap-1.5 select-none whitespace-nowrap shadow-2xs"
-              title="تم فحص السلة سريرياً: لا توجد تعارضات دوائية مسجلة بين الأصناف"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-              <span>آمن دوائياً</span>
-            </div>
+            <RafiqTooltip content="تم فحص السلة سريرياً: لا توجد تعارضات دوائية مسجلة بين الأصناف">
+              <div
+                className="h-7 px-2.5 rounded-lg border border-paid/30 dark:border-paid-dark-border bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-xs font-semibold flex items-center gap-1.5 select-none whitespace-nowrap shadow-2xs cursor-help"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span>آمن دوائياً</span>
+              </div>
+            </RafiqTooltip>
           )}
         </div>
 
@@ -208,68 +211,73 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
 
           {/* مصروف درج */}
           {onOpenExpenseModal && (
-            <button
-              type="button"
-              onClick={onOpenExpenseModal}
-              className={`${SECONDARY_BTN} ${SECONDARY_NEUTRAL}`}
-              title="تسجيل مصروف نثريات طلع من الدرج"
-            >
-              <Receipt className={`${SECONDARY_ICON} text-ink-muted dark:text-ink-dark-muted`} />
-              <span>مصروف</span>
-            </button>
+            <RafiqTooltip content="تسجيل مصروف نثريات طلع من الدرج" wrapperClassName="flex-1 min-w-[4.5rem] flex">
+              <button
+                type="button"
+                onClick={onOpenExpenseModal}
+                className={`${SECONDARY_BTN} ${SECONDARY_NEUTRAL} w-full`}
+              >
+                <Receipt className={`${SECONDARY_ICON} text-ink-muted dark:text-ink-dark-muted`} />
+                <span>مصروف</span>
+              </button>
+            </RafiqTooltip>
           )}
 
           {/* تفريغ [F7] */}
-          <button 
-            type="button"
-            onClick={requestClearCart}
-            disabled={cart.length === 0}
-            className={`${SECONDARY_BTN} ${SECONDARY_DISABLED} bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/40 enabled:hover:bg-danger-soft/60 dark:enabled:hover:bg-danger-dark-soft/60 enabled:hover:border-danger dark:enabled:hover:border-danger-bright`}
-            title="تفريغ السلة وفاتورة جديدة (F7)"
-          >
-            <RotateCcw className={SECONDARY_ICON} />
-            <span>تفريغ</span>
-          </button>
+          <RafiqTooltip content="تفريغ السلة وفاتورة جديدة (F7)" wrapperClassName="flex-1 min-w-[4.5rem] flex">
+            <button 
+              type="button"
+              onClick={requestClearCart}
+              disabled={cart.length === 0}
+              className={`${SECONDARY_BTN} ${SECONDARY_DISABLED} bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/40 enabled:hover:bg-danger-soft/60 dark:enabled:hover:bg-danger-dark-soft/60 enabled:hover:border-danger dark:enabled:hover:border-danger-bright w-full`}
+            >
+              <RotateCcw className={SECONDARY_ICON} />
+              <span>تفريغ</span>
+            </button>
+          </RafiqTooltip>
 
           {/* تعليق [F6] */}
-          <button
-            type="button"
-            onClick={() => void handleHoldCurrentSale()}
-            disabled={cart.length === 0}
-            className={`${SECONDARY_BTN} ${SECONDARY_DISABLED} ${SECONDARY_NEUTRAL}`}
-            title="تعليق الفاتورة الحالية (F6)"
-          >
-            <Clock className={`${SECONDARY_ICON} text-ink-muted dark:text-ink-dark-muted`} />
-            <span>تعليق</span>
-          </button>
+          <RafiqTooltip content="تعليق الفاتورة الحالية (F6)" wrapperClassName="flex-1 min-w-[4.5rem] flex">
+            <button
+              type="button"
+              onClick={() => void handleHoldCurrentSale()}
+              disabled={cart.length === 0}
+              className={`${SECONDARY_BTN} ${SECONDARY_DISABLED} ${SECONDARY_NEUTRAL} w-full`}
+            >
+              <Clock className={`${SECONDARY_ICON} text-ink-muted dark:text-ink-dark-muted`} />
+              <span>تعليق</span>
+            </button>
+          </RafiqTooltip>
 
           {/* فواتير معلقة */}
-          <button
-            type="button"
-            onClick={onOpenHeldSales}
-            className={`${SECONDARY_BTN} ${SECONDARY_NEUTRAL} relative`}
-            title="عرض واسترجاع الفواتير المعلقة"
-          >
-            <ClipboardList className={`${SECONDARY_ICON} text-ink-muted dark:text-ink-dark-muted`} />
-            <span>معلقة</span>
-            {heldSalesCount > 0 && (
-              <span className="absolute -top-2 -start-2 min-w-5 h-5 px-1 rounded-full bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark font-mono text-xs tabular-nums flex items-center justify-center font-bold shadow-2xs">
-                {heldSalesCount}
-              </span>
-            )}
-          </button>
+          <RafiqTooltip content="عرض واسترجاع الفواتير المعلقة" wrapperClassName="flex-1 min-w-[4.5rem] flex">
+            <button
+              type="button"
+              onClick={onOpenHeldSales}
+              className={`${SECONDARY_BTN} ${SECONDARY_NEUTRAL} relative`}
+            >
+              <ClipboardList className={`${SECONDARY_ICON} text-ink-muted dark:text-ink-dark-muted`} />
+              <span>معلقة</span>
+              {heldSalesCount > 0 && (
+                <span className="absolute -top-2 -start-2 min-w-5 h-5 px-1 rounded-full bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark font-mono text-xs tabular-nums flex items-center justify-center font-bold shadow-2xs">
+                  {heldSalesCount}
+                </span>
+              )}
+            </button>
+          </RafiqTooltip>
 
           {/* مرتجع [F11] */}
           {canReturn && (
-          <button
-            type="button"
-            onClick={onOpenReturnModal}
-            className={`${SECONDARY_BTN} bg-warn-soft dark:bg-warn-dark-soft enabled:hover:bg-warn-soft/70 dark:enabled:hover:bg-warn-dark-soft/70 text-ink dark:text-ink-dark border-warn-border dark:border-warn-bright/40`}
-            title="تسجيل مرتجع بضاعة (F11)"
-          >
-            <Undo2 className={`${SECONDARY_ICON} text-warn dark:text-warn-bright`} />
-            <span>مرتجع</span>
-          </button>
+            <RafiqTooltip content="تسجيل مرتجع بضاعة (F11)" wrapperClassName="flex-1 min-w-[4.5rem] flex">
+              <button
+                type="button"
+                onClick={onOpenReturnModal}
+                className={`${SECONDARY_BTN} bg-warn-soft dark:bg-warn-dark-soft enabled:hover:bg-warn-soft/70 dark:enabled:hover:bg-warn-dark-soft/70 text-ink dark:text-ink-dark border-warn-border dark:border-warn-bright/40 w-full`}
+              >
+                <Undo2 className={`${SECONDARY_ICON} text-warn dark:text-warn-bright`} />
+                <span>مرتجع</span>
+              </button>
+            </RafiqTooltip>
           )}
 
         </div>
@@ -346,86 +354,90 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
           {paymentMethod === 'credit' ? (
             /* شكك */
             <PayButtonGuard notice={shiftBlock}>
-              <button 
-                type="button"
-                onClick={() => handleOpenCheckout('credit')}
-                disabled={loading || cart.length === 0 || Boolean(shiftBlock)}
-                className={`${PAY_BTN} bg-danger text-white border-danger-ink dark:bg-danger-dark-fill dark:border-danger-bright/50 enabled:hover:bg-danger-ink dark:enabled:hover:bg-danger`}
-                title="تسجيل بيع شكك (F12)"
-              >
-                <CreditCard className={PAY_ICON} />
-                <span className="truncate">
-                  تسجيل بيع شكك {selectedCust ? `(${selectedCust.name})` : ''}
-                </span>
-              </button>
+              <RafiqTooltip content="تسجيل بيع شكك (F12)" wrapperClassName="w-full flex">
+                <button 
+                  type="button"
+                  onClick={() => handleOpenCheckout('credit')}
+                  disabled={loading || cart.length === 0 || Boolean(shiftBlock)}
+                  className={`${PAY_BTN} bg-danger text-white border-danger-ink dark:bg-danger-dark-fill dark:border-danger-bright/50 enabled:hover:bg-danger-ink dark:enabled:hover:bg-danger w-full`}
+                >
+                  <CreditCard className={PAY_ICON} />
+                  <span className="truncate">
+                    تسجيل بيع شكك {selectedCust ? `(${selectedCust.name})` : ''}
+                  </span>
+                </button>
+              </RafiqTooltip>
             </PayButtonGuard>
           ) : (
             <>
               {/* كاش */}
               <PayButtonGuard notice={shiftBlock}>
-                <button 
-                  type="button"
-                  onClick={() => handleOpenCheckout('cash')}
-                  disabled={loading || cart.length === 0 || Boolean(shiftBlock)}
-                  className={`${PAY_BTN} ${PAY_SOLID}`}
-                  title="دفع كاش وحساب الباقي (F9)"
-                >
-                  <Banknote className={PAY_ICON} />
-                  <span className="truncate">كاش</span>
-                </button>
+                <RafiqTooltip content="دفع كاش وحساب الباقي (F9)" wrapperClassName="w-full flex">
+                  <button 
+                    type="button"
+                    onClick={() => handleOpenCheckout('cash')}
+                    disabled={loading || cart.length === 0 || Boolean(shiftBlock)}
+                    className={`${PAY_BTN} ${PAY_SOLID} w-full`}
+                  >
+                    <Banknote className={PAY_ICON} />
+                    <span className="truncate">كاش</span>
+                  </button>
+                </RafiqTooltip>
               </PayButtonGuard>
 
               {/* انستاباي والمحافظ الإلكترونية */}
               {showWallets && (
                 <>
                   <PayButtonGuard notice={needsInstapayLink ? null : shiftBlock}>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (needsInstapayLink) {
-                          onNavigateToWallets?.('accounts');
-                        } else {
-                          handleOpenCheckout('instapay');
-                        }
-                      }}
-                      disabled={loading || (cart.length === 0 && !needsInstapayLink) || (Boolean(shiftBlock) && !needsInstapayLink)}
-                      className={`${PAY_BTN} ${PAY_OUTLINE}`}
-                      title={hasInstapayAccount ? "سداد عبر تطبيق انستاباي" : "سداد فوري عبر تطبيق انستاباي"}
-                    >
-                      {needsInstapayLink && (
-                        <span className={LINK_BADGE}>
-                          <Link2 className="w-2.5 h-2.5 text-current" />
-                          <span>ربط</span>
-                        </span>
-                      )}
-                      <Smartphone className={PAY_ICON_BRAND} />
-                      <span className="truncate">انستاباي</span>
-                    </button>
+                    <RafiqTooltip content={hasInstapayAccount ? "سداد عبر تطبيق انستاباي" : "سداد فوري عبر تطبيق انستاباي"} wrapperClassName="w-full flex">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (needsInstapayLink) {
+                            onNavigateToWallets?.('accounts');
+                          } else {
+                            handleOpenCheckout('instapay');
+                          }
+                        }}
+                        disabled={loading || (cart.length === 0 && !needsInstapayLink) || (Boolean(shiftBlock) && !needsInstapayLink)}
+                        className={`${PAY_BTN} ${PAY_OUTLINE} w-full`}
+                      >
+                        {needsInstapayLink && (
+                          <span className={LINK_BADGE}>
+                            <Link2 className="w-2.5 h-2.5 text-current" />
+                            <span>ربط</span>
+                          </span>
+                        )}
+                        <Smartphone className={PAY_ICON_BRAND} />
+                        <span className="truncate">انستاباي</span>
+                      </button>
+                    </RafiqTooltip>
                   </PayButtonGuard>
 
                   <PayButtonGuard notice={needsWalletLink ? null : shiftBlock}>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (needsWalletLink) {
-                          onNavigateToWallets?.('accounts');
-                        } else {
-                          handleOpenCheckout('vodafone_cash');
-                        }
-                      }}
-                      disabled={loading || (cart.length === 0 && !needsWalletLink) || (Boolean(shiftBlock) && !needsWalletLink)}
-                      className={`${PAY_BTN} ${PAY_OUTLINE}`}
-                      title={hasWalletAccount ? "سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)" : "سداد فوري عبر المحفظة الإلكترونية"}
-                    >
-                      {needsWalletLink && (
-                        <span className={LINK_BADGE}>
-                          <Link2 className="w-2.5 h-2.5 text-current" />
-                          <span>ربط</span>
-                        </span>
-                      )}
-                      <Wallet className={PAY_ICON_BRAND} />
-                      <span className="truncate">محفظة</span>
-                    </button>
+                    <RafiqTooltip content={hasWalletAccount ? "سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)" : "سداد فوري عبر المحفظة الإلكترونية"} wrapperClassName="w-full flex">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (needsWalletLink) {
+                            onNavigateToWallets?.('accounts');
+                          } else {
+                            handleOpenCheckout('vodafone_cash');
+                          }
+                        }}
+                        disabled={loading || (cart.length === 0 && !needsWalletLink) || (Boolean(shiftBlock) && !needsWalletLink)}
+                        className={`${PAY_BTN} ${PAY_OUTLINE} w-full`}
+                      >
+                        {needsWalletLink && (
+                          <span className={LINK_BADGE}>
+                            <Link2 className="w-2.5 h-2.5 text-current" />
+                            <span>ربط</span>
+                          </span>
+                        )}
+                        <Wallet className={PAY_ICON_BRAND} />
+                        <span className="truncate">محفظة</span>
+                      </button>
+                    </RafiqTooltip>
                   </PayButtonGuard>
                 </>
               )}

@@ -12,6 +12,7 @@ import {
   UserRound,
   Type,
   Layers,
+  ScrollText,
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
@@ -30,6 +31,7 @@ import {
   receiptTextLimitError,
 } from '../../utils/receiptLayout';
 import { FIELD_INPUT_CLASS, Field, ReceiptTextField, SettingsCard, ToggleRow } from './settingsParts';
+import { InvoiceTemplatesTab } from './InvoiceTemplatesTab';
 import MotionHeight from '../../components/MotionHeight';
 import { BUILT_IN_SIGNATURE_IMAGES } from '../../utils/signatureDefaults';
 
@@ -116,6 +118,7 @@ export const StoreProfileTab = ({
 }: StoreProfileTabProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
+  const [profileViewMode, setProfileViewMode] = useState<'sales_receipt' | 'other_templates'>('sales_receipt');
   const [rawLogoSource, setRawLogoSource] = useState<string | null>(null);
   const [logoMode, setLogoMode] = useState<ThermalOptimizeMode>('crisp');
   const [isThermalSim, setIsThermalSim] = useState(false);
@@ -225,14 +228,82 @@ export const StoreProfileTab = ({
   }
 
   return (
-    <div className="grid grid-cols-12 gap-5 flex-1 items-start">
-      {/* Form column */}
-      <form onSubmit={handleSave} className="col-span-12 xl:col-span-7 flex flex-col gap-5">
-        <SettingsCard
-          icon={Store}
-          title="هوية المحل"
-          description="الاسم والعنوان والهاتف والرقم الضريبي تظهر أعلى الوصل المطبوع، والاسم يظهر أيضاً في عنوان البرنامج."
-        >
+    <div className="flex flex-col gap-5 flex-1">
+      {/* Top Tab Bar: Sales Receipt (Mother Invoice) vs All Other Document Templates */}
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl p-2 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-xl border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark p-1 gap-1.5 text-xs font-bold">
+          <button
+            type="button"
+            aria-pressed={profileViewMode === 'sales_receipt'}
+            onClick={() => setProfileViewMode('sales_receipt')}
+            className={`flex items-center gap-2 h-9 px-4 rounded-lg cursor-pointer transition-all ${
+              profileViewMode === 'sales_receipt'
+                ? 'bg-brand text-white shadow-xs dark:bg-brand-dark-soft dark:text-brand-bright dark:border-brand-bright/40'
+                : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2'
+            }`}
+          >
+            <Receipt className="w-4 h-4 shrink-0" />
+            <span>فاتورة المبيعات الرئيسية (الفاتورة الأم)</span>
+          </button>
+
+          <button
+            type="button"
+            aria-pressed={profileViewMode === 'other_templates'}
+            onClick={() => setProfileViewMode('other_templates')}
+            className={`flex items-center gap-2 h-9 px-4 rounded-lg cursor-pointer transition-all ${
+              profileViewMode === 'other_templates'
+                ? 'bg-brand text-white shadow-xs dark:bg-brand-dark-soft dark:text-brand-bright dark:border-brand-bright/40'
+                : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2'
+            }`}
+          >
+            <ScrollText className="w-4 h-4 shrink-0" />
+            <span>معاينة وتخصيص باقي الفواتير والمستندات</span>
+            <span className="text-micro px-1.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold">
+              7 نماذج
+            </span>
+          </button>
+        </div>
+
+        {profileViewMode === 'sales_receipt' ? (
+          <button
+            type="button"
+            onClick={() => setProfileViewMode('other_templates')}
+            className="text-xs font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1.5 cursor-pointer px-2"
+          >
+            <ScrollText className="w-4 h-4" />
+            <span>معاينة نماذج المرتجع والمشتريات والسندات</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setProfileViewMode('sales_receipt')}
+            className="text-xs font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1.5 cursor-pointer px-2"
+          >
+            <Receipt className="w-4 h-4" />
+            <span>العودة لبيانات المحل وفاتورة المبيعات</span>
+          </button>
+        )}
+      </div>
+
+      {profileViewMode === 'other_templates' ? (
+        <InvoiceTemplatesTab
+          storeName={storeName}
+          storePhone={phone}
+          storeAddress={address}
+          taxNumber={taxNumber}
+          storeLogoUrl={storeLogoUrl}
+          saveBarRef={saveBarRef}
+          onOpenPrinterSettings={onOpenPrinterSettings}
+        />
+      ) : (
+        <div className="grid grid-cols-12 gap-5 flex-1 items-start">
+          {/* Form column */}
+          <form onSubmit={handleSave} className="col-span-12 xl:col-span-7 flex flex-col gap-5">
+            <SettingsCard
+              icon={Store}
+              title="هوية المحل"
+              description="الاسم والعنوان والهاتف والرقم الضريبي تظهر أعلى الوصل المطبوع، والاسم يظهر أيضاً في عنوان البرنامج."
+            >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Field label="اسم المحل أو المنشأة" required className="md:col-span-2">
               <input
@@ -532,5 +603,7 @@ export const StoreProfileTab = ({
         </SettingsCard>
       </aside>
     </div>
+    )}
+  </div>
   );
 };

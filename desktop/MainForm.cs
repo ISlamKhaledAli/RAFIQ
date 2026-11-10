@@ -76,7 +76,7 @@ namespace RafiqPOS
         private const int PreferredMinHeight = 768;
 
         // Auto backup on close must never hang the close or be killed half-way by a Windows shutdown
-        private const int CloseBackupTimeoutMs = 30000;
+        private const int CloseBackupTimeoutMs = 3000;
 
         public static MainForm Instance { get; private set; }
 

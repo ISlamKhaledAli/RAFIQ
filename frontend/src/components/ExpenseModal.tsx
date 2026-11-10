@@ -253,7 +253,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="px-5 py-4 bg-brand-dark dark:bg-surface-dark-2 text-white dark:text-ink-dark border-b dark:border-line-dark flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 bg-brand-dark dark:bg-surface-dark-2 text-white dark:text-ink-dark border-b dark:border-line-dark flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-white/10 dark:bg-surface-dark-3 text-white dark:text-brand-bright flex items-center justify-center">
               <Receipt className="w-5 h-5" />
@@ -275,7 +275,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <MotionHeight className="flex-1 min-h-0 overflow-y-auto p-5 bg-canvas dark:bg-canvas-dark">
+        <MotionHeight className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-5 bg-canvas dark:bg-canvas-dark custom-scrollbar">
         <div className="space-y-4">
           {error && (
             <div className="p-3 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs flex items-center gap-2">
@@ -371,27 +371,51 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                   <label className="text-xs font-bold text-ink dark:text-ink-dark">
                     بند وتصنيف المصروف
                   </label>
-                  <AppButton variant="subtle" size="xs" icon={Plus} className="-my-1" onClick={() => setIsAddingCategory(!isAddingCategory)}>
+                  <AppButton
+                    type="button"
+                    variant="subtle"
+                    size="xs"
+                    icon={isAddingCategory ? X : Plus}
+                    className="-my-1"
+                    onClick={() => {
+                      setIsAddingCategory(!isAddingCategory);
+                      setNewCategoryName('');
+                    }}
+                  >
                     {isAddingCategory ? 'إلغاء الإضافة' : 'إضافة بند مخصص جديد'}
                   </AppButton>
                 </div>
 
                 {isAddingCategory ? (
-                  <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark flex gap-2 items-center">
+                  <div className="flex gap-1.5 items-center min-h-[2.375rem]">
                     <input
                       type="text"
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder="اسم بند المصروف الجديد (مثلاً: بنزين، إكراميات)..."
-                      className="flex-1 px-3 py-1.5 text-xs bg-white dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void handleCreateCategory();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setIsAddingCategory(false);
+                          setNewCategoryName('');
+                        }
+                      }}
+                      placeholder="اسم البند الجديد..."
+                      className="flex-1 min-w-0 h-[2.375rem] px-3 text-xs bg-white dark:bg-surface-dark border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright rounded-xl text-ink dark:text-ink-dark focus:outline-none placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 transition-colors"
+                      autoFocus
                     />
                     <AppButton
+                      type="button"
                       variant="primary"
                       size="sm"
+                      className="h-[2.375rem] px-3 shrink-0"
                       onClick={() => void handleCreateCategory()}
                       disabled={addingCatLoading || !newCategoryName.trim()}
                     >
-                      {addingCatLoading ? 'جاري الحفظ...' : 'حفظ البند'}
+                      {addingCatLoading ? 'جاري...' : 'حفظ البند'}
                     </AppButton>
                   </div>
                 ) : (

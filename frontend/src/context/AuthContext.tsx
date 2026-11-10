@@ -59,11 +59,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUser();
     invoke<any>('security:getStatus')
       .then((status: any) => {
-        if (status?.idleTimeoutMinutes && status.idleTimeoutMinutes > 0) {
+        if (status && typeof status.idleTimeoutMinutes === 'number' && status.idleTimeoutMinutes >= 0) {
           setIdleTimeoutMinutes(status.idleTimeoutMinutes);
         }
       })
       .catch(() => {});
+
+    const handleTimeoutChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      if (typeof customEvent.detail === 'number') {
+        setIdleTimeoutMinutes(customEvent.detail);
+      }
+    };
+    window.addEventListener('rafiq:idle-timeout-changed', handleTimeoutChanged);
+    return () => {
+      window.removeEventListener('rafiq:idle-timeout-changed', handleTimeoutChanged);
+    };
   }, [refreshUser]);
 
   const login = useCallback(async (username: string, secret: string): Promise<LoginResult> => {
@@ -80,6 +91,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (res && res.success && res.user) {
         commitUser(res.user);
+        try {
+          sessionStorage.setItem('rafiq_just_logged_in', '1');
+        } catch {
+          // ignore
+        }
         lastActivityRef.current = Date.now();
         return res;
       }
@@ -135,6 +151,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const intervalId = setInterval(() => {
       const elapsedMinutes = (Date.now() - lastActivityRef.current) / (1000 * 60);
       if (elapsedMinutes >= idleTimeoutMinutes) {
+        try {
+          sessionStorage.setItem('rafiq_logout_reason', 'idle');
+          sessionStorage.setItem('rafiq_logout_idle_minutes', String(idleTimeoutMinutes));
+        } catch {
+          // ignore
+        }
         logout();
       }
     }, 15000);

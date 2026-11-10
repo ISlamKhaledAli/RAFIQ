@@ -37,7 +37,7 @@ describe('Security hardening: forced PIN change and PIN policy', () => {
   it('the idle auto-lock really logs the user out instead of opening a dismissable modal', () => {
     const app = fs.readFileSync(path.resolve('src', 'App.tsx'), 'utf8');
     assert.ok(app.includes('logoutRef.current()'), 'idle timeout must call logout');
-    assert.ok(!app.includes('LoginModal'), 'the dismissable login modal must be gone');
+    assert.ok(!app.replace(/ShiftLoginModal/g, '').includes('LoginModal'), 'the dismissable login modal must be gone');
     assert.ok(!fs.existsSync(path.resolve('src', 'components', 'LoginModal.tsx')), 'LoginModal.tsx must be deleted');
   });
 

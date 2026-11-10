@@ -137,7 +137,7 @@ describe('owner-grade gating in the UI', () => {
 describe('staff screen cleanups', () => {
   it('the supervisor-PIN staff manager entry is gone (the login modal no longer exists)', () => {
     const app = read('src', 'App.tsx');
-    assert.ok(!app.includes('LoginModal'), 'App must not use the removed login modal');
+    assert.ok(!app.replace(/ShiftLoginModal/g, '').includes('LoginModal'), 'App must not use the removed login modal');
     assert.ok(!app.includes('برقم المدير السري'), 'no supervisor-PIN staff manager entry');
   });
 

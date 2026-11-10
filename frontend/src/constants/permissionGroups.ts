@@ -221,6 +221,7 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
     icon: 'settings',
     items: [
       { key: 'settings.store', label: 'بيانات المحل والفاتورة', description: 'تعديل اسم المحل والهاتف وترويسة الإيصال' },
+      { key: 'settings.templates', label: 'نماذج ومطبوعات الفواتير', description: 'معاينة وتخصيص نماذج الفواتير والسندات وتقارير اليومية' },
       { key: 'settings.printer', label: 'إعدادات الطابعات', description: 'ضبط طابعة الإيصالات وهوامش الطباعة' },
       { key: 'settings.barcode', label: 'إعدادات الباركود والميزان', description: 'ضبط الباركود وقارئ الميزان الإلكتروني' },
       { key: 'settings.backup', label: 'النسخ الاحتياطي', description: 'تصدير نسخة احتياطية من قاعدة البيانات' },

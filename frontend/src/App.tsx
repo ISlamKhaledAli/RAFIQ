@@ -85,9 +85,12 @@ import { FirstRunWizardModal } from './components/FirstRunWizardModal';
 import { GuidedTourModal } from './components/GuidedTourModal';
 import { RafiqLoadingState } from './components/RafiqLoadingState';
 import { RafiqDialogContainer } from './components/RafiqDialog';
+import { RafiqGlobalTooltip } from './components/RafiqGlobalTooltip';
 import { rafiqConfirm, rafiqAlert } from './utils/dialogService';
 import { UserManagerModal } from './components/UserManagerModal';
 import { ShiftModal } from './components/ShiftModal';
+import { ShiftLogoutModal } from './components/ShiftLogoutModal';
+import { ShiftLoginModal } from './components/ShiftLoginModal';
 import { SupervisorPromptModal } from './components/SupervisorPromptModal';
 import { LicenseExpiredLockScreen } from './components/LicenseExpiredLockScreen';
 import type { LicenseExpiryDetails } from './components/LicenseExpiredLockScreen';
@@ -379,6 +382,8 @@ export default function App() {
   const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [isShiftLogoutWarningOpen, setIsShiftLogoutWarningOpen] = useState(false);
+  const [shiftLoginNotice, setShiftLoginNotice] = useState<Shift | null>(null);
   const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(15);
   const [supervisorPrompt, setSupervisorPrompt] = useState<{
     isOpen: boolean;
@@ -775,6 +780,30 @@ export default function App() {
       window.removeEventListener('rafiq:shift-updated', handleShiftUpdated as EventListener);
     };
   }, [loadActiveShift, currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    let justLoggedIn = false;
+    try {
+      if (sessionStorage.getItem('rafiq_just_logged_in') === '1') {
+        justLoggedIn = true;
+        sessionStorage.removeItem('rafiq_just_logged_in');
+      }
+    } catch {
+      // ignore
+    }
+
+    if (justLoggedIn) {
+      invoke<Shift | null>('shifts:getActive', { posRegisterId: 'default_pos' })
+        .then((active) => {
+          if (active && active.status === 'open') {
+            setActiveShift(active);
+            setShiftLoginNotice(active);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [currentUserId]);
 
   const refreshSettings = useCallback(async () => {
     try {
@@ -1241,6 +1270,7 @@ export default function App() {
         />
 
       <RafiqDialogContainer />
+      <RafiqGlobalTooltip />
       </div>
     );
   }
@@ -1253,6 +1283,7 @@ export default function App() {
           label="جاري تحميل نظام رفيق..." 
           sublabel="التحقق من جلسة المستخدم والاتصال بقاعدة البيانات" 
         />
+        <RafiqGlobalTooltip />
       </div>
     );
   }
@@ -1269,6 +1300,7 @@ export default function App() {
           />
         )}
         <RafiqDialogContainer />
+        <RafiqGlobalTooltip />
       </div>
     );
   }
@@ -1291,6 +1323,7 @@ export default function App() {
           <ForcedPinChangeForm user={currentUser} onPinChanged={() => void refreshUser()} />
         </div>
         <RafiqDialogContainer />
+        <RafiqGlobalTooltip />
       </div>
     );
   }
@@ -1298,6 +1331,22 @@ export default function App() {
   const shopSubtitle = getShopSubtitle(storeName);
 
   const confirmAndLogout = async () => {
+    let currentShift = activeShift;
+    try {
+      const active = await invoke<Shift | null>('shifts:getActive', { posRegisterId: 'default_pos' });
+      if (active) {
+        currentShift = active;
+        setActiveShift(active);
+      }
+    } catch {
+      // ignore
+    }
+
+    if (currentShift && currentShift.status === 'open') {
+      setIsShiftLogoutWarningOpen(true);
+      return;
+    }
+
     const confirmed = await rafiqConfirm({
       title: 'تسجيل الخروج',
       message: 'هل تريد تسجيل الخروج الآن؟ ستحتاج لإدخال الرقم السري للدخول مرة أخرى.',
@@ -2298,6 +2347,34 @@ export default function App() {
         }}
       />
 
+      {/* Shift Logout Warning Modal (Cashier logging out with open shift) */}
+      <ShiftLogoutModal
+        isOpen={isShiftLogoutWarningOpen}
+        shift={activeShift}
+        cashierName={currentUser?.displayName}
+        onClose={() => setIsShiftLogoutWarningOpen(false)}
+        onConfirmLogout={async () => {
+          setIsShiftLogoutWarningOpen(false);
+          await logout();
+        }}
+        onOpenShiftClose={() => {
+          setIsShiftLogoutWarningOpen(false);
+          setIsShiftModalOpen(true);
+        }}
+      />
+
+      {/* Shift Login Notice Modal (User logging in with open shift) */}
+      <ShiftLoginModal
+        isOpen={Boolean(shiftLoginNotice)}
+        shift={shiftLoginNotice}
+        currentUserName={currentUser?.displayName}
+        onClose={() => setShiftLoginNotice(null)}
+        onOpenShiftDetails={() => {
+          setShiftLoginNotice(null);
+          setIsShiftModalOpen(true);
+        }}
+      />
+
       {/* Supervisor Approval Prompt Modal (Task 166-9) */}
       <SupervisorPromptModal
         isOpen={supervisorPrompt.isOpen}
@@ -2369,6 +2446,9 @@ export default function App() {
 
       {/* Global Rafiq Custom Dialog Modal System */}
       <RafiqDialogContainer />
+
+      {/* Global Rafiq Custom Tooltip System (Intercepts all native titles app-wide) */}
+      <RafiqGlobalTooltip />
     </div>
   );
 }
