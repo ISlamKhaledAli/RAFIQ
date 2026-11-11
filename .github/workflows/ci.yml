@@ -122,14 +122,22 @@ jobs:
     # (they need it anyway), so it is not built a third time here.
 
   # ---------------------------------------------------------------------------------------------
-  # NUnit scenarios (Debug x86). Runs in parallel with desktop-build and desktop-selftests.
-  # TestBase builds one migrated template database per run and copies it per test.
+  # NUnit scenarios (Debug x86), sharded across 2 parallel runners.
+  # TestBase builds one migrated template database per run and copies it per test with WAL+Sync=Off.
   # Set RAFIQ_TEST_NO_TEMPLATE=1 to force the old run-every-migration-per-test behaviour.
   # ---------------------------------------------------------------------------------------------
   desktop-nunit:
-    name: Desktop tests (NUnit)
+    name: Desktop tests (NUnit ${{ matrix.shard }})
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - shard: '1/2'
+          filter: 'class =~ S[0-4]'
+        - shard: '2/2'
+          filter: 'class !~ S[0-4]'
     env:
       TEST_RESULTS_DIR: ${{ github.workspace }}\test-results
     steps:
@@ -183,12 +191,13 @@ jobs:
         Write-Host 'All expected build outputs are present.'
 
     - name: Run NUnit tests (x86)
-      timeout-minutes: 30
+      timeout-minutes: 25
       run: |
         New-Item -ItemType Directory -Force -Path $env:TEST_RESULTS_DIR | Out-Null
         & desktop/packages/NUnit.ConsoleRunner.3.16.3/tools/nunit3-console.exe `
           desktop/RafiqPOS.Tests/bin/Debug/RafiqPOS.Tests.dll `
           --x86 `
+          --where "${{ matrix.filter }}" `
           --labels=Before `
           --work="$env:TEST_RESULTS_DIR" `
           "--result=$env:TEST_RESULTS_DIR\TestResult.xml;format=nunit3"
@@ -215,7 +224,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: desktop-nunit-results
+        name: desktop-nunit-results-${{ matrix.shard }}
         path: |
           test-results/
           desktop/RafiqPOS.Tests/bin/Debug/logs/

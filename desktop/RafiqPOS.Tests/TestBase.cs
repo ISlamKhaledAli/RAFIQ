@@ -77,7 +77,7 @@ namespace RafiqPOS.Tests
                 try
                 {
                     string path = Path.Combine(Path.GetTempPath(), "rafiq_nunit_template_" + Guid.NewGuid().ToString("N") + ".db");
-                    string connString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", path);
+                    string connString = string.Format("Data Source={0};Version=3;Journal Mode=WAL;Synchronous=Off;BusyTimeout=5000;", path);
                     MigrationRunner.ApplyMigrations(connString, path);
 
                     // Fold the WAL into the main file so copying the .db alone yields a complete database
@@ -119,7 +119,7 @@ namespace RafiqPOS.Tests
         public virtual void BaseSetUp()
         {
             TestDbPath = Path.Combine(Path.GetTempPath(), "rafiq_nunit_" + Guid.NewGuid().ToString("N") + ".db");
-            ConnectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", TestDbPath);
+            ConnectionString = string.Format("Data Source={0};Version=3;Journal Mode=WAL;Synchronous=Off;BusyTimeout=5000;", TestDbPath);
 
             // Isolated SQLite database at the latest schema (1 to LATEST_SUPPORTED_VERSION)
             bool copiedFromTemplate = false;
