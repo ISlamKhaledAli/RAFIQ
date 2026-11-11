@@ -180,7 +180,17 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
       setPin('');
     } finally {
       setLoading(false);
-      inputRef.current?.focus();
+      setTimeout(() => {
+        if (!isLocked) {
+          inputRef.current?.focus();
+          inputRef.current?.select?.();
+        }
+      }, 50);
+      setTimeout(() => {
+        if (!isLocked && inputRef.current && document.activeElement !== inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 150);
     }
   };
 

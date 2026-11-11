@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Lock,
   User as UserIcon,
@@ -130,6 +130,26 @@ export const LoginScreen: React.FC = () => {
   };
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
+  const lockoutSecondsRef = useRef(lockoutSeconds);
+
+  useEffect(() => {
+    lockoutSecondsRef.current = lockoutSeconds;
+  }, [lockoutSeconds]);
+
+  const focusPasswordInput = useCallback((force = false) => {
+    if (!force && lockoutSecondsRef.current > 0) return;
+    setTimeout(() => {
+      if (passwordInputRef.current) {
+        passwordInputRef.current.focus();
+        passwordInputRef.current.select?.();
+      }
+    }, 50);
+    setTimeout(() => {
+      if (passwordInputRef.current && document.activeElement !== passwordInputRef.current) {
+        passwordInputRef.current.focus();
+      }
+    }, 150);
+  }, []);
 
   const isDropdown = userPickerMode === 'dropdown' || (userPickerMode === 'auto' && activeUsers.length > 3);
 
@@ -162,6 +182,7 @@ export const LoginScreen: React.FC = () => {
           const defaultUser = nonRootUsers.find((u: UserDto) => u.isOwner === true) || nonRootUsers.find((u: UserDto) => u.role === 'admin') || nonRootUsers[0];
           setUsername(defaultUser.username);
         }
+        focusPasswordInput(true);
       })
       .catch(() => {});
 
@@ -173,7 +194,9 @@ export const LoginScreen: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, []);
+
+    focusPasswordInput(true);
+  }, [focusPasswordInput]);
 
   // Lockout countdown timer
   useEffect(() => {
@@ -183,13 +206,14 @@ export const LoginScreen: React.FC = () => {
         if (prev <= 1) {
           clearInterval(interval);
           setError('');
+          focusPasswordInput(true);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [lockoutSeconds]);
+  }, [lockoutSeconds, focusPasswordInput]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -199,6 +223,7 @@ export const LoginScreen: React.FC = () => {
     }
     if (!password) {
       setError('يرجى إدخال الرقم السري.');
+      focusPasswordInput();
       return;
     }
     if (lockoutSeconds > 0) {
@@ -211,14 +236,20 @@ export const LoginScreen: React.FC = () => {
     try {
       const res = await login(username.trim(), password);
       if (!res.success) {
-        if (res.isLocked && res.remainingLockoutSeconds) {
+        const isLocked = Boolean(res.isLocked && res.remainingLockoutSeconds);
+        if (isLocked && typeof res.remainingLockoutSeconds === 'number') {
           setLockoutSeconds(res.remainingLockoutSeconds);
         }
         setError(res.message || 'بيانات الدخول غير صحيحة.');
         setPassword('');
+        if (!isLocked) {
+          focusPasswordInput(true);
+        }
       }
     } catch (err: any) {
       setError(err?.message || 'حدث خطأ غير متوقع أثناء تسجيل الدخول.');
+      setPassword('');
+      focusPasswordInput(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -227,14 +258,17 @@ export const LoginScreen: React.FC = () => {
   const handleKeypadPress = (digit: string) => {
     if (lockoutSeconds > 0) return;
     setPassword((prev) => prev + digit);
+    focusPasswordInput();
   };
 
   const handleKeypadBackspace = () => {
     setPassword((prev) => prev.slice(0, -1));
+    focusPasswordInput();
   };
 
   const handleKeypadClear = () => {
     setPassword('');
+    focusPasswordInput();
   };
 
   const handleResetWithRecovery = async (e: React.FormEvent) => {
@@ -352,7 +386,10 @@ export const LoginScreen: React.FC = () => {
               <AppButton
                 variant="secondary"
                 size="xs"
-                onClick={() => setIsNumericMode(!isNumericMode)}
+                onClick={() => {
+                  setIsNumericMode(!isNumericMode);
+                  focusPasswordInput();
+                }}
                 title="التبديل بين وضع لوحة الأرقام والكيبورد العادي"
               >
                 {isNumericMode ? 'وضع الكيبورد' : 'لوحة الأرقام'}
@@ -413,9 +450,7 @@ export const LoginScreen: React.FC = () => {
                       setUsername(val);
                       setPassword('');
                       setError('');
-                      if (passwordInputRef.current) {
-                        passwordInputRef.current.focus();
-                      }
+                      focusPasswordInput();
                     }}
                     options={userSelectOptions}
                     placeholder="اختر موظفاً للدخول السريع..."
@@ -434,9 +469,7 @@ export const LoginScreen: React.FC = () => {
                             setUsername(u.username);
                             setPassword('');
                             setError('');
-                            if (passwordInputRef.current) {
-                              passwordInputRef.current.focus();
-                            }
+                            focusPasswordInput();
                           }}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 ${
                             isSelected
@@ -544,7 +577,10 @@ export const LoginScreen: React.FC = () => {
                     size="xs"
                     icon={showPassword ? EyeOff : Eye}
                     aria-label={showPassword ? 'إخفاء الرقم السري' : 'إظهار الرقم السري'}
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => {
+                      setShowPassword(!showPassword);
+                      focusPasswordInput();
+                    }}
                     tabIndex={-1}
                     className="absolute left-1.5 top-2"
                   />

@@ -81,26 +81,27 @@ describe('controlled register SQL semantics (local calendar day over UTC ISO tim
   }
 
   it('inclusive local-day window with datetime(col, localtime) matches the repository clause', { skip: !DatabaseSync }, () => {
-    const previousTz = process.env.TZ;
-    process.env.TZ = 'Africa/Cairo'; // UTC+2 in November
+    const db = new DatabaseSync(':memory:');
     try {
-      const db = new DatabaseSync(':memory:');
       db.exec('CREATE TABLE d (id TEXT, created_at TEXT)');
       const ins = db.prepare('INSERT INTO d VALUES (?, ?)');
-      ins.run('before', '2026-11-06T21:59:59.999Z'); // 2026-11-06 23:59:59 local
-      ins.run('first', '2026-11-06T22:00:00.000Z'); // 2026-11-07 00:00:00 local
-      ins.run('last', '2026-11-07T21:59:59.000Z'); // 2026-11-07 23:59:59 local
-      ins.run('after', '2026-11-07T22:00:00.000Z'); // 2026-11-08 00:00:00 local
-      ins.run('plain-utc', '2026-11-07 10:00:00'); // no tz marker, stored as UTC
+      const beforeUtc = db.prepare("SELECT datetime('2026-11-07 00:00:00', '-1 second', 'utc') AS v").get().v;
+      const firstUtc = db.prepare("SELECT datetime('2026-11-07 00:00:00', 'utc') AS v").get().v;
+      const lastUtc = db.prepare("SELECT datetime('2026-11-07 23:59:59', 'utc') AS v").get().v;
+      const afterUtc = db.prepare("SELECT datetime('2026-11-07 23:59:59', '+1 second', 'utc') AS v").get().v;
+
+      ins.run('before', beforeUtc.replace(' ', 'T') + '.999Z');
+      ins.run('first', firstUtc.replace(' ', 'T') + '.000Z');
+      ins.run('last', lastUtc.replace(' ', 'T') + '.000Z');
+      ins.run('after', afterUtc.replace(' ', 'T') + '.000Z');
+      ins.run('plain-utc', '2026-11-07 10:00:00'); // stored as plain local/utc
       const sql = "SELECT id FROM d WHERE datetime(created_at, 'localtime') >= ? AND datetime(created_at, 'localtime') <= ? ORDER BY id";
       const ids = db.prepare(sql).all('2026-11-07 00:00:00', '2026-11-07 23:59:59').map((r) => r.id);
       assert.deepEqual(ids, ['first', 'last', 'plain-utc']);
       const openBefore = db.prepare("SELECT id FROM d WHERE datetime(created_at, 'localtime') < ? ORDER BY id").all('2026-11-07 00:00:00').map((r) => r.id);
       assert.deepEqual(openBefore, ['before']);
-      db.close();
     } finally {
-      if (previousTz === undefined) delete process.env.TZ;
-      else process.env.TZ = previousTz;
+      db.close();
     }
   });
 });

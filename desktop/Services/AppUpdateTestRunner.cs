@@ -41,10 +41,18 @@ namespace RafiqPOS.Services
                 result.VersionComparisonPassed = true;
                 result.PassedAssertions++;
 
+                string[] parts = (AppUpdateService.CurrentVersion ?? "1.0.0").Split('.');
+                int major = 2;
+                if (parts.Length > 0 && int.TryParse(parts[0], out major))
+                {
+                    major = major + 1;
+                }
+                string futureVersion = string.Format("{0}.0.0", major);
+
                 result.TotalAssertions++;
-                string manifest = "{\"version\": \"1.1.0\", \"releaseDate\": \"2026-10-10\", \"changelog\": \"تحسينات\", \"isMandatory\": false}";
+                string manifest = string.Format("{{\"version\": \"{0}\", \"releaseDate\": \"2026-10-10\", \"changelog\": \"تحسينات\", \"isMandatory\": false}}", futureVersion);
                 AppUpdateInfo parsed = DatabaseService.Updates.CheckForUpdates(manifest);
-                if (!parsed.HasUpdate || parsed.LatestVersion != "1.1.0")
+                if (!parsed.HasUpdate || parsed.LatestVersion != futureVersion)
                 {
                     result.Message = "فشل اختبار معالجة ملف الإصدار واكتشاف التحديث";
                     return result;
@@ -53,7 +61,7 @@ namespace RafiqPOS.Services
                 result.PassedAssertions++;
 
                 result.TotalAssertions++;
-                string ineligible = "{\"version\": \"1.1.0\", \"isEligible\": false, \"message\": \"غير مؤهل\"}";
+                string ineligible = string.Format("{{\"version\": \"{0}\", \"isEligible\": false, \"message\": \"غير مؤهل\"}}", futureVersion);
                 AppUpdateInfo blocked = DatabaseService.Updates.CheckForUpdates(ineligible);
                 if (blocked.HasUpdate || string.IsNullOrEmpty(blocked.ErrorMessage))
                 {
