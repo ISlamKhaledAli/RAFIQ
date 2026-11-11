@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { KeyRound, Copy, Check, Printer, ShieldAlert, ShieldCheck, FileText } from 'lucide-react';
+import { KeyRound, Copy, Check, Printer, ShieldAlert, ShieldCheck, FileText, X, CheckCircle2 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { AppButton } from './AppButton';
 import { printCompactReport } from '../utils/printReport';
@@ -9,7 +9,9 @@ import type { ReceiptPaperWidth } from '../utils/receiptLayout';
 interface RecoveryCodeModalProps {
   isOpen: boolean;
   recoveryCode: string;
-  onConfirmed: () => void;
+  onConfirmed?: () => void;
+  onClose?: () => void;
+  isViewingOnly?: boolean;
 }
 
 interface StoreReceiptSettings {
@@ -83,6 +85,8 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
   isOpen,
   recoveryCode,
   onConfirmed,
+  onClose,
+  isViewingOnly = false,
 }) => {
   const [copied, setCopied] = useState(false);
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
@@ -214,10 +218,10 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
     setIsSubmitting(true);
     try {
       await invoke('backup:confirmRecoveryCode');
-      onConfirmed();
+      onConfirmed?.();
     } catch {
       // Fallback
-      onConfirmed();
+      onConfirmed?.();
     } finally {
       setIsSubmitting(false);
     }
@@ -243,32 +247,38 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
             </div>
           </div>
 
-          {/* Paper Mode Selector */}
-          <div className="inline-flex rounded-lg border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark p-0.5 text-xs shrink-0">
-            <button
-              type="button"
-              onClick={() => setPrintMode('thermal')}
-              aria-pressed={printMode === 'thermal'}
-              className={`px-2.5 py-1 rounded font-semibold text-micro ${
-                printMode === 'thermal'
-                  ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-              }`}
-            >
-              بون كاشير ({storeSettings.paperWidth})
-            </button>
-            <button
-              type="button"
-              onClick={() => setPrintMode('a4')}
-              aria-pressed={printMode === 'a4'}
-              className={`px-2.5 py-1 rounded font-semibold text-micro ${
-                printMode === 'a4'
-                  ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-              }`}
-            >
-              ورقة A4
-            </button>
+          {/* Header Controls: Paper Mode Selector & Close Button */}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark p-0.5 text-xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setPrintMode('thermal')}
+                aria-pressed={printMode === 'thermal'}
+                className={`px-2.5 py-1 rounded font-semibold text-micro ${
+                  printMode === 'thermal'
+                    ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                }`}
+              >
+                بون كاشير ({storeSettings.paperWidth})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintMode('a4')}
+                aria-pressed={printMode === 'a4'}
+                className={`px-2.5 py-1 rounded font-semibold text-micro ${
+                  printMode === 'a4'
+                    ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                }`}
+              >
+                ورقة A4
+              </button>
+            </div>
+
+            {onClose && (
+              <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={onClose} />
+            )}
           </div>
         </div>
 
@@ -459,28 +469,42 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
 
         {/* Modal Footer (Screen only - Hidden in Print) */}
         <div className="no-print print:hidden bg-surface-2 dark:bg-surface-dark-2 px-5 py-3.5 border-t border-line dark:border-line-dark space-y-3 shrink-0">
-          <label className="flex items-start gap-3 cursor-pointer bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-xl p-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors">
-            <input
-              type="checkbox"
-              checked={hasAcknowledged}
-              onChange={(e) => setHasAcknowledged(e.target.checked)}
-              className="mt-0.5 cursor-pointer"
-            />
-            <span className="text-xs text-ink dark:text-ink-dark leading-relaxed text-right select-none">
-              أقر بأنني قمت بطباعة وحفظ كود الاسترجاع في مكان خارجي آمن ومستقل، وأدرك تماماً أنه لن يمكن استرجاع البيانات أو فك تشفير النسخ على أي جهاز آخر بدونه.
-            </span>
-          </label>
-
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 text-micro text-ink-muted dark:text-ink-dark-muted">
-              <ShieldAlert className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
-              <span>لا يمكن إغلاق هذه النافذة إلا بعد تأكيد حفظ الكود</span>
+          {isViewingOnly ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-paid dark:text-paid-bright font-semibold">
+                <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
+                <span>كود استرجاع المالك مشفر ومحمي. يمكنك نسخه أو طباعته ورقياً في أي وقت.</span>
+              </div>
+              <AppButton variant="secondary" onClick={onClose}>
+                إغلاق
+              </AppButton>
             </div>
+          ) : (
+            <>
+              <label className="flex items-start gap-3 cursor-pointer bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-xl p-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={hasAcknowledged}
+                  onChange={(e) => setHasAcknowledged(e.target.checked)}
+                  className="mt-0.5 cursor-pointer"
+                />
+                <span className="text-xs text-ink dark:text-ink-dark leading-relaxed text-right select-none">
+                  أقر بأنني قمت بطباعة وحفظ كود الاسترجاع في مكان خارجي آمن ومستقل، وأدرك تماماً أنه لن يمكن استرجاع البيانات أو فك تشفير النسخ على أي جهاز آخر بدونه.
+                </span>
+              </label>
 
-            <AppButton variant="primary" icon={ShieldCheck} disabled={!hasAcknowledged || isSubmitting} onClick={handleConfirm}>
-              {isSubmitting ? 'جاري التأكيد...' : 'نسخت الكود واحتفظت به'}
-            </AppButton>
-          </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 text-micro text-ink-muted dark:text-ink-dark-muted">
+                  <ShieldAlert className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
+                  <span>لا يمكن إغلاق هذه النافذة إلا بعد تأكيد حفظ الكود</span>
+                </div>
+
+                <AppButton variant="primary" icon={ShieldCheck} disabled={!hasAcknowledged || isSubmitting} onClick={handleConfirm}>
+                  {isSubmitting ? 'جاري التأكيد...' : 'نسخت الكود واحتفظت به'}
+                </AppButton>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

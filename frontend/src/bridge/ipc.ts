@@ -294,6 +294,16 @@ function ensureListenerAttached() {
 }
 function getDefaultTimeout(action: string): number {
   if (
+    action.endsWith(':browseFolder') ||
+    action.endsWith(':browseFile') ||
+    action.includes(':browse') ||
+    action.includes('browseFolder') ||
+    action.includes('browseFile')
+  ) {
+    return 600000; // 10 minutes for interactive user file/folder pickers
+  }
+  if (
+    action.startsWith('migration:') ||
     action.startsWith('excel:') ||
     action.startsWith('products:import') ||
     action.startsWith('products:bulk') ||
@@ -4509,6 +4519,112 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       mockShift = null;
       return closed;
     }
+
+    case 'migration:browseFolder':
+    case 'excel:browseExportFolder':
+      return { selectedFolder: 'D:\\RafiqMigration', cancelled: false };
+
+    case 'migration:browseFile':
+      return { selectedPath: 'D:\\RafiqMigration\\rafiq_migration_test.rafiqpkg', cancelled: false };
+
+    case 'migration:detectRecoveryCode':
+      return { success: true, recoveryCode: 'RFK-ABCD-1234-EFGH' };
+
+    case 'filePicker:getLocations':
+      return [
+        {
+          id: 'E:\\',
+          name: 'E:\\',
+          path: 'E:\\',
+          label: 'فلاشة كينجستون USB (E:)',
+          isDrive: true,
+          isRemovable: true,
+          iconType: 'usb',
+          freeSpaceBytes: 15200000000,
+          totalSpaceBytes: 32000000000,
+        },
+        {
+          id: 'D:\\',
+          name: 'D:\\',
+          path: 'D:\\',
+          label: 'القرص المحلي (D:)',
+          isDrive: true,
+          isRemovable: false,
+          iconType: 'drive',
+          freeSpaceBytes: 120000000000,
+          totalSpaceBytes: 500000000000,
+        },
+        {
+          id: 'downloads',
+          name: 'التنزيلات',
+          path: 'C:\\Users\\User\\Downloads',
+          label: 'مجلد التنزيلات (Downloads)',
+          isDrive: false,
+          isRemovable: false,
+          iconType: 'downloads',
+          freeSpaceBytes: 0,
+          totalSpaceBytes: 0,
+        },
+        {
+          id: 'desktop',
+          name: 'سطح المكتب',
+          path: 'C:\\Users\\User\\Desktop',
+          label: 'سطح المكتب (Desktop)',
+          isDrive: false,
+          isRemovable: false,
+          iconType: 'desktop',
+          freeSpaceBytes: 0,
+          totalSpaceBytes: 0,
+        },
+      ];
+
+    case 'filePicker:listDirectory': {
+      const p = payload as { path?: string; extension?: string; search?: string } | undefined;
+      const target = p?.path || 'E:\\RafiqMigration';
+      return {
+        success: true,
+        currentPath: target,
+        parentPath: target.includes('\\') ? target.substring(0, target.lastIndexOf('\\')) || 'E:\\' : null,
+        folders: [
+          { name: 'RafiqMigration', fullPath: `${target}\\RafiqMigration`, lastModified: new Date().toISOString() },
+          { name: 'Backups_2026', fullPath: `${target}\\Backups_2026`, lastModified: new Date().toISOString() },
+        ],
+        files: [
+          {
+            name: 'rafiq_migration_albaraka_2026.rafiqpkg',
+            fullPath: `${target}\\rafiq_migration_albaraka_2026.rafiqpkg`,
+            sizeBytes: 2548900,
+            lastModified: new Date().toISOString(),
+            extension: '.rafiqpkg',
+          },
+          {
+            name: 'rafiq_backup_weekly.rafiqpkg',
+            fullPath: `${target}\\rafiq_backup_weekly.rafiqpkg`,
+            sizeBytes: 1845200,
+            lastModified: new Date(Date.now() - 86400000).toISOString(),
+            extension: '.rafiqpkg',
+          },
+        ],
+      };
+    }
+
+    case 'filePicker:scanPackages':
+      return [
+        {
+          name: 'rafiq_migration_albaraka_2026.rafiqpkg',
+          fullPath: 'E:\\RafiqMigration\\rafiq_migration_albaraka_2026.rafiqpkg',
+          sizeBytes: 2548900,
+          lastModified: new Date().toISOString(),
+          locationLabel: 'فلاشة كينجستون USB (E:)',
+        },
+        {
+          name: 'rafiq_backup_weekly.rafiqpkg',
+          fullPath: 'C:\\Users\\User\\Downloads\\rafiq_backup_weekly.rafiqpkg',
+          sizeBytes: 1845200,
+          lastModified: new Date(Date.now() - 86400000).toISOString(),
+          locationLabel: 'مجلد التنزيلات (Downloads)',
+        },
+      ];
 
     default:
       return { success: true, echoed: payload };

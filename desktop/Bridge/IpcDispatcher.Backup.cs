@@ -121,20 +121,18 @@ namespace RafiqPOS.Bridge
                         JObject revObj = request.Payload as JObject;
                         if (revObj != null && revObj["pin"] != null) adminPin = revObj["pin"].ToString();
                     }
-                    if (string.IsNullOrEmpty(adminPin))
+                    if (!string.IsNullOrEmpty(adminPin) && DatabaseService.Security != null)
+                    {
+                        var supRes = DatabaseService.Security.VerifySupervisorPin(adminPin, "REVEAL_RECOVERY_CODE", SecurityService.TIER_OWNER);
+                        if (!supRes.Success)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "INVALID_PIN", supRes.Message ?? "PIN المالك غير صحيح.");
+                            return true;
+                        }
+                    }
+                    else if (DatabaseService.Security != null && !DatabaseService.Security.IsCurrentSessionOwner())
                     {
                         response = BridgeResponse.Fail(request.Id, "PIN_REQUIRED", "يرجى إدخال PIN المالك لعرض كود الاسترجاع.");
-                        return true;
-                    }
-                    if (DatabaseService.Security == null)
-                    {
-                        response = BridgeResponse.Fail(request.Id, "SECURITY_UNAVAILABLE", "خدمة الأمان غير مهيأة.");
-                        return true;
-                    }
-                    var supRes = DatabaseService.Security.VerifySupervisorPin(adminPin, "REVEAL_RECOVERY_CODE", SecurityService.TIER_OWNER);
-                    if (!supRes.Success)
-                    {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_PIN", supRes.Message ?? "PIN المالك غير صحيح.");
                         return true;
                     }
                     string revealedCode = DatabaseService.Backup != null ? DatabaseService.Backup.GetOrCreateRecoveryCode() : "";
@@ -389,6 +387,30 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, restResult);
                     return true;
 
+                case "migration:detectRecoveryCode":
+                    string detectPkgPath = null;
+                    if (request.Payload != null)
+                    {
+                        JObject detObj = request.Payload as JObject;
+                        if (detObj != null && detObj["packagePath"] != null)
+                        {
+                            detectPkgPath = detObj["packagePath"].ToString();
+                        }
+                        else
+                        {
+                            detectPkgPath = request.Payload.ToString().Trim('"', ' ');
+                        }
+                    }
+                    string autoCode = DatabaseService.Migration != null
+                        ? DatabaseService.Migration.TryDetectRecoveryCodeFromFolder(detectPkgPath)
+                        : null;
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        success = !string.IsNullOrEmpty(autoCode),
+                        recoveryCode = autoCode
+                    });
+                    return true;
+
                 case "migration:runTests":
                     var migTestRes = MigrationTestRunner.RunAllTests();
                     response = BridgeResponse.Ok(request.Id, migTestRes);
@@ -396,13 +418,35 @@ namespace RafiqPOS.Bridge
 
                 case "migration:browseFile":
                     string selectedFile = null;
+                    string initialBrowseFileDir = null;
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null && pObj["initialFolder"] != null)
+                        {
+                            initialBrowseFileDir = pObj["initialFolder"].ToString();
+                        }
+                    }
                     var fileThread = new System.Threading.Thread(delegate()
                     {
                         using (var ofd = new System.Windows.Forms.OpenFileDialog())
                         {
                             ofd.Filter = "حزمة رفيق للنقل (*.rafiqpkg)|*.rafiqpkg|جميع الملفات (*.*)|*.*";
                             ofd.Title = "اختر حزمة نقل نظام رفيق لاسترجاعها";
-                            if (ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                            ofd.CheckFileExists = true;
+                            if (!string.IsNullOrEmpty(initialBrowseFileDir) && System.IO.Directory.Exists(initialBrowseFileDir))
+                            {
+                                ofd.InitialDirectory = initialBrowseFileDir;
+                            }
+                            IntPtr ownerHwnd = IntPtr.Zero;
+                            if (System.Windows.Forms.Application.OpenForms.Count > 0 && System.Windows.Forms.Application.OpenForms[0] != null)
+                            {
+                                try { ownerHwnd = System.Windows.Forms.Application.OpenForms[0].Handle; } catch { ownerHwnd = IntPtr.Zero; }
+                            }
+                            System.Windows.Forms.DialogResult dr = (ownerHwnd != IntPtr.Zero)
+                                ? ofd.ShowDialog(new FolderSelectDialog.WindowWrapper(ownerHwnd))
+                                : ofd.ShowDialog();
+                            if (dr == System.Windows.Forms.DialogResult.OK)
                             {
                                 selectedFile = ofd.FileName;
                             }
@@ -416,14 +460,33 @@ namespace RafiqPOS.Bridge
 
                 case "migration:browseFolder":
                     string selectedFolder = null;
+                    string initialBrowseDir = null;
+                    string customFolderTitle = "اختر المجلد أو الفلاشة لحفظ حزمة النقل";
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null)
+                        {
+                            if (pObj["initialFolder"] != null)
+                            {
+                                initialBrowseDir = pObj["initialFolder"].ToString();
+                            }
+                            if (pObj["title"] != null)
+                            {
+                                customFolderTitle = pObj["title"].ToString();
+                            }
+                        }
+                    }
                     var folderThread = new System.Threading.Thread(delegate()
                     {
-                        using (var fbd = new System.Windows.Forms.FolderBrowserDialog())
+                        using (var dlg = new FolderSelectDialog())
                         {
-                            fbd.Description = "اختر المجلد أو الفلاشة لحفظ حزمة النقل";
-                            if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                            dlg.Title = customFolderTitle;
+                            dlg.InitialDirectory = initialBrowseDir;
+                            dlg.OkButtonLabel = "اختيار هذا المجلد";
+                            if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                             {
-                                selectedFolder = fbd.SelectedPath;
+                                selectedFolder = dlg.SelectedPath;
                             }
                         }
                     });
@@ -431,6 +494,38 @@ namespace RafiqPOS.Bridge
                     folderThread.Start();
                     folderThread.Join();
                     response = BridgeResponse.Ok(request.Id, new { selectedFolder = selectedFolder, cancelled = string.IsNullOrEmpty(selectedFolder) });
+                    return true;
+
+                case "filePicker:getLocations":
+                    var pickerLocations = GetFilePickerLocations();
+                    response = BridgeResponse.Ok(request.Id, pickerLocations);
+                    return true;
+
+                case "filePicker:listDirectory":
+                    string pickerDirPath = null;
+                    string pickerExtFilter = null;
+                    string pickerSearch = null;
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null)
+                        {
+                            if (pObj["path"] != null) pickerDirPath = pObj["path"].ToString().Trim();
+                            if (pObj["extension"] != null) pickerExtFilter = pObj["extension"].ToString().Trim();
+                            if (pObj["search"] != null) pickerSearch = pObj["search"].ToString().Trim();
+                        }
+                        else
+                        {
+                            pickerDirPath = request.Payload.ToString().Trim('"', ' ');
+                        }
+                    }
+                    var pickerDirResult = ListDirectorySafe(pickerDirPath, pickerExtFilter, pickerSearch);
+                    response = BridgeResponse.Ok(request.Id, pickerDirResult);
+                    return true;
+
+                case "filePicker:scanPackages":
+                    var pickerFoundPackages = ScanKnownLocationsForPackages();
+                    response = BridgeResponse.Ok(request.Id, pickerFoundPackages);
                     return true;
 
                 case "updates:check":
@@ -450,6 +545,363 @@ namespace RafiqPOS.Bridge
                 default:
                     return false;
             }
+        }
+
+        private static object GetFilePickerLocations()
+        {
+            var list = new System.Collections.Generic.List<object>();
+
+            // 1. All ready drives
+            try
+            {
+                var drives = System.IO.DriveInfo.GetDrives();
+                foreach (var d in drives)
+                {
+                    try
+                    {
+                        if (d.IsReady)
+                        {
+                            bool isRemovable = d.DriveType == System.IO.DriveType.Removable;
+                            string label = string.IsNullOrEmpty(d.VolumeLabel)
+                                ? (isRemovable ? "فلاشة USB" : "قرص محلي")
+                                : d.VolumeLabel;
+                            list.Add(new
+                            {
+                                id = d.Name,
+                                name = d.Name,
+                                path = d.RootDirectory.FullName,
+                                label = label,
+                                isDrive = true,
+                                isRemovable = isRemovable,
+                                iconType = isRemovable ? "usb" : "drive",
+                                freeSpaceBytes = d.AvailableFreeSpace,
+                                totalSpaceBytes = d.TotalSize
+                            });
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore individual drive probe failure
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore system drives enumeration error
+            }
+
+            // 2. Special user folders
+            try
+            {
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrEmpty(userProfile))
+                {
+                    string downloadsPath = System.IO.Path.Combine(userProfile, "Downloads");
+                    if (System.IO.Directory.Exists(downloadsPath))
+                    {
+                        list.Add(new
+                        {
+                            id = "downloads",
+                            name = "التنزيلات",
+                            path = downloadsPath,
+                            label = "مجلد التنزيلات (Downloads)",
+                            isDrive = false,
+                            isRemovable = false,
+                            iconType = "downloads",
+                            freeSpaceBytes = 0L,
+                            totalSpaceBytes = 0L
+                        });
+                    }
+                }
+
+                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                if (!string.IsNullOrEmpty(desktopPath) && System.IO.Directory.Exists(desktopPath))
+                {
+                    list.Add(new
+                    {
+                        id = "desktop",
+                        name = "سطح المكتب",
+                        path = desktopPath,
+                        label = "سطح المكتب (Desktop)",
+                        isDrive = false,
+                        isRemovable = false,
+                        iconType = "desktop",
+                        freeSpaceBytes = 0L,
+                        totalSpaceBytes = 0L
+                    });
+                }
+
+                string docsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                if (!string.IsNullOrEmpty(docsPath) && System.IO.Directory.Exists(docsPath))
+                {
+                    list.Add(new
+                    {
+                        id = "documents",
+                        name = "المستندات",
+                        path = docsPath,
+                        label = "المستندات (Documents)",
+                        isDrive = false,
+                        isRemovable = false,
+                        iconType = "folder",
+                        freeSpaceBytes = 0L,
+                        totalSpaceBytes = 0L
+                    });
+                }
+
+                string backupFolder = DatabaseService.Settings != null ? DatabaseService.Settings.Get("backup_target_folder", "") : "";
+                if (string.IsNullOrEmpty(backupFolder) && DatabaseService.Backup != null)
+                {
+                    backupFolder = DatabaseService.Backup.GetDefaultBackupFolder();
+                }
+                if (!string.IsNullOrEmpty(backupFolder) && System.IO.Directory.Exists(backupFolder))
+                {
+                    list.Add(new
+                    {
+                        id = "rafiq_backups",
+                        name = "نسخ رفيق",
+                        path = backupFolder,
+                        label = "مجلد نسخ رفيق المعتمد",
+                        isDrive = false,
+                        isRemovable = false,
+                        iconType = "archive",
+                        freeSpaceBytes = 0L,
+                        totalSpaceBytes = 0L
+                    });
+                }
+            }
+            catch
+            {
+                // Ignore special folders probe error
+            }
+
+            return list;
+        }
+
+        private static object ListDirectorySafe(string targetPath, string extensionFilter, string search)
+        {
+            if (string.IsNullOrEmpty(targetPath) || !System.IO.Directory.Exists(targetPath))
+            {
+                return new
+                {
+                    success = false,
+                    message = "المجلد غير موجود أو تعذر الوصول إليه.",
+                    currentPath = targetPath ?? "",
+                    parentPath = (string)null,
+                    folders = new object[0],
+                    files = new object[0]
+                };
+            }
+
+            try
+            {
+                var dirInfo = new System.IO.DirectoryInfo(targetPath);
+                string parent = dirInfo.Parent != null ? dirInfo.Parent.FullName : null;
+
+                var foldersList = new System.Collections.Generic.List<object>();
+                try
+                {
+                    var subDirs = dirInfo.GetDirectories();
+                    for (int i = 0; i < subDirs.Length; i++)
+                    {
+                        var d = subDirs[i];
+                        if ((d.Attributes & (System.IO.FileAttributes.Hidden | System.IO.FileAttributes.System)) != 0)
+                        {
+                            continue;
+                        }
+                        if (!string.IsNullOrEmpty(search) && d.Name.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0)
+                        {
+                            continue;
+                        }
+                        foldersList.Add(new
+                        {
+                            name = d.Name,
+                            fullPath = d.FullName,
+                            lastModified = d.LastWriteTimeUtc.ToString("o")
+                        });
+                    }
+                }
+                catch
+                {
+                    // Ignore folder enumeration failure (e.g. Access Denied on specific subfolders)
+                }
+
+                var filesList = new System.Collections.Generic.List<object>();
+                try
+                {
+                    var files = dirInfo.GetFiles();
+                    for (int i = 0; i < files.Length; i++)
+                    {
+                        var f = files[i];
+                        if ((f.Attributes & (System.IO.FileAttributes.Hidden | System.IO.FileAttributes.System)) != 0)
+                        {
+                            continue;
+                        }
+                        if (!string.IsNullOrEmpty(extensionFilter) &&
+                            !string.Equals(f.Extension, extensionFilter, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                        if (!string.IsNullOrEmpty(search) && f.Name.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0)
+                        {
+                            continue;
+                        }
+                        filesList.Add(new
+                        {
+                            name = f.Name,
+                            fullPath = f.FullName,
+                            sizeBytes = f.Length,
+                            lastModified = f.LastWriteTimeUtc.ToString("o"),
+                            extension = f.Extension
+                        });
+                    }
+                }
+                catch
+                {
+                    // Ignore files enumeration failure
+                }
+
+                return new
+                {
+                    success = true,
+                    currentPath = dirInfo.FullName,
+                    parentPath = parent,
+                    folders = foldersList,
+                    files = filesList
+                };
+            }
+            catch (Exception ex)
+            {
+                return new
+                {
+                    success = false,
+                    message = "خطأ أثناء قراءة المجلد: " + ex.Message,
+                    currentPath = targetPath,
+                    parentPath = (string)null,
+                    folders = new object[0],
+                    files = new object[0]
+                };
+            }
+        }
+
+        private static object ScanKnownLocationsForPackages()
+        {
+            var packages = new System.Collections.Generic.List<object>();
+            var scannedDirs = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var candidates = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+
+            // 1. Removable drives
+            try
+            {
+                var drives = System.IO.DriveInfo.GetDrives();
+                foreach (var d in drives)
+                {
+                    if (d.IsReady && d.DriveType == System.IO.DriveType.Removable)
+                    {
+                        string lbl = string.IsNullOrEmpty(d.VolumeLabel) ? "فلاشة USB" : d.VolumeLabel;
+                        candidates.Add(new System.Collections.Generic.KeyValuePair<string, string>(
+                            d.RootDirectory.FullName,
+                            string.Format("فلاشة ({0}) {1}", d.Name.TrimEnd('\\'), lbl)));
+                    }
+                }
+            }
+            catch { }
+
+            // 2. Downloads
+            try
+            {
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrEmpty(userProfile))
+                {
+                    string dl = System.IO.Path.Combine(userProfile, "Downloads");
+                    if (System.IO.Directory.Exists(dl))
+                    {
+                        candidates.Add(new System.Collections.Generic.KeyValuePair<string, string>(dl, "مجلد التنزيلات (Downloads)"));
+                    }
+                }
+            }
+            catch { }
+
+            // 3. Desktop
+            try
+            {
+                string dt = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                if (!string.IsNullOrEmpty(dt) && System.IO.Directory.Exists(dt))
+                {
+                    candidates.Add(new System.Collections.Generic.KeyValuePair<string, string>(dt, "سطح المكتب (Desktop)"));
+                }
+            }
+            catch { }
+
+            // 4. Default Backups folder
+            try
+            {
+                string bk = DatabaseService.Settings != null ? DatabaseService.Settings.Get("backup_target_folder", "") : "";
+                if (string.IsNullOrEmpty(bk) && DatabaseService.Backup != null)
+                {
+                    bk = DatabaseService.Backup.GetDefaultBackupFolder();
+                }
+                if (!string.IsNullOrEmpty(bk) && System.IO.Directory.Exists(bk))
+                {
+                    candidates.Add(new System.Collections.Generic.KeyValuePair<string, string>(bk, "مجلد نسخ رفيق"));
+                }
+            }
+            catch { }
+
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                string rootDir = candidates[i].Key;
+                string locLabel = candidates[i].Value;
+
+                if (scannedDirs.Contains(rootDir)) continue;
+                scannedDirs.Add(rootDir);
+
+                ScanFolderForPackages(rootDir, locLabel, packages, 0, 1);
+            }
+
+            return packages;
+        }
+
+        private static void ScanFolderForPackages(string dirPath, string locLabel, System.Collections.Generic.List<object> results, int currentDepth, int maxDepth)
+        {
+            if (string.IsNullOrEmpty(dirPath) || !System.IO.Directory.Exists(dirPath)) return;
+
+            try
+            {
+                var dir = new System.IO.DirectoryInfo(dirPath);
+                var files = dir.GetFiles("*.rafiqpkg");
+                for (int i = 0; i < files.Length; i++)
+                {
+                    var f = files[i];
+                    results.Add(new
+                    {
+                        name = f.Name,
+                        fullPath = f.FullName,
+                        sizeBytes = f.Length,
+                        lastModified = f.LastWriteTimeUtc.ToString("o"),
+                        locationLabel = locLabel
+                    });
+                }
+
+                if (currentDepth < maxDepth)
+                {
+                    var subDirs = dir.GetDirectories();
+                    for (int j = 0; j < subDirs.Length; j++)
+                    {
+                        var s = subDirs[j];
+                        if ((s.Attributes & (System.IO.FileAttributes.Hidden | System.IO.FileAttributes.System)) != 0)
+                        {
+                            continue;
+                        }
+                        string sName = s.Name.ToLowerInvariant();
+                        if (sName == "windows" || sName == "program files" || sName == "$recycle.bin" || sName == "system volume information")
+                        {
+                            continue;
+                        }
+                        ScanFolderForPackages(s.FullName, locLabel, results, currentDepth + 1, maxDepth);
+                    }
+                }
+            }
+            catch { }
         }
     }
 }

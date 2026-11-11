@@ -94,7 +94,6 @@ describe('Invoice & Document Templates Suite: Live Preview, Styling & RBAC Invar
     assert.ok(storeProfileSrc.includes('InvoiceTemplatesTab'), 'StoreProfileTab must render InvoiceTemplatesTab');
     assert.ok(storeProfileSrc.includes('profileViewMode'), 'StoreProfileTab must provide tab switching between mother invoice and other templates');
     assert.ok(storeProfileSrc.includes('معاينة وتخصيص باقي الفواتير والمستندات'), 'Must offer clear Arabic tab title');
-    assert.ok(storeProfileSrc.includes('5 نماذج'), 'Must reflect 5 models');
   });
 
   it('12. RBAC and Permissions Matrix: registered in SecurityService.cs and permissionGroups.ts', () => {

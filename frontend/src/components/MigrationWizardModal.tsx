@@ -16,7 +16,12 @@ import {
   Eye,
   EyeOff,
   KeyRound,
-  X
+  X,
+  Printer,
+  Copy,
+  Check,
+  Sparkles,
+  HelpCircle
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqConfirm } from '../utils/dialogService';
@@ -26,6 +31,7 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RequiredMark } from './RequiredMark';
 import { AppButton } from './AppButton';
 import MotionHeight from './MotionHeight';
+import { RecoveryCodeModal } from './RecoveryCodeModal';
 
 export interface DriveItem {
   name: string;
@@ -91,6 +97,8 @@ export interface MigrationPackageExportResult {
   fileSizeBytes: number;
   manifest: MigrationPackageManifest;
   message: string;
+  recoveryCode?: string;
+  recoveryCodeFilePath?: string;
 }
 
 export interface MigrationPackageInspectResult {
@@ -138,6 +146,11 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
   const [inspectResult, setInspectResult] = useState<MigrationPackageInspectResult | null>(null);
   const [restoreResult, setRestoreResult] = useState<MigrationRestoreResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [showExportRecoveryModal, setShowExportRecoveryModal] = useState(false);
+  const [autoDetectedCode, setAutoDetectedCode] = useState<string | null>(null);
+  const [showRecoveryGuideModal, setShowRecoveryGuideModal] = useState(false);
+  const [isDetectingCode, setIsDetectingCode] = useState(false);
 
   // Load current metrics & connected drives
   const loadInitialData = useCallback(async () => {
@@ -213,24 +226,69 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
   const handleBrowseFolder = async () => {
     try {
-      const res = await invoke<{ selectedFolder: string | null; cancelled: boolean }>('migration:browseFolder');
+      const res = await invoke<{ selectedFolder: string | null; cancelled: boolean }>(
+        'migration:browseFolder',
+        { initialFolder: targetFolder.trim() || undefined, title: 'اختر المجلد أو الفلاشة لحفظ حزمة النقل' },
+        600000
+      );
       if (res && !res.cancelled && res.selectedFolder) {
         setTargetFolder(res.selectedFolder);
         setExportResult(null);
+        setErrorMessage(null);
       }
     } catch (err: unknown) {
       setErrorMessage(messageOf(err, 'تعذر فتح نافذة اختيار المكان.'));
     }
   };
 
-  // Browse file dialog for package
+  const handleCopyExportCode = async () => {
+    if (!exportResult?.recoveryCode) return;
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(exportResult.recoveryCode);
+      }
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2500);
+    } catch {
+      // Ignore clipboard write errors
+    }
+  };
+
+  const detectCodeFromPackage = async (path: string) => {
+    if (!path.trim()) return;
+    setIsDetectingCode(true);
+    try {
+      const res = await invoke<{ success: boolean; recoveryCode?: string }>('migration:detectRecoveryCode', {
+        packagePath: path.trim(),
+      });
+      if (res && res.success && res.recoveryCode) {
+        setAutoDetectedCode(res.recoveryCode);
+        if (!recoveryCode.trim()) {
+          setRecoveryCode(res.recoveryCode);
+        }
+      } else {
+        setAutoDetectedCode(null);
+      }
+    } catch {
+      setAutoDetectedCode(null);
+    } finally {
+      setIsDetectingCode(false);
+    }
+  };
+
+  // Native fallback browse file dialog for package
   const handleBrowsePackage = async () => {
     try {
-      const res = await invoke<{ selectedPath: string; cancelled: boolean }>('migration:browseFile');
+      const res = await invoke<{ selectedPath: string; cancelled: boolean }>(
+        'migration:browseFile',
+        { initialFolder: packagePath.trim() || undefined },
+        600000
+      );
       if (res && !res.cancelled && res.selectedPath) {
         setPackagePath(res.selectedPath);
         setInspectResult(null);
         setErrorMessage(null);
+        void detectCodeFromPackage(res.selectedPath);
         if (recoveryCode.trim()) void handleInspectPackage(res.selectedPath);
       }
     } catch (err: unknown) {
@@ -597,9 +655,48 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       </span>
                     </div>
                   </div>
+                  {/* Owner recovery code block for this export */}
+                  {exportResult.recoveryCode && (
+                    <div className="p-3.5 rounded-xl bg-surface dark:bg-surface-dark border border-brand/30 dark:border-brand-dark/40 space-y-2.5 shadow-2xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <KeyRound className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                          <span className="font-bold text-xs text-brand dark:text-brand-bright">
+                            كود استرجاع المالك (المطلوب عند فتح الملف على الجهاز الجديد):
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <AppButton
+                            variant="secondary"
+                            size="xs"
+                            icon={copiedCode ? Check : Copy}
+                            onClick={() => void handleCopyExportCode()}
+                          >
+                            {copiedCode ? 'تم النسخ' : 'نسخ الكود'}
+                          </AppButton>
+                          <AppButton
+                            variant="secondary"
+                            size="xs"
+                            icon={Printer}
+                            onClick={() => setShowExportRecoveryModal(true)}
+                          >
+                            طباعة إيصال الكود
+                          </AppButton>
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark font-mono font-bold text-sm text-center tracking-widest text-ink dark:text-ink-dark select-all">
+                        {exportResult.recoveryCode}
+                      </div>
+                      <div className="flex items-center gap-2 text-micro text-paid dark:text-paid-bright font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>تم أيضاً حفظ نسخة نصية من الكود على الفلاشة باسم (كود_استرجاع_المحل) تلقائياً.</span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="p-2.5 rounded bg-paid/10 text-paid text-micro leading-relaxed flex items-start gap-2">
                     <KeyRound className="w-4 h-4 text-paid shrink-0 mt-0.5" />
-                    <span><strong>مهم جداً:</strong> الملف مشفر، ومش هيتفتح على الجهاز الجديد غير بكود استرجاع المالك الخاص بالمحل. احتفظ بالكود في مكان آمن ومنفصل عن الفلاشة، ولو ضاع الكود مش هتقدر تفتح الملف.</span>
+                    <span><strong>تنبيه أمان:</strong> احتفظ بهذا الكود أو الإيصال المطبوع في جيبك، لأن الحزمة مشفرة ومحمية بالكامل ولا تفتح على أي جهاز جديد إلا بهذا الكود.</span>
                   </div>
                   <div className="p-2.5 rounded bg-paid/10 text-paid text-micro leading-relaxed flex items-start gap-2">
                     <Info className="w-4 h-4 text-paid shrink-0 mt-0.5" />
@@ -651,9 +748,19 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
               {/* Owner recovery code of the OLD shop: opens the encrypted package, never stored or logged */}
               <div>
-                <label htmlFor="migration-recovery-code" className="block text-ink dark:text-ink-dark font-semibold text-xs mb-1.5">
-                  كود استرجاع المالك (بتاع الجهاز القديم): <RequiredMark />
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="migration-recovery-code" className="block text-ink dark:text-ink-dark font-semibold text-xs m-0">
+                    كود استرجاع المالك (بتاع الجهاز القديم): <RequiredMark />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowRecoveryGuideModal(true)}
+                    className="text-micro text-brand dark:text-brand-bright hover:underline inline-flex items-center gap-1 font-semibold"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>أين أجد كود الاسترجاع؟</span>
+                  </button>
+                </div>
                 <div className="flex gap-2">
                   <input
                     id="migration-recovery-code"
@@ -684,9 +791,39 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     فحص الملف
                   </AppButton>
                 </div>
-                <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0 mt-1.5">
-                  الكود اللي اتسلم لصاحب المحل عند إعداد النسخ الاحتياطي على الجهاز القديم. بدونه مش هيتفتح الملف.
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-1.5">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">
+                    الكود اللي اتسلم لصاحب المحل عند إعداد النسخ الاحتياطي على الجهاز القديم. بدونه مش هيتفتح الملف.
+                  </p>
+                  <AppButton
+                    variant="subtle"
+                    size="xs"
+                    icon={Sparkles}
+                    loading={isDetectingCode}
+                    disabled={loading || isDetectingCode || !packagePath.trim()}
+                    onClick={() => void detectCodeFromPackage(packagePath)}
+                    title="البحث عن ملف كود الاسترجاع على الفلاشة وتعبئته تلقائياً"
+                  >
+                    قراءة الكود من الفلاشة تلقائياً
+                  </AppButton>
+                </div>
+
+                {autoDetectedCode && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 flex items-center justify-between gap-2 text-xs animate-in fade-in">
+                    <div className="flex items-center gap-2 text-paid dark:text-paid-bright font-medium">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>تم العثور على الكود تلقائياً من الفلاشة: <strong className="font-mono tracking-wider">{autoDetectedCode}</strong></span>
+                    </div>
+                    <AppButton
+                      variant="secondary"
+                      size="xs"
+                      onClick={() => setRecoveryCode(autoDetectedCode)}
+                      disabled={recoveryCode === autoDetectedCode}
+                    >
+                      استخدام هذا الكود
+                    </AppButton>
+                  </div>
+                )}
               </div>
 
               {/* Inspection Preview Card */}
@@ -845,10 +982,80 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
         </MotionHeight>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted">
-          <span>نظام رفيق — إصدار معتمد لويندوز 7 و 10 و 11</span>
+        <div className="px-6 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between gap-3 flex-wrap text-xs text-ink-muted dark:text-ink-dark-muted">
+          <div className="flex items-center gap-2 font-medium">
+            <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
+            <span>حماية وتشفير محلي متكامل • مطابقة تامة للسجلات 100%</span>
+          </div>
+          <div className="flex items-center gap-2 font-medium">
+            <span className="w-2 h-2 rounded-full bg-paid dark:bg-paid-bright shrink-0" />
+            <span>نظام محلي آمن • يعمل بالكامل بدون إنترنت</span>
+          </div>
         </div>
       </div>
+
+      {/* Recovery Code Voucher Thermal/A4 Print Modal */}
+      {showExportRecoveryModal && exportResult?.recoveryCode && (
+        <RecoveryCodeModal
+          isOpen={showExportRecoveryModal}
+          recoveryCode={exportResult.recoveryCode}
+          isViewingOnly={true}
+          onClose={() => setShowExportRecoveryModal(false)}
+        />
+      )}
+
+      {/* Recovery Code Guide Modal */}
+      {showRecoveryGuideModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 dark:bg-black/75 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl max-w-lg w-full p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft flex items-center justify-center text-brand dark:text-brand-bright">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <h3 className="t-card-title text-ink dark:text-ink-dark m-0">أين أجد كود استرجاع المالك؟</h3>
+              </div>
+              <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={() => setShowRecoveryGuideModal(false)} />
+            </div>
+
+            <div className="space-y-3 text-xs leading-relaxed text-ink dark:text-ink-dark">
+              <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-1">
+                <span className="font-bold text-brand dark:text-brand-bright block">1. من الجهاز القديم مباشرة:</span>
+                <p className="text-ink-muted dark:text-ink-dark-muted m-0">
+                  افتح برنامج رفيق على الجهاز القديم، وادخل على «إعدادات المحل والسيستم ← النسخ الاحتياطي»، وستجد كارت «كود استرجاع المالك» واضغط زر «عرض أو طباعة كود الاسترجاع».
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-1">
+                <span className="font-bold text-brand dark:text-brand-bright block">2. من الفلاشة (الملف النصي التلقائي):</span>
+                <p className="text-ink-muted dark:text-ink-dark-muted m-0">
+                  يقوم النظام تلقائياً عند حفظ النسخة بحفظ ملف نصي باسم <strong>(كود_استرجاع_المحل)</strong> على الفلاشة بجانب الحزمة مباشرة. يمكنك الضغط على زر «قراءة الكود من الفلاشة تلقائياً» لجلبه في ثانية واحدة.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-1">
+                <span className="font-bold text-brand dark:text-brand-bright block">3. من إيصال الاسترجاع المطبوع:</span>
+                <p className="text-ink-muted dark:text-ink-dark-muted m-0">
+                  إذا قمت بطباعة الإيصال الحراري سابقاً من طابعة الكاشير، يمكنك توجيه قارئ الباركود على الباركود المطبوع لملء الخانة فوراً.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-1">
+                <span className="font-bold text-brand dark:text-brand-bright block">4. في حالة تلف الجهاز القديم نهائياً:</span>
+                <p className="text-ink-muted dark:text-ink-dark-muted m-0">
+                  إذا كان الجهاز القديم لا يعمل نهائياً ولكن القرص الصلب سليم، يمكنك توصيله بالجهاز الجديد ونسخ ملف البيانات الأصلي مباشرة إلى مجلد بيانات النظام المحلي دون الحاجة لأي كود أو فك تشفير.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <AppButton variant="primary" onClick={() => setShowRecoveryGuideModal(false)}>
+                فهمت ذلك
+              </AppButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

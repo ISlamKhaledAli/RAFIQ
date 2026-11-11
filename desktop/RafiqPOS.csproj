@@ -101,6 +101,7 @@
     <Compile Include="Common\TimeGuard.cs" />
     <Compile Include="Common\LocalDateRange.cs" />
     <Compile Include="Common\WindowHelper.cs" />
+    <Compile Include="Common\FolderSelectDialog.cs" />
     <Compile Include="Common\ChildProcessTracker.cs" />
     <Compile Include="Common\WebViewProcessGuard.cs" />
     <Compile Include="Common\ArabicTextNormalizer.cs" />
