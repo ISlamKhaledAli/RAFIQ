@@ -530,6 +530,20 @@ namespace RafiqPOS.Services
             _repo.BulkUpdateMinStock(productIds, minStockMilli);
         }
 
+        public int BulkUpdateTaxRate(int taxRatePercent, bool onlyZeroOrNull)
+        {
+            if (taxRatePercent < 0 || taxRatePercent > 100)
+            {
+                throw new ArgumentException("نسبة الضريبة يجب أن تكون بين 0 و 100%");
+            }
+            return _repo.BulkUpdateTaxRate(taxRatePercent, onlyZeroOrNull);
+        }
+
+        public int GetUntaxedProductCount()
+        {
+            return _repo.GetUntaxedProductCount();
+        }
+
         public BatchImportResult ImportBatch(BatchImportRequest request, string userId = "usr_admin_default")
         {
             if (request == null || request.Items == null || request.Items.Count == 0)

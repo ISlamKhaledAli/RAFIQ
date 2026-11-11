@@ -286,6 +286,9 @@ namespace RafiqPOS.Models
         [JsonProperty("openShiftsCount")]
         public int OpenShiftsCount { get; set; }
 
+        [JsonProperty("openShifts")]
+        public List<Shift> OpenShifts { get; set; }
+
         [JsonProperty("postClosingSalesPiasters")]
         public long PostClosingSalesPiasters { get; set; }
 
@@ -537,6 +540,24 @@ namespace RafiqPOS.Models
 
         [JsonProperty("confirmSuspiciousDate")]
         public bool ConfirmSuspiciousDate { get; set; }
+
+        [JsonProperty("autoClosePendingShifts")]
+        public bool AutoClosePendingShifts { get; set; }
+    }
+
+    public class AutoCloseShiftsResult
+    {
+        [JsonProperty("closedCount")]
+        public int ClosedCount { get; set; }
+
+        [JsonProperty("totalExpectedCashPiasters")]
+        public long TotalExpectedCashPiasters { get; set; }
+
+        [JsonProperty("closedShiftNumbers")]
+        public List<int> ClosedShiftNumbers { get; set; }
+
+        [JsonProperty("message")]
+        public string Message { get; set; }
     }
 
     public class UnclosedDayAlert

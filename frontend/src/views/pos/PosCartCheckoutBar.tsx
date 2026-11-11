@@ -12,6 +12,7 @@ import {
   Link2,
   ShieldCheck,
   Tag,
+  BadgePercent,
   X,
   Lock,
 } from 'lucide-react';
@@ -191,6 +192,15 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                 خصم: -{formatArabicCurrency(discountPiasters)}
               </span>
             )
+          )}
+
+          {showTaxes && totalTaxPiasters > 0 && (
+            <RafiqTooltip content={`إجمالي ضريبة القيمة المضافة المحسوبة في هذه الفاتورة: ${formatArabicCurrency(totalTaxPiasters)}`}>
+              <span className="text-sm text-paid dark:text-paid-bright font-semibold bg-paid-soft dark:bg-paid-dark-soft px-3 py-1 rounded-lg border border-paid-border dark:border-paid/30 whitespace-nowrap flex items-center gap-1.5 cursor-help">
+                <BadgePercent className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
+                <span>ضريبة: {formatArabicCurrency(totalTaxPiasters)}</span>
+              </span>
+            </RafiqTooltip>
           )}
 
           {/* DDI Clinical Status: conflicts are shown by the warning banner above the cart; only the all-clear state lives here */}

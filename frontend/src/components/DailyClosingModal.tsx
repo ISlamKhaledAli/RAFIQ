@@ -22,7 +22,8 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { DailyClosing, DailyClosingPreview } from '../types/models';
+import type { DailyClosing, DailyClosingPreview, AutoCloseShiftsResult } from '../types/models';
+import { emitDataChanged } from '../utils/eventBus';
 import { formatArabicCurrency, toSafePiasters } from '../utils/money';
 import { MoneyInput } from './MoneyInput';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -138,6 +139,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   const [showPrintPrompt, setShowPrintPrompt] = useState<boolean>(false);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const [printFeedback, setPrintFeedback] = useState<string | null>(null);
+  const [isAutoClosingShifts, setIsAutoClosingShifts] = useState<boolean>(false);
+  const [shiftResolutionMessage, setShiftResolutionMessage] = useState<string | null>(null);
 
   // History view state
   const [showHistory, setShowHistory] = useState<boolean>(false);
@@ -197,6 +200,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
       setSavedClosing(null);
       setShowPrintPrompt(false);
       setConfirmSuspiciousDate(false);
+      setIsAutoClosingShifts(false);
+      setShiftResolutionMessage(null);
       setShowEpayDetails(false);
       setActiveEpaySubTab('terminals');
       void loadPreview();
@@ -224,6 +229,32 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
     };
   }, [isOpen, showHistory, historyQuery]);
 
+  const handleAutoCloseShifts = async () => {
+    if (!preview) return;
+    setIsAutoClosingShifts(true);
+    setError(null);
+    setShiftResolutionMessage(null);
+    try {
+      const res = await invoke<AutoCloseShiftsResult>('closing:autoCloseShifts', {
+        businessDate: preview.businessDate,
+        notes: 'إغلاق وتسوية فورية من شاشة تقفيل اليومية',
+      });
+      if (res) {
+        setShiftResolutionMessage(
+          `تم بنجاح إغلاق وتسوية ${res.closedCount} وردية معلقة بإجمالي نقدية ${formatArabicCurrency(res.totalExpectedCashPiasters)}.`,
+        );
+        emitDataChanged('shifts');
+        await loadPreview();
+      }
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : 'تعذر تسوية وإغلاق الورديات المفتوحة.';
+      setError(msg);
+    } finally {
+      setIsAutoClosingShifts(false);
+    }
+  };
+
   const handleSaveClosing = async () => {
     if (!preview) return;
 
@@ -241,12 +272,14 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
         businessDate: preview.businessDate,
         actualCashPiasters: actualCashPiasters,
         notes: notes.trim(),
-        confirmSuspiciousDate: confirmSuspiciousDate
+        confirmSuspiciousDate: confirmSuspiciousDate,
+        autoClosePendingShifts: true,
       });
 
       if (closingResult) {
         setSavedClosing(closingResult);
         setShowPrintPrompt(true);
+        emitDataChanged('shifts');
         if (onClosingCompleted) {
           onClosingCompleted(closingResult);
         }
@@ -530,16 +563,68 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 </div>
               )}
 
-              {/* Open shifts block the closing: the server refuses it until every shift of the day is closed */}
+              {/* Open shifts smart reconciliation card */}
               {!savedClosing && !isAlreadyClosed && (preview.openShiftsCount ?? 0) > 0 && (
-                <div className="p-5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright space-y-2">
-                  <div className="flex items-center gap-2.5">
-                    <AlertTriangle className="w-5 h-5 shrink-0" />
-                    <h4 className="t-label">لا يمكن إقفال اليومية: توجد {preview.openShiftsCount} وردية مفتوحة</h4>
+                <div className="p-5 rounded-xl bg-brand-soft/70 dark:bg-brand-soft/10 border border-brand/30 dark:border-brand-bright/30 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-brand text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Coins className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h4 className="text-base font-bold text-ink dark:text-ink-dark">
+                          توجد {preview.openShiftsCount} وردية عمل مفتوحة (معلقة)
+                        </h4>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-warn/15 text-warn dark:text-warn-bright border border-warn/30">
+                          بانتظار التسوية
+                        </span>
+                      </div>
+                      <p className="text-sm leading-relaxed text-ink-muted dark:text-ink-dark-muted">
+                        لتشميع حسابات اليوم بدقة ومنع تشتت النقدية، يمكنك تسوية وإغلاق جميع الورديات المفتوحة فوراً بضغطة زر واحدة؛ سيقوم النظام بدمج مبيعاتها ونقدية درجها في هذا الإقفال تلقائياً.
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-sm leading-relaxed">
-                    يرجى إغلاق جميع الورديات المفتوحة من نافذة <strong>إدارة الوردية</strong> أولاً ثم العودة لإقفال اليومية.
-                  </p>
+
+                  {/* Shifts quick glance list if available */}
+                  {preview.openShifts && preview.openShifts.length > 0 && (
+                    <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden bg-surface dark:bg-surface-dark divide-y divide-line dark:divide-line-dark text-xs">
+                      {preview.openShifts.map((s) => (
+                        <div key={s.id} className="p-2.5 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-ink dark:text-ink-dark">وردية #{s.shiftNumber}</span>
+                            <span className="text-ink-muted dark:text-ink-dark-muted">({s.cashierName || 'كاشير'})</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-ink-muted dark:text-ink-dark-muted">
+                            {s.businessDate && <span>يوم: {s.businessDate}</span>}
+                            <span>العهدة: {formatArabicCurrency(s.openingFloatPiasters)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
+                      لن تحتاج لمغادرة الشاشة؛ سيتم تحديث أرقام اليومية فوراً.
+                    </span>
+                    <AppButton
+                      variant="primary"
+                      size="md"
+                      icon={RotateCcw}
+                      loading={isAutoClosingShifts}
+                      onClick={handleAutoCloseShifts}
+                    >
+                      {isAutoClosingShifts ? 'جاري تسوية الورديات...' : 'تسوية وإغلاق جميع الورديات المفتوحة الآن'}
+                    </AppButton>
+                  </div>
+                </div>
+              )}
+
+              {/* Shift resolution success alert */}
+              {shiftResolutionMessage && (
+                <div className="p-4 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/40 text-paid dark:text-paid-bright flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 shrink-0" />
+                  <span className="text-sm font-semibold">{shiftResolutionMessage}</span>
                 </div>
               )}
 
@@ -1211,9 +1296,13 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 icon={Lock}
                 onClick={handleSaveClosing}
                 loading={isSubmitting}
-                disabled={(preview?.isDateSuspicious && !confirmSuspiciousDate) || (preview?.openShiftsCount ?? 0) > 0}
+                disabled={(preview?.isDateSuspicious && !confirmSuspiciousDate)}
               >
-                {isSubmitting ? 'بنقفل اليومية...' : 'اعتماد وتقفيل اليومية رسمياً'}
+                {isSubmitting
+                  ? 'بنقفل اليومية...'
+                  : (preview?.openShiftsCount ?? 0) > 0
+                    ? 'اعتماد وتقفيل اليومية (مع تسوية الورديات)'
+                    : 'اعتماد وتقفيل اليومية رسمياً'}
               </AppButton>
             )}
           </div>

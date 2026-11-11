@@ -613,6 +613,16 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'products:getLowStockCount':
       return { count: 1 };
 
+    case 'products:getUntaxedCount':
+      return { untaxedCount: 12 };
+
+    case 'products:bulkUpdateTaxRate':
+      return {
+        success: true,
+        updatedCount: 12,
+        taxRatePercent: payload?.taxRatePercent || 14,
+      };
+
     case 'products:rebaseUnit':
       return {
         success: true,
@@ -2828,6 +2838,15 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         cancelledCount: 0,
         notes: payload?.notes || '',
         isSealed: true,
+      };
+    }
+
+    case 'closing:autoCloseShifts': {
+      return {
+        closedCount: 1,
+        totalExpectedCashPiasters: 15000,
+        closedShiftNumbers: [1],
+        message: 'تم تسوية وإغلاق جميع الورديات المفتوحة بنجاح',
       };
     }
 

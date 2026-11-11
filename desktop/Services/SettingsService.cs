@@ -29,7 +29,9 @@ namespace RafiqPOS.Services
             if (!settings.ContainsKey("tax_number")) settings["tax_number"] = "";
             if (!settings.ContainsKey("tax_enabled")) settings["tax_enabled"] = "0";
             if (!settings.ContainsKey("feature_taxes")) settings["feature_taxes"] = "0";
-            if (!settings.ContainsKey("default_tax_rate_percent")) settings["default_tax_rate_percent"] = "0";
+            if (!settings.ContainsKey("default_tax_rate_percent")) settings["default_tax_rate_percent"] = "14";
+            if (!settings.ContainsKey("tax_inclusive")) settings["tax_inclusive"] = "1";
+            if (!settings.ContainsKey("prices_include_tax")) settings["prices_include_tax"] = "1";
             if (!settings.ContainsKey("cashier_name")) settings["cashier_name"] = "كاشير (1)";
             if (!settings.ContainsKey("receipt_header")) settings["receipt_header"] = "";
             if (!settings.ContainsKey("receipt_footer")) settings["receipt_footer"] = "";

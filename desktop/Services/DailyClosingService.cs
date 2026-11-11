@@ -15,19 +15,22 @@ namespace RafiqPOS.Services
         private readonly CounterRepository _counterRepo;
         private readonly AuditLogRepository _auditRepo;
         private readonly SettingsRepository _settingsRepo;
+        private readonly ShiftRepository _shiftRepo;
 
         public DailyClosingService(
             string connectionString,
             DailyClosingRepository closingRepo,
             CounterRepository counterRepo,
             AuditLogRepository auditRepo,
-            SettingsRepository settingsRepo)
+            SettingsRepository settingsRepo,
+            ShiftRepository shiftRepo = null)
         {
             _connectionString = connectionString;
             _closingRepo = closingRepo;
             _counterRepo = counterRepo;
             _auditRepo = auditRepo;
             _settingsRepo = settingsRepo;
+            _shiftRepo = shiftRepo != null ? shiftRepo : new ShiftRepository(connectionString);
         }
 
         private int GetCutoffHour()
@@ -77,7 +80,9 @@ namespace RafiqPOS.Services
                 preview.DateSuspiciousReason = clockCheck.Message;
             }
 
-            preview.OpenShiftsCount = CountOpenShifts(businessDate);
+            var openShiftsList = _shiftRepo.GetOpenShifts(businessDate);
+            preview.OpenShifts = openShiftsList;
+            preview.OpenShiftsCount = openShiftsList != null ? openShiftsList.Count : 0;
 
             // 2. Check if already closed
             var existing = _closingRepo.GetByBusinessDate(businessDate);
@@ -844,11 +849,122 @@ namespace RafiqPOS.Services
                 {
                     pragmaCmd.ExecuteNonQuery();
                 }
-                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM shifts WHERE status = 'open' AND business_date = @bdate;", conn))
+                string sql = string.IsNullOrEmpty(businessDate)
+                    ? "SELECT COUNT(*) FROM shifts WHERE status = 'open';"
+                    : "SELECT COUNT(*) FROM shifts WHERE status = 'open' AND business_date <= @bdate;";
+                using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@bdate", businessDate);
+                    if (!string.IsNullOrEmpty(businessDate))
+                    {
+                        cmd.Parameters.AddWithValue("@bdate", businessDate);
+                    }
                     object res = cmd.ExecuteScalar();
                     return res != null && res != DBNull.Value ? Convert.ToInt32(res) : 0;
+                }
+            }
+        }
+
+        public AutoCloseShiftsResult AutoClosePendingShifts(string businessDate, string supervisorId, string supervisorName, string notes = null)
+        {
+            if (string.IsNullOrEmpty(businessDate))
+            {
+                businessDate = GetCurrentBusinessDate();
+            }
+
+            lock (SaleService.FinancialWriteLock)
+            {
+                var openShifts = _shiftRepo.GetOpenShifts(businessDate);
+                var result = new AutoCloseShiftsResult();
+                result.ClosedShiftNumbers = new List<int>();
+
+                if (openShifts == null || openShifts.Count == 0)
+                {
+                    result.ClosedCount = 0;
+                    result.TotalExpectedCashPiasters = 0;
+                    result.Message = "لا توجد أي ورديات مفتوحة لتسويتها.";
+                    return result;
+                }
+
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            long totalCash = 0;
+                            foreach (var shift in openShifts)
+                            {
+                                shift.ClosedAt = DateTime.UtcNow.ToString("o");
+                                var summary = _shiftRepo.CalculateShiftMetrics(shift);
+
+                                long expectedCash = summary != null ? summary.ExpectedCashPiasters : 0;
+                                totalCash += expectedCash;
+
+                                shift.Status = "closed";
+                                shift.CashSalesPiasters = summary != null ? summary.CashSalesPiasters : 0;
+                                shift.CardSalesPiasters = summary != null ? summary.CardSalesPiasters : 0;
+                                shift.InstapaySalesPiasters = summary != null ? summary.InstapaySalesPiasters : 0;
+                                shift.VodafoneCashSalesPiasters = summary != null ? summary.VodafoneCashSalesPiasters : 0;
+                                shift.CreditSalesPiasters = summary != null ? summary.CreditSalesPiasters : 0;
+                                shift.ReturnsCashPiasters = summary != null ? summary.ReturnsCashPiasters : 0;
+                                shift.DebtPaymentsCashPiasters = summary != null ? summary.DebtPaymentsCashPiasters : 0;
+                                shift.ExpensesCashPiasters = summary != null ? summary.ExpensesCashPiasters : 0;
+                                shift.CashInPiasters = summary != null ? summary.CashInPiasters : 0;
+                                shift.CashOutPiasters = summary != null ? summary.CashOutPiasters : 0;
+                                shift.EpayCashPiasters = summary != null ? summary.EpayCashPiasters : 0;
+                                shift.WalletsCashPiasters = summary != null ? summary.WalletsCashPiasters : 0;
+                                shift.PurchasesCashPiasters = summary != null ? summary.PurchasesCashPiasters : 0;
+                                shift.SupplierPaymentsCashPiasters = summary != null ? summary.SupplierPaymentsCashPiasters : 0;
+                                shift.ExpectedCashPiasters = expectedCash;
+                                shift.ActualCashPiasters = expectedCash;
+                                shift.DifferencePiasters = 0;
+                                shift.InvoicesCount = summary != null ? summary.InvoicesCount : 0;
+
+                                string autoNote = string.Format("إغلاق وتسوية تلقائية مع اليومية بواسطة {0}", string.IsNullOrEmpty(supervisorName) ? "المشرف" : supervisorName);
+                                if (!string.IsNullOrEmpty(notes))
+                                {
+                                    autoNote += " (" + notes.Trim() + ")";
+                                }
+                                shift.Notes = string.IsNullOrEmpty(shift.Notes) ? autoNote : (shift.Notes + " | " + autoNote);
+                                shift.UpdatedAt = DateTime.UtcNow.ToString("o");
+
+                                _shiftRepo.CloseShift(shift, conn, trans);
+
+                                _auditRepo.Log(
+                                    conn,
+                                    trans,
+                                    new AuditLog
+                                    {
+                                        UserId = string.IsNullOrEmpty(supervisorId) ? "system" : supervisorId,
+                                        Action = "SHIFT_AUTO_CLOSE_BY_DAILY_CLOSING",
+                                        EntityType = "shift",
+                                        EntityId = shift.Id,
+                                        DetailsJson = string.Format(
+                                            "{{\"shiftNumber\":{0},\"cashierId\":\"{1}\",\"expectedCash\":{2},\"autoClosed\":true}}",
+                                            shift.ShiftNumber, shift.CashierId, expectedCash
+                                        )
+                                    }
+                                );
+
+                                result.ClosedShiftNumbers.Add(shift.ShiftNumber);
+                            }
+
+                            trans.Commit();
+
+                            result.ClosedCount = openShifts.Count;
+                            result.TotalExpectedCashPiasters = totalCash;
+                            result.Message = string.Format("تم بنجاح تسوية وإغلاق {0} وردية مفتوحة.", openShifts.Count);
+                            Logger.Info(string.Format("تم إغلاق {0} وردية معلقة تلقائياً مع الإقفال اليومي لتاريخ {1}", openShifts.Count, businessDate));
+                            return result;
+                        }
+                        catch (Exception ex)
+                        {
+                            trans.Rollback();
+                            Logger.Error("فشلت التسوية التلقائية للورديات المعلقة مع الإقفال اليومي", ex);
+                            throw;
+                        }
+                    }
                 }
             }
         }
@@ -904,11 +1020,16 @@ namespace RafiqPOS.Services
                 throw new InvalidOperationException(string.Format("تم إقفال هذا اليوم بالفعل مسبقاً برقم إقفال #{0} بتاريخ {1}.", existing.ClosingNumber, existing.ClosedAt));
             }
 
+            if (request.AutoClosePendingShifts)
+            {
+                AutoClosePendingShifts(businessDate, request.CashierId, request.CashierName, request.Notes);
+            }
+
             // Sealing a day while a shift is still open would freeze totals that the open shift keeps changing
             int openShifts = CountOpenShifts(businessDate);
             if (openShifts > 0)
             {
-                throw new InvalidOperationException(string.Format("لا يمكن إقفال اليومية لتاريخ {0} لوجود {1} وردية مفتوحة. يرجى إغلاق جميع الورديات أولاً ثم إقفال اليومية.", businessDate, openShifts));
+                throw new InvalidOperationException(string.Format("لا يمكن إقفال اليومية لتاريخ {0} لوجود {1} وردية مفتوحة. يرجى استخدام زر تسوية وإغلاق الورديات أولاً ثم إقفال اليومية.", businessDate, openShifts));
             }
 
             // Check suspicious clock date (Task 127-4)

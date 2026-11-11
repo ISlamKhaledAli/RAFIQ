@@ -41,16 +41,30 @@ export function QuickAddProductModal({
       return '';
     }
   });
+  const [defaultTaxRate, setDefaultTaxRate] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem('rafiq_pos_default_tax_rate');
+      return stored ? parseInt(stored, 10) || 14 : 14;
+    } catch {
+      return 14;
+    }
+  });
 
   useEffect(() => {
     if (isOpen) {
       void invoke<Record<string, string>>('settings:getAll')
         .then((settings) => {
-          if (settings && settings.store_type) {
-            setStoreType(settings.store_type);
-            try {
-              localStorage.setItem('rafiq_store_type', settings.store_type);
-            } catch {}
+          if (settings) {
+            if (settings.store_type) {
+              setStoreType(settings.store_type);
+              try {
+                localStorage.setItem('rafiq_store_type', settings.store_type);
+              } catch {}
+            }
+            if (settings.default_tax_rate_percent) {
+              const parsed = parseInt(settings.default_tax_rate_percent, 10);
+              if (!isNaN(parsed) && parsed >= 0) setDefaultTaxRate(parsed);
+            }
           }
         })
         .catch(() => {});
@@ -162,7 +176,7 @@ export function QuickAddProductModal({
         stockQuantityMilli,
         minStockQuantityMilli: 5000,
         unit,
-        taxRatePercent: 0,
+        taxRatePercent: isEnabled('feature_taxes') ? defaultTaxRate : 0,
         isActive: true,
         variantSize: variantSize.trim() || undefined,
         variantColor: variantColor.trim() || undefined,

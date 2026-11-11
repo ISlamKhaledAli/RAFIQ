@@ -14,6 +14,7 @@ import {
   Snowflake,
   Pill,
   ShieldAlert,
+  BadgePercent,
   Printer,
 } from 'lucide-react';
 import type { CartItem } from './types';
@@ -357,6 +358,13 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                         {item.discountPiasters > 0 ? `خصم -${formatArabicCurrency(item.discountPiasters, false)}` : 'خصم'}
                       </span>
                     </AppButton>
+
+                    {item.taxRatePercent !== undefined && item.taxRatePercent > 0 && (
+                      <span className="shrink-0 h-6 px-2 bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 text-paid dark:text-paid-bright text-micro font-semibold rounded-md flex items-center gap-1" title={`ضريبة القيمة المضافة (${item.taxRatePercent}%): ${formatArabicCurrency(item.taxPiasters)}`}>
+                        <BadgePercent className="w-3 h-3 shrink-0" />
+                        <span>ضريبة {item.taxRatePercent}%</span>
+                      </span>
+                    )}
 
                     {item.isColdChain && (
                       <span className="shrink-0 h-6 px-2 bg-brand-soft dark:bg-brand-dark-soft border border-brand/25 dark:border-brand-bright/40 text-brand dark:text-brand-bright text-micro font-semibold rounded-md flex items-center gap-1" title="سلسلة تبريد: يحفظ في الثلاجة (2-8 مئوية)">

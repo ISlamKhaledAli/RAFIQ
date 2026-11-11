@@ -320,6 +320,24 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, new { success = true, count = pIds.Count, minStockMilli = minStockMilli });
                     return true;
 
+                case "products:bulkUpdateTaxRate":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات تعديل نسبة الضريبة فارغة");
+                        return true;
+                    }
+                    JObject bulkTaxObj = request.Payload as JObject;
+                    int newRate = bulkTaxObj != null && bulkTaxObj["taxRatePercent"] != null ? bulkTaxObj["taxRatePercent"].Value<int>() : 14;
+                    bool onlyZero = bulkTaxObj == null || bulkTaxObj["onlyZeroOrNull"] == null || bulkTaxObj["onlyZeroOrNull"].Value<bool>();
+                    int updatedTaxCount = DatabaseService.Products.BulkUpdateTaxRate(newRate, onlyZero);
+                    response = BridgeResponse.Ok(request.Id, new { success = true, updatedCount = updatedTaxCount, taxRatePercent = newRate });
+                    return true;
+
+                case "products:getUntaxedCount":
+                    int untaxedCount = DatabaseService.Products.GetUntaxedProductCount();
+                    response = BridgeResponse.Ok(request.Id, new { untaxedCount = untaxedCount });
+                    return true;
+
                 case "products:importBatch":
                     if (request.Payload == null)
                     {
