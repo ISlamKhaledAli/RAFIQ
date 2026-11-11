@@ -31,7 +31,11 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
 
   const handleBrowseFolder = async () => {
     try {
-      const res = await invoke<{ selectedFolder?: string; cancelled: boolean }>('excel:browseExportFolder');
+      const res = await invoke<{ selectedFolder?: string; cancelled: boolean }>(
+        'excel:browseExportFolder',
+        { initialFolder: selectedFolder.trim() || undefined, title: 'اختر المجلد أو الفلاشة لحفظ ملفات التصدير الشاملة' },
+        600000
+      );
       if (res && !res.cancelled && res.selectedFolder) {
         setSelectedFolder(res.selectedFolder);
       }

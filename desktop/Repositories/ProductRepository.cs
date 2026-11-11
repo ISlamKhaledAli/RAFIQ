@@ -1877,6 +1877,19 @@ namespace RafiqPOS.Repositories
                             affected = cmd.ExecuteNonQuery();
                         }
 
+                        // Also archive custom categories so empty categories from the cleared catalog don't linger
+                        // (Categories will be auto-restored if they appear in a newly imported Excel sheet)
+                        using (var catCmd = new SQLiteCommand(@"
+                            UPDATE categories 
+                            SET is_active = 0, updated_at = @updatedAt 
+                            WHERE is_active = 1 
+                              AND id != 'cat_general' 
+                              AND name != 'عام';", conn, trans))
+                        {
+                            catCmd.Parameters.AddWithValue("@updatedAt", now);
+                            catCmd.ExecuteNonQuery();
+                        }
+
                         trans.Commit();
                     }
                     catch

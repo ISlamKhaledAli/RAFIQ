@@ -8,6 +8,7 @@ import {
   Printer,
   Save,
   CheckCircle,
+  AlertCircle,
   ZoomIn,
   ZoomOut,
   FileText
@@ -20,7 +21,6 @@ import { formatArabicCurrency, tafqeetCurrency } from '../../utils/money';
 import { encodeInvoiceBarcode, layoutReceiptBarcode, RECEIPT_DPI } from '../../utils/receiptLayout';
 import { rafiqAlert } from '../../utils/dialogService';
 import { useMotionPanel } from '../../hooks/useMotionPanel';
-import { usePrintReport } from '../../hooks/usePrintReport';
 
 export type TemplateDocType =
   | 'return'
@@ -262,11 +262,8 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
   const currentConfig = configs[activeDoc];
   const activeMeta = DOC_METAS[activeDoc];
   const motionPanel = useMotionPanel(activeDoc);
-  const { print: triggerPrint } = usePrintReport({
-    reportName: `نموذج ${activeMeta.label}`,
-    kind: 'compact',
-    paper: currentConfig.paperWidth === 'a4' ? 'a4' : currentConfig.paperWidth === '57mm' ? '58mm' : '80mm',
-  });
+  const [testPrinting, setTestPrinting] = useState(false);
+  const [testPrintFeedback, setTestPrintFeedback] = useState<{ text: string; isError: boolean } | null>(null);
 
   const isDirty = useMemo(() => {
     return baselineSnapshot !== '' && JSON.stringify(configs) !== baselineSnapshot;
@@ -327,8 +324,40 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
     }));
   };
 
-  const handleTestPrint = () => {
-    void triggerPrint();
+  const handleTestPrint = async () => {
+    if (testPrinting) return;
+    setTestPrinting(true);
+    setTestPrintFeedback(null);
+    try {
+      const res = await invoke<{ success: boolean; message: string; printerUsed?: string }>('printer:testTemplate', {
+        docType: activeDoc,
+        paperWidth: currentConfig.paperWidth === '57mm' ? '57mm' : '80mm',
+        customHeader: currentConfig.customHeader,
+        customFooter: currentConfig.customFooter,
+        showSignatures: currentConfig.showSignatures,
+        showBarcode: currentConfig.showBarcode,
+      });
+      if (res && res.success) {
+        setTestPrintFeedback({
+          text: res.message || `تم إرسال نموذج ${activeMeta.label} إلى الطابعة مباشرة (الدرج مغلق)`,
+          isError: false,
+        });
+      } else {
+        setTestPrintFeedback({
+          text: (res && res.message) || 'تعذر إرسال أمر الطباعة إلى الطابعة',
+          isError: true,
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setTestPrintFeedback({
+        text: msg || 'فشل أمر الطباعة التجريبية للنموذج',
+        isError: true,
+      });
+    } finally {
+      setTestPrinting(false);
+      setTimeout(() => setTestPrintFeedback(null), 5000);
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -1247,6 +1276,22 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
                   <span>تم حفظ التخصيصات بنجاح</span>
                 </div>
               )}
+              {testPrintFeedback && (
+                <div
+                  className={`flex items-center gap-1.5 text-xs font-bold animate-in fade-in ${
+                    testPrintFeedback.isError
+                      ? 'text-danger dark:text-danger-bright'
+                      : 'text-paid dark:text-paid-bright'
+                  }`}
+                >
+                  {testPrintFeedback.isError ? (
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                  )}
+                  <span>{testPrintFeedback.text}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -1255,7 +1300,7 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
                 variant="subtle"
                 size="md"
                 onClick={handleResetCurrent}
-                disabled={saveLoading}
+                disabled={saveLoading || testPrinting}
               >
                 استعادة الافتراضي
               </AppButton>
@@ -1264,9 +1309,10 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
                 variant="secondary"
                 size="md"
                 icon={Printer}
-                onClick={handleTestPrint}
+                loading={testPrinting}
+                onClick={() => void handleTestPrint()}
               >
-                معاينة الطباعة
+                {testPrinting ? 'جاري إرسال التجربة...' : 'طباعة تجريبية للنموذج'}
               </AppButton>
               <AppButton
                 type="button"
@@ -1274,7 +1320,7 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
                 size="md"
                 icon={Save}
                 loading={saveLoading}
-                disabled={!isDirty}
+                disabled={!isDirty || testPrinting}
                 onClick={() => void handleSave()}
               >
                 حفظ التخصيصات

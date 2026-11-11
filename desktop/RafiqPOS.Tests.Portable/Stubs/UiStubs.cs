@@ -7,6 +7,11 @@ namespace System.Windows.Forms
 {
     public enum DialogResult { None, OK, Cancel }
 
+    public interface IWin32Window
+    {
+        IntPtr Handle { get; }
+    }
+
     public enum FormWindowState { Normal, Minimized, Maximized }
 
     public class Form : IDisposable
@@ -22,8 +27,15 @@ namespace System.Windows.Forms
         public void Dispose() { }
     }
 
+    public class FormCollection
+    {
+        public int Count { get { return 0; } }
+        public Form this[int index] { get { return null; } }
+    }
+
     public static class Application
     {
+        public static FormCollection OpenForms { get { return new FormCollection(); } }
         public static void DoEvents() { }
         public static void EnableVisualStyles() { }
         public static void SetCompatibleTextRenderingDefault(bool defaultValue) { }
@@ -51,6 +63,7 @@ namespace System.Windows.Forms
         public string SelectedPath { get; set; }
         public bool ShowNewFolderButton { get; set; }
         public DialogResult ShowDialog() { return DialogResult.Cancel; }
+        public DialogResult ShowDialog(IWin32Window owner) { return DialogResult.Cancel; }
         public void Dispose() { }
     }
 
@@ -59,9 +72,11 @@ namespace System.Windows.Forms
         public string Title { get; set; }
         public string Filter { get; set; }
         public string FileName { get; set; }
+        public string InitialDirectory { get; set; }
         public bool CheckFileExists { get; set; }
         public bool Multiselect { get; set; }
         public DialogResult ShowDialog() { return DialogResult.Cancel; }
+        public DialogResult ShowDialog(IWin32Window owner) { return DialogResult.Cancel; }
         public void Dispose() { }
     }
 

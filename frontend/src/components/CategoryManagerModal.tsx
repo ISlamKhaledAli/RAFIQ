@@ -58,6 +58,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
   const [editingName, setEditingName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pickingCategory, setPickingCategory] = useState<{ id?: string; name: string } | null>(null);
+  const [archivingEmpty, setArchivingEmpty] = useState(false);
   const [, setIconsTick] = useState(0);
 
   const fetchCategories = async (incArch = includeArchived) => {
@@ -165,6 +166,21 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
     }
   };
 
+  const handleArchiveEmpty = async () => {
+    setErrorMessage(null);
+    setArchivingEmpty(true);
+    try {
+      await invoke<{ success: boolean; archivedCount: number }>('categories:archiveEmpty');
+      await fetchCategories();
+      onCategoriesChanged?.();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMessage(msg);
+    } finally {
+      setArchivingEmpty(false);
+    }
+  };
+
   const handleMoveOrder = async (index: number, direction: 'up' | 'down') => {
     const newIdx = direction === 'up' ? index - 1 : index + 1;
     if (newIdx < 0 || newIdx >= categories.length) return;
@@ -188,6 +204,10 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
 
   const editingOriginalName = editingId !== null ? categories.find((c) => c.id === editingId)?.name : undefined;
   const isDirty = Boolean(newCatName.trim()) || (editingId !== null && !isSameFormValue(editingName, editingOriginalName));
+
+  const emptyCategoriesCount = categories.filter(
+    (c) => c.isActive && c.productCount === 0 && c.id !== 'cat_general' && c.name !== 'عام'
+  ).length;
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen: true,
@@ -259,7 +279,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
             </div>
 
             {/* Toggle Archived Checkbox */}
-            <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-2 pt-1 text-micro text-ink-muted dark:text-ink-dark-muted">
+            <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-2 pt-1 text-micro text-ink-muted dark:text-ink-dark-muted flex-wrap gap-2">
               <label className="flex items-center gap-2 cursor-pointer hover:text-ink dark:hover:text-ink-dark">
                 <input
                   type="checkbox"
@@ -272,7 +292,22 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                 />
                 <span>إظهار التصنيفات المؤرشفة</span>
               </label>
-              <span>{categories.length} تصنيف مسجل (انقر على أيقونة أي قسم لتغييرها)</span>
+
+              <div className="flex items-center gap-3">
+                {emptyCategoriesCount > 0 && (
+                  <AppButton
+                    variant="secondary"
+                    size="xs"
+                    icon={Archive}
+                    onClick={() => void handleArchiveEmpty()}
+                    disabled={archivingEmpty}
+                    title="أرشفة كافة الأقسام الخالية من الأصناف النشطة بنقرة واحدة"
+                  >
+                    أرشفة الأقسام الفارغة ({emptyCategoriesCount})
+                  </AppButton>
+                )}
+                <span>{categories.length} تصنيف مسجل (انقر على أيقونة أي قسم لتغييرها)</span>
+              </div>
             </div>
 
             {/* Categories List */}
