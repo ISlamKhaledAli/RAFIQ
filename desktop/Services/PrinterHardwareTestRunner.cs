@@ -336,6 +336,76 @@ namespace RafiqPOS.Services
                 assert("Network_Printer_Exception", false, ex.Message);
             }
 
+            // -------------------------------------------------------------
+            // اختبار 8: معالجة شعار المتجر للطباعة الحرارية (Thermal Logo Halftone & Dither Engine)
+            // -------------------------------------------------------------
+            try
+            {
+                // إنشاء صورة متدرجة لاختبار تفريق درجات الرمادي إلى نقاط فلويد-شتاينبرغ
+                using (var gradientBmp = new Bitmap(100, 100))
+                {
+                    using (var gGrad = Graphics.FromImage(gradientBmp))
+                    {
+                        // تعبئة بنصف رمادي (50% Gray = 128)
+                        gGrad.Clear(Color.FromArgb(255, 128, 128, 128));
+                    }
+
+                    // 1. اختبار نمط التدرجات والتفاصيل (Dither): يجب أن ينتج نقاطاً بيضاء وسوداء متوازنة (منقط)
+                    using (var dithered = PrinterService.PrepareThermalLogoBitmap(gradientBmp, 100, 100, "dither"))
+                    {
+                        assert("ThermalLogo_Dither_NotNull", dithered != null, "توليد شعار بنمط التدرجات الدقيقة");
+                        assert("ThermalLogo_Dither_Dimensions", dithered != null && dithered.Width == 100 && dithered.Height == 100, "أبعاد الشعار المعالج تطابق الهدف بدقة");
+
+                        int blackDots = 0;
+                        int whiteDots = 0;
+                        int nonBinary = 0;
+
+                        if (dithered != null)
+                        {
+                            for (int dy = 0; dy < dithered.Height; dy++)
+                            {
+                                for (int dx = 0; dx < dithered.Width; dx++)
+                                {
+                                    Color c = dithered.GetPixel(dx, dy);
+                                    if (c.R == 0 && c.G == 0 && c.B == 0) blackDots++;
+                                    else if (c.R == 255 && c.G == 255 && c.B == 255) whiteDots++;
+                                    else nonBinary++;
+                                }
+                            }
+                        }
+
+                        assert("ThermalLogo_Dither_Strict_1Bit", nonBinary == 0, "كل وحدات البكسل ثنائية نقية (1-Bit) بدون أي رمادي وسيط");
+                        int total = 100 * 100;
+                        float ratio = (float)blackDots / (float)total;
+                        assert("ThermalLogo_Dither_Halftone_Balanced", ratio >= 0.35f && ratio <= 0.65f, "نسبة النقط السوداء في الرمادي 50% متوازنة: " + ratio.ToString("P1"));
+                    }
+
+                    // 2. اختبار نمط الخطوط الحادة (Crisp): عتبة حاسمة
+                    using (var crisp = PrinterService.PrepareThermalLogoBitmap(gradientBmp, 100, 100, "crisp"))
+                    {
+                        assert("ThermalLogo_Crisp_NotNull", crisp != null, "توليد شعار بنمط الخطوط الحادة");
+                        int black = 0;
+                        if (crisp != null)
+                        {
+                            for (int dy = 0; dy < crisp.Height; dy++)
+                            {
+                                for (int dx = 0; dx < crisp.Width; dx++)
+                                {
+                                    Color c = crisp.GetPixel(dx, dy);
+                                    if (c.R == 0) black++;
+                                }
+                            }
+                        }
+                        // 128 < 185 threshold -> solid black
+                        assert("ThermalLogo_Crisp_Threshold_Active", black == 10000, "الخطوط الحادة تطبق العتبة الحاسمة");
+                    }
+                }
+            }
+            catch (Exception exLogoTest)
+            {
+                assert("ThermalLogo_Test_Exception", false, exLogoTest.Message);
+            }
+
             res.Success = (res.Failed == 0);
             return res;
         }

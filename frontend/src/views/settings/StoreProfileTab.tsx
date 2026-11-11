@@ -60,6 +60,8 @@ interface StoreProfileTabProps {
   setShowReceiptChange?: (val: boolean) => void;
   storeLogoUrl?: string;
   setStoreLogoUrl?: (val: string) => void;
+  thermalLogoMode?: ThermalOptimizeMode;
+  setThermalLogoMode?: (mode: ThermalOptimizeMode) => void;
   /** Developer signature settings, read only here (edited on the root console): they only feed the live preview */
   developerSignature?: string;
   developerSignatureVisible?: boolean;
@@ -105,6 +107,8 @@ export const StoreProfileTab = ({
   setShowReceiptChange,
   storeLogoUrl = DEFAULT_LOGO_URL,
   setStoreLogoUrl,
+  thermalLogoMode = 'dither',
+  setThermalLogoMode,
   developerSignature = DEFAULT_DEVELOPER_SIGNATURE,
   developerSignatureVisible = true,
   developerSignatureImage = '',
@@ -120,7 +124,7 @@ export const StoreProfileTab = ({
   const [logoError, setLogoError] = useState('');
   const [profileViewMode, setProfileViewMode] = useState<'sales_receipt' | 'other_templates'>('sales_receipt');
   const [rawLogoSource, setRawLogoSource] = useState<string | null>(null);
-  const [logoMode, setLogoMode] = useState<ThermalOptimizeMode>('crisp');
+  const logoMode = thermalLogoMode;
   const [isThermalSim, setIsThermalSim] = useState(false);
   const [thermalSimUrl, setThermalSimUrl] = useState('');
 
@@ -167,7 +171,7 @@ export const StoreProfileTab = ({
             } catch {
               // fallback to crisp
             }
-            setLogoMode(autoMode);
+            setThermalLogoMode?.(autoMode);
             const optimized = await optimizeImageForThermal(raw, { mode: autoMode });
             setStoreLogoUrl(optimized);
             const sim = await generateThermal1BitSimulation(optimized);
@@ -175,6 +179,7 @@ export const StoreProfileTab = ({
             setIsUploading(false);
           };
           tempImg.onerror = async () => {
+            setThermalLogoMode?.('crisp');
             const optimized = await optimizeImageForThermal(raw, { mode: 'crisp' });
             setStoreLogoUrl(optimized);
             setIsUploading(false);
@@ -193,7 +198,7 @@ export const StoreProfileTab = ({
 
   const handleModeChange = async (nextMode: ThermalOptimizeMode) => {
     if (nextMode === logoMode || !setStoreLogoUrl) return;
-    setLogoMode(nextMode);
+    setThermalLogoMode?.(nextMode);
     const src = rawLogoSource || storeLogoUrl;
     if (!src || isDefaultLogo) return;
     setIsUploading(true);
@@ -586,7 +591,7 @@ export const StoreProfileTab = ({
                 },
               )}
               paper={previewPaper}
-              logoUrl={showReceiptLogo ? storeLogoUrl : null}
+              logoUrl={showReceiptLogo ? (isThermalSim && thermalSimUrl ? thermalSimUrl : storeLogoUrl) : null}
             />
           </div>
           <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0">

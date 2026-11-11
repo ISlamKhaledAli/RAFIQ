@@ -22,6 +22,7 @@ import { usePrinterExtras } from './settings/usePrinterExtras';
 import { DEFAULT_DEVELOPER_SIGNATURE, normalizeReceiptText, receiptTextLimitError, resolveReceiptFooter, resolveReceiptSignature } from '../utils/receiptLayout';
 import { invalidateReportPaperCache, normalizeReportPaper, type ReportPaper } from '../utils/printReport';
 import { useMotionPanel } from '../hooks/useMotionPanel';
+import type { ThermalOptimizeMode } from '../utils/thermalImageOptimizer';
 
 /** Owner-facing screens only: everything reserved for the root account lives in the root console (views/root). */
 export type SettingsSubTab = 'profile' | 'policies' | 'backup' | 'printer';
@@ -65,6 +66,7 @@ const SettingsViewContent = ({
   const [showReceiptPaid, setShowReceiptPaid] = useState(true);
   const [showReceiptChange, setShowReceiptChange] = useState(true);
   const [storeLogoUrl, setStoreLogoUrl] = useState('/receipt_logo_square.png');
+  const [thermalLogoMode, setThermalLogoMode] = useState<ThermalOptimizeMode>('dither');
   // Developer signature: edited on the root console, only read here to draw the receipt preview
   const [developerSignature, setDeveloperSignature] = useState(DEFAULT_DEVELOPER_SIGNATURE);
   const [developerSignatureVisible, setDeveloperSignatureVisible] = useState(true);
@@ -97,6 +99,7 @@ const SettingsViewContent = ({
     showReceiptPaid,
     showReceiptChange,
     storeLogoUrl,
+    thermalLogoMode,
   ]);
   // Until the stored values are known the screen stays saveable (never blocks a save by mistake)
   const profileDirty = profileBaseline === null || profileSnapshot !== profileBaseline || taxNumber.trim() !== savedTaxNumber;
@@ -190,6 +193,9 @@ const SettingsViewContent = ({
                 : settings.store_logo_url
             );
           }
+          if (settings.thermal_logo_mode === 'dither' || settings.thermal_logo_mode === 'crisp') {
+            setThermalLogoMode(settings.thermal_logo_mode);
+          }
           if (settings.developer_signature) setDeveloperSignature(resolveReceiptSignature(settings.developer_signature));
           setDeveloperSignatureVisible(settings.developer_signature_visible !== '0');
           setDeveloperSignatureImage(settings.developer_signature_image ?? '');
@@ -268,6 +274,7 @@ const SettingsViewContent = ({
         receipt_show_paid: showReceiptPaid ? '1' : '0',
         receipt_show_change: showReceiptChange ? '1' : '0',
         store_logo_url: storeLogoUrl,
+        thermal_logo_mode: thermalLogoMode,
       };
       await invoke('settings:save', payload);
       setProfileBaseline(profileSnapshot);
@@ -603,6 +610,8 @@ const SettingsViewContent = ({
           setShowReceiptChange={setShowReceiptChange}
           storeLogoUrl={storeLogoUrl}
           setStoreLogoUrl={setStoreLogoUrl}
+          thermalLogoMode={thermalLogoMode}
+          setThermalLogoMode={setThermalLogoMode}
           developerSignature={developerSignature}
           developerSignatureVisible={developerSignatureVisible}
           developerSignatureImage={developerSignatureImage}

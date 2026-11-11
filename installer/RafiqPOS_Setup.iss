@@ -7,7 +7,7 @@
 ; الاسم القديم قبل التعريب الكامل: يُستخدم فقط لتنظيف اختصارات الإصدارات السابقة عند الترقية
 #define MyOldAppName "رفيق POS"
 #define MyAppEnglishName "Rafiq POS"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.1.1"
 #define MyAppPublisher "ISlam Khaled Ali"
 #define MyAppCopyright "Copyright © 2026 ISlam Khaled Ali. All rights reserved."
 #define MyAppExeName "RafiqPOS.exe"
@@ -142,6 +142,8 @@ arabic.InstallWebView2Desc=تثبيت أحدث نسخة من مشغل العرض
 english.InstallWebView2Desc=Install latest WebView2 Runtime (requires internet connection — optional)
 arabic.InstallingWebView2Status=جاري تثبيت مشغّل العرض (WebView2 Runtime)...
 english.InstallingWebView2Status=Installing WebView2 Runtime...
+arabic.WebView2MissingWarning=تنبيه هام بخصوص مشغل العرض:%n%nلم يتم العثور على مشغل العرض Microsoft Edge WebView2 على هذا الجهاز، وتعذر تنزيله لعدم توفر اتصال بالإنترنت.%n%nالحل المعتمد لتشغيل البرنامج أوفلاين:%nقم بتشغيل ملف التثبيت الشامل الرسمي (Full Offline Setup):%nRafiqPOS_Setup_v{#MyAppVersion}.exe%nفهو يحتوي على مشغل العرض أوفلاين مدمجاً وسيقوم بتشغيل البرنامج فوراً بدون إنترنت.
+english.WebView2MissingWarning=Important notice regarding WebView2 Runtime:%n%nMicrosoft Edge WebView2 Runtime was not found on this system and could not be installed because there is no internet connection.%n%nRecommended Offline Solution:%nRun the Full Offline Setup:%nRafiqPOS_Setup_v{#MyAppVersion}.exe%nIt includes the offline runtime and will launch the system without requiring internet.
 
 ; --- رسائل تثبيت المتطلبات (Code) ---
 arabic.PrereqProgressTitle=تثبيت متطلبات التشغيل
@@ -880,8 +882,24 @@ begin
             RemoveLinkOnly(AddBackslash(AppDir) + Name)
           else if (FindRec.Attributes and ATTR_DIRECTORY) <> 0 then
           begin
-            DeleteTreeNoFollow(AddBackslash(AppDir) + Name, 1);
-            RemoveDir(AddBackslash(AppDir) + Name);
+            // حماية مجلد مشغل العرض المدمج runtimes و fixed109 من الحذف أثناء الترقية أو التحديث
+            if (CompareText(Name, 'runtimes') = 0) and
+               (FileExists(AddBackslash(AppDir) + 'runtimes\fixed109\msedgewebview2.exe') or
+                DirExists(AddBackslash(AppDir) + 'runtimes\fixed109')) then
+            begin
+              Log('Preserving existing WebView2 runtime: ' + AddBackslash(AppDir) + Name);
+            end
+            else if (CompareText(Name, 'fixed109') = 0) and
+                    (FileExists(AddBackslash(AppDir) + 'fixed109\msedgewebview2.exe') or
+                     DirExists(AddBackslash(AppDir) + 'fixed109')) then
+            begin
+              Log('Preserving existing WebView2 runtime: ' + AddBackslash(AppDir) + Name);
+            end
+            else
+            begin
+              DeleteTreeNoFollow(AddBackslash(AppDir) + Name, 1);
+              RemoveDir(AddBackslash(AppDir) + Name);
+            end;
           end
           else if IsDataLikeFile(Name) then
             PreserveDataFile(AddBackslash(AppDir) + Name)
@@ -992,14 +1010,33 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
 begin
   if CurStep = ssInstall then
   begin
     HardenAndCleanAppDir();
   end
+  else if CurStep = ssPostInstall then
+  begin
+    // إذا كان مشغل العرض غير مثبت على النظام ولا يوجد مشغل مدمج سابق، نحاول تثبيته تلقائياً عبر مثبت الويب
+    if not IsWebView2Installed() and not FileExists(ExpandConstant('{app}\runtimes\fixed109\msedgewebview2.exe')) then
+    begin
+      if FileExists(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe')) then
+      begin
+        Log('Attempting silent install of WebView2 Runtime...');
+        Exec(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'), '/silent /install', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+        Log('WebView2 installer result code: ' + IntToStr(ResultCode));
+      end;
+    end;
+  end
   else if CurStep = ssDone then
   begin
     AllowSetForegroundWindow(ASFW_ANY);
+    if not IsAppReadyToLaunch() and not DotNetRestartRequired then
+    begin
+      MsgBox(CustomMessage('WebView2MissingWarning'), mbInformation, MB_OK);
+    end;
   end;
 end;
 

@@ -1346,6 +1346,7 @@ namespace RafiqPOS.Services
             public bool ShowChange = true;
             public bool SignatureVisible = true;
             public string SignatureImage = "";
+            public string ThermalLogoMode = "dither";
         }
 
         private sealed class ReceiptPaymentLine
@@ -1841,6 +1842,8 @@ namespace RafiqPOS.Services
             // توقيع الإيصال: المفتاح الناقص يعني ظاهر وبالصورة الافتراضية المضمّنة؛ "none" بدون صورة؛ وغير ذلك صورة مخصصة
             info.SignatureVisible = ReadStoreSetting(store, SettingsService.SignatureVisibleKey) != "0";
             info.SignatureImage = ReadStoreSetting(store, SettingsService.SignatureImageKey);
+            info.ThermalLogoMode = ReadStoreSetting(store, "thermal_logo_mode");
+            if (string.IsNullOrWhiteSpace(info.ThermalLogoMode)) info.ThermalLogoMode = "dither";
 
             string signature = _settings != null ? _settings.Get("developer_signature", SettingsService.DefaultDeveloperSignature) : SettingsService.DefaultDeveloperSignature;
             if (SettingsService.IsLegacyOrBlankDeveloperSignature(signature)) signature = SettingsService.DefaultDeveloperSignature;
@@ -1870,6 +1873,7 @@ namespace RafiqPOS.Services
             public readonly float W;
             public readonly float Usable;
             public readonly bool Compact;
+            public readonly float Scale;
             public readonly string FontName;
             public readonly Font Title;
             public readonly Font Large;
@@ -1892,6 +1896,7 @@ namespace RafiqPOS.Services
                 W = contentWidth;
                 Usable = contentWidth - 2f * Pad;
                 Compact = contentWidth <= 210;
+                Scale = (float)(Compact ? 384 : 576) / (float)contentWidth;
                 Y = TopPad;
                 FontName = ResolveReceiptFontName();
 
@@ -2107,6 +2112,200 @@ namespace RafiqPOS.Services
             }
         }
 
+        /// <summary>
+        /// معالجة وتجهيز شعار المتجر للطباعة الحرارية (203 DPI) بدقة 1-Bit فيزيائية مطابقة لسن الطابعة.
+        /// يقوم بالتحجيم المسبق الفائق (Bicubic Downsampling) للأبعاد المستهدفة بالبكسل،
+        /// ثم تطبيق خوارزمية فلويد-شتاينبرغ لتشتيت الخطأ (Floyd-Steinberg Error Diffusion) مع تعويض تمدد الحبر الحراري (Dot-Gain Gamma)،
+        /// لضمان طباعة التدرجات والظلال كشبكة نقطية نقية (Halftone 1-Bit Dots) بدون تكتل أو طمس أو فقدان للتفاصيل.
+        /// </summary>
+        public static Bitmap PrepareThermalLogoBitmap(Image source, int targetWidth, int targetHeight, string mode)
+        {
+            if (source == null || targetWidth <= 0 || targetHeight <= 0)
+            {
+                return null;
+            }
+
+            mode = (mode ?? "").Trim().ToLowerInvariant();
+
+            Bitmap targetBmp = new Bitmap(targetWidth, targetHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            try
+            {
+                using (Graphics g = Graphics.FromImage(targetBmp))
+                {
+                    g.Clear(Color.White);
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.SmoothingMode = SmoothingMode.HighQuality;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    g.DrawImage(source, 0, 0, targetWidth, targetHeight);
+                }
+
+                System.Drawing.Imaging.BitmapData data = targetBmp.LockBits(
+                    new Rectangle(0, 0, targetWidth, targetHeight),
+                    System.Drawing.Imaging.ImageLockMode.ReadWrite,
+                    System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+
+                try
+                {
+                    int stride = Math.Abs(data.Stride);
+                    byte[] pixels = new byte[stride * targetHeight];
+                    System.Runtime.InteropServices.Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+
+                    // فحص النمط: تدرجات وتفاصيل (dither) أم خطوط حادة (crisp) مع الكشف التلقائي عند غياب التحديد
+                    bool isDither = mode == "dither";
+                    if (string.IsNullOrWhiteSpace(mode))
+                    {
+                        int midtones = 0;
+                        int nonWhite = 0;
+                        for (int y = 0; y < targetHeight; y++)
+                        {
+                            int row = y * stride;
+                            for (int x = 0; x < targetWidth; x++)
+                            {
+                                int p = row + (x * 4);
+                                int lum = (pixels[p + 2] * 299 + pixels[p + 1] * 587 + pixels[p] * 114) / 1000;
+                                if (lum < 240)
+                                {
+                                    nonWhite++;
+                                    if (lum >= 45 && lum <= 215) midtones++;
+                                }
+                            }
+                        }
+                        isDither = nonWhite > 0 && ((float)midtones / (float)nonWhite) > 0.15f;
+                    }
+
+                    if (isDither)
+                    {
+                        float[] lumaBuf = new float[targetWidth * targetHeight];
+                        float[] errBuf = new float[targetWidth * targetHeight];
+                        float invGamma = 1.0f / 1.22f; // تعويض تمدد النقطة الحرارية (Thermal Dot-Gain)
+
+                        for (int y = 0; y < targetHeight; y++)
+                        {
+                            int row = y * stride;
+                            int bufRow = y * targetWidth;
+                            for (int x = 0; x < targetWidth; x++)
+                            {
+                                int p = row + (x * 4);
+                                byte b = pixels[p];
+                                byte g = pixels[p + 1];
+                                byte r = pixels[p + 2];
+                                byte a = pixels[p + 3];
+
+                                if (a < 15)
+                                {
+                                    lumaBuf[bufRow + x] = 255f;
+                                    continue;
+                                }
+
+                                float alphaRatio = (float)a / 255f;
+                                float rawLuma = (0.299f * r + 0.587f * g + 0.114f * b) * alphaRatio + 255f * (1f - alphaRatio);
+                                if (rawLuma >= 254f)
+                                {
+                                    lumaBuf[bufRow + x] = 255f;
+                                }
+                                else if (rawLuma <= 5f)
+                                {
+                                    lumaBuf[bufRow + x] = 0f;
+                                }
+                                else
+                                {
+                                    lumaBuf[bufRow + x] = 255f * (float)Math.Pow(rawLuma / 255f, invGamma);
+                                }
+                            }
+                        }
+
+                        for (int y = 0; y < targetHeight; y++)
+                        {
+                            int row = y * stride;
+                            int bufRow = y * targetWidth;
+                            for (int x = 0; x < targetWidth; x++)
+                            {
+                                int idx = bufRow + x;
+                                int p = row + (x * 4);
+
+                                float val = lumaBuf[idx] + errBuf[idx];
+                                if (val < 0f) val = 0f;
+                                if (val > 255f) val = 255f;
+
+                                byte bit = val < 128f ? (byte)0 : (byte)255;
+
+                                pixels[p] = bit;
+                                pixels[p + 1] = bit;
+                                pixels[p + 2] = bit;
+                                pixels[p + 3] = 255;
+
+                                float err = val - (float)bit;
+
+                                if (x + 1 < targetWidth)
+                                {
+                                    errBuf[idx + 1] += err * (7f / 16f);
+                                }
+                                if (y + 1 < targetHeight)
+                                {
+                                    int nextRow = (y + 1) * targetWidth;
+                                    if (x > 0)
+                                    {
+                                        errBuf[nextRow + (x - 1)] += err * (3f / 16f);
+                                    }
+                                    errBuf[nextRow + x] += err * (5f / 16f);
+                                    if (x + 1 < targetWidth)
+                                    {
+                                        errBuf[nextRow + (x + 1)] += err * (1f / 16f);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        for (int y = 0; y < targetHeight; y++)
+                        {
+                            int row = y * stride;
+                            for (int x = 0; x < targetWidth; x++)
+                            {
+                                int p = row + (x * 4);
+                                byte b = pixels[p];
+                                byte g = pixels[p + 1];
+                                byte r = pixels[p + 2];
+                                byte a = pixels[p + 3];
+
+                                if (a < 15)
+                                {
+                                    pixels[p] = 255;
+                                    pixels[p + 1] = 255;
+                                    pixels[p + 2] = 255;
+                                    pixels[p + 3] = 255;
+                                    continue;
+                                }
+
+                                float alphaRatio = (float)a / 255f;
+                                float luma = (0.299f * r + 0.587f * g + 0.114f * b) * alphaRatio + 255f * (1f - alphaRatio);
+                                byte bit = luma < 185f ? (byte)0 : (byte)255;
+
+                                pixels[p] = bit;
+                                pixels[p + 1] = bit;
+                                pixels[p + 2] = bit;
+                                pixels[p + 3] = 255;
+                            }
+                        }
+                    }
+
+                    System.Runtime.InteropServices.Marshal.Copy(pixels, 0, data.Scan0, pixels.Length);
+                }
+                finally
+                {
+                    targetBmp.UnlockBits(data);
+                }
+
+                return targetBmp;
+            }
+            catch
+            {
+                targetBmp.Dispose();
+                throw;
+            }
+        }
+
         private static void DrawStoreHeader(ReceiptPainter p, ReceiptStoreInfo store, Image logo, bool includeHeaderText)
         {
             if (logo != null && logo.Width > 0 && logo.Height > 0)
@@ -2119,7 +2318,28 @@ namespace RafiqPOS.Services
                     if (scale > 1f) scale = 1f;
                     float drawW = logo.Width * scale;
                     float drawH = logo.Height * scale;
-                    p.G.DrawImage(logo, (p.W - drawW) / 2f, p.Y, drawW, drawH);
+
+                    string logoMode = store != null ? store.ThermalLogoMode : "dither";
+                    int targetPixelW = (int)Math.Max(1, Math.Round(drawW * p.Scale));
+                    int targetPixelH = (int)Math.Max(1, Math.Round(drawH * p.Scale));
+
+                    using (Bitmap thermalLogo = PrepareThermalLogoBitmap(logo, targetPixelW, targetPixelH, logoMode))
+                    {
+                        InterpolationMode oldInterp = p.G.InterpolationMode;
+                        PixelOffsetMode oldOffset = p.G.PixelOffsetMode;
+                        try
+                        {
+                            p.G.InterpolationMode = InterpolationMode.NearestNeighbor;
+                            p.G.PixelOffsetMode = PixelOffsetMode.Half;
+                            p.G.DrawImage(thermalLogo, (p.W - drawW) / 2f, p.Y, drawW, drawH);
+                        }
+                        finally
+                        {
+                            p.G.InterpolationMode = oldInterp;
+                            p.G.PixelOffsetMode = oldOffset;
+                        }
+                    }
+
                     p.Y += drawH + 3f;
                 }
                 catch (Exception exLogo)
@@ -4735,7 +4955,29 @@ namespace RafiqPOS.Services
                     float scale = Math.Min(maxW / logo.Width, maxH / logo.Height);
                     float drawW = logo.Width * scale;
                     float drawH = logo.Height * scale;
-                    g.DrawImage(logo, (contentWidth - drawW) / 2f, y, drawW, drawH);
+
+                    string logoMode = _settings != null ? _settings.Get("thermal_logo_mode", "dither") : "dither";
+                    float scaleJob = (float)(isCompact ? 384 : 576) / (float)contentWidth;
+                    int targetPixelW = (int)Math.Max(1, Math.Round(drawW * scaleJob));
+                    int targetPixelH = (int)Math.Max(1, Math.Round(drawH * scaleJob));
+
+                    using (Bitmap thermalLogo = PrepareThermalLogoBitmap(logo, targetPixelW, targetPixelH, logoMode))
+                    {
+                        InterpolationMode oldInterp = g.InterpolationMode;
+                        PixelOffsetMode oldOffset = g.PixelOffsetMode;
+                        try
+                        {
+                            g.InterpolationMode = InterpolationMode.NearestNeighbor;
+                            g.PixelOffsetMode = PixelOffsetMode.Half;
+                            g.DrawImage(thermalLogo, (contentWidth - drawW) / 2f, y, drawW, drawH);
+                        }
+                        finally
+                        {
+                            g.InterpolationMode = oldInterp;
+                            g.PixelOffsetMode = oldOffset;
+                        }
+                    }
+
                     y += drawH + 3f;
                 }
             }

@@ -299,10 +299,10 @@ export function applyFloydSteinbergDither(
         pixels[pIdx + 2] = 0;
         pixels[pIdx + 3] = 255;
       } else {
-        // Pure transparent / paper white
-        pixels[pIdx] = 0;
-        pixels[pIdx + 1] = 0;
-        pixels[pIdx + 2] = 0;
+        // Pure transparent / paper white (RGB = 255 prevents dark fringe when composited over white)
+        pixels[pIdx] = 255;
+        pixels[pIdx + 1] = 255;
+        pixels[pIdx + 2] = 255;
         pixels[pIdx + 3] = 0;
       }
 
