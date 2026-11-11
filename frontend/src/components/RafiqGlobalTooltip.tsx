@@ -189,6 +189,13 @@ export const RafiqGlobalTooltip: React.FC = () => {
       const rawTarget = e.target as HTMLElement | null;
       if (!rawTarget) return;
 
+      // 1. If rawTarget itself or any enclosing ancestor is explicitly handled by declarative <RafiqTooltip>,
+      // or has a custom tooltip, the global tooltip MUST back off immediately so they never double up!
+      if (rawTarget.closest('[data-has-custom-tooltip="true"]')) {
+        hide(true);
+        return;
+      }
+
       // Find nearest element with tooltip info
       const target = rawTarget.closest<HTMLElement>('[data-rafiq-tooltip], [title]');
       if (!target) {
@@ -212,7 +219,7 @@ export const RafiqGlobalTooltip: React.FC = () => {
         ancestor = ancestor.parentElement;
       }
 
-      // 2. If this element or any parent is explicitly handled by declarative <RafiqTooltip>, back off
+      // 2. If target or any parent is explicitly handled by declarative <RafiqTooltip>, back off
       if (target.closest('[data-has-custom-tooltip="true"]')) {
         hide(true);
         return;
@@ -220,6 +227,13 @@ export const RafiqGlobalTooltip: React.FC = () => {
 
       const tooltipText = target.getAttribute('data-rafiq-tooltip');
       if (!tooltipText || !tooltipText.trim()) {
+        if (isOpen) hide();
+        return;
+      }
+
+      // Do not show redundant tooltip if the element's visible text already matches the tooltip text
+      const visibleText = target.textContent?.trim();
+      if (visibleText && visibleText === tooltipText.trim()) {
         if (isOpen) hide();
         return;
       }
@@ -237,6 +251,12 @@ export const RafiqGlobalTooltip: React.FC = () => {
         setContent(tooltipText);
         setIsOpen(true);
         isWarmRef.current = true;
+        // Broadcast that global tooltip is now open so any other tooltip hides
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('rafiq-tooltip-open', { detail: { id: 'global-tooltip' } })
+          );
+        }
       }, delay);
     };
 
@@ -256,12 +276,20 @@ export const RafiqGlobalTooltip: React.FC = () => {
       if (e.key === 'Escape') hide(true);
     };
 
+    const handleExternalTooltipOpen = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id?: string }>;
+      if (customEvent.detail?.id !== 'global-tooltip') {
+        hide(true);
+      }
+    };
+
     // Capture phase for fast interception before browser native timers
     document.addEventListener('mouseover', handlePointerOver, { capture: true, passive: true });
     document.addEventListener('mouseout', handlePointerOut, { capture: true, passive: true });
     document.addEventListener('scroll', handleDismissImmediate, { capture: true, passive: true });
     document.addEventListener('pointerdown', handleDismissImmediate, { capture: true, passive: true });
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('rafiq-tooltip-open', handleExternalTooltipOpen);
 
     return () => {
       document.removeEventListener('mouseover', handlePointerOver, { capture: true });
@@ -269,6 +297,7 @@ export const RafiqGlobalTooltip: React.FC = () => {
       document.removeEventListener('scroll', handleDismissImmediate, { capture: true });
       document.removeEventListener('pointerdown', handleDismissImmediate, { capture: true });
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('rafiq-tooltip-open', handleExternalTooltipOpen);
     };
   }, [isOpen, hide, clearTimers]);
 

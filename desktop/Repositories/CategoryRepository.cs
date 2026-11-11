@@ -162,6 +162,27 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        public int ArchiveEmptyCategories()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    UPDATE categories 
+                    SET is_active = 0, updated_at = @now 
+                    WHERE is_active = 1 
+                      AND id != 'cat_general' 
+                      AND name != 'عام'
+                      AND id NOT IN (SELECT DISTINCT category_id FROM products WHERE is_active = 1 AND category_id IS NOT NULL);
+                ";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                    return cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
         public void Reorder(List<string> orderedIds)
         {
             if (orderedIds == null || orderedIds.Count == 0) return;

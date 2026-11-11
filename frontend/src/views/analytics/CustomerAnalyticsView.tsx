@@ -3,7 +3,6 @@ import type { FC } from 'react';
 import {
   Users,
   AlertTriangle,
-  Printer,
   Clock,
   TrendingUp,
   TrendingDown,
@@ -18,7 +17,6 @@ import {
 } from 'lucide-react';
 import { SearchInput } from '../../components/SearchInput';
 import { invoke } from '../../bridge/ipc';
-import { usePrintReport } from '../../hooks/usePrintReport';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
@@ -127,12 +125,6 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
     return d.name.toLowerCase().includes(q) || (d.phone && d.phone.includes(q));
   });
 
-  const { print: handlePrint, printing } = usePrintReport({
-    reportName: 'تقرير تحليلات العملاء',
-    kind: 'a4only',
-    hasData: creditOverview !== null,
-  });
-
   if (showLoading && !creditOverview) {
     return (
       <div className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark items-center justify-center select-none p-5" dir="rtl">
@@ -184,10 +176,6 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
               }}
             />
           )}
-
-          <AppButton variant="primary" icon={Printer} onClick={handlePrint} loading={printing} title="طباعة التقرير">
-            طباعة التقرير
-          </AppButton>
 
           {onNavigateToCustomers && (
             <AppButton variant="secondary" icon={Users} onClick={onNavigateToCustomers} title="الانتقال إلى سجل وإدارة العملاء">

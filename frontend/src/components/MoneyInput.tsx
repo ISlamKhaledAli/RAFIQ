@@ -211,12 +211,12 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           title={tafqeetText ? `${tafqeetText}` : undefined}
-          className={`w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded px-3 py-1.5 ${
-            hideCurrency ? '' : 'pl-10'
+          className={`w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded px-2.5 py-1.5 ${
+            hideCurrency ? '' : 'pl-8'
           } text-ink dark:text-ink-dark font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors text-right tabular-nums ${className}`}
         />
         {!hideCurrency && (
-          <span className="absolute left-2.5 text-micro font-bold text-ink-muted dark:text-ink-dark-muted pointer-events-none select-none">
+          <span className="absolute left-2 text-micro font-bold text-ink-muted dark:text-ink-dark-muted pointer-events-none select-none">
             {currencyLabel}
           </span>
         )}

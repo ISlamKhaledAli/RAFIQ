@@ -21,7 +21,6 @@ const ZONE_FILES = [
   'views/DashboardView.tsx',
   'views/analytics/CustomerAnalyticsView.tsx',
   'views/analytics/InventoryAnalyticsView.tsx',
-  'views/analytics/RevenueAnalyticsView.tsx',
   'components/analytics/DeadStockRadar.tsx',
   'components/DateFilterControl.tsx',
   'components/CustomDatePicker.tsx',
@@ -40,6 +39,7 @@ const ZONE_FILES = [
 
 const ALL_FILES = [
   ...ZONE_FILES,
+  'views/analytics/RevenueAnalyticsView.tsx',
   'components/PaginationBar.tsx',
   'components/analytics/CashierPerformanceCard.tsx',
   'components/analytics/FinancialGaugeMeter.tsx',

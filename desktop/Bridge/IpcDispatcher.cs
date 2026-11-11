@@ -95,6 +95,7 @@ namespace RafiqPOS.Bridge
                 request.Action == "products:importBatch" ||
                 request.Action == "categories:save" ||
                 request.Action == "categories:archive" ||
+                request.Action == "categories:archiveEmpty" ||
                 request.Action == "categories:reorder" ||
                 request.Action == "customers:save" ||
                 request.Action == "customers:recordPayment" ||
@@ -363,6 +364,7 @@ namespace RafiqPOS.Bridge
             { "categories:getAll", "products.view" },
             { "categories:save", "categories.manage" },
             { "categories:archive", "categories.manage" },
+            { "categories:archiveEmpty", "categories.manage" },
             { "categories:reorder", "categories.manage" },
             { "quickItems:getAll", "products.view" },
             { "quickItems:save", "products.edit" },
@@ -601,6 +603,7 @@ namespace RafiqPOS.Bridge
             { "printer:list", "settings.printer" },
             { "printer:test", "settings.printer" },
             { "printer:testPrint", "settings.printer" },
+            { "printer:testTemplate", "settings.printer" },
             { "printer:printLabels", "settings.printer" },
             { "barcode:printLabel", "settings.printer" },
             { "barcode:printLabels", "settings.printer" },
@@ -960,7 +963,7 @@ namespace RafiqPOS.Bridge
             "printer:printReceipt", "printer:saveReceiptImage", "printer:printEpayReceipt", "printer:printWalletReceipt",
             "printer:printRecoveryVoucher", "epay:printReceipt", "wallets:printReceipt", "returns:printReceipt", "closing:print",
             "barcode:printLabel", "barcode:printLabels", "printer:printLabels",
-            "printer:test", "printer:testPrint", "printer:testLabel", "printer:cutPaper",
+            "printer:test", "printer:testPrint", "printer:testTemplate", "printer:testLabel", "printer:cutPaper",
             "report:openFolder", "report:saveFile", "report:savePdf",
 
             // Closing the shift that is already open and the daily closing

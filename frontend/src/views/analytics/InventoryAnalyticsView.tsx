@@ -4,7 +4,6 @@ import {
   Boxes,
   Package,
   AlertTriangle,
-  Printer,
   Layers,
   Truck,
   TrendingDown,
@@ -17,7 +16,6 @@ import {
   PackageX
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
-import { usePrintReport } from '../../hooks/usePrintReport';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
@@ -128,12 +126,6 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
     0
   );
 
-  const { print: handlePrint, printing } = usePrintReport({
-    reportName: 'تقرير تحليلات المخزون',
-    kind: 'a4only',
-    hasData: overview !== null,
-  });
-
   if (showLoading && !overview) {
     return (
       <div className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark items-center justify-center select-none p-5" dir="rtl">
@@ -193,10 +185,6 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
               }}
             />
           )}
-
-          <AppButton variant="primary" icon={Printer} onClick={handlePrint} loading={printing} title="طباعة التقرير">
-            طباعة التقرير
-          </AppButton>
         </div>
       </div>
 
