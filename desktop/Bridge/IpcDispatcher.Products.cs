@@ -612,6 +612,11 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, new { success = true, id = archCatId, isArchived = isArch });
                     return true;
 
+                case "categories:archiveEmpty":
+                    int archivedEmptyCount = DatabaseService.Categories.ArchiveEmptyCategories();
+                    response = BridgeResponse.Ok(request.Id, new { success = true, archivedCount = archivedEmptyCount });
+                    return true;
+
                 case "categories:reorder":
                     if (request.Payload == null)
                     {
