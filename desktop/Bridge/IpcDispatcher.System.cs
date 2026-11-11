@@ -522,6 +522,8 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "benchmark:run":
+#if DEBUG
+                    // Developer-only (no product screen uses it); always runs on a temporary database copy, capped at 5000 products
                     int pCount = 3000;
                     if (request.Payload != null)
                     {
@@ -533,6 +535,9 @@ namespace RafiqPOS.Bridge
                     }
                     var benchResult = DatabaseService.Benchmark.RunStressTest(pCount);
                     response = BridgeResponse.Ok(request.Id, benchResult);
+#else
+                    response = BridgeResponse.Fail(request.Id, "NOT_AVAILABLE", "اختبار الحمل متاح لنسخة المطورين فقط.");
+#endif
                     return true;
 
                 case "search:runBenchmark":
@@ -544,7 +549,8 @@ namespace RafiqPOS.Bridge
                         if (benchObj["productCount"] != null) benchProdCount = benchObj["productCount"].Value<int>();
                         if (benchObj["queryIterations"] != null) benchQueryCount = benchObj["queryIterations"].Value<int>();
                     }
-                    var benchRunner = new SearchBenchmarkRunner(DatabaseService.ConnectionString, DatabaseService.ProductRepo);
+                    // Runs on a temporary database (never the live store) and is capped inside the runner
+                    var benchRunner = new SearchBenchmarkRunner();
                     var benchRes = benchRunner.RunBenchmark(benchProdCount, benchQueryCount);
                     response = BridgeResponse.Ok(request.Id, benchRes);
                     return true;

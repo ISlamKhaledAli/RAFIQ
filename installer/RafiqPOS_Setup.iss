@@ -132,6 +132,8 @@ english.CreateDesktopIcon=Create a desktop shortcut for Rafiq POS
 ; --- أسماء الاختصارات وإلغاء التثبيت ---
 arabic.UninstallProgram=إلغاء تثبيت نظام رفيق
 english.UninstallProgram=Uninstall Rafiq POS
+arabic.UninstallDeleteDataPrompt=حذف بيانات المحل وقاعدة البيانات والنسخ الاحتياطية نهائياً؟%n%nاختر «لا» للاحتفاظ بالبيانات (الخيار الافتراضي).
+english.UninstallDeleteDataPrompt=Permanently delete the store data, database and backups?%n%nChoose No to keep your data (default).
 
 ; --- نصوص العمليات ومشغل الويب (صفحة Finish والـ Run) ---
 arabic.SecuringPermissions=جاري تأمين صلاحيات مجلدات البيانات...
@@ -243,7 +245,7 @@ Source: "{#PrereqDir}\{#DotNetInstaller}"; DestDir: "{tmp}"; Flags: dontcopy
 Source: "{#PrereqDir}\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Check: IsWindows10OrLater and not IsWebView2Installed
 
 ; قاعدة البيانات: تُنشأ تلقائياً عند أول تشغيل عبر DatabaseService و MigrationRunner في {commonappdata}\RafiqPOS\data
-; حماية البيانات من الحذف أو الاستبدال عند إلغاء التثبيت أو الترقية: Flags: onlyifdoesntexist uninsneveruninstall
+; حماية البيانات: لا تُنسخ أي بيانات من المثبت (انظر Excludes)، ولا يحذف إلغاء التثبيت بيانات المحل إلا بعد سؤال صريح (الافتراضي: لا) ولا يحذفها أبداً في الوضع الصامت
 
 [Icons]
 Name: "{group}\{cm:MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -269,16 +271,14 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{cm:MyAppName}}"; Flags: nowait postinstall skipifsilent; Check: IsAppReadyToLaunch
 
 [UninstallRun]
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im RafiqPOS.exe"; Flags: runhidden; RunOnceId: "KillRafiq"
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im msedgewebview2.exe"; Flags: runhidden; RunOnceId: "KillWebView" 
+; /t يُنهي شجرة عمليات رفيق فقط (بما فيها عمليات مشغل العرض التابعة له) دون المساس بمشغل العرض الخاص بتطبيقات أخرى
+Filename: "{sys}\taskkill.exe"; Parameters: "/f /t /im RafiqPOS.exe"; Flags: runhidden; RunOnceId: "KillRafiq"
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\data"
+; بيانات المحل (data, backups, logs وجذر RafiqPOS) لا تُحذف هنا أبداً؛ حذفها اختياري عبر سؤال في CurUninstallStepChanged
+; نحذف فقط ملفات الكاش المؤقتة لمشغل العرض
 Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\webview_profile"
-Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\backups"
-Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\logs"
-Type: filesandordirs; Name: "{commonappdata}\RafiqPOS"
-Type: filesandordirs; Name: "{userappdata}\RafiqPOS"
+Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\data\webview_profile"
 Type: filesandordirs; Name: "{localappdata}\RafiqPOS"
 
 [Code]
@@ -924,7 +924,9 @@ begin
      RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-F600A9E7E3DC}', 'pv', VersionStr) or
      RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-F600A9E7E3DC}', 'pv', VersionStr) then
   begin
-    if Length(VersionStr) > 0 then
+    // "0.0.0.0" أو قيمة فارغة تعني أن المشغل غير مثبت فعلياً (مفتاح متبقٍ بعد إزالته)
+    VersionStr := Trim(VersionStr);
+    if (Length(VersionStr) > 0) and (VersionStr <> '0.0.0.0') then
       Result := True;
   end;
 end;
@@ -1005,42 +1007,40 @@ function InitializeUninstall(): Boolean;
 var
   ErrorCode: Integer;
 begin
-  // إيقاف تشغيل رفيق ومشغل الويب فوراً لفك أي قفل على ملفات قاعدة البيانات والمتصفح
-  ShellExec('open', 'taskkill.exe', '/f /im RafiqPOS.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-  ShellExec('open', 'taskkill.exe', '/f /im msedgewebview2.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  // إيقاف رفيق وشجرة عملياته (ومنها مشغل العرض التابع له فقط) لفك أي قفل على ملفات قاعدة البيانات والبروفايل
+  ShellExec('open', 'taskkill.exe', '/f /t /im RafiqPOS.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
   Result := True;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  CommonDir, UserDir, LocalDir: String;
+  CommonDir, UserDir: String;
   ErrorCode: Integer;
+  DeleteStoreData: Boolean;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    // إغلاق أي عمليات عالقة
-    ShellExec('open', 'taskkill.exe', '/f /im RafiqPOS.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-    ShellExec('open', 'taskkill.exe', '/f /im msedgewebview2.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+    // إغلاق أي عمليات عالقة (شجرة رفيق فقط)
+    ShellExec('open', 'taskkill.exe', '/f /t /im RafiqPOS.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
 
-    // 1. تنظيف بيانات البرنامج المشتركة (قاعدة البيانات، كلمات المرور، الإعدادات، البروفايل)
-    CommonDir := ExpandConstant('{commonappdata}\RafiqPOS');
-    if DirExists(CommonDir) then
-    begin
-      DelTree(CommonDir, True, True, True);
-    end;
+    // بيانات المحل تبقى افتراضياً؛ الحذف النهائي فقط بموافقة صريحة، ولا يحدث أبداً في الوضع الصامت
+    DeleteStoreData := False;
+    if not UninstallSilent then
+      DeleteStoreData := MsgBox(CustomMessage('UninstallDeleteDataPrompt'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
 
-    // 2. تنظيف بيانات المستخدم (التقارير المصدرة والملفات المؤقتة)
-    UserDir := ExpandConstant('{userappdata}\RafiqPOS');
-    if DirExists(UserDir) then
+    if DeleteStoreData then
     begin
-      DelTree(UserDir, True, True, True);
-    end;
+      // 1. بيانات البرنامج المشتركة (قاعدة البيانات، النسخ الاحتياطية، السجلات، الإعدادات)
+      CommonDir := ExpandConstant('{commonappdata}\RafiqPOS');
+      if DirExists(CommonDir) then
+        DelTree(CommonDir, True, True, True);
 
-    // 3. تنظيف الملفات المؤقتة المحلية
-    LocalDir := ExpandConstant('{localappdata}\RafiqPOS');
-    if DirExists(LocalDir) then
-    begin
-      DelTree(LocalDir, True, True, True);
-    end;
+      // 2. بيانات المستخدم (التقارير المصدرة)
+      UserDir := ExpandConstant('{userappdata}\RafiqPOS');
+      if DirExists(UserDir) then
+        DelTree(UserDir, True, True, True);
+    end
+    else
+      Log('Uninstall: store data kept (default or silent uninstall).');
   end;
 end;

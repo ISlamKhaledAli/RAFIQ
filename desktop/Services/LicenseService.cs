@@ -101,6 +101,25 @@ namespace RafiqPOS.Services
             }
         }
 
+        // Only activation tokens (online) and support tokens (offline support code) may act as a license;
+        // clock_reset, pin_reset and root_session tokens signed by the same key can never be used as one.
+        private static VerifiedLicenseToken VerifyLicenseToken(string token, string fp, out string error)
+        {
+            VerifiedLicenseToken verified = LicenseTokenVerifier.Verify(token, fp, "activation", out error);
+            if (verified != null)
+            {
+                return verified;
+            }
+
+            string supportError;
+            verified = LicenseTokenVerifier.Verify(token, fp, "support", out supportError);
+            if (verified != null)
+            {
+                error = null;
+            }
+            return verified;
+        }
+
         public LicenseInfo GetLicenseInfo()
         {
             lock (_licenseLock)
@@ -172,7 +191,7 @@ namespace RafiqPOS.Services
             //    against the embedded public key (Audit F-15). Settings values can only DOWNGRADE access
             //    (server-pushed revocation/expiry, or a local transfer), never grant it.
             string tokenError;
-            VerifiedLicenseToken verified = LicenseTokenVerifier.Verify(token, fp, out tokenError);
+            VerifiedLicenseToken verified = VerifyLicenseToken(token, fp, out tokenError);
             if (verified != null)
             {
                 if (string.IsNullOrEmpty(key)) key = verified.LicenseKey;
@@ -462,7 +481,7 @@ namespace RafiqPOS.Services
                     license_key = cleanKey,
                     machine_fingerprint = fp,
                     device_name = machineName,
-                    app_version = "1.0.0"
+                    app_version = AppUpdateService.CurrentVersion
                 };
 
                 byte[] postBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(payload));
@@ -845,7 +864,7 @@ namespace RafiqPOS.Services
 
             string fp = EncryptionService.GenerateDeviceFingerprint();
             string verifyError;
-            VerifiedLicenseToken verified = LicenseTokenVerifier.Verify(token, fp, out verifyError);
+            VerifiedLicenseToken verified = LicenseTokenVerifier.Verify(token, fp, "support", out verifyError);
             if (verified == null)
             {
                 result.Success = false;

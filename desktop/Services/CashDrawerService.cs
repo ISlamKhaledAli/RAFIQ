@@ -106,10 +106,7 @@ namespace RafiqPOS.Services
                                     Action = "DRAWER_CASH_IN",
                                     EntityType = "cash_drawer_transaction",
                                     EntityId = tx.Id,
-                                    DetailsJson = string.Format(
-                                        "{{\"shiftId\":\"{0}\",\"amount\":{1},\"reason\":\"{2}\"}}",
-                                        tx.ShiftId, tx.AmountPiasters, tx.Reason
-                                    )
+                                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { shiftId = tx.ShiftId, amount = tx.AmountPiasters, reason = tx.Reason })
                                 }
                             );
 
@@ -221,10 +218,7 @@ namespace RafiqPOS.Services
                                     Action = "DRAWER_CASH_OUT",
                                     EntityType = "cash_drawer_transaction",
                                     EntityId = tx.Id,
-                                    DetailsJson = string.Format(
-                                        "{{\"shiftId\":\"{0}\",\"amount\":{1},\"reason\":\"{2}\"}}",
-                                        tx.ShiftId, tx.AmountPiasters, tx.Reason
-                                    )
+                                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { shiftId = tx.ShiftId, amount = tx.AmountPiasters, reason = tx.Reason })
                                 }
                             );
 
@@ -286,13 +280,13 @@ namespace RafiqPOS.Services
                         Action = "drawer_manual_open",
                         EntityType = "cash_drawer",
                         EntityId = activeShift != null ? activeShift.Id : "drawer",
-                        DetailsJson = string.Format(
-                            "{{\"reason\":\"{0}\",\"shiftId\":\"{1}\",\"cashierName\":\"{2}\",\"timestamp\":\"{3}\"}}",
-                            effectiveReason.Replace("\"", "\\\""),
-                            activeShift != null ? activeShift.Id : "",
-                            actorName.Replace("\"", "\\\""),
-                            nowIso
-                        ),
+                        DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                        {
+                            reason = effectiveReason,
+                            shiftId = activeShift != null ? activeShift.Id : "",
+                            cashierName = actorName,
+                            timestamp = nowIso
+                        }),
                         CreatedAt = nowIso
                     });
                 }

@@ -37,6 +37,7 @@ import { useAuth } from '../context/useAuth';
 import { useDateFilter, useToday, isDateFilterActive, describeDateFilter, getDateFilterKey } from '../utils/dateFilter';
 import { formatUnitArabic } from '../utils/units';
 import { formatPhoneDisplay } from '../utils/phoneFormat';
+import { describeRefund } from '../utils/refundMethods';
 import { buildSalesHistoryQuery, summarizeSales, SALES_HISTORY_LIMIT, type SalesStatusFilter } from '../utils/salesHistoryFilter';
 
 import { AppButton } from '../components/AppButton';
@@ -940,7 +941,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                           <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark">
                             <span className="font-mono">وصل مرتجع #{ret.returnNumber}</span>
                             <span className={DETAILS_CHIP_WARN}>
-                              {ret.refundMethod === 'credit' ? 'خصم من حسابه الشكك' : 'كاش من الدرج'}
+                              {describeRefund(ret)}
                             </span>
                           </div>
                           <div className="flex items-center gap-3">

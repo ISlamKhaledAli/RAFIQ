@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Diagnostics;
+using System.IO;
 using RafiqPOS.Common;
+using RafiqPOS.Database;
 
 namespace RafiqPOS.Services
 {
@@ -18,14 +20,43 @@ namespace RafiqPOS.Services
         public bool MeetsPerformanceSLA { get; set; }
     }
 
+    /// <summary>
+    /// قاعدة بيانات مؤقتة معزولة لاختبارات الأداء: لا يُكتب أي صنف أو فاتورة تجريبية في قاعدة بيانات المتجر الحية.
+    /// </summary>
+    public static class BenchmarkTempDatabase
+    {
+        public const int MaxProducts = 5000;
+
+        public static string Create(out string connectionString)
+        {
+            string path = Path.Combine(Path.GetTempPath(), "rafiq_bench_" + Guid.NewGuid().ToString("N") + ".db");
+            connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;Foreign Keys=True;Journal Mode=Wal;Synchronous=Full;", path);
+            MigrationRunner.ApplyMigrations(connectionString, path);
+            return path;
+        }
+
+        public static void Delete(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+
+            SQLiteConnection.ClearAllPools();
+            string[] files = new string[] { path, path + "-wal", path + "-shm" };
+            for (int i = 0; i < files.Length; i++)
+            {
+                try
+                {
+                    if (File.Exists(files[i])) File.Delete(files[i]);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn("تعذر حذف ملف قاعدة بيانات اختبار الأداء المؤقتة: " + ex.Message);
+                }
+            }
+        }
+    }
+
     public class BenchmarkService
     {
-        private readonly string _connectionString;
-
-        public BenchmarkService(string connectionString)
-        {
-            this._connectionString = connectionString;
-        }
 
         /// <summary>
         /// اختبار الحمل والأداء مع البيانات الكبيرة (Feature #129 / Task 129-1 & 129-2)
@@ -34,14 +65,22 @@ namespace RafiqPOS.Services
         public BenchmarkResult RunStressTest(int productCount = 3000, int queryCount = 300)
         {
             BenchmarkResult result = new BenchmarkResult();
+            if (productCount < 1) productCount = 1;
+            if (productCount > BenchmarkTempDatabase.MaxProducts) productCount = BenchmarkTempDatabase.MaxProducts;
+            if (queryCount < 1) queryCount = 1;
+            if (queryCount > 1000) queryCount = 1000;
             result.TotalProductsTested = productCount;
 
             Stopwatch totalSw = Stopwatch.StartNew();
             Logger.Info(string.Format("بدء تشغيل اختبار الحمل والأداء بـ {0} صنف...", productCount));
 
+            string tempDbPath = null;
             try
             {
-                using (SQLiteConnection conn = new SQLiteConnection(_connectionString))
+                string tempConnectionString;
+                tempDbPath = BenchmarkTempDatabase.Create(out tempConnectionString);
+
+                using (SQLiteConnection conn = new SQLiteConnection(tempConnectionString))
                 {
                     conn.Open();
 
@@ -138,25 +177,7 @@ namespace RafiqPOS.Services
                     saleSw.Stop();
                     result.AverageSaleCommitMs = (double)saleSw.ElapsedMilliseconds / salesTestCount;
 
-                    // Automatically clean up stress test records so catalog remains clean
-                    try
-                    {
-                        using (SQLiteTransaction delTrans = conn.BeginTransaction())
-                        {
-                            using (SQLiteCommand delCmd = new SQLiteCommand(@"
-                                DELETE FROM sales WHERE id LIKE 'stress_%';
-                                DELETE FROM products WHERE id LIKE 'stress_%' OR barcode LIKE 'STRESS%';
-                            ", conn, delTrans))
-                            {
-                                delCmd.ExecuteNonQuery();
-                            }
-                            delTrans.Commit();
-                        }
-                    }
-                    catch (Exception cleanEx)
-                    {
-                        Logger.Warn("تحذير أثناء مسح سجلات اختبار الأداء: " + cleanEx.Message);
-                    }
+                    // The stress records live only in the temporary database, which is deleted in the finally block below.
 
                     // 4. Memory footprint
                     Process currentProc = Process.GetCurrentProcess();
@@ -199,6 +220,10 @@ namespace RafiqPOS.Services
                 result.Success = false;
                 result.SummaryMessage = "فشل تشغيل اختبار الأداء: " + ex.Message;
                 return result;
+            }
+            finally
+            {
+                BenchmarkTempDatabase.Delete(tempDbPath);
             }
         }
     }

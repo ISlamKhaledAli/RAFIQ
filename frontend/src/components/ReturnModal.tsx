@@ -14,7 +14,10 @@ import {
   FileText,
   AlertTriangle,
   Minus,
-  Plus
+  Plus,
+  Smartphone,
+  Landmark,
+  Wallet
 } from 'lucide-react';
 import { SearchInput } from './SearchInput';
 import type { Sale, Return, Product } from '../types/models';
@@ -25,6 +28,13 @@ import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { useAuth } from '../context/useAuth';
 import { createAttemptKey } from '../utils/idempotency';
+import {
+  REFUND_METHOD_LABELS,
+  REFUND_METHOD_DONE_LABELS,
+  describeRefund,
+  toRefundMethodKey as toRefundKey,
+  type RefundMethodKey
+} from '../utils/refundMethods';
 import { RequiredMark } from './RequiredMark';
 
 import { AppButton } from './AppButton';
@@ -47,6 +57,130 @@ interface ReturnItemDraft {
   returnQuantityPieces: number;
   isDamaged: boolean;
   notes?: string;
+}
+
+// The refund follows the original tender: only methods that really paid the invoice are offered
+interface RefundOption {
+  method: RefundMethodKey;
+  // null: the server decides (only when the caps call is unavailable and the invoice is a credit invoice)
+  capPiasters: number | null;
+}
+
+interface RefundPart {
+  method: RefundMethodKey;
+  amountPiasters: number;
+}
+
+type ReturnWithRefunds = Return & { refunds?: { method: string; amountPiasters: number }[] | null };
+
+// Server-computed remaining refundable amount per original tender (returns:getForSale with includeCaps)
+interface RefundCapsPayload {
+  cashPiasters: number;
+  cardPiasters: number;
+  instapayPiasters: number;
+  walletPiasters: number;
+  creditAllowed: boolean;
+  remainingPiasters: number;
+}
+
+function refundOptionsFromCaps(caps: RefundCapsPayload): RefundOption[] {
+  const options: RefundOption[] = [];
+  if (caps.cashPiasters > 0) options.push({ method: 'cash', capPiasters: caps.cashPiasters });
+  if (caps.cardPiasters > 0) options.push({ method: 'card', capPiasters: caps.cardPiasters });
+  if (caps.instapayPiasters > 0) options.push({ method: 'instapay', capPiasters: caps.instapayPiasters });
+  if (caps.walletPiasters > 0) options.push({ method: 'wallet', capPiasters: caps.walletPiasters });
+  if (caps.creditAllowed) options.push({ method: 'credit', capPiasters: caps.remainingPiasters });
+  return options;
+}
+
+const REFUND_ORDER: RefundMethodKey[] = ['cash', 'card', 'instapay', 'wallet', 'credit'];
+
+const REFUND_ICONS: Record<RefundMethodKey, typeof Banknote> = {
+  cash: Banknote,
+  card: CreditCard,
+  instapay: Landmark,
+  wallet: Smartphone,
+  credit: Wallet
+};
+
+const NO_INVOICE_REFUND_OPTIONS: RefundOption[] = [
+  { method: 'cash', capPiasters: null },
+  { method: 'credit', capPiasters: null }
+];
+
+function computeRefundOptions(sale: Sale | null, pastReturns: ReturnWithRefunds[]): RefundOption[] {
+  if (!sale) return NO_INVOICE_REFUND_OPTIONS;
+
+  const paid: Record<RefundMethodKey, number> = { cash: 0, card: 0, instapay: 0, wallet: 0, credit: 0 };
+  const payments = sale.payments || [];
+  const creditInvolved =
+    toRefundKey(sale.paymentMethod) === 'credit' ||
+    payments.some((p) => toRefundKey(p.method) === 'credit') ||
+    (sale.paidPiasters || 0) < sale.totalPiasters;
+  if (payments.length > 0) {
+    payments.forEach((p) => {
+      const key = toRefundKey(p.method);
+      if (key && key !== 'credit') paid[key] += p.amountPiasters;
+    });
+    paid.cash = Math.max(0, paid.cash - (sale.changePiasters || 0));
+  } else {
+    const key = toRefundKey(sale.paymentMethod);
+    if (key === 'cash' || key === 'credit') {
+      paid.cash = Math.max(0, (sale.paidPiasters || 0) - (sale.changePiasters || 0));
+    } else if (key) {
+      paid[key] = Math.max(0, sale.paidPiasters || 0);
+    }
+  }
+
+  const refunded: Record<RefundMethodKey, number> = { cash: 0, card: 0, instapay: 0, wallet: 0, credit: 0 };
+  pastReturns.forEach((ret) => {
+    const parts = ret.refunds && ret.refunds.length > 0
+      ? ret.refunds
+      : [{ method: ret.refundMethod, amountPiasters: ret.totalPiasters }];
+    parts.forEach((part) => {
+      const key = toRefundKey(part.method);
+      if (key) refunded[key] += part.amountPiasters;
+    });
+  });
+
+  const options: RefundOption[] = [];
+  REFUND_ORDER.forEach((method) => {
+    if (method === 'credit') return;
+    if (paid[method] <= 0) return;
+    // A credit invoice may also hold cash collected later as debt settlements, which only the server can see
+    if (method === 'cash' && creditInvolved) {
+      options.push({ method, capPiasters: null });
+      return;
+    }
+    const remaining = paid[method] - refunded[method];
+    if (remaining > 0) options.push({ method, capPiasters: remaining });
+  });
+  if (sale.customerId && sale.customerId !== 'cust_general_cash') {
+    options.push({ method: 'credit', capPiasters: null });
+  }
+  return options;
+}
+
+// One part when the chosen method covers the whole refund; otherwise the chosen method first, then the others in order
+function planRefund(total: number, options: RefundOption[], preferred: RefundMethodKey): RefundPart[] | null {
+  if (total <= 0) return [];
+  const chosen = options.find((o) => o.method === preferred) || options[0];
+  if (!chosen) return null;
+  if (chosen.capPiasters === null || total <= chosen.capPiasters) {
+    return [{ method: chosen.method, amountPiasters: total }];
+  }
+  const parts: RefundPart[] = [{ method: chosen.method, amountPiasters: chosen.capPiasters }];
+  let remaining = total - chosen.capPiasters;
+  REFUND_ORDER.forEach((method) => {
+    if (remaining <= 0 || method === chosen.method) return;
+    const option = options.find((o) => o.method === method);
+    if (!option) return;
+    const take = option.capPiasters === null ? remaining : Math.min(option.capPiasters, remaining);
+    if (take <= 0) return;
+    parts.push({ method, amountPiasters: take });
+    remaining -= take;
+  });
+  return remaining > 0 ? null : parts;
 }
 
 const FIELD =
@@ -154,7 +288,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     }));
   });
   const [reason, setReason] = useState<string>('مرتجع من العميل');
-  const [refundMethod, setRefundMethod] = useState<'cash' | 'credit'>(() => (initialSale?.paymentMethod === 'credit' ? 'credit' : 'cash'));
+  const [refundOptions, setRefundOptions] = useState<RefundOption[]>(() => computeRefundOptions(initialSale || null, []));
+  const [refundMethod, setRefundMethod] = useState<RefundMethodKey>(() => computeRefundOptions(initialSale || null, [])[0]?.method || 'cash');
   const [supervisorPin, setSupervisorPin] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -184,14 +319,19 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   const setupDraftFromSale = async (sale: Sale) => {
     setLoadedSale(sale);
     setInvoiceQuery(sale.invoiceNumber ? String(sale.invoiceNumber) : '');
-    setRefundMethod(sale.paymentMethod === 'credit' ? 'credit' : 'cash');
     setSaleError(null);
 
     let returnedQtyMap: Record<string, number> = {};
+    let pastReturnList: ReturnWithRefunds[] = [];
+    let caps: RefundCapsPayload | null = null;
     try {
       if (sale.id) {
-        const pastReturns = await invoke<Return[]>('returns:getForSale', { saleId: sale.id });
-        if (pastReturns && pastReturns.length > 0) {
+        // The server computes what each original tender can still refund with the same rules returns:create enforces
+        const response = await invoke<ReturnWithRefunds[] | { returns: ReturnWithRefunds[]; caps: RefundCapsPayload }>('returns:getForSale', { saleId: sale.id, includeCaps: true });
+        const pastReturns = Array.isArray(response) ? response : (response?.returns || []);
+        caps = Array.isArray(response) ? null : (response?.caps || null);
+        if (pastReturns.length > 0) {
+          pastReturnList = pastReturns;
           pastReturns.forEach((ret) => {
             (ret.items || []).forEach((ritem) => {
               const key = ritem.saleItemId || `${ritem.productId}_${ritem.unit || ''}`;
@@ -204,6 +344,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     } catch {
       // ignore
     }
+
+    const options = caps ? refundOptionsFromCaps(caps) : computeRefundOptions(sale, pastReturnList);
+    setRefundOptions(options);
+    setRefundMethod(options[0]?.method || 'cash');
 
     const drafts: ReturnItemDraft[] = (sale.items || []).map((item) => {
       const key = item.id || `${item.productId}_${item.unit || ''}`;
@@ -268,6 +412,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         setInvoiceQuery('');
         setLoadedSale(null);
         setDraftItems([]);
+        setRefundOptions(NO_INVOICE_REFUND_OPTIONS);
+        setRefundMethod('cash');
         setCompletedReturn(null);
         setPrintNotice(null);
         setSubmitError(null);
@@ -382,6 +528,13 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     0
   );
 
+  const effectiveRefundOptions = mode === 'withoutInvoice' ? NO_INVOICE_REFUND_OPTIONS : refundOptions;
+  const selectedRefundMethod: RefundMethodKey = effectiveRefundOptions.some((o) => o.method === refundMethod)
+    ? refundMethod
+    : (effectiveRefundOptions[0]?.method || 'cash');
+  const refundPlan = planRefund(totalRefundPiasters, effectiveRefundOptions, selectedRefundMethod);
+  const cashRefundPiasters = (refundPlan || []).reduce((sum, part) => sum + (part.method === 'cash' ? part.amountPiasters : 0), 0);
+
   const handleSubmitReturn = async () => {
     if (activeReturnItems.length === 0) {
       setSubmitError('يرجى تحديد كمية صنف واحد على الأقل للمرتجع');
@@ -393,14 +546,16 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
       return;
     }
 
+    if (!refundPlan || refundPlan.length === 0) {
+      setSubmitError('طرق الدفع المتاحة في الفاتورة الأصلية لا تكفي لصرف قيمة المرتجع. اختر عميلاً مسجلاً للخصم من حسابه أو قلل الكمية.');
+      return;
+    }
+
     setLoading(true);
     setSubmitError(null);
     try {
-      const isUnpaidCredit = mode === 'withInvoice' && loadedSale?.paymentMethod === 'credit' && (loadedSale?.paidPiasters || 0) <= 0;
-      const effectiveRefundMethod = isUnpaidCredit ? 'credit' : refundMethod;
-
-      if (effectiveRefundMethod === 'cash' && drawerBalance !== null && totalRefundPiasters > drawerBalance) {
-        setSubmitError(`رصيد نقدية الدرج المتاح حالياً (${formatArabicCurrency(drawerBalance)}) غير كافٍ لصرف قيمة المرتجع نقداً (${formatArabicCurrency(totalRefundPiasters)}). يرجى اختيار 'خصم من حسابه الشكك' أو توريد نقدية للدرج أولاً.`);
+      if (cashRefundPiasters > 0 && drawerBalance !== null && cashRefundPiasters > drawerBalance) {
+        setSubmitError(`رصيد نقدية الدرج المتاح حالياً (${formatArabicCurrency(drawerBalance)}) غير كافٍ لصرف قيمة المرتجع نقداً (${formatArabicCurrency(cashRefundPiasters)}). يرجى اختيار 'خصم من حسابه الشكك' أو توريد نقدية للدرج أولاً.`);
         setLoading(false);
         return;
       }
@@ -408,7 +563,11 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
       const payload = {
         saleId: loadedSale?.id || undefined,
         reason: reason.trim() || 'مرتجع أصناف',
-        refundMethod: effectiveRefundMethod,
+        refundMethod: refundPlan[0].method,
+        // Split refund: the last part carries amount 0 so the server gives it the exact remainder of its own total
+        refunds: refundPlan.length > 1
+          ? refundPlan.map((part, index) => ({ method: part.method, amountPiasters: index === refundPlan.length - 1 ? 0 : part.amountPiasters }))
+          : undefined,
         supervisorPin: supervisorPin.trim() || undefined,
         idempotencyKey: returnAttemptRef.current.current(),
         items: activeReturnItems.map((item) => ({
@@ -423,7 +582,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         }))
       };
 
-      const result = await invoke<Return>('returns:create', payload);
+      const result = await invoke<ReturnWithRefunds>('returns:create', payload);
       if (result && result.id) {
         returnAttemptRef.current.complete();
         setCompletedReturn(result);
@@ -460,8 +619,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   };
 
   const isDirty = activeReturnItems.length > 0 && !completedReturn;
-  const isUnpaidCreditSale = mode === 'withInvoice' && loadedSale?.paymentMethod === 'credit' && (loadedSale?.paidPiasters || 0) <= 0;
-  const cashShortfall = refundMethod === 'cash' && !isUnpaidCreditSale && drawerBalance !== null && totalRefundPiasters > drawerBalance;
+  const cashShortfall = cashRefundPiasters > 0 && drawerBalance !== null && cashRefundPiasters > drawerBalance;
+  const refundUncovered = totalRefundPiasters > 0 && refundPlan === null;
   const totalReturnedPieces = activeReturnItems.reduce((sum, item) => sum + item.returnQuantityPieces, 0);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
@@ -517,7 +676,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 </div>
                 <div className="border-t border-line dark:border-line-dark pt-4 flex flex-col gap-3">
                   <SummaryRow label="الفلوس خرجت إزاي">
-                    {completedReturn.refundMethod === 'credit' ? 'اتخصمت من حسابه الشكك' : 'كاش طلع من الدرج'}
+                    {describeRefund(completedReturn, REFUND_METHOD_DONE_LABELS)}
                   </SummaryRow>
                   <SummaryRow label="عدد الأصناف اللي رجعت">
                     <span className="font-mono tabular-nums">{completedReturn.items?.length || 0}</span> صنف
@@ -795,35 +954,50 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                   <div>
                     <div className="text-sm font-bold text-ink dark:text-ink-dark mb-1.5">هترجع الفلوس إزاي؟</div>
                     <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        disabled={isUnpaidCreditSale}
-                        onClick={() => setRefundMethod('cash')}
-                        title={isUnpaidCreditSale ? 'الفاتورة شكك لم يُسدد منها كاش، الاسترداد يتم كرصيد آجل لخصم المديونية' : undefined}
-                        className={`min-h-[2.75rem] px-2 rounded-lg text-sm font-bold border flex items-center justify-center gap-2 transition-colors ${
-                          isUnpaidCreditSale
-                            ? 'opacity-50 cursor-not-allowed bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted'
-                            : refundMethod === 'cash'
-                              ? 'cursor-pointer bg-warn-soft dark:bg-warn-dark-soft border-warn/40 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
-                              : 'cursor-pointer bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                        }`}
-                      >
-                        <Banknote className="w-4 h-4 shrink-0" />
-                        <span>كاش من الدرج</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRefundMethod('credit')}
-                        className={`min-h-[2.75rem] px-2 rounded-lg text-sm font-bold border flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-                          refundMethod === 'credit'
-                            ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/40 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
-                            : 'bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                        }`}
-                      >
-                        <CreditCard className="w-4 h-4 shrink-0" />
-                        <span>خصم من حسابه الشكك</span>
-                      </button>
+                      {effectiveRefundOptions.map((option) => {
+                        const OptionIcon = REFUND_ICONS[option.method];
+                        const isSelected = selectedRefundMethod === option.method;
+                        return (
+                          <button
+                            key={option.method}
+                            type="button"
+                            onClick={() => setRefundMethod(option.method)}
+                            aria-pressed={isSelected}
+                            className={`min-h-[2.75rem] px-2 rounded-lg text-sm font-bold border flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                              isSelected
+                                ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/40 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
+                                : 'bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                            }`}
+                          >
+                            <OptionIcon className="w-4 h-4 shrink-0" />
+                            <span>{REFUND_METHOD_LABELS[option.method]}</span>
+                          </button>
+                        );
+                      })}
                     </div>
+                    {mode === 'withInvoice' && (
+                      <div className="mt-1.5 text-xs text-ink-muted dark:text-ink-dark-muted">
+                        الفلوس بترجع بنفس طريقة دفع الفاتورة الأصلية بس.
+                      </div>
+                    )}
+                    {refundPlan && refundPlan.length > 1 && (
+                      <div className="mt-2 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-3 flex flex-col gap-2">
+                        <div className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                          القيمة أكبر من المتاح على الطريقة المختارة، فهتتقسم كده:
+                        </div>
+                        {refundPlan.map((part) => (
+                          <SummaryRow key={part.method} label={REFUND_METHOD_LABELS[part.method]}>
+                            <span className="font-mono tabular-nums">{formatArabicCurrency(part.amountPiasters)}</span>
+                          </SummaryRow>
+                        ))}
+                      </div>
+                    )}
+                    {refundUncovered && (
+                      <div className="mt-2 p-2.5 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/40 text-danger dark:text-danger-bright text-xs font-bold flex items-start gap-1.5">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>طرق الدفع المتاحة في الفاتورة الأصلية لا تكفي لقيمة المرتجع.</span>
+                      </div>
+                    )}
                     {cashShortfall && drawerBalance !== null && (
                       <div className="mt-2 p-2.5 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/40 text-danger dark:text-danger-bright text-xs font-bold flex items-start gap-1.5">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -895,7 +1069,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                   icon={RotateCcw}
                   onClick={() => void handleSubmitReturn()}
                   loading={loading}
-                  disabled={activeReturnItems.length === 0 || cashShortfall}
+                  disabled={activeReturnItems.length === 0 || cashShortfall || refundUncovered}
                 >
                   {loading ? 'بنحفظ المرتجع...' : 'تنفيذ المرتجع'}
                 </AppButton>

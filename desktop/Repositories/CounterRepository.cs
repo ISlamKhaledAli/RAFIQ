@@ -126,31 +126,5 @@ namespace RafiqPOS.Repositories
             }
             return 0;
         }
-
-        /// <summary>
-        /// ضبط أو تصفير عداد (للاستخدام الإداري أو بداية سنة مالية جديدة)
-        /// </summary>
-        public void SetCounter(string counterName, long value)
-        {
-            if (string.IsNullOrEmpty(counterName)) throw new ArgumentNullException("counterName");
-
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-                string now = DateTime.UtcNow.ToString("o");
-                string sql = @"
-                    INSERT INTO counters (name, current_value, updated_at)
-                    VALUES (@name, @val, @now)
-                    ON CONFLICT(name) DO UPDATE SET current_value = @val, updated_at = @now;
-                ";
-                using (var cmd = new SQLiteCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@name", counterName);
-                    cmd.Parameters.AddWithValue("@val", value);
-                    cmd.Parameters.AddWithValue("@now", now);
-                    cmd.ExecuteNonQuery();
-                }
-            }
-        }
     }
 }

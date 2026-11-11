@@ -129,12 +129,18 @@ export function physicalCodeToChar(code: string, shiftKey = false): string | nul
   return null;
 }
 
+// Arabic, Arabic Supplement and Arabic Presentation Forms (includes the Arabic-Indic and Persian digits and the Lam-Alef ligatures)
+const ARABIC_SCRIPT = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
 /**
  * Converts any text string (which might contain Arabic layout characters or Arabic/Indic numerals)
  * into a clean, normalized barcode string.
+ * Only text that really contains Arabic script is Arabic-layout output: Latin input such as "ABC.123" or "A-12/3"
+ * is returned untouched, because the map also holds Latin punctuation that would otherwise be rewritten.
  */
 export function convertArabicLayoutToBarcode(raw: string): string {
   if (!raw) return '';
+  if (!ARABIC_SCRIPT.test(raw)) return raw.trim();
   let out = '';
   for (let i = 0; i < raw.length; i++) {
     // Check 2-char ligature 'لا' (Lam + Alef) produced by Arabic key 'B'

@@ -21,6 +21,8 @@ export function validateClientApiKey(request: Request, env: Env): boolean {
   return safeStringCompare(providedKey, env.APP_API_KEY);
 }
 
+export const MIN_ADMIN_SECRET_LENGTH = 32;
+
 /**
  * Validate that incoming request has valid admin credentials
  */
@@ -38,38 +40,27 @@ export function validateAdminSecret(request: Request, env: Env): boolean {
     return false;
   }
 
-  // 1. Direct match with configured env.ADMIN_SECRET
-  if (env.ADMIN_SECRET && safeStringCompare(providedKey, env.ADMIN_SECRET)) {
-    return true;
+  // Only the configured Worker secret is accepted; weak or missing secrets disable admin access.
+  const adminSecret = env.ADMIN_SECRET;
+  if (typeof adminSecret !== 'string' || adminSecret.length < MIN_ADMIN_SECRET_LENGTH) {
+    return false;
   }
 
-  // 2. Master admin credentials for project owner
-  const masterPasswords = [
-    'rafiq2026',
-    'admin2026',
-    'Rafiq@2026',
-    'admin',
-  ];
-
-  for (const master of masterPasswords) {
-    if (safeStringCompare(providedKey, master)) {
-      return true;
-    }
-  }
-
-  return false;
+  return safeStringCompare(providedKey, adminSecret);
 }
 
 /**
  * Timing-safe string equality check
  */
 function safeStringCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) {
+  if (typeof a !== 'string' || typeof b !== 'string') {
     return false;
   }
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  // Always iterate over the longer input so timing does not reveal the expected length.
+  const len = Math.max(a.length, b.length);
+  let result = a.length ^ b.length;
+  for (let i = 0; i < len; i++) {
+    result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
   return result === 0;
 }

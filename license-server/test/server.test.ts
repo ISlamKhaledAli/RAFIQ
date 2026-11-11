@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createMockD1Database } from './d1-mock.ts';
 import server from '../src/index.ts';
 import type { Env } from '../src/types.ts';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { verifyActivationToken, computeFingerprintTag } from '../src/crypto.ts';
 
 async function generateTestPrivateKeyPem(): Promise<string> {
@@ -20,7 +22,7 @@ async function generateTestPrivateKeyPem(): Promise<string> {
 describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
   let env: Env;
   const APP_SECRET = 'test_app_secret_123';
-  const ADMIN_SECRET = 'test_admin_secret_456';
+  const ADMIN_SECRET = 'test_admin_secret_0123456789_abcdefghijklmnop_456';
   let TOKEN_SECRET = '';
 
   before(async () => {
@@ -1083,6 +1085,176 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
 
       const after = await env.DB.prepare('SELECT COUNT(*) AS c FROM activation_logs').first() as any;
       assert.equal(after.c, before.c);
+    });
+  });
+  describe('Hardening: admin secret, schema seed, error bodies, release validation', () => {
+    // The four legacy master strings, stored as char codes so no secret text lives in the repo.
+    const LEGACY_MASTER_CODES: number[][] = [
+      [114, 97, 102, 105, 113, 50, 48, 50, 54],
+      [97, 100, 109, 105, 110, 50, 48, 50, 54],
+      [82, 97, 102, 105, 113, 64, 50, 48, 50, 54],
+      [97, 100, 109, 105, 110],
+    ];
+    const legacyMasters = LEGACY_MASTER_CODES.map((codes) => String.fromCharCode(...codes));
+
+    async function listLicenses(secret: string | null, e: Env = env, scheme: 'header' | 'bearer' = 'header') {
+      const headers: Record<string, string> = {};
+      if (secret !== null) {
+        if (scheme === 'header') headers['X-Admin-Secret'] = secret;
+        else headers['Authorization'] = `Bearer ${secret}`;
+      }
+      return server.fetch(new Request('http://localhost/api/admin/licenses', { headers }), e);
+    }
+
+    it('Rejects each of the four legacy master strings with 401 (header and bearer)', async () => {
+      assert.equal(legacyMasters.length, 4);
+      for (const legacy of legacyMasters) {
+        assert.equal((await listLicenses(legacy)).status, 401);
+        assert.equal((await listLicenses(legacy, env, 'bearer')).status, 401);
+      }
+    });
+
+    it('Rejects legacy master strings even when they are configured as a short ADMIN_SECRET', async () => {
+      for (const legacy of legacyMasters) {
+        const weakEnv = { ...env, ADMIN_SECRET: legacy } as Env;
+        assert.equal((await listLicenses(legacy, weakEnv)).status, 401);
+      }
+    });
+
+    it('Rejects all admin requests when ADMIN_SECRET is unset, empty, or shorter than 32 chars', async () => {
+      for (const bad of [undefined, '', 'a'.repeat(31)]) {
+        const badEnv = { ...env, ADMIN_SECRET: bad } as unknown as Env;
+        const candidate = bad === undefined ? 'anything' : (bad || 'anything');
+        assert.equal((await listLicenses(candidate, badEnv)).status, 401);
+      }
+    });
+
+    it('Accepts a 32+ char ADMIN_SECRET and rejects near-miss values', async () => {
+      assert.equal((await listLicenses(ADMIN_SECRET)).status, 200);
+      assert.equal((await listLicenses(ADMIN_SECRET, env, 'bearer')).status, 200);
+      assert.equal((await listLicenses(ADMIN_SECRET + 'x')).status, 401);
+      assert.equal((await listLicenses(ADMIN_SECRET.slice(0, -1))).status, 401);
+      assert.equal((await listLicenses(null)).status, 401);
+    });
+
+    it('auth.ts has no string-literal array of passwords and no hardcoded master list', () => {
+      const src = readFileSync(resolve(import.meta.dirname, '../src/auth.ts'), 'utf-8');
+      assert.doesNotMatch(src, /\[\s*['"`][^'"`]*['"`]\s*(,\s*['"`][^'"`]*['"`]\s*)*,?\s*\]/);
+      assert.doesNotMatch(src, /master/i);
+      assert.doesNotMatch(src, /for\s*\(\s*const\s+\w+\s+of\s+\w+\s*\)\s*\{[^}]*safeStringCompare/);
+    });
+
+    it('schema.sql contains no INSERT INTO licenses (no demo seed rows)', () => {
+      const sql = readFileSync(resolve(import.meta.dirname, '../schema.sql'), 'utf-8');
+      assert.doesNotMatch(sql, /INSERT\s+(OR\s+\w+\s+)?INTO\s+licenses/i);
+      assert.doesNotMatch(sql, /RFQ-TEST-2026-DEMO/);
+    });
+
+    it('500 responses do not leak raw error details', async () => {
+      const brokenEnv = {
+        ...env,
+        DB: { prepare() { throw new Error('SENSITIVE_INTERNAL_DETAIL'); } },
+      } as unknown as Env;
+      const res = await server.fetch(new Request('http://localhost/api/admin/licenses', { headers: { 'X-Admin-Secret': ADMIN_SECRET } }), brokenEnv);
+      assert.equal(res.status, 500);
+      const text = await res.text();
+      assert.ok(!text.includes('SENSITIVE_INTERNAL_DETAIL'));
+      assert.equal((JSON.parse(text) as any).error, undefined);
+    });
+
+    it('update check 500 does not leak raw error details', async () => {
+      const brokenEnv = {
+        ...env,
+        DB: { prepare() { throw new Error('SENSITIVE_INTERNAL_DETAIL'); } },
+      } as unknown as Env;
+      const res = await server.fetch(new Request('http://localhost/api/updates/check?version=1.0.0'), brokenEnv);
+      assert.equal(res.status, 500);
+      assert.ok(!(await res.text()).includes('SENSITIVE_INTERNAL_DETAIL'));
+    });
+
+    it('Admin routes do not emit wildcard CORS headers; public routes still do', async () => {
+      const adminRes = await listLicenses(ADMIN_SECRET);
+      assert.equal(adminRes.headers.get('Access-Control-Allow-Origin'), null);
+      const unauthRes = await listLicenses(null);
+      assert.equal(unauthRes.headers.get('Access-Control-Allow-Origin'), null);
+      const preflight = await server.fetch(new Request('http://localhost/api/admin/licenses', { method: 'OPTIONS' }), env);
+      assert.equal(preflight.headers.get('Access-Control-Allow-Origin'), null);
+      const health = await server.fetch(new Request('http://localhost/api/health'), env);
+      assert.equal(health.headers.get('Access-Control-Allow-Origin'), '*');
+    });
+
+    it('/api/updates/check returns the same response for unknown and inactive license keys', async () => {
+      const check = async (key: string) => {
+        const res = await server.fetch(new Request(`http://localhost/api/updates/check?license_key=${key}&version=1.0.0`), env);
+        assert.equal(res.status, 200);
+        return await res.json() as any;
+      };
+      const unknown = await check('RFQ-NOPE-0000-0000');
+      const inactive = await check('RFQ-DISA-0000-DEAD');
+      assert.deepEqual(unknown, inactive);
+      assert.equal(unknown.isEligible, false);
+    });
+
+    describe('Release creation validation', () => {
+      const GOOD_SHA = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+      async function publish(overrides: Record<string, unknown>, e: Env = env) {
+        return server.fetch(new Request('http://localhost/api/admin/releases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': ADMIN_SECRET },
+          body: JSON.stringify({
+            version: '2.0.0',
+            download_url: 'https://github.com/ISlamKhaledAli/RAFIQ/releases/download/v2.0.0/RafiqPOS_Update_v2.0.0.zip',
+            sha256: GOOD_SHA,
+            file_size_bytes: 1000,
+            ...overrides,
+          }),
+        }), e);
+      }
+
+      it('accepts default GitHub hosts with a valid sha256 (case-insensitive hex)', async () => {
+        assert.equal((await publish({})).status, 201);
+        assert.equal((await publish({
+          version: '2.0.1',
+          download_url: 'https://objects.githubusercontent.com/some/asset.zip',
+          sha256: GOOD_SHA.toUpperCase(),
+        })).status, 201);
+        assert.equal((await publish({
+          version: '2.0.2',
+          download_url: 'https://release-assets.githubusercontent.com/some/asset.zip',
+        })).status, 201);
+      });
+
+      it('rejects non-https URLs', async () => {
+        const res = await publish({ download_url: 'http://github.com/x/y/releases/download/v1/a.zip' });
+        assert.equal(res.status, 400);
+        assert.ok(((await res.json()) as any).message.includes('https'));
+      });
+
+      it('rejects hosts outside the allowlist, lookalikes, and credentials in the URL', async () => {
+        for (const url of [
+          'https://evil.example.com/a.zip',
+          'https://github.com.evil.example.com/a.zip',
+          'https://notgithub.com/a.zip',
+          'https://user:pass@github.com/a.zip',
+          'ftp://github.com/a.zip',
+          'not a url',
+        ]) {
+          assert.equal((await publish({ download_url: url })).status, 400, url);
+        }
+      });
+
+      it('honors RELEASE_DOWNLOAD_HOSTS override and replaces the defaults', async () => {
+        const custom = { ...env, RELEASE_DOWNLOAD_HOSTS: ' downloads.example.com , CDN.example.org ' } as Env;
+        assert.equal((await publish({ download_url: 'https://downloads.example.com/a.zip' }, custom)).status, 201);
+        assert.equal((await publish({ version: '2.0.5', download_url: 'https://cdn.example.org/a.zip' }, custom)).status, 201);
+        assert.equal((await publish({ version: '2.0.6' }, custom)).status, 400);
+      });
+
+      it('rejects malformed sha256 values', async () => {
+        for (const sha of ['abc', GOOD_SHA.slice(1), GOOD_SHA + '0', 'g'.repeat(64), 12345, '']) {
+          assert.equal((await publish({ sha256: sha })).status, 400, String(sha));
+        }
+      });
     });
   });
 });

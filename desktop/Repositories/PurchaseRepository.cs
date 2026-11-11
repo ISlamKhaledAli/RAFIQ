@@ -47,6 +47,8 @@ namespace RafiqPOS.Repositories
             string idemFingerprint = idemKey != null ? PurchaseFingerprint(purchase, costingMethod) : null;
 
             purchase.Id = string.IsNullOrWhiteSpace(purchase.Id) ? "pur_" + Guid.NewGuid().ToString("N") : purchase.Id;
+            // The status is server-owned: a client value never decides whether an invoice counts as completed
+            purchase.Status = "COMPLETED";
             purchase.CreatedAt = now;
             purchase.UpdatedAt = now;
             if (string.IsNullOrWhiteSpace(purchase.InvoiceDate))
@@ -522,16 +524,20 @@ namespace RafiqPOS.Repositories
                                 cmdBaseUnit.ExecuteNonQuery();
                             }
 
-                            // F-30: Synchronize non-base units in product_units (e.g. cartons) so unit cost doesn't stay stale
+                            // F-30: Synchronize non-base units in product_units (e.g. cartons) so unit cost doesn't stay stale.
+                            // Only units still derived from the old base cost are moved; a deliberately set unit cost is kept.
                             string syncNonBaseUnitsSql = @"
                                 UPDATE product_units
                                 SET cost_price_piasters = CAST(ROUND(@newCost * conversion_factor) AS INTEGER),
                                     updated_at = @now
-                                WHERE product_id = @pid AND is_base_unit = 0;
+                                WHERE product_id = @pid AND is_base_unit = 0
+                                  AND (cost_price_piasters IS NULL OR cost_price_piasters <= 0
+                                       OR cost_price_piasters = CAST(ROUND(@oldCost * conversion_factor) AS INTEGER));
                             ";
                             using (var cmdNonBase = new SQLiteCommand(syncNonBaseUnitsSql, conn, trans))
                             {
                                 cmdNonBase.Parameters.AddWithValue("@newCost", newCost);
+                                cmdNonBase.Parameters.AddWithValue("@oldCost", currentCost);
                                 cmdNonBase.Parameters.AddWithValue("@now", now);
                                 cmdNonBase.Parameters.AddWithValue("@pid", item.ProductId);
                                 cmdNonBase.ExecuteNonQuery();
@@ -539,16 +545,19 @@ namespace RafiqPOS.Repositories
 
                             if (updateSellingPrice)
                             {
-                                // Multi-tier Parity: Synchronize all non-base units proportionally based on the new base selling price
+                                // Multi-tier Parity: move only non-base units still derived from the old base price; custom unit prices stay
                                 string syncNonBaseSellSql = @"
                                     UPDATE product_units
                                     SET sell_price_piasters = CAST(ROUND(@newPrice * conversion_factor) AS INTEGER),
                                         updated_at = @now
-                                    WHERE product_id = @pid AND is_base_unit = 0;
+                                    WHERE product_id = @pid AND is_base_unit = 0
+                                      AND (sell_price_piasters IS NULL OR sell_price_piasters <= 0
+                                           OR sell_price_piasters = CAST(ROUND(@oldPrice * conversion_factor) AS INTEGER));
                                 ";
                                 using (var cmdNonBaseSell = new SQLiteCommand(syncNonBaseSellSql, conn, trans))
                                 {
                                     cmdNonBaseSell.Parameters.AddWithValue("@newPrice", newPriceToSet);
+                                    cmdNonBaseSell.Parameters.AddWithValue("@oldPrice", currentPrice);
                                     cmdNonBaseSell.Parameters.AddWithValue("@now", now);
                                     cmdNonBaseSell.Parameters.AddWithValue("@pid", item.ProductId);
                                     cmdNonBaseSell.ExecuteNonQuery();

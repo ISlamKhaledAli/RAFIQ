@@ -58,6 +58,36 @@ describe('App Update System: informational check only (no in-app apply)', () => 
     assert.ok(sys.includes('AppUpdateService.CurrentVersion'), 'system:getInfo must not hard-code the version');
   });
 
+  it('every version declaration drifts together: package.json, lock file, manifest, installer scripts and the dev mock', () => {
+    const pkgVersion = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')).version;
+    const lock = JSON.parse(fs.readFileSync(path.resolve('package-lock.json'), 'utf8'));
+    assert.equal(lock.version, pkgVersion, 'package-lock.json top-level version');
+    assert.equal(lock.packages[''].version, pkgVersion, 'package-lock.json root package version');
+
+    const manifest = fs.readFileSync(path.resolve('..', 'desktop', 'app.manifest'), 'utf8');
+    const manifestVersion = manifest.match(/<assemblyIdentity version="(\d+\.\d+\.\d+)\.0"/);
+    assert.ok(manifestVersion, 'app.manifest assemblyIdentity version must be X.Y.Z.0');
+    assert.equal(manifestVersion[1], pkgVersion, 'app.manifest assemblyIdentity version');
+
+    const installerBatPath = path.resolve('..', 'Build_Installer.bat');
+    const bat = fs.readFileSync(installerBatPath, 'utf8');
+    const batVersions = [...bat.matchAll(/RafiqPOS_Setup(?:_Slim)?_v(\d+\.\d+\.\d+)\.exe/g)].map((m) => m[1]);
+    assert.ok(batVersions.length >= 3, 'Build_Installer.bat names the installers it builds');
+    for (const version of batVersions) assert.equal(version, pkgVersion, 'Build_Installer.bat installer file name');
+
+    // The other build scripts take the name from Build_Installer.bat and must not pin an older one
+    for (const name of ['Build_Installer_Full.bat', 'Build_Installer_Slim.bat', 'Build_Setup.bat']) {
+      const text = fs.readFileSync(path.resolve('..', name), 'utf8');
+      for (const m of text.matchAll(/RafiqPOS_Setup(?:_Slim)?_v(\d+\.\d+\.\d+)/g)) assert.equal(m[1], pkgVersion, `${name} installer file name`);
+    }
+
+    const mock = fs.readFileSync(path.resolve('src', 'bridge', 'ipc.ts'), 'utf8');
+    for (const m of mock.matchAll(/(?:currentVersion|version): '(\d+\.\d+\.\d+)[^']*'/g)) {
+      assert.equal(m[1], pkgVersion, `dev mock version literal ${m[0]}`);
+    }
+    assert.ok(!/v1\.0\.0/.test(mock), 'dev mock app version text');
+  });
+
   it('header update entry points are admin-tier only and never open the modal by themselves', () => {
     const app = fs.readFileSync(path.resolve('src', 'App.tsx'), 'utf8');
     assert.ok(app.includes('canSeeUpdates'), 'update check/badge must be gated by the role rule');

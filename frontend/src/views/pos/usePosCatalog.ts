@@ -6,9 +6,18 @@ import { normalizeArabicNumerals, normalizeArabicText } from '../../utils/money'
 import { formatUnitArabic } from '../../utils/units';
 import { resolveDefaultSaleUnit } from './saleUnit';
 import { pickPopularItems } from './popularItems';
+import { remoteCatalogKey } from './catalogLoad';
+
+const EMPTY_PRODUCTS: Product[] = [];
 
 interface UsePosCatalogProps {
   catalogProducts: Product[];
+  /** Large catalogue only: rows fetched on demand for the current search/section, valid while remoteKey matches. */
+  remoteProducts?: Product[];
+  remoteKey?: string;
+  isCatalogTruncated?: boolean;
+  /** Reads real products by id when a bundle needs components the bounded catalogue does not hold. */
+  resolveProductsByIds?: (ids: string[]) => Promise<Product[]>;
   quickItems: QuickItem[];
   categories?: Category[];
   addProductToCart: (prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit) => boolean;
@@ -28,6 +37,10 @@ interface UsePosCatalogProps {
 
 export const usePosCatalog = ({
   catalogProducts,
+  remoteProducts = EMPTY_PRODUCTS,
+  remoteKey = '',
+  isCatalogTruncated = false,
+  resolveProductsByIds,
   quickItems,
   categories = [],
   addProductToCart,
@@ -50,7 +63,8 @@ export const usePosCatalog = ({
     }
   }, []);
 
-  const smartItems = useMemo<SmartCatalogItem[]>(() => {
+  // Maps products (plus, optionally, quick items without a product) to grid items; shared by the loaded and the on-demand lists
+  const buildSmartItems = useCallback((products: Product[], includeQuickOnly: boolean): SmartCatalogItem[] => {
     const list: SmartCatalogItem[] = [];
     const seenProductIds = new Set<string>();
 
@@ -60,7 +74,7 @@ export const usePosCatalog = ({
     }
 
     const productById = new Map<string, Product>();
-    for (const p of catalogProducts) {
+    for (const p of products) {
       if (p.id) productById.set(p.id, p);
     }
 
@@ -73,7 +87,7 @@ export const usePosCatalog = ({
       }
     }
 
-    for (const p of catalogProducts) {
+    for (const p of products) {
       const matchedQuick = quickByProductId.get(p.id);
       const isCustom = Boolean(matchedQuick) || Boolean(p.isCustomQuickItem);
       const popScore = p.salesCount || 0;
@@ -143,7 +157,7 @@ export const usePosCatalog = ({
       seenProductIds.add(p.id);
     }
 
-    for (const q of quickItems) {
+    for (const q of (includeQuickOnly ? quickItems : [])) {
       if (q.productId && seenProductIds.has(q.productId)) continue;
       const matchedProd = q.productId ? productById.get(q.productId) : null;
       const popScore = matchedProd?.salesCount || 0;
@@ -172,7 +186,29 @@ export const usePosCatalog = ({
     }
 
     return list;
-  }, [catalogProducts, quickItems, categories]);
+  }, [quickItems, categories]);
+
+  const smartItems = useMemo<SmartCatalogItem[]>(() => buildSmartItems(catalogProducts, true), [buildSmartItems, catalogProducts]);
+
+  // Large catalogue: rows the host returned for the current search/section that the bounded load does not hold
+  const remoteActive = Boolean(isCatalogTruncated) && remoteKey === remoteCatalogKey(activeCatalogTab, catalogSearchQuery);
+  const remoteItems = useMemo<SmartCatalogItem[]>(() => {
+    if (!remoteActive || remoteProducts.length === 0) return [];
+    const loadedIds = new Set<string>();
+    for (const p of catalogProducts) loadedIds.add(p.id);
+    return buildSmartItems(remoteProducts.filter((p) => !loadedIds.has(p.id)), false);
+  }, [remoteActive, remoteProducts, catalogProducts, buildSmartItems]);
+  const remoteHitIds = useMemo<Set<string>>(() => {
+    const ids = new Set<string>();
+    if (remoteActive && catalogSearchQuery.trim()) {
+      for (const p of remoteProducts) ids.add(p.id);
+    }
+    return ids;
+  }, [remoteActive, remoteProducts, catalogSearchQuery]);
+  const listedItems = useMemo<SmartCatalogItem[]>(
+    () => (remoteItems.length > 0 ? smartItems.concat(remoteItems) : smartItems),
+    [smartItems, remoteItems]
+  );
 
   const categoryTabs = useMemo(() => {
     const map = new Map<string, number>();
@@ -203,6 +239,8 @@ export const usePosCatalog = ({
       const normQuery = normalizeArabicText(normalizeArabicNumerals(rawQuery));
       const lowerRaw = rawQuery.toLowerCase();
       matchesQuery = (it) => {
+        // The host already decided these match (name, barcode, internal code, ingredient...)
+        if (remoteHitIds.has(it.id)) return true;
         if (it._normSearchText) {
           return it._normSearchText.includes(normQuery) || it._normSearchText.includes(lowerRaw);
         }
@@ -216,7 +254,7 @@ export const usePosCatalog = ({
       return popularSelection.items.filter(matchesQuery);
     }
 
-    const result = rawQuery ? smartItems.filter(matchesQuery) : smartItems;
+    const result = rawQuery ? listedItems.filter(matchesQuery) : listedItems;
 
     if (activeCatalogTab === '__CUSTOM__') {
       return result
@@ -249,7 +287,7 @@ export const usePosCatalog = ({
         if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount;
         return a.name.localeCompare(b.name, 'ar');
       });
-  }, [smartItems, popularSelection, catalogSearchQuery, activeCatalogTab, categories]);
+  }, [listedItems, popularSelection, catalogSearchQuery, activeCatalogTab, categories, remoteHitIds]);
 
   const handleSmartItemClick = useCallback((item: SmartCatalogItem, specificUnit?: ProductUnit) => {
     if (item.isOpenPrice) {
@@ -303,30 +341,45 @@ export const usePosCatalog = ({
         allocatedLines = originalLines;
       }
 
-      for (let idx = 0; idx < bundleList.length; idx++) {
-        const bItem = bundleList[idx];
-        const realProd = catalogProducts.find((p) => p.id === bItem.productId);
-        const allocatedLineTotal = allocatedLines[idx];
-        const lineUnitPrice = Math.max(1, Math.round((allocatedLineTotal * 1000) / bItem.quantityMilli));
+      const bundle = bundleList;
+      const addBundleLines = (knownProducts: Product[]) => {
+        for (let idx = 0; idx < bundle.length; idx++) {
+          const bItem = bundle[idx];
+          const realProd = knownProducts.find((p) => p.id === bItem.productId);
+          const allocatedLineTotal = allocatedLines[idx];
+          const lineUnitPrice = Math.max(1, Math.round((allocatedLineTotal * 1000) / bItem.quantityMilli));
 
-        const bundleProd: Product = {
-          id: bItem.productId,
-          name: `${bItem.productName} (ضمن ${item.name})`,
-          barcode: bItem.barcode || realProd?.barcode || null,
-          pricePiasters: lineUnitPrice,
-          costPiasters: realProd ? realProd.costPiasters : 0,
-          stockQuantityMilli: realProd && typeof realProd.stockQuantityMilli === 'number' ? realProd.stockQuantityMilli : 100000,
-          unit: bItem.unit || realProd?.unit || 'piece',
-          units: realProd?.units,
-          taxRatePercent: realProd ? realProd.taxRatePercent : 0,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        addProductToCart(bundleProd, bItem.quantityMilli);
+          const bundleProd: Product = {
+            id: bItem.productId,
+            name: `${bItem.productName} (ضمن ${item.name})`,
+            barcode: bItem.barcode || realProd?.barcode || null,
+            pricePiasters: lineUnitPrice,
+            costPiasters: realProd ? realProd.costPiasters : 0,
+            stockQuantityMilli: realProd && typeof realProd.stockQuantityMilli === 'number' ? realProd.stockQuantityMilli : 100000,
+            unit: bItem.unit || realProd?.unit || 'piece',
+            units: realProd?.units,
+            taxRatePercent: realProd ? realProd.taxRatePercent : 0,
+            isActive: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          addProductToCart(bundleProd, bItem.quantityMilli);
+        }
+        showStatus(`تمت إضافة أصناف "${item.name}" (${bundle.length} أصناف) إلى السلة بسعر العرض!`, 'success');
+        barcodeInputRef.current?.focus();
+      };
+
+      // A large catalogue is not fully in memory: components it lacks are read by id so cost and stock stay real
+      const missingIds = bundle
+        .map((b) => b.productId)
+        .filter((id) => Boolean(id) && !catalogProducts.some((p) => p.id === id));
+      if (missingIds.length > 0 && resolveProductsByIds) {
+        resolveProductsByIds(missingIds)
+          .then((fetched) => addBundleLines(catalogProducts.concat(fetched)))
+          .catch(() => addBundleLines(catalogProducts));
+      } else {
+        addBundleLines(catalogProducts);
       }
-      showStatus(`تمت إضافة أصناف "${item.name}" (${bundleList.length} أصناف) إلى السلة بسعر العرض!`, 'success');
-      barcodeInputRef.current?.focus();
       return;
     }
 
@@ -417,7 +470,7 @@ export const usePosCatalog = ({
       showStatus(`تمت إضافة: ${item.name}${unitSuffix}`, 'success');
     }
     barcodeInputRef.current?.focus();
-  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct, quickItems, catalogProducts]);
+  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct, quickItems, catalogProducts, resolveProductsByIds]);
 
   const handleConfirmOpenPrice = (e: FormEvent) => {
     e.preventDefault();

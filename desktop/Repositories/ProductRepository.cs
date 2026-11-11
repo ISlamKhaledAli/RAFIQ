@@ -131,6 +131,92 @@ namespace RafiqPOS.Repositories
             return null;
         }
 
+        // Fast exact scan lookup: every branch is an equality on an indexed barcode column (no LIKE, no scan of products).
+        // Same product shape as Search (category/location/pharma/variant columns, units, barcodes); best match first.
+        public List<Product> GetByExactBarcode(string barcode, int limit = 5)
+        {
+            var results = new List<Product>();
+            if (string.IsNullOrWhiteSpace(barcode)) return results;
+            if (limit <= 0 || limit > 20) limit = 5;
+
+            string cleanBc = barcode.Trim();
+            string altBarcode = "";
+            long dummyLong;
+            if (cleanBc.Length == 12 && long.TryParse(cleanBc, out dummyLong))
+            {
+                altBarcode = "0" + cleanBc;
+            }
+            else if (cleanBc.Length == 13 && cleanBc.StartsWith("0") && long.TryParse(cleanBc, out dummyLong))
+            {
+                altBarcode = cleanBc.Substring(1);
+            }
+
+            bool isPharmaActive = false;
+            try
+            {
+                isPharmaActive = (RafiqPOS.Services.DatabaseService.Settings != null && RafiqPOS.Services.DatabaseService.Settings.IsFeatureEnabled("feature_pharmacy"));
+            }
+            catch { }
+
+            string pharmaSelect = isPharmaActive ? "COALESCE(pi.scientific_name, '') AS scientific_name, COALESCE(df.name_ar, '') AS dosage_form_name, COALESCE(pi.rx_status, 'otc') AS rx_status, COALESCE(pi.controlled_schedule, 'none') AS controlled_schedule," : "";
+            string pharmaJoin = isPharmaActive ? "LEFT JOIN product_pharma_info pi ON p.id = pi.product_id LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id " : "";
+
+            // The 12/13-digit EAN twin is looked up only when it exists (an empty value must never match empty barcodes)
+            string altBranches = altBarcode.Length == 0 ? "" : @"
+                            UNION ALL SELECT id AS id, 3 AS rk FROM products WHERE barcode = @alt
+                            UNION ALL SELECT product_id AS id, 3 AS rk FROM product_barcodes WHERE barcode = @alt
+                            UNION ALL SELECT product_id AS id, 3 AS rk FROM product_units WHERE barcode = @alt";
+
+            string sql = @"
+                SELECT p.*, " + pharmaSelect + @" COALESCE(c.name, 'عام') AS category_name,
+                    COALESCE(sl.name, '') AS location_name,
+                    COALESCE(sl.code, '') AS location_code,
+                    COALESCE(sl.type, '') AS location_type,
+                    CASE
+                        WHEN p.has_variants = 1 THEN 1
+                        WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
+                        ELSE 0
+                    END AS has_variants_computed,
+                    (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count
+                FROM (
+                    SELECT x.id AS id, MIN(x.rk) AS rk
+                    FROM (
+                            SELECT id AS id, 0 AS rk FROM products WHERE barcode = @bc
+                            UNION ALL SELECT product_id AS id, 1 AS rk FROM product_barcodes WHERE barcode = @bc
+                            UNION ALL SELECT product_id AS id, 2 AS rk FROM product_units WHERE barcode = @bc" + altBranches + @"
+                    ) x
+                    GROUP BY x.id
+                ) m
+                JOIN products p ON p.id = m.id AND p.is_active = 1
+                LEFT JOIN categories c ON p.category_id = c.id
+                LEFT JOIN storage_locations sl ON p.location_id = sl.id
+                " + pharmaJoin + @"
+                ORDER BY m.rk ASC, p.created_at ASC, p.id ASC
+                LIMIT @limit;
+            ";
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@bc", cleanBc);
+                    if (altBarcode.Length > 0) cmd.Parameters.AddWithValue("@alt", altBarcode);
+                    cmd.Parameters.AddWithValue("@limit", limit);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            results.Add(MapReaderToProduct(reader));
+                        }
+                    }
+                }
+
+                PopulateBarcodesAndUnits(conn, results);
+            }
+            return results;
+        }
+
         public Product GetOwnerOfBarcode(string barcode)
         {
             return GetOwnerOfBarcode(barcode, null);
@@ -1025,10 +1111,10 @@ namespace RafiqPOS.Repositories
                     SELECT 
                         p.*,
                         COALESCE(c.name, 'عام') AS category_name,
-                        CAST((COALESCE(s_stat.sold_milli, 0) + 999) / 1000 AS INTEGER) AS sale_count,
-                        CASE WHEN q.id IS NOT NULL THEN 1 ELSE 0 END AS is_custom_quick_item,
-                        COALESCE(q.is_open_price, 0) AS is_open_price,
-                        COALESCE(q.display_order, 9999) AS quick_display_order,
+                        t.sale_count AS sale_count,
+                        t.is_custom_quick_item AS is_custom_quick_item,
+                        t.is_open_price AS is_open_price,
+                        t.quick_display_order AS quick_display_order,
                         CASE 
                             WHEN p.has_variants = 1 THEN 1
                             WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
@@ -1053,25 +1139,37 @@ namespace RafiqPOS.Repositories
                         COALESCE(sl.code, '') AS location_code,
                         COALESCE(sl.type, '') AS location_type,
                         CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id) THEN 1 ELSE 0 END AS has_batches
-                    FROM products p
+                    FROM (
+                        SELECT p0.id AS id,
+                               CAST((COALESCE(s_stat.sold_milli, 0) + 999) / 1000 AS INTEGER) AS sale_count,
+                               CASE WHEN q.id IS NOT NULL THEN 1 ELSE 0 END AS is_custom_quick_item,
+                               COALESCE(q.is_open_price, 0) AS is_open_price,
+                               COALESCE(q.display_order, 9999) AS quick_display_order
+                        FROM products p0
+                        LEFT JOIN (
+                            SELECT si.product_id AS product_id,
+                                   SUM(si.quantity_milli * COALESCE(NULLIF(si.conversion_factor, 0), 1)) AS sold_milli
+                            FROM sale_items si
+                            INNER JOIN sales sa ON sa.id = si.sale_id
+                            WHERE sa.created_at >= @popularSince
+                              AND sa.status IN ('completed', 'partially_refunded')
+                            GROUP BY si.product_id
+                        ) s_stat ON p0.id = s_stat.product_id
+                        LEFT JOIN quick_items q ON p0.id = q.product_id
+                        WHERE p0.is_active = 1
+                        ORDER BY
+                            is_custom_quick_item DESC,
+                            sale_count DESC,
+                            p0.name ASC
+                        LIMIT @limit
+                    ) t
+                    JOIN products p ON p.id = t.id
                     LEFT JOIN categories c ON p.category_id = c.id
                     LEFT JOIN storage_locations sl ON p.location_id = sl.id
-                    LEFT JOIN (
-                        SELECT si.product_id AS product_id,
-                               SUM(si.quantity_milli * COALESCE(NULLIF(si.conversion_factor, 0), 1)) AS sold_milli
-                        FROM sale_items si
-                        INNER JOIN sales sa ON sa.id = si.sale_id
-                        WHERE sa.created_at >= @popularSince
-                          AND sa.status IN ('completed', 'partially_refunded')
-                        GROUP BY si.product_id
-                    ) s_stat ON p.id = s_stat.product_id
-                    LEFT JOIN quick_items q ON p.id = q.product_id
-                    WHERE p.is_active = 1
-                    ORDER BY 
-                        is_custom_quick_item DESC,
-                        sale_count DESC,
-                        p.name ASC
-                    LIMIT @limit;
+                    ORDER BY
+                        t.is_custom_quick_item DESC,
+                        t.sale_count DESC,
+                        p.name ASC;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {

@@ -8,13 +8,19 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    // Handle CORS Preflight
+    const isAdminPath = url.pathname.startsWith('/admin') || url.pathname.startsWith('/api/admin');
+
+    // CORS preflight: admin routes are same-origin only, so no CORS headers are granted for them.
+    // The public client routes keep CORS (key-protected, no cookies); the desktop app itself is a native client.
     if (request.method === 'OPTIONS') {
+      if (isAdminPath) {
+        return new Response(null, { status: 204 });
+      }
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, X-Rafiq-Api-Key, X-Admin-Secret, Authorization',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Rafiq-Api-Key, Authorization',
           'Access-Control-Max-Age': '86400',
         },
       });
@@ -65,11 +71,8 @@ export default {
       }
 
       // 5. Admin Dashboard and Management APIs
-      if (url.pathname.startsWith('/admin') || url.pathname.startsWith('/api/admin')) {
-        const response = await handleAdmin(request, env);
-        const newHeaders = new Headers(response.headers);
-        newHeaders.set('Access-Control-Allow-Origin', '*');
-        return new Response(response.body, { status: response.status, headers: newHeaders });
+      if (isAdminPath) {
+        return await handleAdmin(request, env);
       }
 
       // 6. 404 Route Not Found
@@ -84,14 +87,12 @@ export default {
         }
       );
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
       console.error('Server Internal Error:', err);
       return new Response(
         JSON.stringify({
           success: false,
           code: 'INTERNAL_ERROR',
           message: 'حدث خطأ داخلي في خادم التراخيص',
-          error: errorMessage,
         }),
         {
           status: 500,

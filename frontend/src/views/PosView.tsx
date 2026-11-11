@@ -99,8 +99,37 @@ import {
   shouldRunLiveSearch,
 } from './pos/liveSearch';
 import { formatUnitArabic } from '../utils/units';
+import { isExactBarcodeCandidate } from './pos/exactBarcode';
+import {
+  POS_CATALOG_LIMIT,
+  applyFreshProductFacts,
+  describeRemoteCatalogRequest,
+  isCatalogTruncated,
+  remoteCatalogKey,
+  collectProductIds,
+} from './pos/catalogLoad';
+import {
+  POS_CART_DRAFT_SAVE_DEBOUNCE_MS,
+  clearPosCartDraft,
+  readPosCartDraftRestore,
+  savePosCartDraft,
+} from '../utils/posCartDraft';
+import { createFingerprintedAttemptKey, isIdempotencyMismatchError } from '../utils/idempotency';
 
 const CATALOG_REFRESH_DEBOUNCE_MS = 400;
+// Data-change events raised by this screen's own sale keep being absorbed for this long after the sale call returns
+const OWN_SALE_EVENT_WINDOW_MS = 1500;
+
+// Exact barcode scan: indexed equality lookup. An empty answer also covers an older host without the command,
+// so the caller then falls back to the regular search.
+async function findProductsByExactBarcode(code: string): Promise<Product[]> {
+  if (!isExactBarcodeCandidate(code)) return [];
+  try {
+    return extractProducts(await invoke<unknown>('products:getByExactBarcode', { barcode: code.trim(), limit: 5 }));
+  } catch {
+    return [];
+  }
+}
 const SHIFT_REQUIRED_MESSAGE = 'لازم تفتح وردية قبل البيع';
 const SHIFT_NOTICE_FLASH_MS = 2500;
 
@@ -111,7 +140,8 @@ export interface PosViewProps {
 }
 
 export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToEpay, onNavigateToWallets }) => {
-  const { hasPermission, isAdmin } = useAuth();
+  const { hasPermission, isAdmin, currentUser } = useAuth();
+  const currentUserId = currentUser ? currentUser.id : null;
   // Mirrors the server-side discount permission checks in SaleService
   const canDiscountInvoice = isAdmin || hasPermission('pos.discount_invoice');
   const canDiscountLine = isAdmin || hasPermission('pos.discount_line');
@@ -127,14 +157,21 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const showItemModifiers = showCafeMode && isEnabled('feature_item_modifiers');
   const showDeliveryManagement = showCafeMode && isEnabled('feature_delivery_management');
 
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedCartIndex, setSelectedCartIndex] = useState<number | null>(null);
+  // A cart saved moments ago (reload/crash) is restored at mount; an older one is only offered through the banner
+  const [initialDraftRestore] = useState(() => readPosCartDraftRestore(currentUserId));
+  const autoRestoredDraft = initialDraftRestore.mode === 'auto' ? initialDraftRestore.draft : null;
+  const [cart, setCart] = useState<CartItem[]>(() => (autoRestoredDraft ? autoRestoredDraft.items : []));
+  const [selectedCartIndex, setSelectedCartIndex] = useState<number | null>(() => (autoRestoredDraft ? 0 : null));
   const [barcodeQuery, setBarcodeQuery] = useState('');
-  const [discountPiasters, setDiscountPiasters] = useState(0);
+  const [discountPiasters, setDiscountPiasters] = useState(() => (autoRestoredDraft ? autoRestoredDraft.discountPiasters : 0));
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [quickItems, setQuickItems] = useState<QuickItem[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  // Active products the host holds; larger than catalogProducts.length when only the best sellers were loaded
+  const [catalogTotalCount, setCatalogTotalCount] = useState(0);
+  const isCatalogLimited = isCatalogTruncated(catalogProducts.length, catalogTotalCount);
+  const [remoteCatalog, setRemoteCatalog] = useState<{ key: string; products: Product[]; limited: boolean }>({ key: '', products: [], limited: false });
   const [categories, setCategories] = useState<Category[]>([]);
 
   const [isQuickItemsManagerOpen, setIsQuickItemsManagerOpen] = useState(false);
@@ -142,7 +179,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<number | null>(null);
   const [nextExpectedInvoiceNumber, setNextExpectedInvoiceNumber] = useState<number | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(() => (autoRestoredDraft && autoRestoredDraft.customerId ? autoRestoredDraft.customerId : ''));
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit'>('cash');
   const [digitalAccounts, setDigitalAccounts] = useState<DigitalAccount[]>([]);
   const [storeInstapayAddress, setStoreInstapayAddress] = useState('');
@@ -192,20 +229,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     discountPiasters: number;
     customerId?: string | null;
     savedAt: number;
-  } | null>(() => {
-    try {
-      const stored = localStorage.getItem('rafiq_pos_cart_draft');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return null;
-  });
+  } | null>(() => (initialDraftRestore.mode === 'prompt' ? initialDraftRestore.draft : null));
   const [undoItem, setUndoItem] = useState<{ item: CartItem; index: number } | null>(null);
   const undoToast = useExitValue(undoItem);
   const [weightModalProduct, setWeightModalProduct] = useState<{
@@ -272,13 +296,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   // Synchronous Mutex & Checkout Idempotency (Anti-Spam / Anti-Race F12 Guard)
   const isCheckingOutRef = useRef(false);
   const supervisorPinRef = useRef<string | null>(null);
-  const cartSessionIdRef = useRef<string>('cart_initial_session');
+  // The sale key follows the request content: kept for a pure retry of the same cart, rotated when the cart or payments change
+  const saleAttemptRef = useRef(createFingerprintedAttemptKey('sale'));
   const addProductToCartRef = useRef<(prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit, isExpiredBypassed?: boolean) => boolean>(() => false);
 
   const resetCartSession = useCallback(() => {
-    cartSessionIdRef.current = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `cart_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    saleAttemptRef.current.reset();
     supervisorPinRef.current = null;
     isCheckingOutRef.current = false;
   }, []);
@@ -396,11 +419,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setIsDdiModalOpen(false);
     setIsDdiManagerOpen(false);
     resetCartSession();
-    try {
-      localStorage.removeItem('rafiq_pos_cart_draft');
-    } catch {
-      // ignore
-    }
+    clearPosCartDraft();
     showStatus('تم إلغاء الفاتورة ومسح السلة بالكامل', 'success');
     barcodeInputRef.current?.focus();
   };
@@ -535,16 +554,21 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
       if (idx >= 0) {
         const updated = [...prev];
-        const item = updated[idx];
-        const updatedQty = customWeightMilli !== undefined ? (item.quantityMilli + customWeightMilli) : (item.quantityMilli + 1000);
-        item.quantityMilli = updatedQty;
-        item.unit = unitName;
-        item.unitName = unitName;
-        item.unitId = unitId;
-        item.conversionFactor = factor;
-        item.isDivisible = isDivisible;
-        item.totalPiasters = calculateLineTotal(item.unitPricePiasters, updatedQty, item.discountPiasters);
-        item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+        const existing = updated[idx];
+        const updatedQty = customWeightMilli !== undefined ? (existing.quantityMilli + customWeightMilli) : (existing.quantityMilli + 1000);
+        const lineTotal = calculateLineTotal(existing.unitPricePiasters, updatedQty, existing.discountPiasters);
+        // A new object per change keeps the updater pure (StrictMode runs it twice)
+        updated[idx] = {
+          ...existing,
+          quantityMilli: updatedQty,
+          unit: unitName,
+          unitName: unitName,
+          unitId: unitId,
+          conversionFactor: factor,
+          isDivisible: isDivisible,
+          totalPiasters: lineTotal,
+          taxPiasters: calculateTaxPiasters(lineTotal, existing.taxRatePercent || 0, true),
+        };
         setSelectedCartIndex(idx);
         return updated;
       }
@@ -663,20 +687,24 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const newPrice = targetUnit.sellPricePiasters > 0 ? targetUnit.sellPricePiasters : (basePrice * newFactor);
       const newCost = targetUnit.costPricePiasters > 0 ? targetUnit.costPricePiasters : (baseCost * newFactor);
 
-      item.unitId = targetUnit.id;
-      item.unitName = targetUnit.unitName;
-      item.conversionFactor = newFactor;
-      item.unit = targetUnit.unitName;
-      item.unitPricePiasters = newPrice;
-      item.unitCostPiasters = newCost;
-      item.isDivisible = targetUnit.isDivisible;
-
-      if (!targetUnit.isDivisible && (item.quantityMilli % 1000 !== 0)) {
-        item.quantityMilli = Math.max(1000, Math.round(item.quantityMilli / 1000) * 1000);
-      }
-
-      item.totalPiasters = calculateLineTotal(item.unitPricePiasters, item.quantityMilli, item.discountPiasters);
-      item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+      const newQuantityMilli = (!targetUnit.isDivisible && (item.quantityMilli % 1000 !== 0))
+        ? Math.max(1000, Math.round(item.quantityMilli / 1000) * 1000)
+        : item.quantityMilli;
+      const newTotal = calculateLineTotal(newPrice, newQuantityMilli, item.discountPiasters);
+      // A new object per change keeps the updater pure (StrictMode runs it twice)
+      updated[index] = {
+        ...item,
+        unitId: targetUnit.id,
+        unitName: targetUnit.unitName,
+        conversionFactor: newFactor,
+        unit: targetUnit.unitName,
+        unitPricePiasters: newPrice,
+        unitCostPiasters: newCost,
+        isDivisible: targetUnit.isDivisible,
+        quantityMilli: newQuantityMilli,
+        totalPiasters: newTotal,
+        taxPiasters: calculateTaxPiasters(newTotal, item.taxRatePercent || 0, true),
+      };
       return updated;
     });
   }, [allowNegativeStock, showStatus]);
@@ -712,9 +740,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const updated = [...prev];
       const it = updated[index];
       if (!it) return prev;
-      it.discountPiasters = itemDiscountPiasters;
-      it.totalPiasters = calculateLineTotal(it.unitPricePiasters, it.quantityMilli, it.discountPiasters);
-      it.taxPiasters = calculateTaxPiasters(it.totalPiasters, it.taxRatePercent || 0, true);
+      const lineTotal = calculateLineTotal(it.unitPricePiasters, it.quantityMilli, itemDiscountPiasters);
+      updated[index] = {
+        ...it,
+        discountPiasters: itemDiscountPiasters,
+        totalPiasters: lineTotal,
+        taxPiasters: calculateTaxPiasters(lineTotal, it.taxRatePercent || 0, true),
+      };
       // Line discounts stay on the item; discountPiasters is the invoice-level discount only
       return updated;
     });
@@ -991,11 +1023,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setDiscountPiasters(0);
       setSelectedCustomerId('');
       resetCartSession();
-      try {
-        localStorage.removeItem('rafiq_pos_cart_draft');
-      } catch {
-        // ignore
-      }
+      clearPosCartDraft();
       await loadHeldSalesCount();
       showStatus('تم تعليق الفاتورة', 'success');
     } catch (err: unknown) {
@@ -1026,7 +1054,31 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
   }, [currentUserRole, maxDiscountPercentCashier, maxDiscountAmountCashierPiasters, canDiscountInvoice]);
 
-  const handleRecallHeldSale = useCallback((heldSale: HeldSale) => {
+  // Products by id for price checks and bundle costs: the loaded catalogue first, the host for the rest
+  const lookupProductsByIds = useCallback(async (ids: string[]): Promise<Product[]> => {
+    const wanted = Array.from(new Set(ids.filter(Boolean)));
+    if (wanted.length === 0) return [];
+    const loadedById = new Map<string, Product>();
+    for (const p of catalogProducts) loadedById.set(p.id, p);
+    const found: Product[] = [];
+    const missing: string[] = [];
+    for (const id of wanted) {
+      const loaded = loadedById.get(id);
+      if (loaded) found.push(loaded);
+      else missing.push(id);
+    }
+    if (missing.length > 0) {
+      try {
+        const fetched = await invoke<unknown>('products:getByIds', { ids: missing, limit: missing.length });
+        found.push(...extractProducts(fetched));
+      } catch {
+        // The caller continues with what is known
+      }
+    }
+    return found;
+  }, [catalogProducts]);
+
+  const handleRecallHeldSale = useCallback(async (heldSale: HeldSale) => {
     let heldLines: Array<CartItem & { heldFormatVersion?: number }> = [];
     if (Array.isArray(heldSale.items) && heldSale.items.length > 0) {
       heldLines = heldSale.items as CartItem[];
@@ -1043,7 +1095,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     // Owner rule: a recalled sale keeps the prices it was held with; catalog changes are only offered, never applied silently
     const heldInvoiceDiscount = resolveHeldInvoiceDiscount(heldLines, heldSale.discountPiasters);
     const itemsToRestore: CartItem[] = stripHeldCartMarker(heldLines);
-    const priceChanges = findHeldPriceChanges(itemsToRestore, catalogProducts, isEnabled('feature_batch_pricing'));
+    // A large catalogue is not fully loaded: read the held products from the host so no price change is missed
+    const pricedProducts = isCatalogLimited
+      ? await lookupProductsByIds(collectProductIds(itemsToRestore))
+      : catalogProducts;
+    const priceChanges = findHeldPriceChanges(itemsToRestore, pricedProducts, isEnabled('feature_batch_pricing'));
 
     setCart(itemsToRestore);
     setDiscountPiasters(0);
@@ -1058,7 +1114,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     applyRecalledInvoiceDiscount(itemsToRestore, heldInvoiceDiscount);
     showStatus(`تم استرجاع الفاتورة المعلقة (${itemsToRestore.length} صنف)`, 'success');
     barcodeInputRef.current?.focus();
-  }, [catalogProducts, isEnabled, loadHeldSalesCount, resetCartSession, showStatus, applyRecalledInvoiceDiscount]);
+  }, [catalogProducts, isCatalogLimited, lookupProductsByIds, isEnabled, loadHeldSalesCount, resetCartSession, showStatus, applyRecalledInvoiceDiscount]);
 
   const updateRecalledToCurrentPrices = useCallback((review: NonNullable<typeof heldPriceReview>, message: string) => {
     const repriced = applyCurrentPrices(review.items, review.changes);
@@ -1183,25 +1239,31 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     void loadCategories();
   }, [loadCategories]);
 
-  // Load Quick Items & Inventory Products (Smart Catalog); only the newest request may apply its answer
+  // Load Quick Items & Inventory Products (Smart Catalog); only the newest request may apply its answer.
+  // Only the best sellers / quick items are loaded (bounded); the rest of a large catalogue is searched on demand.
   const catalogLoadSeqRef = useRef(0);
   const loadSmartCatalog = useCallback(async () => {
     const seq = ++catalogLoadSeqRef.current;
     try {
-      const res = await invoke<{ products?: Product[]; customQuickItems?: QuickItem[] }>('products:getSmartCatalog', { limit: 50000 }).catch(() => null);
+      const res = await invoke<{ products?: Product[]; customQuickItems?: QuickItem[]; totalCount?: number }>('products:getSmartCatalog', { limit: POS_CATALOG_LIMIT }).catch(() => null);
       if (seq !== catalogLoadSeqRef.current) return;
       if (res && Array.isArray(res.products)) {
         setCatalogProducts(res.products);
+        setCatalogTotalCount(typeof res.totalCount === 'number' ? res.totalCount : res.products.length);
         if (Array.isArray(res.customQuickItems)) {
           setQuickItems(res.customQuickItems);
         }
       } else {
         const [pData, qData] = await Promise.all([
-          invoke<Product[]>('products:getAll', { limit: 50000 }).catch(() => []),
+          invoke<Product[]>('products:getAll', { limit: POS_CATALOG_LIMIT + 1 }).catch(() => []),
           invoke<QuickItem[]>('quickItems:getAll').catch(() => [])
         ]);
         if (seq !== catalogLoadSeqRef.current) return;
-        if (Array.isArray(pData)) setCatalogProducts(pData);
+        if (Array.isArray(pData)) {
+          // One row more than the bound proves the catalogue is larger than what is shown
+          setCatalogProducts(pData.slice(0, POS_CATALOG_LIMIT));
+          setCatalogTotalCount(pData.length);
+        }
         if (Array.isArray(qData)) setQuickItems(qData);
       }
     } catch {
@@ -1234,8 +1296,15 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   // and reload when the cashier view becomes visible again.
   const isActiveRef = useRef(isActive);
   const catalogRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // While this screen's own sale runs, the data-change events it causes must not reload the whole catalogue:
+  // the sold products are re-read by id afterwards instead.
+  const ownSaleRefreshRef = useRef({ active: false, pending: false });
   const scheduleCatalogRefresh = useCallback(() => {
     if (!isActiveRef.current) return;
+    if (ownSaleRefreshRef.current.active) {
+      ownSaleRefreshRef.current.pending = true;
+      return;
+    }
     if (catalogRefreshTimerRef.current) clearTimeout(catalogRefreshTimerRef.current);
     catalogRefreshTimerRef.current = setTimeout(() => {
       catalogRefreshTimerRef.current = null;
@@ -1244,6 +1313,17 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }, CATALOG_REFRESH_DEBOUNCE_MS);
   }, [loadCategories, loadSmartCatalog]);
   useDataSubscription(['products', 'categories', 'all'], scheduleCatalogRefresh);
+
+  // After a sale only the sold products changed: re-read their stock/price by id instead of reloading the catalogue
+  const refreshSoldProducts = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    try {
+      const fresh = extractProducts(await invoke<unknown>('products:getByIds', { ids, limit: ids.length }));
+      if (fresh.length > 0) setCatalogProducts((prev) => applyFreshProductFacts(prev, fresh));
+    } catch {
+      void loadSmartCatalog();
+    }
+  }, [loadSmartCatalog]);
 
   useEffect(() => {
     const wasActive = isActiveRef.current;
@@ -1321,24 +1401,41 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     return () => { active = false; };
   }, [loadHeldSalesCount, loadAppSettings]);
 
-  // Feature #132: Auto-save draft on cart change
+  // Feature #132: Auto-save draft on cart change (debounced; a reload or crash restores it at the next mount)
+  const draftPendingPromptRef = useRef(false);
+  const latestDraftRef = useRef({ cart, discountPiasters, customerId: selectedCustomerId, userId: currentUserId });
   useEffect(() => {
-    try {
-      if (cart.length > 0) {
-        const draft = {
-          items: cart,
-          discountPiasters,
-          customerId: selectedCustomerId || null,
-          savedAt: Date.now(),
-        };
-        localStorage.setItem('rafiq_pos_cart_draft', JSON.stringify(draft));
-      } else {
-        localStorage.removeItem('rafiq_pos_cart_draft');
-      }
-    } catch {
-      // ignore
+    draftPendingPromptRef.current = draftPrompt !== null;
+    latestDraftRef.current = { cart, discountPiasters, customerId: selectedCustomerId, userId: currentUserId };
+  }, [draftPrompt, cart, discountPiasters, selectedCustomerId, currentUserId]);
+
+  useEffect(() => {
+    if (cart.length === 0) {
+      // An offered-but-undecided draft stays in storage so a second reload can still offer it
+      if (!draftPendingPromptRef.current) clearPosCartDraft();
+      return;
     }
-  }, [cart, discountPiasters, selectedCustomerId]);
+    const timer = setTimeout(() => {
+      savePosCartDraft(cart, discountPiasters, selectedCustomerId || null, currentUserId);
+    }, POS_CART_DRAFT_SAVE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [cart, discountPiasters, selectedCustomerId, currentUserId]);
+
+  // A change made inside the debounce window must still survive a reload that happens right after it
+  useEffect(() => {
+    const flush = () => {
+      const latest = latestDraftRef.current;
+      if (latest.cart.length === 0) return;
+      savePosCartDraft(latest.cart, latest.discountPiasters, latest.customerId || null, latest.userId);
+    };
+    window.addEventListener('pagehide', flush);
+    return () => window.removeEventListener('pagehide', flush);
+  }, []);
+
+  // The restored cart is announced once so the cashier knows the invoice in front of them came back
+  useEffect(() => {
+    if (autoRestoredDraft) showStatus('تم استرجاع الفاتورة الجارية', 'success');
+  }, [autoRestoredDraft, showStatus]);
 
   const handleOpenCheckout = useCallback((forcedMethod?: 'cash' | 'credit' | 'instapay' | 'vodafone_cash') => {
     if (cart.length === 0) {
@@ -1392,6 +1489,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return;
     }
     isCheckingOutRef.current = true;
+    ownSaleRefreshRef.current.active = true;
+    ownSaleRefreshRef.current.pending = false;
+    let saleSucceeded = false;
     setIsPaymentModalOpen(false);
     setLoading(true);
     try {
@@ -1414,7 +1514,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         payments: paymentData.payments,
         notes: paymentData.serviceFeeNote,
         changePiasters: paymentData.changeDuePiasters,
-        idempotencyKey: cartSessionIdRef.current,
+        idempotencyKey: undefined,
         supervisorPin: paymentData.supervisorPin || supervisorPinRef.current || undefined,
         controlledDispenses: controlledDispenses.length > 0 ? (controlledDispenses as ControlledDrugDispense[]) : undefined,
         insuranceClaim: activeInsuranceClaim || undefined,
@@ -1428,6 +1528,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         deliveryInfo: showCafeMode && orderType === 'delivery' ? deliveryInfo : null,
       };
 
+      // Same request content keeps the key (safe retry after a timeout); any cart/payment change gets a new key
+      salePayload.idempotencyKey = saleAttemptRef.current.keyFor(
+        JSON.stringify({ ...salePayload, idempotencyKey: undefined, supervisorPin: undefined })
+      );
       const completedSale = await invoke<Sale>('sales:create', salePayload);
       setLastInvoiceNumber(completedSale.invoiceNumber || null);
       if (completedSale.invoiceNumber) {
@@ -1485,15 +1589,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setActiveTable(null);
       setDeliveryInfo(null);
       resetCartSession();
-      void loadSmartCatalog();
+      saleSucceeded = true;
+      void refreshSoldProducts(collectProductIds(cart));
       void loadHeldSalesCount();
       void loadCafeStats();
-      try {
-        localStorage.removeItem('rafiq_pos_cart_draft');
-      } catch {
-        // ignore
-      }
+      clearPosCartDraft();
     } catch (err: unknown) {
+      // The server rejected the key for a different request: the next attempt must not reuse it
+      if (isIdempotencyMismatchError(err)) saleAttemptRef.current.reset();
       const rawMsg = err instanceof Error ? err.message : String(err);
       console.error('POS Checkout Error:', err);
       let friendlyMsg = rawMsg;
@@ -1508,6 +1611,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     } finally {
       setLoading(false);
       isCheckingOutRef.current = false;
+      // Late data-change events of this sale are absorbed; a failed sale still lets an outside change refresh the catalogue
+      setTimeout(() => {
+        ownSaleRefreshRef.current.active = false;
+        if (ownSaleRefreshRef.current.pending && !saleSucceeded) scheduleCatalogRefresh();
+        ownSaleRefreshRef.current.pending = false;
+      }, OWN_SALE_EVENT_WINDOW_MS);
       barcodeInputRef.current?.focus();
     }
   }, [
@@ -1519,7 +1628,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     selectedCustomerId, 
     activeInsuranceClaim,
     showStatus,
-    loadSmartCatalog,
+    refreshSoldProducts,
+    scheduleCatalogRefresh,
     loadHeldSalesCount,
     loadCafeStats,
     resetCartSession,
@@ -1604,7 +1714,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await invoke<unknown>('products:search', { query: q, limit: LIVE_SEARCH_LIMIT });
+        const res = await invoke<unknown>('products:search', { query: q, limit: LIVE_SEARCH_LIMIT, includeCounts: false });
         if (!liveSearchGate.isCurrent(requestId)) return;
         const results = extractProducts(res);
         liveSearchResultsQueryRef.current = q;
@@ -1714,8 +1824,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const scaleInfo = isEnabled('feature_scale_weight') ? parseScaleBarcode(scannedBarcode) : null;
       let scaleWeightMilli: number | undefined;
 
-      let res = await invoke<unknown>('products:search', { query: scannedBarcode, limit: 5 });
-      let results = extractProducts(res);
+      // Exact barcode first (indexed); the name/LIKE search runs only when nothing matched and the input is not a scale label
+      let results = await findProductsByExactBarcode(scannedBarcode);
+      let res: unknown;
+      if (results.length === 0 && !scaleInfo) {
+        res = await invoke<unknown>('products:search', { query: scannedBarcode, limit: 5, includeCounts: false });
+        results = extractProducts(res);
+      }
 
       if ((!results || results.length === 0) && scaleInfo) {
         // Try matching: 1) Prefix+PLU (e.g. 2100045, 9900045, 2000045), 2) Trimmed PLU (e.g. 45), 3) 5-digit PLU (e.g. 00045)
@@ -1877,11 +1992,18 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
       // The layout conversion garbles Arabic names, so a name is searched as typed and only then as a mistyped barcode
       const hasArabicLetters = /[\u0621-\u064A]/.test(typed);
-      let res = await invoke<unknown>('products:search', { query: hasArabicLetters ? typed : query, limit: 10 });
-      let results = extractProducts(res);
-      if (results.length === 0 && hasArabicLetters && query !== typed) {
-        res = await invoke<unknown>('products:search', { query, limit: 10 });
+      let results = hasArabicLetters ? [] : await findProductsByExactBarcode(query);
+      let res: unknown;
+      if (results.length === 0 && (hasArabicLetters || !scaleInfo)) {
+        res = await invoke<unknown>('products:search', { query: hasArabicLetters ? typed : query, limit: 10, includeCounts: false });
         results = extractProducts(res);
+        if (results.length === 0 && hasArabicLetters && query !== typed) {
+          results = await findProductsByExactBarcode(query);
+          if (results.length === 0 && !scaleInfo) {
+            res = await invoke<unknown>('products:search', { query, limit: 10, includeCounts: false });
+            results = extractProducts(res);
+          }
+        }
       }
 
       if (results.length === 0) {
@@ -2008,7 +2130,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
   };
 
-  const handleConfirmWeight = (weightMilli: number) => {
+  const handleConfirmWeight = async (weightMilli: number) => {
     if (!weightModalProduct) return;
 
     if (weightModalProduct.editingCartIndex !== undefined) {
@@ -2017,15 +2139,24 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         if (!prev[idx]) return prev;
         const updated = [...prev];
         const item = updated[idx];
-        item.quantityMilli = weightMilli;
-        item.totalPiasters = calculateLineTotal(item.unitPricePiasters, weightMilli, item.discountPiasters);
-        item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+        const lineTotal = calculateLineTotal(item.unitPricePiasters, weightMilli, item.discountPiasters);
+        updated[idx] = {
+          ...item,
+          quantityMilli: weightMilli,
+          totalPiasters: lineTotal,
+          taxPiasters: calculateTaxPiasters(lineTotal, item.taxRatePercent || 0, true),
+        };
         return updated;
       });
       showStatus(`تم تعديل وزن ${weightModalProduct.name} إلى ${(weightMilli / 1000).toFixed(3)} كجم`, 'success');
     } else {
       const dummyId = weightModalProduct.id || (weightModalProduct.barcode ? `prod_${weightModalProduct.barcode}` : `prod_${weightModalProduct.name.replace(/\s+/g, '_')}`);
-      const foundProd = catalogProducts.find((p) => p.id === weightModalProduct.id || (Boolean(weightModalProduct.barcode) && p.barcode === weightModalProduct.barcode));
+      let foundProd = catalogProducts.find((p) => p.id === weightModalProduct.id || (Boolean(weightModalProduct.barcode) && p.barcode === weightModalProduct.barcode));
+      if (!foundProd && weightModalProduct.id && isCatalogLimited) {
+        // Not among the loaded best sellers: take the real cost, tax and stock from the host instead of defaults
+        setWeightModalProduct(null);
+        [foundProd] = await lookupProductsByIds([weightModalProduct.id]);
+      }
       const foundQuick = quickItems.find((q) => q.id === weightModalProduct.id || q.name === weightModalProduct.name);
       const linkedQuickProd = foundQuick?.productId ? catalogProducts.find((p) => p.id === foundQuick.productId) : null;
       const productToAdd: Product = {
@@ -2083,6 +2214,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     handleConfirmOpenPrice,
   } = usePosCatalog({
     catalogProducts,
+    remoteProducts: remoteCatalog.products,
+    remoteKey: remoteCatalog.key,
+    isCatalogTruncated: isCatalogLimited,
+    resolveProductsByIds: lookupProductsByIds,
     quickItems,
     categories,
     addProductToCart,
@@ -2094,8 +2229,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   });
 
   // Dynamic Category Product Counts & Unified Store Categories
+  // A bounded load cannot count a section: the panel then shows the host's own per-section count
   const categoryProductCounts = useMemo<Record<string, number>>(() => {
     const counts: Record<string, number> = {};
+    if (isCatalogLimited) return counts;
     for (const item of smartItems) {
       const cName = item.categoryName?.trim() || 'عام';
       counts[cName] = (counts[cName] || 0) + 1;
@@ -2104,7 +2241,36 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }
     }
     return counts;
-  }, [smartItems]);
+  }, [smartItems, isCatalogLimited]);
+
+  // Large catalogue: a search or an opened section is answered by the host (debounced); the loaded best sellers answer the rest
+  useEffect(() => {
+    const request = describeRemoteCatalogRequest(isCatalogLimited, activeCatalogTab, catalogSearchQuery, categories);
+    if (!request) {
+      setRemoteCatalog((prev) => (prev.key === '' ? prev : { key: '', products: [], limited: false }));
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await invoke<unknown>('products:search', {
+          query: request.query,
+          categoryId: request.categoryId,
+          limit: request.limit,
+          includeCounts: false,
+        });
+        if (cancelled) return;
+        const products = extractProducts(res);
+        setRemoteCatalog({ key: request.key, products, limited: products.length >= request.limit });
+      } catch {
+        // The loaded best sellers stay usable; the cashier can still search by name or scan
+      }
+    }, request.query ? LIVE_SEARCH_DEBOUNCE_MS : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isCatalogLimited, activeCatalogTab, catalogSearchQuery, categories]);
 
   const allPosCategories = useMemo<Category[]>(() => {
     const list = [...categories];
@@ -2291,12 +2457,16 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         newUnitPrice = selectedBatch.sellPricePiasters * factor;
       }
 
-      item.batchId = selectedBatch.id;
-      item.batchNumber = selectedBatch.batchNumber;
-      item.expiryDate = selectedBatch.expiryDate || undefined;
-      item.unitPricePiasters = newUnitPrice;
-      item.totalPiasters = calculateLineTotal(newUnitPrice, item.quantityMilli, item.discountPiasters);
-      item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+      const lineTotal = calculateLineTotal(newUnitPrice, item.quantityMilli, item.discountPiasters);
+      updated[cartIndex] = {
+        ...item,
+        batchId: selectedBatch.id,
+        batchNumber: selectedBatch.batchNumber,
+        expiryDate: selectedBatch.expiryDate || undefined,
+        unitPricePiasters: newUnitPrice,
+        totalPiasters: lineTotal,
+        taxPiasters: calculateTaxPiasters(lineTotal, item.taxRatePercent || 0, true),
+      };
       return updated;
     });
 
@@ -2842,7 +3012,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
               }
             }}
             onDiscardDraft={() => {
-              localStorage.removeItem('rafiq_pos_cart_draft');
+              clearPosCartDraft();
               setDraftPrompt(null);
             }}
             statusMessage={statusMessage}
@@ -2973,11 +3143,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             }
             activeInsuranceClaim={activeInsuranceClaim}
             isCartEmpty={cart.length === 0}
-            totalCatalogProductsCount={catalogProducts.length}
+            totalCatalogProductsCount={isCatalogLimited ? catalogTotalCount : catalogProducts.length}
             categories={allPosCategories}
             onAfterToggle={() => barcodeInputRef.current?.focus()}
             expandSignal={catalogExpandSignal}
             onCollapse={() => setCategoriesCollapseSignal((n) => n + 1)}
+            resultsLimitedHint={isCatalogLimited && remoteCatalog.limited && remoteCatalog.key !== '' && remoteCatalog.key === remoteCatalogKey(activeCatalogTab, catalogSearchQuery)}
           />
         )}
 
@@ -2987,7 +3158,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             categories={allPosCategories}
             activeCatalogTab={activeCatalogTab}
             onSelectCategory={setActiveCatalogTab}
-            totalProductsCount={smartItems.length}
+            totalProductsCount={isCatalogLimited ? catalogTotalCount : smartItems.length}
             popularItemsCount={popularItemsCount}
             isPopularFallback={isPopularFallback}
             customItemsCount={customItemsCount}

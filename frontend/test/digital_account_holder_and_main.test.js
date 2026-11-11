@@ -94,7 +94,8 @@ describe('host registration of wallets:setDefaultAccount', () => {
   it('reuses wallets.accounts_manage and is registered as a mutation', () => {
     assert.match(dispatcher, /\{ "wallets:setDefaultAccount", "wallets\.accounts_manage" \}/);
     assert.match(dispatcher, /request\.Action == "wallets:setDefaultAccount"/);
-    assert.match(dispatcher, /action == "wallets:setDefaultAccount"/);
+    // The license gate is deny-by-default: setDefaultAccount is not a read verb and is not on the expired-license allowlist
+    assert.doesNotMatch(dispatcher, /LICENSE_EXPIRED_ALLOWED_ACTIONS[\s\S]{0,4000}"wallets:setDefaultAccount"/);
   });
 
   it('is owned by the wallets feature on both sides and invalidates the wallets cache', () => {

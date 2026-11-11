@@ -51,10 +51,150 @@ namespace RafiqPOS.Services
         public string SafetyBackupFile { get; set; }
     }
 
+    public enum DatabaseFailureKind
+    {
+        Unknown = 0,
+        Corrupt = 1,
+        DiskFull = 2,
+        ReadOnly = 3,
+        IoError = 4,
+        CannotOpen = 5,
+        Busy = 6
+    }
+
+    // Raised at startup for storage problems that are NOT file corruption: restore/quarantine must never be offered for them
+    public class DatabaseStorageException : Exception
+    {
+        public DatabaseFailureKind Kind { get; private set; }
+
+        public DatabaseStorageException(DatabaseFailureKind kind, string message) : base(message)
+        {
+            this.Kind = kind;
+        }
+    }
+
+    // Separates genuine SQLite corruption from disk-full / read-only / I/O / cannot-open / busy conditions
+    public static class DatabaseFailureClassifier
+    {
+        // SQLite primary result codes (the low byte of an extended result code)
+        public const int SQLITE_PERM = 3;
+        public const int SQLITE_BUSY = 5;
+        public const int SQLITE_LOCKED = 6;
+        public const int SQLITE_READONLY = 8;
+        public const int SQLITE_IOERR = 10;
+        public const int SQLITE_CORRUPT = 11;
+        public const int SQLITE_FULL = 13;
+        public const int SQLITE_CANTOPEN = 14;
+        public const int SQLITE_NOTADB = 26;
+
+        public static DatabaseFailureKind ClassifyResultCode(int resultCode)
+        {
+            switch (resultCode & 0xFF)
+            {
+                case SQLITE_CORRUPT:
+                case SQLITE_NOTADB:
+                    return DatabaseFailureKind.Corrupt;
+                case SQLITE_FULL:
+                    return DatabaseFailureKind.DiskFull;
+                case SQLITE_READONLY:
+                    return DatabaseFailureKind.ReadOnly;
+                case SQLITE_IOERR:
+                    return DatabaseFailureKind.IoError;
+                case SQLITE_CANTOPEN:
+                case SQLITE_PERM:
+                    return DatabaseFailureKind.CannotOpen;
+                case SQLITE_BUSY:
+                case SQLITE_LOCKED:
+                    return DatabaseFailureKind.Busy;
+                default:
+                    return DatabaseFailureKind.Unknown;
+            }
+        }
+
+        public static DatabaseFailureKind Classify(Exception ex)
+        {
+            if (ex == null) return DatabaseFailureKind.Unknown;
+
+            System.Data.SQLite.SQLiteException sqlEx = ex as System.Data.SQLite.SQLiteException;
+            if (sqlEx != null)
+            {
+                DatabaseFailureKind kind = ClassifyResultCode((int)sqlEx.ResultCode);
+                if (kind != DatabaseFailureKind.Unknown) return kind;
+
+                // Generic "SQL logic error" results still carry the engine text for a damaged file
+                string text = sqlEx.Message ?? "";
+                if (text.IndexOf("malformed", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    text.IndexOf("not a database", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return DatabaseFailureKind.Corrupt;
+                }
+                if (text.IndexOf("busy", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    text.IndexOf("locked", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return DatabaseFailureKind.Busy;
+                }
+                return DatabaseFailureKind.Unknown;
+            }
+
+            if (ex is UnauthorizedAccessException)
+            {
+                return DatabaseFailureKind.ReadOnly;
+            }
+
+            if (ex is IOException)
+            {
+                // Win32 ERROR_HANDLE_DISK_FULL (39) / ERROR_DISK_FULL (112); ERROR_SHARING_VIOLATION (32) / ERROR_LOCK_VIOLATION (33)
+                int win32 = ex.HResult & 0xFFFF;
+                if (win32 == 39 || win32 == 112) return DatabaseFailureKind.DiskFull;
+                if (win32 == 32 || win32 == 33) return DatabaseFailureKind.Busy;
+                return DatabaseFailureKind.CannotOpen;
+            }
+
+            return DatabaseFailureKind.Unknown;
+        }
+
+        public static string DescribeArabic(DatabaseFailureKind kind)
+        {
+            switch (kind)
+            {
+                case DatabaseFailureKind.DiskFull:
+                    return "مساحة القرص ممتلئة ولا يمكن حفظ البيانات. احذف ملفات غير ضرورية أو انقل النسخ الاحتياطية القديمة إلى قرص آخر لتحرير مساحة ثم أعد المحاولة.";
+                case DatabaseFailureKind.ReadOnly:
+                    return "ملف قاعدة البيانات أو مجلد البيانات للقراءة فقط ولا يمكن الكتابة فيه. تحقق من صلاحيات المجلد ومن أن القرص أو الفلاشة غير مقفلة للقراءة فقط.";
+                case DatabaseFailureKind.IoError:
+                    return "حدث خطأ أثناء قراءة أو كتابة القرص. تحقق من سلامة القرص وتوصيله ثم أعد المحاولة، ولا تحذف ملف قاعدة البيانات.";
+                case DatabaseFailureKind.CannotOpen:
+                    return "تعذر فتح ملف قاعدة البيانات. تحقق من وجود مجلد البيانات وصلاحيات الوصول إليه ومن أن برنامج الحماية لا يمنعه.";
+                case DatabaseFailureKind.Busy:
+                    return "قاعدة البيانات مشغولة بعملية أخرى حالياً. يرجى المحاولة بعد لحظات.";
+                case DatabaseFailureKind.Corrupt:
+                    return "ملف قاعدة البيانات تالف أو غير متسق.";
+                default:
+                    return "تعذر تنفيذ العملية على قاعدة البيانات.";
+            }
+        }
+
+        // Short IPC error code for each kind (Unknown/Corrupt keep the generic handler)
+        public static string IpcCode(DatabaseFailureKind kind)
+        {
+            switch (kind)
+            {
+                case DatabaseFailureKind.DiskFull: return "DISK_FULL";
+                case DatabaseFailureKind.ReadOnly: return "DATABASE_READONLY";
+                case DatabaseFailureKind.IoError: return "DISK_IO_ERROR";
+                case DatabaseFailureKind.CannotOpen: return "DATABASE_CANNOT_OPEN";
+                case DatabaseFailureKind.Busy: return "DATABASE_BUSY";
+                default: return null;
+            }
+        }
+    }
+
     public class DatabaseIntegrityStatus
     {
         public bool IsValid { get; set; }
         public bool IsCorrupt { get; set; }
+        // Set when startup failed for a storage reason that is not corruption (disk full, read-only, I/O, cannot open)
+        public DatabaseFailureKind StorageFailure { get; set; }
         public string Message { get; set; }
         public string CorruptBackupSavedPath { get; set; }
         public string LatestValidBackupFile { get; set; }
@@ -68,6 +208,8 @@ namespace RafiqPOS.Services
         private static string _connectionString;
         private static string _baseFolder;
         private static bool _backgroundChecksRequested;
+        // True once startup finished the integrity check; until then a leftover session marker still describes the previous (maybe unclean) run
+        private static bool _integrityCheckCompleted;
 
         public static string ConnectionString
         {
@@ -190,6 +332,7 @@ namespace RafiqPOS.Services
                 #endif
             }
 
+            _integrityCheckCompleted = false;
             _baseFolder = baseFolder;
             string dataFolder = Path.Combine(baseFolder, "data");
             if (!Directory.Exists(dataFolder))
@@ -202,19 +345,22 @@ namespace RafiqPOS.Services
             Encryption = new EncryptionService();
 
             _dbPath = Path.Combine(dataFolder, "rafiq_pos.db");
-            _connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;Foreign Keys=True;Journal Mode=Wal;Synchronous=Normal;CacheSize=4000;", _dbPath);
+            _connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;Foreign Keys=True;Journal Mode=Wal;Synchronous=Full;CacheSize=4000;", _dbPath);
 
             // Fast Startup Integrity Check (Feature #124 / Task 124-1)
             // PRAGMA quick_check reads the whole file (slow on big stores), so it runs only after an unclean shutdown,
             // when a WAL file was left behind, or once a week; otherwise a fast open + schema read still detects a damaged header/schema.
             bool fullCheck = ShouldRunFullIntegrityCheck(dataFolder, _dbPath);
             IntegrityStatus = CheckDatabaseIntegrityInternal(_connectionString, _dbPath, fullCheck);
+            _integrityCheckCompleted = true;
             MarkSessionOpen(dataFolder);
             if (IntegrityStatus.IsCorrupt)
             {
                 Logger.Error("تم اكتشاف تلف في ملف قاعدة البيانات عند بدء التشغيل! تم إيقاف عمليات الكتابة: " + IntegrityStatus.Message, null);
                 return; // Block migrations and repo init until recovery is performed
             }
+            // Busy, disk full, read-only, I/O, cannot open and unknown errors are not corruption: fail with a precise message, never offer restore
+            ThrowIfStartupBlocked(IntegrityStatus);
 
             // Execute safe migrations (Feature #1 & #4)
             MigrationRunner.ApplyMigrations(_connectionString, _dbPath);
@@ -252,7 +398,7 @@ namespace RafiqPOS.Services
             Reports = new ReportsService(_connectionString);
             Audit = new AuditLogService(AuditRepo);
             Support = new SupportService(_connectionString, _dbPath);
-            Benchmark = new BenchmarkService(_connectionString);
+            Benchmark = new BenchmarkService();
             Backup = new BackupService(_connectionString, _dbPath, SettingsRepo, AuditRepo, Encryption);
             Excel = new ExcelService();
             Printer = new PrinterService(Settings);
@@ -424,6 +570,8 @@ namespace RafiqPOS.Services
             try
             {
                 if (string.IsNullOrEmpty(_dbPath)) return;
+                // Startup failed before the integrity check finished: the previous run's marker must stay so the next start checks fully
+                if (!_integrityCheckCompleted) return;
                 // Close pooled connections so SQLite checkpoints and removes the WAL; a WAL left at the next startup then
                 // reliably means an unclean shutdown (and triggers the full integrity check)
                 System.Data.SQLite.SQLiteConnection.ClearAllPools();
@@ -488,6 +636,40 @@ namespace RafiqPOS.Services
             }
         }
 
+        // Only genuine corruption (SQLITE_CORRUPT / SQLITE_NOTADB) may trigger quarantine and the restore flow
+        public static void ApplyIntegrityFailure(DatabaseIntegrityStatus status, Exception ex)
+        {
+            DatabaseFailureKind failure = DatabaseFailureClassifier.Classify(ex);
+            status.IsValid = false;
+            if (failure == DatabaseFailureKind.Corrupt)
+            {
+                status.IsCorrupt = true;
+                status.Message = ex.Message;
+                return;
+            }
+
+            status.IsCorrupt = false;
+            status.StorageFailure = failure;
+            if (failure == DatabaseFailureKind.Busy)
+            {
+                status.Message = "ملف قاعدة البيانات مقفل مؤقتاً بواسطة برنامج آخر أو قيد الفحص: " + ex.Message;
+            }
+            else
+            {
+                status.Message = DatabaseFailureClassifier.DescribeArabic(failure) + "\n\n" + ex.Message;
+            }
+            Logger.Error("فشل فحص قاعدة البيانات عند بدء التشغيل لسبب ليس تلفاً في الملف (" + failure + ")", ex);
+        }
+
+        // An integrity result that is neither valid nor corrupt (busy, disk, permission, unknown) is a startup failure with its own message
+        public static void ThrowIfStartupBlocked(DatabaseIntegrityStatus status)
+        {
+            if (status != null && !status.IsValid && !status.IsCorrupt)
+            {
+                throw new DatabaseStorageException(status.StorageFailure, status.Message);
+            }
+        }
+
         private static DatabaseIntegrityStatus CheckAndQuarantine(string connStr, string dbPath, string walSnapshot, DatabaseIntegrityStatus status, bool fullCheck)
         {
             try
@@ -523,18 +705,7 @@ namespace RafiqPOS.Services
             }
             catch (Exception ex)
             {
-                bool isLock = ex is IOException || (ex is System.Data.SQLite.SQLiteException && (ex.Message.IndexOf("busy", StringComparison.OrdinalIgnoreCase) >= 0 || ex.Message.IndexOf("locked", StringComparison.OrdinalIgnoreCase) >= 0));
-                status.IsValid = false;
-                if (isLock)
-                {
-                    status.IsCorrupt = false;
-                    status.Message = "ملف قاعدة البيانات مقفل مؤقتاً بواسطة برنامج آخر أو قيد الفحص: " + ex.Message;
-                }
-                else
-                {
-                    status.IsCorrupt = true;
-                    status.Message = ex.Message;
-                }
+                ApplyIntegrityFailure(status, ex);
             }
 
             // If corrupt, isolate and quarantine file without deleting it (Task 124-2)
