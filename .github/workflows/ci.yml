@@ -134,9 +134,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - shard: '1/2'
+        - shard: '1-of-2'
           filter: 'class =~ S[0-4]'
-        - shard: '2/2'
+        - shard: '2-of-2'
           filter: 'class !~ S[0-4]'
     env:
       TEST_RESULTS_DIR: ${{ github.workspace }}\test-results
