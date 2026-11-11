@@ -62,10 +62,28 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
       } else {
         setError(res?.message || 'الرقم السري للمدير غير صحيح');
         setPin('');
+        setTimeout(() => {
+          inputRef.current?.focus();
+          inputRef.current?.select?.();
+        }, 50);
+        setTimeout(() => {
+          if (inputRef.current && document.activeElement !== inputRef.current) {
+            inputRef.current.focus();
+          }
+        }, 150);
       }
     } catch (err: any) {
       setError(err?.message || 'الرقم السري لمدير النظام غير صحيح');
       setPin('');
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select?.();
+      }, 50);
+      setTimeout(() => {
+        if (inputRef.current && document.activeElement !== inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 150);
     } finally {
       setLoading(false);
     }
