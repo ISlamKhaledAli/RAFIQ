@@ -273,7 +273,8 @@ namespace RafiqPOS.Services
             Purchases = new PurchaseService(PurchaseRepo);
 
             DailyClosingRepo = new DailyClosingRepository(_connectionString);
-            DailyClosing = new DailyClosingService(_connectionString, DailyClosingRepo, CounterRepo, AuditRepo, SettingsRepo);
+            ShiftRepo = new ShiftRepository(_connectionString);
+            DailyClosing = new DailyClosingService(_connectionString, DailyClosingRepo, CounterRepo, AuditRepo, SettingsRepo, ShiftRepo);
             Returns = new ReturnService(ReturnRepo, SaleRepo, DailyClosing);
             ExpenseRepo = new ExpenseRepository(_connectionString);
             Expenses = new ExpenseService(ExpenseRepo, DailyClosing);
@@ -282,7 +283,6 @@ namespace RafiqPOS.Services
             BarcodeLabels = new BarcodeLabelService(Settings, Printer);
             DigitalAccounts = new DigitalAccountRepository(_connectionString, AuditRepo);
 
-            ShiftRepo = new ShiftRepository(_connectionString);
             Shifts = new ShiftService(_connectionString, ShiftRepo, CounterRepo, AuditRepo, DailyClosing);
             CashDrawer = new CashDrawerService(_connectionString, ShiftRepo, Shifts, AuditRepo);
 

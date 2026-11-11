@@ -89,6 +89,7 @@ namespace RafiqPOS.Bridge
                 request.Action == "products:bulkDelete" ||
                 request.Action == "products:clearAll" ||
                 request.Action == "products:bulkUpdateMinStock" ||
+                request.Action == "products:bulkUpdateTaxRate" ||
                 request.Action == "products:applyBulkPriceAdjustment" ||
                 request.Action == "products:revertBulkPriceAdjustment" ||
                 request.Action == "products:importBatch" ||
@@ -326,6 +327,8 @@ namespace RafiqPOS.Bridge
             { "products:bulkDelete", "products.archive" },
             { "products:clearAll", "products.clear_all" },
             { "products:bulkUpdateMinStock", "products.edit" },
+            { "products:bulkUpdateTaxRate", "products.edit" },
+            { "products:getUntaxedCount", "products.view" },
             { "products:importBatch", "products.import" },
             { "products:previewBulkPriceAdjustment", "products.edit_price" },
             { "products:applyBulkPriceAdjustment", "products.edit_price" },

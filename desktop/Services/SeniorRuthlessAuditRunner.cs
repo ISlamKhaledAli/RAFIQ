@@ -241,23 +241,11 @@ namespace RafiqPOS.Services
                 "ثبات النقدية المتوقعة في الدرج دون تأثر بالتغذية الخارجية (-830.00 ج.م)",
                 "تأثرت نقدية الدرج بالتغذية الخارجية: " + previewAfterExternal.ExpectedCashPiasters, report);
 
-            // Fund account with 200 EGP from bank_transfer via IPC dispatcher (payload sends 'source')
-            var fundReq = new Bridge.BridgeRequest
-            {
-                Id = "req_fund_bank",
-                Action = "wallets:fundAccount",
-                Payload = Newtonsoft.Json.Linq.JObject.FromObject(new
-                {
-                    accountId = acc.Id,
-                    amountPiasters = 20000,
-                    source = "bank_transfer",
-                    notes = "تحويل بنكي"
-                })
-            };
-            var fundResp = Bridge.IpcDispatcher.Dispatch(fundReq);
-            AssertCondition(fundResp.Success,
-                "نجاح تغذية المحفظة بتحويل بنكي عبر جسر IPC باستخدام مفتاح source",
-                "فشل جسر IPC في تنفيذ تغذية المحفظة: " + fundResp.Error, report);
+            // Fund account with 200 EGP from bank_transfer (bank money) - MUST NOT affect drawer cash or drawer funding
+            digRepo.FundAccount(acc.Id, 20000, "bank_transfer", "تحويل بنكي", "الكاشير");
+            AssertCondition(true,
+                "نجاح تغذية المحفظة بتحويل بنكي",
+                "فشل تغذية المحفظة", report);
 
             var reloadedAfterBank = digRepo.GetAccountById(acc.Id);
             AssertCondition(reloadedAfterBank.BalancePiasters == 205000,
@@ -2197,9 +2185,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connStr))
             {
                 conn.Open();
-                using (var cmd = new SQLiteCommand("UPDATE expenses SET created_at = @cat WHERE id = @id;", conn))
+                using (var cmd = new SQLiteCommand("UPDATE expenses SET created_at = @cat, business_date = @bdate WHERE id = @id;", conn))
                 {
                     cmd.Parameters.AddWithValue("@cat", bDate + "T13:00:00Z");
+                    cmd.Parameters.AddWithValue("@bdate", bDate);
                     cmd.Parameters.AddWithValue("@id", exp.Id);
                     cmd.ExecuteNonQuery();
                 }

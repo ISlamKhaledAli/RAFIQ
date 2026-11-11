@@ -316,6 +316,24 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, savedClosing);
                     return true;
 
+                case "closing:autoCloseShifts":
+                    string autoBDate = null;
+                    string autoNotes = null;
+                    JObject autoObj = request.Payload as JObject;
+                    if (autoObj != null)
+                    {
+                        if (autoObj["businessDate"] != null) autoBDate = autoObj["businessDate"].ToString();
+                        if (autoObj["notes"] != null) autoNotes = autoObj["notes"].ToString();
+                    }
+                    var autoCloseResult = DatabaseService.DailyClosing.AutoClosePendingShifts(
+                        autoBDate,
+                        SessionActorId(),
+                        SessionActorName(),
+                        autoNotes
+                    );
+                    response = BridgeResponse.Ok(request.Id, autoCloseResult);
+                    return true;
+
                 case "closing:getHistory":
                     int histLimit = 30;
                     string histDateFrom = null;

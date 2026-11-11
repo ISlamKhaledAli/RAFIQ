@@ -854,6 +854,7 @@ export interface DailyClosingPreview {
   postClosingSalesCount?: number;
   postClosingSalesPiasters?: number;
   openShiftsCount?: number;
+  openShifts?: Shift[];
   isDateSuspicious: boolean;
   dateSuspiciousReason?: string | null;
   epayTerminalsSummary?: DailyClosingEpayTerminalSummary[];
@@ -954,6 +955,14 @@ export interface DailyClosingSaveRequest {
   cashierName?: string;
   notes?: string;
   confirmSuspiciousDate?: boolean;
+  autoClosePendingShifts?: boolean;
+}
+
+export interface AutoCloseShiftsResult {
+  closedCount: number;
+  totalExpectedCashPiasters: number;
+  closedShiftNumbers: number[];
+  message: string;
 }
 
 export interface UnclosedDayAlert {

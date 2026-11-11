@@ -57,6 +57,36 @@ namespace RafiqPOS.Repositories
             return null;
         }
 
+        public List<Shift> GetOpenShifts(string businessDate = null)
+        {
+            var list = new List<Shift>();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT * FROM shifts WHERE status = 'open' ";
+                if (!string.IsNullOrEmpty(businessDate))
+                {
+                    sql += "AND business_date <= @bdate ";
+                }
+                sql += "ORDER BY opened_at ASC;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    if (!string.IsNullOrEmpty(businessDate))
+                    {
+                        cmd.Parameters.AddWithValue("@bdate", businessDate);
+                    }
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            list.Add(MapShift(reader));
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+
         public Shift GetById(string shiftId)
         {
             if (string.IsNullOrEmpty(shiftId)) return null;

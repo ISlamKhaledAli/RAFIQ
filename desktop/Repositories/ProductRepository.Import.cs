@@ -45,6 +45,50 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        public int BulkUpdateTaxRate(int taxRatePercent, bool onlyZeroOrNull)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        string sql = onlyZeroOrNull
+                            ? "UPDATE products SET tax_rate_percent = @rate, updated_at = @now WHERE (tax_rate_percent IS NULL OR tax_rate_percent = 0) AND is_active = 1;"
+                            : "UPDATE products SET tax_rate_percent = @rate, updated_at = @now WHERE is_active = 1;";
+
+                        using (var cmd = new SQLiteCommand(sql, conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@rate", taxRatePercent);
+                            cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                            int affected = cmd.ExecuteNonQuery();
+                            trans.Commit();
+                            return affected;
+                        }
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+        }
+
+        public int GetUntaxedProductCount()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE (tax_rate_percent IS NULL OR tax_rate_percent = 0) AND is_active = 1;", conn))
+                {
+                    object res = cmd.ExecuteScalar();
+                    return res != null && res != DBNull.Value ? Convert.ToInt32(res) : 0;
+                }
+            }
+        }
+
         public BatchImportResult ImportBatchAtomic(List<BatchImportItem> items, string duplicateStrategy, string userId = "usr_admin_default")
         {
             return ImportBatchAtomic(items, duplicateStrategy, userId, true);

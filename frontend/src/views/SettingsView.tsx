@@ -72,6 +72,8 @@ const SettingsViewContent = ({
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState(true);
   const [vatEnabled, setVatEnabled] = useState(false);
+  const [defaultTaxRatePercent, setDefaultTaxRatePercent] = useState(14);
+  const [taxInclusive, setTaxInclusive] = useState(true);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
 
   // Which screen just saved (drives the "saved" confirmation on that screen only)
@@ -202,6 +204,13 @@ const SettingsViewContent = ({
           } else if (settings.tax_enabled !== undefined) {
             setVatEnabled(settings.tax_enabled === '1' || settings.tax_enabled.toLowerCase() === 'true');
           }
+          if (settings.default_tax_rate_percent !== undefined) {
+            const parsedRate = parseInt(settings.default_tax_rate_percent, 10);
+            if (!isNaN(parsedRate) && parsedRate >= 0) setDefaultTaxRatePercent(parsedRate);
+          }
+          if (settings.tax_inclusive !== undefined) {
+            setTaxInclusive(settings.tax_inclusive !== '0');
+          }
           if (settings.default_customer_credit_limit_egp) {
             const lim = Number(settings.default_customer_credit_limit_egp);
             if (!isNaN(lim) && lim >= 0) {
@@ -290,6 +299,8 @@ const SettingsViewContent = ({
         default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
         feature_taxes: vatEnabled ? '1' : '0',
         tax_enabled: vatEnabled ? '1' : '0',
+        default_tax_rate_percent: String(defaultTaxRatePercent),
+        tax_inclusive: taxInclusive ? '1' : '0',
       });
       setSavedCreditLimitEgp(defaultCustomerCreditLimitEgp);
       setSavedTab('policies');
@@ -366,6 +377,26 @@ const SettingsViewContent = ({
       { feature_taxes: newVal ? '1' : '0', tax_enabled: newVal ? '1' : '0' },
       () => setVatEnabled(!newVal),
       'تفعيل ضريبة القيمة المضافة'
+    );
+  };
+
+  const handleChangeDefaultTaxRate = async (newRate: number) => {
+    const prev = defaultTaxRatePercent;
+    setDefaultTaxRatePercent(newRate);
+    await autoSaveSetting(
+      { default_tax_rate_percent: String(newRate) },
+      () => setDefaultTaxRatePercent(prev),
+      'نسبة الضريبة الافتراضية'
+    );
+  };
+
+  const handleChangeTaxInclusive = async (newInclusive: boolean) => {
+    const prev = taxInclusive;
+    setTaxInclusive(newInclusive);
+    await autoSaveSetting(
+      { tax_inclusive: newInclusive ? '1' : '0', prices_include_tax: newInclusive ? '1' : '0' },
+      () => setTaxInclusive(prev),
+      'طريقة احتساب الضريبة'
     );
   };
 
@@ -596,6 +627,10 @@ const SettingsViewContent = ({
           creditLimitDirty={policiesUnsaved}
           vatEnabled={vatEnabled}
           onToggleVat={handleToggleVat}
+          defaultTaxRatePercent={defaultTaxRatePercent}
+          onChangeDefaultTaxRate={handleChangeDefaultTaxRate}
+          taxInclusive={taxInclusive}
+          onChangeTaxInclusive={handleChangeTaxInclusive}
           taxNumber={taxNumber}
           onChangeTaxNumber={setTaxNumber}
           onBlurTaxNumber={handleBlurTaxNumber}

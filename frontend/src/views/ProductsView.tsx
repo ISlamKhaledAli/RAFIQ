@@ -217,14 +217,34 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     }
   });
 
+  const [defaultTaxRate, setDefaultTaxRate] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem('rafiq_pos_default_tax_rate');
+      return stored ? parseInt(stored, 10) || 14 : 14;
+    } catch {
+      return 14;
+    }
+  });
+
   useEffect(() => {
     void invoke<Record<string, string>>('settings:getAll')
       .then((settings) => {
-        if (settings && settings.store_type) {
-          setStoreType(settings.store_type);
-          try {
-            localStorage.setItem('rafiq_store_type', settings.store_type);
-          } catch {}
+        if (settings) {
+          if (settings.store_type) {
+            setStoreType(settings.store_type);
+            try {
+              localStorage.setItem('rafiq_store_type', settings.store_type);
+            } catch {}
+          }
+          if (settings.default_tax_rate_percent) {
+            const parsedRate = parseInt(settings.default_tax_rate_percent, 10);
+            if (!isNaN(parsedRate) && parsedRate >= 0) {
+              setDefaultTaxRate(parsedRate);
+              try {
+                localStorage.setItem('rafiq_pos_default_tax_rate', String(parsedRate));
+              } catch {}
+            }
+          }
         }
       })
       .catch(() => {});
@@ -940,7 +960,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setStockInput('0');
     setStockAdjustReason('');
     setMinStockInput('0');
-    setTaxRatePercent(0);
+    setTaxRatePercent(isEnabled('feature_taxes') ? defaultTaxRate : 0);
     setVariantSize('');
     setVariantColor('');
     setInitialExpiryDate('');
