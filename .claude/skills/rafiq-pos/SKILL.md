@@ -13,7 +13,7 @@ Any AI agent or developer modifying the codebase must adhere strictly to these r
 ## 1. Core Technical Constraints
 - **Target OS:** Offline desktop supporting **Windows 7 SP1 (32-bit & 64-bit)** up to **Windows 11**.
 - **C# / .NET Host:** Strictly **.NET Framework 4.8 (`net48`)** using **C# 5.0 syntax**. Never use C# 6+ features (`=>` expression-bodied members, `nameof(...)`, or pattern matching `is Type var`).
-- **Database Engine:** SQLite in **WAL (Write-Ahead Logging)** mode via `Stub.System.Data.SQLite.Core.NetFramework`.
+- **Database Engine:** SQLite in **WAL (Write-Ahead Logging)** mode via `Microsoft.Data.Sqlite.Core` + SQLite3 Multiple Ciphers (`sqlite3mc.dll`, x86) behind the `RafiqPOS.Data` compatibility layer (`desktop/Data/`, same type names as the former System.Data.SQLite API).
 - **Frontend Target:** Vite targeting `chrome109` / `es2020` with Tailwind CSS v3.4 (never v4).
 - **Zero Emojis Policy:** Emojis are strictly prohibited anywhere (UI, receipts, toasts, Excel, logs). Use SVG icons exclusively (`lucide-react`).
 

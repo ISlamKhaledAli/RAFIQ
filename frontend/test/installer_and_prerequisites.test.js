@@ -84,4 +84,21 @@ describe('Story 56 & 57: Installer & Prerequisites Verification (Features #12 & 
     assert.ok(win7Doc.includes('KB4474419'), 'Doc must reference SHA-2 update KB4474419');
     assert.ok(win7Doc.includes('KB4490628'), 'Doc must reference Servicing Stack update KB4490628');
   });
+  it('P4-M4: the install folder is locked down and must be under Program Files', () => {
+    const iss = fs.readFileSync(issPath, 'utf8');
+    assert.ok(/icacls[^\n]*\{app\}[^\n]*\/inheritance:r/.test(iss), 'the {app} folder must have inheritance removed (Users cannot write next to the exe and native DLL)');
+    assert.ok(iss.includes('*S-1-5-18:(OI)(CI)F') && iss.includes('*S-1-5-32-544:(OI)(CI)F'), 'SYSTEM and Administrators get full control');
+    assert.ok(iss.includes('*S-1-5-32-545:(OI)(CI)RX /C /L /Q"; Flags: runhidden waituntilterminated; StatusMsg: "{cm:SecuringPermissions}"; Check: ShouldLockAppDir'), 'Users only get read-execute on {app}, and only when ShouldLockAppDir allows it');
+    assert.ok(iss.includes('function IsUnderProgramFiles'), 'the chosen folder is validated');
+    assert.ok(iss.includes('function NextButtonClick'), 'validation runs on the folder page');
+    assert.ok(iss.includes('InstallDirNotProgramFiles'), 'an Arabic/English error message exists for a folder outside Program Files');
+    // final review round: upgrades over an existing install are never blocked, fresh installs must be strictly inside Program Files
+    assert.ok(/DisableDirPage=no/.test(iss), 'the directory page stays available so a fresh install can pick a valid folder');
+    assert.ok(iss.includes('function IsExistingRafiqInstall') && iss.includes("'unins000.dat'"), 'an existing installation (unins000.dat / exe in a RafiqPOS folder) is recognised');
+    assert.ok(/Length\(D\) > Length\(Pf\)/.test(iss), 'Program Files itself is not an acceptable install folder');
+    assert.ok(iss.includes('function ShouldLockAppDir') && iss.includes('function IsDirMissingOrEmpty'), 'the DACL of a folder that belongs to another program is never rewritten');
+    assert.ok(iss.includes('ExistingInstallOutsidePf') && /SuppressibleMsgBox\(CustomMessage\('ExistingInstallOutsidePf'\)/.test(iss), 'one suppressible advice box for an existing install outside Program Files');
+    const prep = iss.slice(iss.indexOf('function PrepareToInstall'));
+    assert.ok(prep.includes("ExpandConstant('{app}')") && !prep.slice(0, prep.indexOf('#ifndef Slim')).includes('WizardDirValue'), 'PrepareToInstall validates {app}, not WizardDirValue');
+  });
 });

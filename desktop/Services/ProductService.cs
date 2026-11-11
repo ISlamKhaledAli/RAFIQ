@@ -249,7 +249,7 @@ namespace RafiqPOS.Services
                     product.Id = Guid.NewGuid().ToString();
                 }
 
-                Action<System.Data.SQLite.SQLiteConnection, System.Data.SQLite.SQLiteTransaction> stockLedgerStep = null;
+                Action<RafiqPOS.Data.SQLiteConnection, RafiqPOS.Data.SQLiteTransaction> stockLedgerStep = null;
                 string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
 
                 if (existing != null)
@@ -288,7 +288,7 @@ namespace RafiqPOS.Services
                             || (reason != null && reason.IndexOf("منظومة التعبئة", StringComparison.OrdinalIgnoreCase) >= 0)
                             || (reason != null && reason.IndexOf("UNIT_REBASE", StringComparison.OrdinalIgnoreCase) >= 0);
                         string referenceType = isUnitRebase ? "UNIT_REBASE" : "PRODUCT_CARD_EDIT";
-                        stockLedgerStep = delegate(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans)
+                        stockLedgerStep = delegate(RafiqPOS.Data.SQLiteConnection conn, RafiqPOS.Data.SQLiteTransaction trans)
                         {
                             inventory.AdjustStockInTransaction(conn, trans, productId, requestedStockMilli, reason, actorId, null, referenceType);
                         };
@@ -314,7 +314,7 @@ namespace RafiqPOS.Services
                         CreatedAt = DateTime.UtcNow.ToString("o")
                     };
                     StockMovementRepository movementRepo = _movementRepo ?? new StockMovementRepository(_repo.ConnectionString);
-                    stockLedgerStep = delegate(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans)
+                    stockLedgerStep = delegate(RafiqPOS.Data.SQLiteConnection conn, RafiqPOS.Data.SQLiteTransaction trans)
                     {
                         movementRepo.Add(initial, conn, trans);
                     };

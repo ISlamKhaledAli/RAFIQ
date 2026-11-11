@@ -202,9 +202,14 @@ rem ---------------------------------------------------------------------
 echo.
 echo [5/8] Compiling C# Host in Release Mode (x86)...
 rem ---------------------------------------------------------------------
+rem  The NuGet DLLs the build ships must match the SHA-256 pins computed from the exact .nupkg files (installer\prerequisites\NUGET_DLL_SHA256.txt)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%installer\verify_nuget_dlls.ps1" -PackagesDir "%ROOT%desktop\packages"
+if errorlevel 1 goto :err_nuget_pins
 "%RAFIQ_MSBUILD%" "desktop\RafiqPOS.csproj" /p:Configuration=Release /p:Platform=x86 /v:m
 if errorlevel 1 goto :err_msbuild_failed
 if not exist "%RELEASE_DIR%\RafiqPOS.exe" goto :err_msbuild_failed
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%installer\verify_nuget_dlls.ps1" -PackagesDir "%ROOT%desktop\packages" -BinDir "%RELEASE_DIR%"
+if errorlevel 1 goto :err_nuget_pins
 
 rem ---------------------------------------------------------------------
 echo.
@@ -422,6 +427,9 @@ set "ERR_EN=Frontend build failed (npm run build) or frontend\dist\index.html is
 goto :fail
 :err_msbuild_failed
 set "ERR_EN=C# host compilation failed (MSBuild Release x86)."
+goto :fail
+:err_nuget_pins
+set "ERR_EN=A NuGet DLL is missing or does not match installer\prerequisites\NUGET_DLL_SHA256.txt (see the lines above)."
 goto :fail
 :err_dist
 set "ERR_EN=Copying frontend\dist to desktop\bin\Release\dist failed."

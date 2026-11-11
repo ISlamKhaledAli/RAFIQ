@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using System.IO;
 using RafiqPOS.Bridge;
 using RafiqPOS.Common;
@@ -131,14 +131,14 @@ namespace RafiqPOS.Services
                 };
                 productService.SaveProduct(p5);
 
-                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
                     string insertPuSql = @"
                         INSERT INTO product_units (id, product_id, unit_name, conversion_factor, is_base_unit, sell_price_piasters, cost_price_piasters, barcode, is_divisible, sort_order, created_at, updated_at)
                         VALUES ('pu_test_dup', 'p_dup_barcode_5', 'علبة كرتون', 12, 0, 39600, 31200, '622100000001', 0, 1, datetime('now'), datetime('now'));
                     ";
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand(insertPuSql, conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand(insertPuSql, conn))
                     {
                         cmd.ExecuteNonQuery();
                     }
@@ -210,14 +210,14 @@ namespace RafiqPOS.Services
                 productService.SaveProduct(p9);
 
                 // Product 10: Orphan Variant (points to non-existent parent product)
-                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
                     string insertOrphanVariantSql = @"
                         INSERT INTO products (id, barcode, name, category_id, price_piasters, cost_piasters, stock_quantity_milli, unit, is_active, parent_id, created_at, updated_at)
                         VALUES ('p_orphan_var_10', '622100000010', 'قميص قطن رجالي - أحمر XL', @catId, 25000, 18000, 4000, 'piece', 1, 'p_deleted_parent_xyz', datetime('now'), datetime('now'));
                     ";
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand(insertOrphanVariantSql, conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand(insertOrphanVariantSql, conn))
                     {
                         cmd.Parameters.AddWithValue("@catId", dairyCatId);
                         cmd.ExecuteNonQuery();
@@ -228,7 +228,7 @@ namespace RafiqPOS.Services
                         INSERT INTO sales (id, invoice_number, subtotal_piasters, discount_piasters, tax_piasters, total_piasters, paid_piasters, status, payment_method, is_deleted, created_at)
                         VALUES ('s_incomplete_empty_1', 9901, 4500, 0, 0, 4500, 4500, 'completed', 'cash', 0, datetime('now'));
                     ";
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand(insertIncompleteSaleSql, conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand(insertIncompleteSaleSql, conn))
                     {
                         cmd.ExecuteNonQuery();
                     }
@@ -238,7 +238,7 @@ namespace RafiqPOS.Services
                         INSERT INTO held_sales (id, hold_label, customer_id, customer_name, items_count, subtotal_piasters, discount_piasters, total_piasters, cart_json, notes, cashier_id, created_at)
                         VALUES ('h_stale_held_1', 'عميل طاولة 5 قديمة', NULL, NULL, 2, 6000, 0, 6000, '[]', 'معلقة', 'usr_admin', datetime('now', '-36 hours'));
                     ";
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand(insertStaleHeldSql, conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand(insertStaleHeldSql, conn))
                     {
                         cmd.ExecuteNonQuery();
                     }
@@ -252,7 +252,7 @@ namespace RafiqPOS.Services
                         INSERT INTO customer_ledger (id, customer_id, type, amount_piasters, balance_after_piasters, notes, created_at)
                         VALUES ('cl_test_1', 'cust_imbalanced_1', 'sale', 9000, 9000, 'فاتورة آجلة', datetime('now'));
                     ";
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand(insertCustImbalanceSql, conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand(insertCustImbalanceSql, conn))
                     {
                         cmd.ExecuteNonQuery();
                     }
@@ -359,10 +359,10 @@ namespace RafiqPOS.Services
                 Assert(repairResult.ReconciledCustomersCount >= 1, "تمت تسوية حساب العميل ومطابقة رصيده مع كشف الحساب بنجاح", result);
 
                 // Verify customer balance in database is now exactly 9000 piasters (realigned to ledger truth)
-                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT balance_piasters FROM customers WHERE id = 'cust_imbalanced_1';", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT balance_piasters FROM customers WHERE id = 'cust_imbalanced_1';", conn))
                     {
                         long realignedBal = Convert.ToInt64(cmd.ExecuteScalar());
                         Assert(realignedBal == 9000, "رصيد العميل تمت مطابقته وتصحيحه محاسبياً ليتطابق تماماً مع كشف الحساب (9000 قرش)", result);

@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Repositories;

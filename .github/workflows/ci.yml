@@ -114,9 +114,29 @@ jobs:
         nuget restore desktop/RafiqPOS.csproj -PackagesDirectory desktop/packages
         nuget restore desktop/RafiqPOS.Tests/RafiqPOS.Tests.csproj -PackagesDirectory desktop/packages
 
+    - name: Verify NuGet DLL SHA-256 pins
+      shell: powershell
+      run: ./installer/verify_nuget_dlls.ps1 -PackagesDir desktop/packages
+
     - name: Build C# Host (Release x86)
       run: |
         msbuild desktop/RafiqPOS.csproj /p:Configuration=Release /p:Platform=x86 /v:m /m
+
+    # The installer (installer/RafiqPOS_Setup.iss) refuses to build without these; fail here first.
+    - name: Verify Release outputs (SQLite3 Multiple Ciphers engine + provider)
+      run: |
+        $required = @(
+          'desktop/bin/Release/RafiqPOS.exe',
+          'desktop/bin/Release/RafiqPOS.exe.config',
+          'desktop/bin/Release/sqlite3mc.dll',
+          'desktop/bin/Release/Microsoft.Data.Sqlite.dll',
+          'desktop/bin/Release/SQLitePCLRaw.core.dll',
+          'desktop/bin/Release/SQLitePCLRaw.batteries_v2.dll',
+          'desktop/bin/Release/SQLite3MC.PCLRaw.provider.dll'
+        )
+        $missing = @($required | Where-Object { -not (Test-Path -LiteralPath $_) })
+        if ($missing.Count -gt 0) { Write-Host "::error::Missing Release outputs: $($missing -join ', ')"; exit 1 }
+        Write-Host 'All expected Release outputs are present.'
 
     # The Debug x86 build of the host is compiled by the desktop-nunit and desktop-selftests jobs below
     # (they need it anyway), so it is not built a third time here.
@@ -125,6 +145,7 @@ jobs:
   # NUnit scenarios (Debug x86). Runs in parallel with desktop-build and desktop-selftests.
   # TestBase builds one migrated template database per run and copies it per test.
   # Set RAFIQ_TEST_NO_TEMPLATE=1 to force the old run-every-migration-per-test behaviour.
+  # Databases are ENCRYPTED by default (shipping behaviour, exercising the native x86 sqlite3mc.dll); RAFIQ_TEST_PLAIN=1 would run plain.
   # ---------------------------------------------------------------------------------------------
   desktop-nunit:
     name: Desktop tests (NUnit)
@@ -159,10 +180,14 @@ jobs:
         nuget restore desktop/RafiqPOS.csproj -PackagesDirectory desktop/packages
         nuget restore desktop/RafiqPOS.Tests/RafiqPOS.Tests.csproj -PackagesDirectory desktop/packages
 
+    - name: Verify NuGet DLL SHA-256 pins
+      shell: powershell
+      run: ./installer/verify_nuget_dlls.ps1 -PackagesDir desktop/packages
+
     # Builds desktop/RafiqPOS.csproj (ProjectReference) into desktop/bin/Debug and the tests into
     # desktop/RafiqPOS.Tests/bin/Debug (outside a .sln, MSBuild builds the referenced project with
-    # its own defaults, Debug|x86, which is the configuration the self-test flags need). Both import the Stub.System.Data.SQLite targets, which copy
-    # x86/SQLite.Interop.dll and x64/SQLite.Interop.dll next to each output.
+    # its own defaults, Debug|x86, which is the configuration the self-test flags need). Both projects copy the SQLite3 Multiple Ciphers
+    # native engine (sqlite3mc.dll, x86) next to each output; the managed provider loads it from the same folder.
     - name: Build NUnit project + C# Host (Debug x86)
       id: build
       run: |
@@ -172,10 +197,13 @@ jobs:
       run: |
         $required = @(
           'desktop/bin/Debug/RafiqPOS.exe',
-          'desktop/bin/Debug/x86/SQLite.Interop.dll',
+          'desktop/bin/Debug/RafiqPOS.exe.config',
+          'desktop/bin/Debug/sqlite3mc.dll',
+          'desktop/bin/Debug/Microsoft.Data.Sqlite.dll',
           'desktop/RafiqPOS.Tests/bin/Debug/RafiqPOS.Tests.dll',
+          'desktop/RafiqPOS.Tests/bin/Debug/RafiqPOS.Tests.dll.config',
           'desktop/RafiqPOS.Tests/bin/Debug/RafiqPOS.exe',
-          'desktop/RafiqPOS.Tests/bin/Debug/x86/SQLite.Interop.dll',
+          'desktop/RafiqPOS.Tests/bin/Debug/sqlite3mc.dll',
           'desktop/packages/NUnit.ConsoleRunner.3.16.3/tools/nunit3-console.exe'
         )
         $missing = @($required | Where-Object { -not (Test-Path -LiteralPath $_) })
@@ -286,6 +314,10 @@ jobs:
     - name: Restore NuGet Packages (host)
       run: nuget restore desktop/RafiqPOS.csproj -PackagesDirectory desktop/packages
 
+    - name: Verify NuGet DLL SHA-256 pins
+      shell: powershell
+      run: ./installer/verify_nuget_dlls.ps1 -PackagesDir desktop/packages
+
     # The self-test flags exist only in a Debug build (#if DEBUG in Program.cs).
     - name: Build C# Host (Debug x86)
       id: build
@@ -293,7 +325,7 @@ jobs:
 
     - name: Verify build outputs
       run: |
-        $required = @('desktop/bin/Debug/RafiqPOS.exe', 'desktop/bin/Debug/x86/SQLite.Interop.dll')
+        $required = @('desktop/bin/Debug/RafiqPOS.exe', 'desktop/bin/Debug/RafiqPOS.exe.config', 'desktop/bin/Debug/sqlite3mc.dll', 'desktop/bin/Debug/Microsoft.Data.Sqlite.dll')
         $missing = @($required | Where-Object { -not (Test-Path -LiteralPath $_) })
         if ($missing.Count -gt 0) { Write-Host "::error::Missing build outputs: $($missing -join ', ')"; exit 1 }
         Write-Host 'All expected build outputs are present.'

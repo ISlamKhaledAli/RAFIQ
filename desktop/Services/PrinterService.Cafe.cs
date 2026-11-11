@@ -65,7 +65,7 @@ namespace RafiqPOS.Services
 
             if (config.CategoryRoutes != null && !string.IsNullOrEmpty(DatabaseService.ConnectionString))
             {
-                using (var conn = new System.Data.SQLite.SQLiteConnection(DatabaseService.ConnectionString))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(DatabaseService.ConnectionString))
                 {
                     conn.Open();
                     using (var tx = conn.BeginTransaction())

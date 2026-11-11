@@ -1,5 +1,5 @@
 using System;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 
 namespace RafiqPOS.Repositories
 {

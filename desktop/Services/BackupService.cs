@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using System.IO;
 using System.IO.Compression;
 using RafiqPOS.Common;
@@ -412,7 +412,7 @@ namespace RafiqPOS.Services
                 }
                 if (File.Exists(rawSnapshotPath))
                 {
-                    try { File.Delete(rawSnapshotPath); } catch { }
+                    SecureDelete.WipeAndDeleteQuietly(rawSnapshotPath);
                 }
 
                 // Counts before the snapshot: sales committed while the copy is encrypted may only make the backup older, never smaller
@@ -420,14 +420,13 @@ namespace RafiqPOS.Services
                 long baselineSales;
                 ReadLiveCounts(out baselineProducts, out baselineSales);
 
-                // Use SQLite Online Backup API (thread-safe, non-blocking snapshot in WAL mode)
-                string destConnString = string.Format("Data Source={0};Version=3;", rawSnapshotPath);
-
+                // Use SQLite Online Backup API (thread-safe, non-blocking snapshot in WAL mode).
+                // The staged snapshot has the live file's format: an encrypted store never leaves a plaintext .raw behind
+                bool livePlain = DatabaseKeyProvider.IsPlainSqliteFile(_dbPath);
                 using (var sourceConn = new SQLiteConnection(_connectionString))
-                using (var destConn = new SQLiteConnection(destConnString))
+                using (var destConn = DatabaseFileAccess.Open(rawSnapshotPath, false, livePlain))
                 {
                     sourceConn.Open();
-                    destConn.Open();
 
                     sourceConn.BackupDatabase(destConn, "main", "main", -1, null, 0);
                 }
@@ -435,7 +434,8 @@ namespace RafiqPOS.Services
                 // Feature #168 & F-42: Encrypt the backup snapshot using dual-wrap envelope encryption (RFBK v2)
                 string recoveryCode = GetOrCreateRecoveryCode();
                 _encryptionService.EncryptFileDualWrap(rawSnapshotPath, encryptedTempPath, recoveryCode);
-                try { File.Delete(rawSnapshotPath); } catch { }
+                // the staged snapshot is plain for a store that is not encrypted yet: zero-fill it, never just delete
+                SecureDelete.WipeAndDeleteQuietly(rawSnapshotPath);
                 File.Move(encryptedTempPath, backupFilePath);
 
                 // Verify the backup file immediately (Feature #125 / Task 125-1)
@@ -538,7 +538,7 @@ namespace RafiqPOS.Services
                 result.Message = "خطأ أثناء عملية النسخ الاحتياطي: " + ex.Message;
                 Logger.Error("خطأ في إنشاء النسخة الاحتياطية", ex);
                 // A half-written staging file must not linger next to the real backups (plain snapshot included)
-                if (rawSnapshotPath != null) { try { File.Delete(rawSnapshotPath); } catch { } }
+                if (rawSnapshotPath != null) { SecureDelete.WipeAndDeleteQuietly(rawSnapshotPath); }
                 if (encryptedTempPath != null) { try { File.Delete(encryptedTempPath); } catch { } }
                 _settingsRepo.Set("backup_last_status", "failed");
                 return result;
@@ -637,10 +637,9 @@ namespace RafiqPOS.Services
                     fileToCheck = tempDecrypted;
                 }
 
-                string connStr = string.Format("Data Source={0};Version=3;Read Only=True;Pooling=False;", fileToCheck);
-                using (var bkConn = new SQLiteConnection(connStr))
+                // The format (legacy plain or encrypted) is read from the file header, not from the process default
+                using (var bkConn = DatabaseFileAccess.OpenExisting(fileToCheck, true))
                 {
-                    bkConn.Open();
 
                     // 1. Quick integrity check
                     using (var cmd = new SQLiteCommand("PRAGMA quick_check;", bkConn))
@@ -720,11 +719,8 @@ namespace RafiqPOS.Services
                         GC.Collect();
                         GC.WaitForPendingFinalizers();
 
-                        if (File.Exists(tempDecrypted)) File.Delete(tempDecrypted);
-                        string shm = tempDecrypted + "-shm";
-                        if (File.Exists(shm)) File.Delete(shm);
-                        string wal = tempDecrypted + "-wal";
-                        if (File.Exists(wal)) File.Delete(wal);
+                        // a legacy backup decrypts to a PLAIN database: zero-fill it and its companions
+                        SecureDelete.WipeAndDeleteQuietly(tempDecrypted);
                     }
                     catch { }
                 }

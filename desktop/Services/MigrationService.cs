@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
@@ -134,6 +134,8 @@ namespace RafiqPOS.Services
             {
                 if (TempRoot != null && Directory.Exists(TempRoot))
                 {
+                    // an imported legacy package holds a PLAIN database here: zero-fill it before the folder goes
+                    SecureDelete.WipePlainSqliteFiles(TempRoot);
                     try
                     {
                         Directory.Delete(TempRoot, true);
@@ -219,9 +221,9 @@ namespace RafiqPOS.Services
 
         private static MigrationAuditMetrics ReadMetricsFromFile(string dbFile)
         {
-            using (var conn = new SQLiteConnection(string.Format("Data Source={0};Version=3;Read Only=True;Pooling=False;", dbFile)))
+            // Packages made before encryption hold a plain database, current ones an encrypted one: the header decides
+            using (var conn = DatabaseFileAccess.OpenExisting(dbFile, true))
             {
-                conn.Open();
                 return CollectMetricsFromConnection(conn);
             }
         }
@@ -621,9 +623,8 @@ namespace RafiqPOS.Services
 
         private static string VerifyExtractedDatabase(PackageWork work)
         {
-            using (var conn = new SQLiteConnection(string.Format("Data Source={0};Version=3;Read Only=True;Pooling=False;", work.DbPath)))
+            using (var conn = DatabaseFileAccess.OpenExisting(work.DbPath, true))
             {
-                conn.Open();
                 using (var cmd = new SQLiteCommand("PRAGMA quick_check;", conn))
                 {
                     object res = cmd.ExecuteScalar();
@@ -879,11 +880,12 @@ namespace RafiqPOS.Services
                 Directory.CreateDirectory(stagingDir);
                 string stagingDbPath = Path.Combine(stagingDir, "rafiq_pos.db");
 
+                // The staged copy has the live file's format (encrypted for an encrypted store), so the temp folder never holds plaintext
+                bool livePlain = DatabaseKeyProvider.IsPlainSqliteFile(_dbPath);
                 using (var srcConn = new SQLiteConnection(_connectionString))
-                using (var dstConn = new SQLiteConnection(string.Format("Data Source={0};Version=3;Pooling=False;", stagingDbPath)))
+                using (var dstConn = DatabaseFileAccess.Open(stagingDbPath, false, livePlain))
                 {
                     srcConn.Open();
-                    dstConn.Open();
                     srcConn.BackupDatabase(dstConn, "main", "main", -1, null, 0);
                 }
 
@@ -1025,6 +1027,7 @@ namespace RafiqPOS.Services
                 }
                 if (workDir != null && Directory.Exists(workDir))
                 {
+                    SecureDelete.WipePlainSqliteFiles(workDir);
                     try
                     {
                         Directory.Delete(workDir, true);

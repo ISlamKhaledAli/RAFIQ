@@ -484,7 +484,18 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "health:getStatus":
+                    // Public action: an unauthenticated caller only learns the alert level, never encryption or failure details
+                    if (DatabaseService.SystemHealth == null)
+                    {
+                        response = BridgeResponse.Ok(request.Id, new { overallStatus = "CRITICAL" });
+                        return true;
+                    }
                     var systemHealth = DatabaseService.SystemHealth.GetSystemHealth();
+                    if (SecurityService.CurrentUser == null)
+                    {
+                        response = BridgeResponse.Ok(request.Id, new { overallStatus = systemHealth.OverallStatus });
+                        return true;
+                    }
                     response = BridgeResponse.Ok(request.Id, systemHealth);
                     return true;
 

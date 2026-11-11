@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using Newtonsoft.Json;
 using NUnit.Framework;
 using RafiqPOS.Models;

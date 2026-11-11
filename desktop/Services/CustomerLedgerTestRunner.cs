@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using RafiqPOS.Common;
 using RafiqPOS.Database;
 using RafiqPOS.Models;
@@ -128,10 +128,10 @@ namespace RafiqPOS.Services
                 Assert(verification.IsBalanced && verification.DiscrepancyPiasters == 0, "قاعدة الموثوقية: الرصيد المخزن يساوي تماماً مجموع قيود الدفتر بدون أي فارق", result);
 
                 // TEST 7: Artificial Discrepancy & Recalculate Recovery
-                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("UPDATE customers SET balance_piasters = 999999 WHERE id = @id;", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("UPDATE customers SET balance_piasters = 999999 WHERE id = @id;", conn))
                     {
                         cmd.Parameters.AddWithValue("@id", savedCust.Id);
                         cmd.ExecuteNonQuery();

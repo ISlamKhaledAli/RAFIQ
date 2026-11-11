@@ -183,7 +183,7 @@ namespace RafiqPOS.Bridge
             {
                 Logger.Error("خطأ غير متوقع أثناء معالجة طلب IPC: " + request.Action, ex);
                 string cleanMsg = "حدث خطأ أثناء معالجة العملية، يرجى المحاولة مرة أخرى.";
-                if (ex is System.Data.SQLite.SQLiteException)
+                if (ex is RafiqPOS.Data.SQLiteException)
                 {
                     // Disk full / read-only / I/O / busy get their own precise Arabic message and error code
                     DatabaseFailureKind failureKind = DatabaseFailureClassifier.Classify(ex);
@@ -216,6 +216,8 @@ namespace RafiqPOS.Bridge
         private const string REQUIRE_ADMIN = "__admin__";
         // Store owner or developer root only; managers (other admins) are refused
         private const string REQUIRE_OWNER = "__owner__";
+        // Developer root (support account) only: stricter than the store owner
+        private const string REQUIRE_ROOT = "__root__";
         private const string REQUIRE_SESSION = "__session_required__";
         // Store, printer and barcode-scanner screens all persist through the generic settings actions
         private const string REQUIRE_ANY_SETTINGS = "__any_settings__";
@@ -640,6 +642,12 @@ namespace RafiqPOS.Bridge
             { "backup:revealRecoveryCode", REQUIRE_OWNER },
             { "database:checkIntegrity", "settings.backup" },
             { "database:restore", "settings.restore" },
+            // Database encryption: read-only status for admins; the tools that expose or remove data are developer-root only
+            { "database:getEncryptionStatus", REQUIRE_ADMIN },
+            { "database:exportDecrypted", REQUIRE_ROOT },
+            { "database:deletePreEncryptionCopy", REQUIRE_ROOT },
+            { "database:retryEncryptionConversion", REQUIRE_ROOT },
+            { "database:restoreFromPreEncryptionCopy", REQUIRE_ROOT },
             { "migration:getMetrics", "settings.backup" },
             { "migration:export", "settings.backup" },
             { "migration:browseFolder", "settings.backup" },
@@ -946,6 +954,7 @@ namespace RafiqPOS.Bridge
 
             // Backup and export of existing data
             "backup:create", "backup:configure", "backup:confirmRecoveryCode", "backup:revealRecoveryCode",
+            "database:getEncryptionStatus", "database:exportDecrypted", "database:restoreFromPreEncryptionCopy",
             "migration:browseFile", "migration:browseFolder", "migration:export", "migration:inspect",
             "excel:browseExportFolder", "excel:openExportFolder", "excel:exportCustomers", "excel:exportFullStore", "excel:exportProducts",
             "insurance:exportBatchExcel", "ddi:exportToExcel", "ddi:generateTemplate", "pharma:downloadDrugReferenceTemplate",
@@ -1085,6 +1094,10 @@ namespace RafiqPOS.Bridge
                 case "auth:getRootChallenge":
                 case "auth:loginRootChallenge":
                 case "security:resetWithRecovery":
+                    if (DatabaseService.IntegrityStatus != null && DatabaseService.IntegrityStatus.IsKeyMismatch)
+                    {
+                        return BridgeResponse.Fail(request.Id, "DATABASE_CORRUPT", DatabaseService.IntegrityStatus.Message);
+                    }
                     return BridgeResponse.Fail(request.Id, "DATABASE_CORRUPT",
                         "قاعدة البيانات تالفة ولا يمكن تسجيل الدخول حالياً. يرجى استرجاع آخر نسخة احتياطية سليمة من نافذة الاسترجاع باستخدام كود استرجاع المالك.");
                 case "auth:getCurrentUser":
@@ -1170,6 +1183,15 @@ namespace RafiqPOS.Bridge
             else if (requiredPermission == REQUIRE_ADMIN)
             {
                 allowed = DatabaseService.Security.IsCurrentSessionAdmin();
+            }
+            else if (requiredPermission == REQUIRE_ROOT)
+            {
+                allowed = DatabaseService.Security.IsCurrentSessionRoot();
+                if (!allowed)
+                {
+                    Logger.Warn(string.Format("رفض تنفيذ إجراء خاص بالمستخدم الجذر: {0} للمستخدم {1}", request.Action, sessionUser.Username));
+                    return BridgeResponse.Fail(request.Id, "FORBIDDEN", "هذه العملية متاحة للمستخدم الجذر (الدعم الفني) فقط");
+                }
             }
             else if (requiredPermission == REQUIRE_OWNER)
             {

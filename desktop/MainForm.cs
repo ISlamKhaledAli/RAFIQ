@@ -297,6 +297,8 @@ namespace RafiqPOS
             _splashSafetyTimer = new System.Windows.Forms.Timer { Interval = 4500 };
             _splashSafetyTimer.Tick += delegate(object s, EventArgs e)
             {
+                // never dismiss the splash while the (long) encryption conversion is still running
+                if (RafiqPOS.Services.DatabaseEncryptionService.IsConversionRunning) return;
                 _splashSafetyTimer.Stop();
                 _splashSafetyTimer.Dispose();
                 _splashSafetyTimer = null;
@@ -677,10 +679,10 @@ namespace RafiqPOS
                         string dbPath = candidateDbs[i];
                         if (File.Exists(dbPath))
                         {
-                            using (var conn = new System.Data.SQLite.SQLiteConnection("Data Source=" + dbPath + ";Version=3;Read Only=True;"))
+                            // Read before DatabaseService starts: the file may still be a legacy plain database, so the header decides how to open it
+                            using (var conn = RafiqPOS.Data.DatabaseFileAccess.OpenExisting(dbPath, true))
                             {
-                                conn.Open();
-                                using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT value FROM app_settings WHERE key IN ('ui_theme', 'theme') LIMIT 1;", conn))
+                                using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT value FROM app_settings WHERE key IN ('ui_theme', 'theme') LIMIT 1;", conn))
                                 {
                                     object res = cmd.ExecuteScalar();
                                     if (res != null && res != DBNull.Value)
@@ -1164,6 +1166,16 @@ namespace RafiqPOS
             try
             {
                 Logger.Info("جاري استدعاء DatabaseService.Initialize()...");
+                // The one-time encryption conversion of an existing store can take minutes: it runs on a worker thread (the splash stays
+                // alive and shows the step), window close is ignored meanwhile, and the safety timer is re-armed afterwards
+                DatabaseService.StartupProgress = delegate(string progressText) { UpdateSplashStatus(progressText); };
+                await System.Threading.Tasks.Task.Run(delegate { DatabaseService.PrepareEncryptionAtStartup(); });
+                _splashStartTime = DateTime.UtcNow;
+                if (_splashSafetyTimer != null)
+                {
+                    _splashSafetyTimer.Stop();
+                    _splashSafetyTimer.Start();
+                }
                 DatabaseService.Initialize();
                 Logger.Info("اكتملت تهيئة DatabaseService بنجاح.");
                 DatabaseService.StartBackgroundChecks();
@@ -1466,6 +1478,27 @@ namespace RafiqPOS
                 return "1. هذه القاعدة أنشأها أو حدّثها إصدار أحدث من رفيق، لذلك لا يستطيع هذا الإصدار فتحها.\n" +
                        "2. ثبّت أحدث إصدار من البرنامج بملف التثبيت الرسمي (Setup) فوق الإصدار الحالي ثم شغّله من جديد.\n" +
                        "3. لا تحذف ملف قاعدة البيانات ولا تسترجع نسخة قديمة ولا تعدّله يدوياً حتى لا تفقد بيانات.";
+            }
+
+            if (dbEx is RafiqPOS.Data.DatabaseEngineMissingException)
+            {
+                return "1. ملف محرك قاعدة البيانات (sqlite3mc.dll) مفقود أو محجوب: افتح برنامج الحماية (Antivirus) وأعد الملف من الحجر الصحي إن وُجد.\n" +
+                       "2. أعد تثبيت رفيق بملف التثبيت الرسمي (Setup) فوق الإصدار الحالي؛ بياناتك لن تتأثر.\n" +
+                       "3. لا تسترجع نسخة احتياطية ولا تحذف ملف قاعدة البيانات؛ المشكلة في ملف البرنامج وليست في بياناتك.";
+            }
+            if (dbEx is RafiqPOS.Services.EncryptionSwapFatalException ||
+                (dbEx is DatabaseStorageException && ((DatabaseStorageException)dbEx).Kind == DatabaseFailureKind.EncryptionSwapInterrupted))
+            {
+                return "1. توقفت عملية تشفير قاعدة البيانات في منتصفها وتعذر إرجاعها تلقائياً: بياناتك محفوظة ولم يتم تغيير أو حذف أي ملف.\n" +
+                       "2. لا تحذف أي ملف من مجلد البيانات (rafiq_pos.db.plain-old أو rafiq_pos.db.converting أو rafiq_pos.db.pre-encryption) ولا تسترجع نسخة احتياطية.\n" +
+                       "3. أغلق برنامج الحماية مؤقتاً ثم انقر «إعادة المحاولة»، وإن تكرر الخطأ فتواصل مع الدعم الفني مع إرسال ملف السجل.";
+            }
+
+            if (dbEx is DatabaseStorageException && ((DatabaseStorageException)dbEx).Kind == DatabaseFailureKind.EncryptionSealedOnly)
+            {
+                return "1. ملف قاعدة البيانات الرئيسي غير موجود، لكن نسخة ما قبل التشفير المحفوظة (rafiq_pos.db.pre-encryption) موجودة وسليمة: بياناتك محفوظة ولم يتم تغيير أي ملف.\n" +
+                       "2. لا تحذف أي ملف من مجلد البيانات ولا تسترجع نسخة قديمة بنفسك.\n" +
+                       "3. تواصل مع الدعم الفني مع إرسال ملف السجل؛ يمكنهم استرجاع النسخة المحفوظة بإجراء المستخدم الجذر.";
             }
 
             DatabaseFailureKind kind = DatabaseFailureClassifier.Classify(dbEx);
@@ -1957,6 +1990,13 @@ namespace RafiqPOS
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            // Closing during the encryption conversion is ignored (a Windows shutdown cannot be stopped; the conversion is crash-safe)
+            if (RafiqPOS.Services.DatabaseEncryptionService.IsConversionRunning && e.CloseReason != CloseReason.WindowsShutDown)
+            {
+                e.Cancel = true;
+                UpdateSplashStatus("جاري تشفير قاعدة البيانات... لا يمكن إغلاق البرنامج الآن، يرجى الانتظار حتى ينتهي التشفير (بياناتك محفوظة).");
+                return;
+            }
             try
             {
                 if (DatabaseService.License != null)

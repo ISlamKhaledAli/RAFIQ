@@ -38,6 +38,13 @@
 #if !FileExists(AddBackslash(SourcePath) + ReleaseDir + "\dist\index.html")
   #error Missing desktop\bin\Release\dist\index.html (frontend build). Build with the Setup .bat script.
 #endif
+; محرك SQLite3 Multiple Ciphers الأصلي (x86) وطبقة .NET الخاصة به: يُنسخ مع بقية ملفات Release (Source: "{#ReleaseDir}\*") ولا يحتاج VC++ Redistributable
+#if !FileExists(AddBackslash(SourcePath) + ReleaseDir + "\sqlite3mc.dll")
+  #error Missing desktop\bin\Release\sqlite3mc.dll (SQLite3 Multiple Ciphers x86 native engine copied by RafiqPOS.csproj). Build desktop\RafiqPOS.csproj in Release|x86 first.
+#endif
+#if !FileExists(AddBackslash(SourcePath) + ReleaseDir + "\Microsoft.Data.Sqlite.dll")
+  #error Missing desktop\bin\Release\Microsoft.Data.Sqlite.dll (database provider). Build desktop\RafiqPOS.csproj in Release|x86 first.
+#endif
 #if !FileExists(AddBackslash(PrereqDir) + "MicrosoftEdgeWebview2Setup.exe")
   #error Missing MicrosoftEdgeWebview2Setup.exe in PrereqDir
 #endif
@@ -89,6 +96,8 @@ CloseApplications=yes
 RestartApplications=no
 PrivilegesRequired=admin
 AlwaysShowDirOnReadyPage=yes
+; صفحة اختيار المجلد متاحة دائماً: التثبيت الجديد خارج Program Files يُرفض برسالة يمكن للمستخدم تصحيحها هنا
+DisableDirPage=no
 #ifdef SignEnabled
 ; التوقيع الرقمي: ملف البناء يعرّف أداة "rafiqsign" عبر ISCC /S (بصمة شهادة من مخزن الشهادات /sha1، بدون كلمة مرور)
 ; Inno يوقّع ملف Setup وملف إلغاء التثبيت معاً
@@ -174,6 +183,15 @@ english.LinkAttackFound=An unauthorized link (junction/symlink) was detected in 
 arabic.CreateDataDirFailed=تعذر إنشاء مجلد بيانات رفيق: %1
 english.CreateDataDirFailed=Could not create Rafiq POS data directory: %1
 
+arabic.InstallDirNotProgramFiles=يجب تثبيت رفيق داخل مجلد Program Files (أو Program Files (x86)) لحماية ملفات البرنامج من التعديل بواسطة المستخدمين العاديين.%n%nاختر مجلداً داخل Program Files ثم تابع.
+english.InstallDirNotProgramFiles=Rafiq POS must be installed inside Program Files (or Program Files (x86)) so that ordinary users cannot modify the program files.%n%nPlease choose a folder inside Program Files and continue.
+
+arabic.InstallDirNotEmpty=المجلد المختار ليس فارغاً وليس تثبيتاً سابقاً لرفيق (قد يكون مجلد برنامج آخر). اختر مجلداً جديداً مثل: %1%n%nلن يغيّر المثبت صلاحيات مجلد يخص برنامجاً آخر.
+english.InstallDirNotEmpty=The selected folder is not empty and is not a previous Rafiq POS installation (it may belong to another program). Choose a new folder such as: %1%n%nSetup will not change the permissions of a folder that belongs to another program.
+
+arabic.ExistingInstallOutsidePf=تم العثور على تثبيت سابق لرفيق خارج Program Files وسيتم تحديثه في مكانه.%n%nيُنصح بعد انتهاء التحديث بنقل البرنامج إلى Program Files (ثبّت نسخة جديدة هناك ثم استرجع نسخة احتياطية) لأن المجلدات خارجه قد تسمح للمستخدمين بتعديل ملفات البرنامج. سيُقفل المثبت صلاحيات المجلد الحالي.
+english.ExistingInstallOutsidePf=An existing Rafiq POS installation outside Program Files was found and will be updated in place.%n%nAfter the update it is recommended to move the program to Program Files (install fresh there and restore a backup), because folders outside it may let ordinary users modify program files. Setup will lock the permissions of the current folder.
+
 arabic.LockDataDirFailed=تعذر تأمين صلاحيات مجلد بيانات رفيق (icacls):%n%1
 english.LockDataDirFailed=Could not lock permissions for Rafiq POS data directory (icacls):%n%1
 
@@ -253,6 +271,9 @@ Name: "{group}\{cm:UninstallProgram}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{cm:MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; -1. قفل مجلد البرنامج {app} (فقط إذا أنشأه هذا المثبت أو كان فيه تثبيت رفيق سابق: ShouldLockAppDir؛ لا نعيد كتابة صلاحيات مجلد أب مشترك): SYSTEM والمسؤولون تحكم كامل والمستخدمون قراءة وتنفيذ فقط، بدون وراثة من المجلد الأب (/inheritance:r)
+;    بلا /T (لا نمر على الشجرة)؛ الملفات الموروثة تتحدث تلقائياً. صلاحيات AppContainer لمجلد fixed109 تُضاف بعد ذلك.
+Filename: "{sys}\icacls.exe"; Parameters: """{app}"" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /C /L /Q"; Flags: runhidden waituntilterminated; StatusMsg: "{cm:SecuringPermissions}"; Check: ShouldLockAppDir
 ; 0. صلاحيات مجلدات الكتابة (بعد أن قفل PrepareToInstall جذر {commonappdata}\RafiqPOS وأزال أي روابط Junction/Symlink):
 ;    "تعديل" قابل للوراثة على المجلد العلوي فقط — بدون /T (لا نمر على شجرة يتحكم فيها المستخدم)، و /L حتى لا يُتبع أي رابط
 ;    المجلد {app} أُعيد ضبطه في CurStepChanged(ssInstall) ليرث صلاحيات Program Files (قراءة فقط للمستخدمين)
@@ -321,6 +342,7 @@ var
   DotNetRestartRequired: Boolean; // تم تثبيت .NET 4.8 ويلزم إعادة تشغيل الجهاز قبل تشغيل رفيق
   PreservedCount: Integer;
   PreserveDirPath: String;
+  AppDirLockAllowed: Boolean;     // {app} أنشأه هذا المثبت أو فيه تثبيت رفيق سابق: يجوز قفل صلاحياته
 
 // إجراء لتنشيط نافذة المثبت وجعلها في المقدمة فوراً وكسر قيود Focus Stealing لنظام ويندوز
 procedure ForceWizardToForeground();
@@ -680,6 +702,85 @@ begin
   Result := ResultCode;
 end;
 
+// تثبيت رفيق موجود مسبقاً في المجلد: اسمه RafiqPOS وفيه unins000.dat أو ملف البرنامج (الترقية فوقه مسموحة حتى خارج Program Files)
+function IsExistingRafiqInstall(const Dir: String): Boolean;
+var
+  D: String;
+begin
+  D := RemoveBackslashUnlessRoot(ExpandFileName(Dir));
+  Result := (CompareText(ExtractFileName(D), 'RafiqPOS') = 0) and
+            (FileExists(AddBackslash(D) + 'unins000.dat') or FileExists(AddBackslash(D) + '{#MyAppExeName}'));
+end;
+
+// داخل Program Files أو Program Files (x86) وبمستوى أعمق منه فقط (Program Files نفسه مرفوض)
+function IsUnderProgramFiles(const Dir: String): Boolean;
+var
+  D, Pf, Pf32: String;
+begin
+  D := AddBackslash(Lowercase(ExpandFileName(Dir)));
+  Pf := AddBackslash(Lowercase(ExpandConstant('{autopf}')));
+  Pf32 := AddBackslash(Lowercase(ExpandConstant('{autopf32}')));
+  Result := ((Pos(Pf, D) = 1) and (Length(D) > Length(Pf))) or
+            ((Pos(Pf32, D) = 1) and (Length(D) > Length(Pf32)));
+end;
+
+// المجلد غير موجود أو فارغ (لا نقفل صلاحيات مجلد يخص برنامجاً آخر)
+function IsDirMissingOrEmpty(const Dir: String): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := True;
+  if not DirExists(Dir) then Exit;
+  if FindFirst(AddBackslash(Dir) + '*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+          Result := False;
+      until (not Result) or (not FindNext(FindRec));
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+// نص الخطأ للمجلد المختار أو '' إذا كان مقبولاً:
+// - تثبيت رفيق قائم: مقبول في أي مكان (ترقية)
+// - تثبيت جديد: داخل Program Files بمستوى أعمق منه، ومجلد غير موجود أو فارغ
+function InstallDirError(const Dir: String): String;
+begin
+  Result := '';
+  if IsExistingRafiqInstall(Dir) then Exit;
+  if not IsUnderProgramFiles(Dir) then
+    Result := CustomMessage('InstallDirNotProgramFiles')
+  else if not IsDirMissingOrEmpty(Dir) then
+    Result := FmtMessage(CustomMessage('InstallDirNotEmpty'), [AddBackslash(ExpandConstant('{autopf}')) + 'RafiqPOS']);
+end;
+
+// يستخدمه [Run]: لا نعيد كتابة صلاحيات {app} إلا إذا أنشأه هذا المثبت (كان غير موجود أو فارغاً) أو كان فيه تثبيت رفيق سابق
+function ShouldLockAppDir(): Boolean;
+begin
+  Result := AppDirLockAllowed;
+  if not Result then
+    Log('SECURITY: the application folder is not owned by this setup; its permissions are left unchanged.');
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Err: String;
+begin
+  Result := True;
+  if CurPageID = wpSelectDir then
+  begin
+    Err := InstallDirError(WizardDirValue);
+    if Err <> '' then
+    begin
+      MsgBox(Err, mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;
+
 function LinkAttackMessage(const Path: String): String;
 begin
   Result := FmtMessage(CustomMessage('LinkAttackFound'), [Path]);
@@ -900,6 +1001,24 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
+  // يغطي التثبيت الصامت (/DIR=...) الذي لا يمر على صفحة اختيار المجلد؛ يستعمل {app} الفعلي
+  AppDirLockAllowed := False;
+  if IsExistingRafiqInstall(ExpandConstant('{app}')) then
+  begin
+    AppDirLockAllowed := True;
+    Log('Existing Rafiq POS installation found, update in place: ' + ExpandConstant('{app}'));
+    if not IsUnderProgramFiles(ExpandConstant('{app}')) then
+    begin
+      Log('SECURITY: existing installation is outside Program Files: ' + ExpandConstant('{app}'));
+      SuppressibleMsgBox(CustomMessage('ExistingInstallOutsidePf'), mbInformation, MB_OK, IDOK);
+    end;
+  end
+  else
+  begin
+    Result := InstallDirError(ExpandConstant('{app}'));
+    if Result <> '' then Exit;
+    AppDirLockAllowed := True;
+  end;
 #ifndef Slim
   if not IsDotNet48Installed() then
     Result := InstallDotNet48();

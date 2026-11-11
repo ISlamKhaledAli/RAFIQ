@@ -187,7 +187,7 @@ namespace RafiqPOS.Services
                 // ==============================================================
                 // 6. اختبار تفادي التصادم عند وجود الباركود مسبقاً (Collision Avoidance)
                 // ==============================================================
-                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
                     using (var trans = conn.BeginTransaction())

@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using System.Threading;
 using RafiqPOS.Common;
 using RafiqPOS.Database;

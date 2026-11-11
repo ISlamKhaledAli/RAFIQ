@@ -267,10 +267,10 @@ namespace RafiqPOS.Services
 
                 // Verify stock movements recorded the distinct cost and expiry date
                 bool purMovementVerified = false;
-                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT unit_cost_piasters, batch_number, expiry_date FROM stock_movements WHERE batch_number = 'BATCH-COST-950' AND movement_type = 'PURCHASE';", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT unit_cost_piasters, batch_number, expiry_date FROM stock_movements WHERE batch_number = 'BATCH-COST-950' AND movement_type = 'PURCHASE';", conn))
                     using (var reader = cmd.ExecuteReader())
                     {
                         if (reader.Read())
@@ -384,10 +384,10 @@ namespace RafiqPOS.Services
 
                 // Verify audit log has the documented supervisor override
                 bool auditLogFound = false;
-                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM audit_logs WHERE action = 'EXPIRED_PRODUCT_SALE_OVERRIDE' AND entity_id = @sid;", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT COUNT(*) FROM audit_logs WHERE action = 'EXPIRED_PRODUCT_SALE_OVERRIDE' AND entity_id = @sid;", conn))
                     {
                         cmd.Parameters.AddWithValue("@sid", validBypassSale.Id);
                         long cnt = Convert.ToInt64(cmd.ExecuteScalar());
@@ -398,10 +398,10 @@ namespace RafiqPOS.Services
 
                 // Verify sale recorded batch cost in stock_movements on sale
                 bool saleMovementCostVerified = false;
-                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT unit_cost_piasters, batch_number, expiry_date FROM stock_movements WHERE reference_id = @sid AND movement_type = 'SALE';", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT unit_cost_piasters, batch_number, expiry_date FROM stock_movements WHERE reference_id = @sid AND movement_type = 'SALE';", conn))
                     {
                         cmd.Parameters.AddWithValue("@sid", validBypassSale.Id);
                         using (var reader = cmd.ExecuteReader())

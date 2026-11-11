@@ -110,7 +110,7 @@ graph TD
 | **Linter** | Oxlint | 1.85.0 | Static analysis across 472 files |
 | **Desktop Host** | C# / WinForms | .NET 4.8 | Host wrapper for Windows 7 through 11 |
 | **Web Runtime** | Microsoft WebView2 | 1.0.1518.46 | Chromium container (Fixed 109 / Evergreen) |
-| **Database** | SQLite 3 | 1.0.118.0 | Embedded storage via `Stub.System.Data.SQLite` |
+| **Database** | SQLite 3 | 3.53 (SQLite3 Multiple Ciphers 2.4.0) | Embedded storage via `Microsoft.Data.Sqlite.Core` 9.0.10 behind the `RafiqPOS.Data` compatibility layer (`desktop/Data/`) |
 | **Hardware I/O** | ESC/POS, TSPL, RS-232 | Native C# | Thermal printers, barcode printers, scales |
 | **Spreadsheets** | SheetJS (xlsx) / ClosedXML | 0.20.3 / 0.95.4 | Excel catalog import and export |
 

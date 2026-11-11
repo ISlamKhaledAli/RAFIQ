@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using System.IO;
 using System.Reflection;
 using Newtonsoft.Json.Linq;
@@ -82,6 +82,9 @@ namespace RafiqPOS.Tests.Scenarios
             GC.WaitForPendingFinalizers();
             using (var fs = new FileStream(dbPath, FileMode.Open, FileAccess.Write))
             {
+                // Plain mode: wreck the header page. Encrypted mode: a damaged header page is indistinguishable from a wrong key
+                // (ENCRYPTION_KEY_MISMATCH, never quarantined, see S106), so the genuine-corruption flow is driven by a damaged page in the middle
+                fs.Position = TestMode.Plain ? 0 : (fs.Length / 2 / 4096) * 4096;
                 byte[] junk = new byte[4096];
                 for (int i = 0; i < junk.Length; i++) junk[i] = 0x5A;
                 fs.Write(junk, 0, junk.Length);

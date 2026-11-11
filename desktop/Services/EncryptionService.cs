@@ -29,7 +29,7 @@ namespace RafiqPOS.Services
             get { return _deviceFingerprint; }
         }
 
-        public byte[] AesKey
+        internal byte[] AesKey
         {
             get { return _aesKey; }
         }

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using RafiqPOS.Common;
 using RafiqPOS.Models;
 
@@ -131,6 +131,49 @@ namespace RafiqPOS.Repositories
             return null;
         }
 
+        // The SQL of GetByExactBarcode (internal so a test can EXPLAIN it). "+p.is_active" keeps the planner from driving the join through the
+        // low-selectivity idx_products_is_active (a scan of every active product, about 7 ms at 50k products) instead of the barcode matches.
+        internal static string BuildExactBarcodeSql(bool isPharmaActive, bool hasAlt)
+        {
+            string pharmaSelect = isPharmaActive ? "COALESCE(pi.scientific_name, '') AS scientific_name, COALESCE(df.name_ar, '') AS dosage_form_name, COALESCE(pi.rx_status, 'otc') AS rx_status, COALESCE(pi.controlled_schedule, 'none') AS controlled_schedule," : "";
+            string pharmaJoin = isPharmaActive ? "LEFT JOIN product_pharma_info pi ON p.id = pi.product_id LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id " : "";
+
+            // The 12/13-digit EAN twin is looked up only when it exists (an empty value must never match empty barcodes)
+            string altBranches = !hasAlt ? "" : @"
+                            UNION ALL SELECT id AS id, 3 AS rk FROM products WHERE barcode = @alt
+                            UNION ALL SELECT product_id AS id, 3 AS rk FROM product_barcodes WHERE barcode = @alt
+                            UNION ALL SELECT product_id AS id, 3 AS rk FROM product_units WHERE barcode = @alt";
+
+            string sql = @"
+                SELECT p.*, " + pharmaSelect + @" COALESCE(c.name, 'عام') AS category_name,
+                    COALESCE(sl.name, '') AS location_name,
+                    COALESCE(sl.code, '') AS location_code,
+                    COALESCE(sl.type, '') AS location_type,
+                    CASE
+                        WHEN p.has_variants = 1 THEN 1
+                        WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
+                        ELSE 0
+                    END AS has_variants_computed,
+                    (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count
+                FROM (
+                    SELECT x.id AS id, MIN(x.rk) AS rk
+                    FROM (
+                            SELECT id AS id, 0 AS rk FROM products WHERE barcode = @bc
+                            UNION ALL SELECT product_id AS id, 1 AS rk FROM product_barcodes WHERE barcode = @bc
+                            UNION ALL SELECT product_id AS id, 2 AS rk FROM product_units WHERE barcode = @bc" + altBranches + @"
+                    ) x
+                    GROUP BY x.id
+                ) m
+                JOIN products p ON p.id = m.id AND +p.is_active = 1
+                LEFT JOIN categories c ON p.category_id = c.id
+                LEFT JOIN storage_locations sl ON p.location_id = sl.id
+                " + pharmaJoin + @"
+                ORDER BY m.rk ASC, p.created_at ASC, p.id ASC
+                LIMIT @limit;
+            ";
+            return sql;
+        }
+
         // Fast exact scan lookup: every branch is an equality on an indexed barcode column (no LIKE, no scan of products).
         // Same product shape as Search (category/location/pharma/variant columns, units, barcodes); best match first.
         public List<Product> GetByExactBarcode(string barcode, int limit = 5)
@@ -158,42 +201,7 @@ namespace RafiqPOS.Repositories
             }
             catch { }
 
-            string pharmaSelect = isPharmaActive ? "COALESCE(pi.scientific_name, '') AS scientific_name, COALESCE(df.name_ar, '') AS dosage_form_name, COALESCE(pi.rx_status, 'otc') AS rx_status, COALESCE(pi.controlled_schedule, 'none') AS controlled_schedule," : "";
-            string pharmaJoin = isPharmaActive ? "LEFT JOIN product_pharma_info pi ON p.id = pi.product_id LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id " : "";
-
-            // The 12/13-digit EAN twin is looked up only when it exists (an empty value must never match empty barcodes)
-            string altBranches = altBarcode.Length == 0 ? "" : @"
-                            UNION ALL SELECT id AS id, 3 AS rk FROM products WHERE barcode = @alt
-                            UNION ALL SELECT product_id AS id, 3 AS rk FROM product_barcodes WHERE barcode = @alt
-                            UNION ALL SELECT product_id AS id, 3 AS rk FROM product_units WHERE barcode = @alt";
-
-            string sql = @"
-                SELECT p.*, " + pharmaSelect + @" COALESCE(c.name, 'عام') AS category_name,
-                    COALESCE(sl.name, '') AS location_name,
-                    COALESCE(sl.code, '') AS location_code,
-                    COALESCE(sl.type, '') AS location_type,
-                    CASE
-                        WHEN p.has_variants = 1 THEN 1
-                        WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
-                        ELSE 0
-                    END AS has_variants_computed,
-                    (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count
-                FROM (
-                    SELECT x.id AS id, MIN(x.rk) AS rk
-                    FROM (
-                            SELECT id AS id, 0 AS rk FROM products WHERE barcode = @bc
-                            UNION ALL SELECT product_id AS id, 1 AS rk FROM product_barcodes WHERE barcode = @bc
-                            UNION ALL SELECT product_id AS id, 2 AS rk FROM product_units WHERE barcode = @bc" + altBranches + @"
-                    ) x
-                    GROUP BY x.id
-                ) m
-                JOIN products p ON p.id = m.id AND p.is_active = 1
-                LEFT JOIN categories c ON p.category_id = c.id
-                LEFT JOIN storage_locations sl ON p.location_id = sl.id
-                " + pharmaJoin + @"
-                ORDER BY m.rk ASC, p.created_at ASC, p.id ASC
-                LIMIT @limit;
-            ";
+            string sql = BuildExactBarcodeSql(isPharmaActive, altBarcode.Length > 0);
 
             using (var conn = new SQLiteConnection(_connectionString))
             {

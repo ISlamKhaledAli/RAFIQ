@@ -31,6 +31,8 @@ namespace RafiqPOS.Services
         public bool IsAuditLogTampered { get; set; }
         public string AuditLogStatus { get; set; }
         public string EncryptionStatus { get; set; }
+        // Encryption of the database file itself (separate from the backup container above)
+        public string DatabaseEncryptionStatus { get; set; }
         public string DeviceFingerprint { get; set; }
     }
 
@@ -344,6 +346,68 @@ namespace RafiqPOS.Services
             catch (Exception ex)
             {
                 Logger.Warn("فحص سلامة وتوازن البيانات المحاسبية واجه استثناء: " + ex.Message);
+            }
+
+            // 4.7. Database file encryption: state of the one-time conversion of a legacy plain database
+            try
+            {
+                EncryptionStatus dbEnc = DatabaseService.GetEncryptionStatus();
+                EncryptionStartupResult encStart = DatabaseEncryptionService.LastStartupResult;
+                if (dbEnc.DatabaseEncrypted)
+                {
+                    metrics.DatabaseEncryptionStatus = "قاعدة البيانات مشفرة (ChaCha20)";
+                }
+                else if (encStart != null && encStart.Outcome == EncryptionStartupOutcome.RunningPlain)
+                {
+                    metrics.DatabaseEncryptionStatus = encStart.Stopped
+                        ? "قاعدة البيانات غير مشفرة: توقفت المحاولات التلقائية"
+                        : "قاعدة البيانات غير مشفرة: ستتم إعادة المحاولة";
+                    alerts.Add(new SystemAlert
+                    {
+                        Id = "database_encryption_pending",
+                        Level = encStart.Stopped ? "critical" : "warning",
+                        Title = encStart.Stopped ? "تعذر تشفير قاعدة البيانات" : "تشفير قاعدة البيانات لم يكتمل بعد",
+                        Message = string.IsNullOrEmpty(encStart.Message)
+                            ? "قاعدة البيانات الحالية غير مشفرة وسيحاول البرنامج تشفيرها عند التشغيل القادم. بياناتك سليمة."
+                            : encStart.Message,
+                        FixAction = "تواصل مع الدعم الفني",
+                        FixTarget = "settings"
+                    });
+                }
+                else
+                {
+                    metrics.DatabaseEncryptionStatus = "قاعدة البيانات غير مشفرة";
+                }
+
+                if (dbEnc.UnprotectedLeftovers > 0)
+                {
+                    alerts.Add(new SystemAlert
+                    {
+                        Id = "database_unprotected_copies",
+                        Level = "warning",
+                        Title = "ملفات قديمة غير مشفرة لم يمكن حمايتها",
+                        Message = "توجد " + dbEnc.UnprotectedLeftovers + " ملف/ملفات نسخ قاعدة بيانات قديمة غير مشفرة تعذر تشفيرها أو حذفها تلقائياً. تواصل مع الدعم الفني لمعالجتها.",
+                        FixAction = "تواصل مع الدعم الفني",
+                        FixTarget = "settings"
+                    });
+                }
+
+                if (dbEnc.PlainLeftoverPresent || (encStart != null && encStart.PlainLeftoverRemains))
+                {
+                    alerts.Add(new SystemAlert
+                    {
+                        Id = "database_plain_leftover",
+                        Level = "warning",
+                        Title = "بقيت نسخة غير مشفرة من قاعدة البيانات",
+                        Message = "تعذر حذف النسخة الأصلية غير المشفرة بعد التشفير. سيعيد البرنامج المحاولة عند التشغيل القادم؛ إن تكرر ذلك تواصل مع الدعم الفني.",
+                        FixAction = "تواصل مع الدعم الفني",
+                        FixTarget = "settings"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("فحص حالة تشفير قاعدة البيانات واجه استثناء: " + ex.Message);
             }
 
             // 5. Aggregate Health & One-Sentence Summary (Task 138-1 & 138-2)

@@ -148,7 +148,7 @@ namespace RafiqPOS.Services
                     CreatedAt = DateTime.UtcNow.ToString("o"),
                     UpdatedAt = DateTime.UtcNow.ToString("o")
                 };
-                using (var shiftConn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var shiftConn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     shiftConn.Open();
                     using (var shiftTrans = shiftConn.BeginTransaction())

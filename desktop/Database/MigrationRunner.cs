@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 
 namespace RafiqPOS.Database
 {
@@ -2558,20 +2558,19 @@ namespace RafiqPOS.Database
                 string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
                 string backupFile = Path.Combine(backupDir, string.Format("pre_{0}_{1}.db", tag, timestamp));
 
-                using (var backupConn = new SQLiteConnection("Data Source=" + backupFile + ";Version=3;"))
+                // The copy has the same format as the live file (encrypted for an encrypted database), so it never exposes more than the original
+                bool sourceIsPlain = DatabaseKeyProvider.IsPlainSqliteFile(dbPath);
+                using (var backupConn = DatabaseFileAccess.Open(backupFile, false, sourceIsPlain))
                 {
-                    backupConn.Open();
-                    using (var sourceConn = new SQLiteConnection("Data Source=" + dbPath + ";Version=3;Read Only=True;"))
+                    using (var sourceConn = DatabaseFileAccess.Open(dbPath, true, sourceIsPlain))
                     {
-                        sourceConn.Open();
                         sourceConn.BackupDatabase(backupConn, "main", "main", -1, null, 100);
                     }
                 }
 
                 // Verify backup integrity
-                using (var checkConn = new SQLiteConnection("Data Source=" + backupFile + ";Version=3;Read Only=True;"))
+                using (var checkConn = DatabaseFileAccess.Open(backupFile, true, sourceIsPlain))
                 {
-                    checkConn.Open();
                     using (var cmd = checkConn.CreateCommand())
                     {
                         cmd.CommandText = "PRAGMA quick_check;";

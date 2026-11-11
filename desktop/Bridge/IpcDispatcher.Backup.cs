@@ -147,6 +147,39 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, dbIntegrity);
                     return true;
 
+                case "database:getEncryptionStatus":
+                    response = BridgeResponse.Ok(request.Id, DatabaseService.GetEncryptionStatus());
+                    return true;
+
+                case "database:exportDecrypted":
+                    string exportDecryptedPath = null;
+                    JObject exportObj = request.Payload as JObject;
+                    if (exportObj != null && exportObj["path"] != null) exportDecryptedPath = exportObj["path"].ToString();
+                    TransactionResult exportDecrypted = DatabaseService.ExportDecryptedCopy(exportDecryptedPath);
+                    response = exportDecrypted.Success
+                        ? BridgeResponse.Ok(request.Id, new { success = true, message = exportDecrypted.Message })
+                        : BridgeResponse.Fail(request.Id, "EXPORT_DECRYPTED_FAILED", exportDecrypted.Message);
+                    return true;
+
+                case "database:deletePreEncryptionCopy":
+                    TransactionResult deleteSealed = DatabaseService.DeletePreEncryptionCopy();
+                    response = deleteSealed.Success
+                        ? BridgeResponse.Ok(request.Id, new { success = true, message = deleteSealed.Message })
+                        : BridgeResponse.Fail(request.Id, "DELETE_PRE_ENCRYPTION_FAILED", deleteSealed.Message);
+                    return true;
+
+                case "database:restoreFromPreEncryptionCopy":
+                    TransactionResult restoreSealed = DatabaseService.RestoreFromPreEncryptionCopy();
+                    response = restoreSealed.Success
+                        ? BridgeResponse.Ok(request.Id, new { success = true, message = restoreSealed.Message })
+                        : BridgeResponse.Fail(request.Id, "RESTORE_PRE_ENCRYPTION_FAILED", restoreSealed.Message);
+                    return true;
+
+                case "database:retryEncryptionConversion":
+                    TransactionResult retryConv = DatabaseService.RetryEncryptionConversion();
+                    response = BridgeResponse.Ok(request.Id, new { success = retryConv.Success, message = retryConv.Message });
+                    return true;
+
                 case "database:restore":
                     string restoreFilePath = null;
                     string restoreMasterKey = null;

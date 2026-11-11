@@ -120,10 +120,10 @@ namespace RafiqPOS.Tests.Scenarios
                 { "customerId", customer.Id }, { "amountPiasters", 5000 }, { "notes", "سداد" }, { "paymentMethod", "cash" }
             });
             string ledgerId;
-            using (var conn = new System.Data.SQLite.SQLiteConnection(DatabaseService.ConnectionString))
+            using (var conn = new RafiqPOS.Data.SQLiteConnection(DatabaseService.ConnectionString))
             {
                 conn.Open();
-                using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT id FROM customer_ledger WHERE customer_id = @c AND type = 'payment' LIMIT 1;", conn))
+                using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT id FROM customer_ledger WHERE customer_id = @c AND type = 'payment' LIMIT 1;", conn))
                 {
                     cmd.Parameters.AddWithValue("@c", customer.Id);
                     ledgerId = Convert.ToString(cmd.ExecuteScalar());

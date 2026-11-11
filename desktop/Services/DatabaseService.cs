@@ -59,7 +59,13 @@ namespace RafiqPOS.Services
         ReadOnly = 3,
         IoError = 4,
         CannotOpen = 5,
-        Busy = 6
+        Busy = 6,
+        // The file is not a plain SQLite database and does not open with this program's key (wrong key or a damaged header): never destructive
+        EncryptionKeyMismatch = 7,
+        // A conversion swap stopped half way and could not be undone, or the live file is missing next to conversion leftovers
+        EncryptionSwapInterrupted = 8,
+        // The live file is missing or empty and only the sealed pre-encryption copy exists
+        EncryptionSealedOnly = 9
     }
 
     // Raised at startup for storage problems that are NOT file corruption: restore/quarantine must never be offered for them
@@ -115,7 +121,7 @@ namespace RafiqPOS.Services
         {
             if (ex == null) return DatabaseFailureKind.Unknown;
 
-            System.Data.SQLite.SQLiteException sqlEx = ex as System.Data.SQLite.SQLiteException;
+            RafiqPOS.Data.SQLiteException sqlEx = ex as RafiqPOS.Data.SQLiteException;
             if (sqlEx != null)
             {
                 DatabaseFailureKind kind = ClassifyResultCode((int)sqlEx.ResultCode);
@@ -169,6 +175,12 @@ namespace RafiqPOS.Services
                     return "قاعدة البيانات مشغولة بعملية أخرى حالياً. يرجى المحاولة بعد لحظات.";
                 case DatabaseFailureKind.Corrupt:
                     return "ملف قاعدة البيانات تالف أو غير متسق.";
+                case DatabaseFailureKind.EncryptionSwapInterrupted:
+                    return EncryptionSwapFatalException.ArabicMessage;
+                case DatabaseFailureKind.EncryptionSealedOnly:
+                    return DatabaseEncryptionService.SealedOnlyMessage;
+                case DatabaseFailureKind.EncryptionKeyMismatch:
+                    return "تعذر فتح ملف قاعدة البيانات المشفرة: إما أن الملف تالف (مثلاً بسبب انقطاع الكهرباء أثناء الحفظ) أو أنه كُتب بواسطة نسخة مختلفة من البرنامج. لم يتم تغيير أو حذف أي ملف. يمكنك استرجاع آخر نسخة احتياطية سليمة من نافذة الاسترجاع بكود استرجاع المالك، أو التواصل مع الدعم الفني. لن يحدث أي استرجاع إلا بعد اختيارك.";
                 default:
                     return "تعذر تنفيذ العملية على قاعدة البيانات.";
             }
@@ -184,6 +196,9 @@ namespace RafiqPOS.Services
                 case DatabaseFailureKind.IoError: return "DISK_IO_ERROR";
                 case DatabaseFailureKind.CannotOpen: return "DATABASE_CANNOT_OPEN";
                 case DatabaseFailureKind.Busy: return "DATABASE_BUSY";
+                case DatabaseFailureKind.EncryptionKeyMismatch: return "ENCRYPTION_KEY_MISMATCH";
+                case DatabaseFailureKind.EncryptionSwapInterrupted: return "ENCRYPTION_SWAP_INTERRUPTED";
+                case DatabaseFailureKind.EncryptionSealedOnly: return "ENCRYPTION_SEALED_ONLY";
                 default: return null;
             }
         }
@@ -195,6 +210,14 @@ namespace RafiqPOS.Services
         public bool IsCorrupt { get; set; }
         // Set when startup failed for a storage reason that is not corruption (disk full, read-only, I/O, cannot open)
         public DatabaseFailureKind StorageFailure { get; set; }
+        // True when the file is not plain SQLite and its header page does not decrypt with this program's key: either damaged
+        // (a torn write of page 1) or written by a different build. Handled through the same user-initiated recovery flow as
+        // corruption (IsCorrupt is also true) but with zero automatic action: no quarantine, no restore, no file change.
+        public bool IsKeyMismatch { get; set; }
+        // True when a PLAIN database appeared although this store was known to be encrypted (failure code UNEXPECTED_PLAIN_DATABASE)
+        public bool IsUnexpectedPlain { get; set; }
+        // Machine-readable reason for the UI and support ("ENCRYPTION_KEY_MISMATCH" or null)
+        public string FailureCode { get; set; }
         public string Message { get; set; }
         public string CorruptBackupSavedPath { get; set; }
         public string LatestValidBackupFile { get; set; }
@@ -210,6 +233,11 @@ namespace RafiqPOS.Services
         private static bool _backgroundChecksRequested;
         // True once startup finished the integrity check; until then a leftover session marker still describes the previous (maybe unclean) run
         private static bool _integrityCheckCompleted;
+
+        // Set by the host before Initialize: receives short Arabic status lines while a long startup step (the one-time encryption conversion) runs
+        public static Action<string> StartupProgress { get; set; }
+
+        private static bool _retentionAppliedThisProcess;
 
         public static string ConnectionString
         {
@@ -313,24 +341,48 @@ namespace RafiqPOS.Services
         public static RecipeRepository RecipeRepo { get; set; }
         public static RecipeService Recipes { get; set; }
 
-        public static void Initialize(string customBaseFolder = null)
+        private static string ResolveBaseFolder(string customBaseFolder)
         {
-            string baseFolder;
-
             if (!string.IsNullOrEmpty(customBaseFolder))
             {
-                baseFolder = customBaseFolder;
+                return customBaseFolder;
             }
-            else
+            // If running in development (Debug), use local data folder
+            #if DEBUG
+            return AppDomain.CurrentDomain.BaseDirectory;
+            #else
+            // In Production (Program Files), use C:\ProgramData\RafiqPOS for full write permissions
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RafiqPOS");
+            #endif
+        }
+
+        private static string _preparedDbPath;
+        private static EncryptionStartupResult _preparedEncryption;
+
+        /// <summary>
+        /// The slow part of startup (the one-time encryption conversion of a legacy store) separated so the host can run it on a worker thread
+        /// while the splash screen stays responsive. Initialize uses this result instead of repeating the work. Safe to skip.
+        /// </summary>
+        public static void PrepareEncryptionAtStartup(string customBaseFolder = null)
+        {
+            RafiqPOS.Data.SQLiteConnection.EnsureEngineLoaded();
+            string baseFolder = ResolveBaseFolder(customBaseFolder);
+            string dataFolder = Path.Combine(baseFolder, "data");
+            if (!Directory.Exists(dataFolder))
             {
-                // If running in development (Debug), use local data folder
-                #if DEBUG
-                baseFolder = AppDomain.CurrentDomain.BaseDirectory;
-                #else
-                // In Production (Program Files), use C:\ProgramData\RafiqPOS for full write permissions
-                baseFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RafiqPOS");
-                #endif
+                Directory.CreateDirectory(dataFolder);
             }
+            EncryptionService.ProtectDatabaseFolderAcl(dataFolder);
+            string dbPath = Path.Combine(dataFolder, "rafiq_pos.db");
+            _preparedEncryption = DatabaseEncryptionService.EnsureEncryptedAtStartup(dataFolder, dbPath, StartupProgress);
+            _preparedDbPath = dbPath;
+        }
+
+        public static void Initialize(string customBaseFolder = null)
+        {
+            // A missing or blocked native engine must surface as itself (not as a generic database error further down)
+            RafiqPOS.Data.SQLiteConnection.EnsureEngineLoaded();
+            string baseFolder = ResolveBaseFolder(customBaseFolder);
 
             _integrityCheckCompleted = false;
             _baseFolder = baseFolder;
@@ -347,6 +399,64 @@ namespace RafiqPOS.Services
             _dbPath = Path.Combine(dataFolder, "rafiq_pos.db");
             _connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;Foreign Keys=True;Journal Mode=Wal;Synchronous=Full;CacheSize=4000;", _dbPath);
 
+            // Encrypted databases only: a legacy plain file is converted (crash-safe, verified) before anything opens it.
+            // When the conversion cannot run, the process keeps using the plain file (every default connection unkeyed) and raises an alert.
+            EncryptionStartupResult encryptionStart;
+            if (_preparedEncryption != null && string.Equals(_preparedDbPath, _dbPath, StringComparison.OrdinalIgnoreCase))
+            {
+                encryptionStart = _preparedEncryption;
+            }
+            else
+            {
+                encryptionStart = DatabaseEncryptionService.EnsureEncryptedAtStartup(dataFolder, _dbPath, StartupProgress);
+            }
+            _preparedEncryption = null;
+            _preparedDbPath = null;
+
+            if (encryptionStart.Outcome == EncryptionStartupOutcome.FatalMissingDatabase)
+            {
+                // Never create a new empty database next to conversion leftovers
+                throw new DatabaseStorageException(DatabaseFailureKind.EncryptionSwapInterrupted, encryptionStart.Message);
+            }
+            if (encryptionStart.Outcome == EncryptionStartupOutcome.FatalSealedOnly)
+            {
+                throw new DatabaseStorageException(DatabaseFailureKind.EncryptionSealedOnly, encryptionStart.Message);
+            }
+            // "running plain" is only valid when the live file really is plain: an encrypted file opened without the key would look corrupt
+            if (encryptionStart.Outcome == EncryptionStartupOutcome.RunningPlain
+                && RafiqPOS.Data.DatabaseKeyProvider.DetectFileKind(_dbPath) != RafiqPOS.Data.DatabaseFileKind.Plain)
+            {
+                Logger.Error("نتيجة التشفير 'قاعدة غير مشفرة' لكن الملف الحي ليس غير مشفر؛ تم تجاهل وضع الرجوع للقاعدة غير المشفرة.", null);
+                encryptionStart.Outcome = EncryptionStartupOutcome.AlreadyEncrypted;
+            }
+            if (encryptionStart.Outcome == EncryptionStartupOutcome.RunningPlain)
+            {
+                RafiqPOS.Data.DatabaseKeyProvider.EnterPlainFallback();
+            }
+            else
+            {
+                RafiqPOS.Data.DatabaseKeyProvider.LeavePlainFallback();
+            }
+            if (encryptionStart.Outcome == EncryptionStartupOutcome.UnexpectedPlain)
+            {
+                // Recovery-style state, no automatic action: the plain file is neither adopted, converted nor modified
+                IntegrityStatus = new DatabaseIntegrityStatus
+                {
+                    IsValid = false,
+                    IsCorrupt = true,
+                    IsUnexpectedPlain = true,
+                    FailureCode = "UNEXPECTED_PLAIN_DATABASE",
+                    Message = encryptionStart.Message
+                };
+                AttachLatestValidBackup(IntegrityStatus, _dbPath);
+                _integrityCheckCompleted = true;
+                MarkSessionOpen(dataFolder);
+                Logger.Error("قاعدة بيانات غير مشفرة غير متوقعة؛ تم إيقاف عمليات الكتابة حتى يختار المستخدم الاسترجاع: " + encryptionStart.Message, null);
+                return;
+            }
+
+            CleanStaleTempArtifacts();
+
             // Fast Startup Integrity Check (Feature #124 / Task 124-1)
             // PRAGMA quick_check reads the whole file (slow on big stores), so it runs only after an unclean shutdown,
             // when a WAL file was left behind, or once a week; otherwise a fast open + schema read still detects a damaged header/schema.
@@ -356,7 +466,9 @@ namespace RafiqPOS.Services
             MarkSessionOpen(dataFolder);
             if (IntegrityStatus.IsCorrupt)
             {
-                Logger.Error("تم اكتشاف تلف في ملف قاعدة البيانات عند بدء التشغيل! تم إيقاف عمليات الكتابة: " + IntegrityStatus.Message, null);
+                Logger.Error((IntegrityStatus.IsKeyMismatch
+                    ? "ملف قاعدة البيانات لا يُفتح بمفتاح البرنامج (تالف أو من نسخة مختلفة)! لم يتم تغيير أي ملف وتم إيقاف عمليات الكتابة حتى يختار المستخدم الاسترجاع: "
+                    : "تم اكتشاف تلف في ملف قاعدة البيانات عند بدء التشغيل! تم إيقاف عمليات الكتابة: ") + IntegrityStatus.Message, null);
                 return; // Block migrations and repo init until recovery is performed
             }
             // Busy, disk full, read-only, I/O, cannot open and unknown errors are not corruption: fail with a precise message, never offer restore
@@ -364,6 +476,11 @@ namespace RafiqPOS.Services
 
             // Execute safe migrations (Feature #1 & #4)
             MigrationRunner.ApplyMigrations(_connectionString, _dbPath);
+            // From now on this store is known to be encrypted: a plain file appearing later is not adopted silently (UNEXPECTED_PLAIN_DATABASE)
+            if (RafiqPOS.Data.DatabaseKeyProvider.DetectFileKind(_dbPath) == RafiqPOS.Data.DatabaseFileKind.NotPlain)
+            {
+                DatabaseEncryptionService.RecordEncryptionEvidence(dataFolder);
+            }
 
             // Initialize Repositories and Services (Feature #5 & #7)
             CounterRepo = new CounterRepository(_connectionString);
@@ -407,6 +524,7 @@ namespace RafiqPOS.Services
             DemoData = new DemoDataService(_connectionString, SettingsRepo, AuditRepo, delegate { return Backup.CreateBackup(null); });
             Readiness = new ReadinessService(SettingsRepo, ProductRepo, Backup, Printer);
             SystemHealth = new SystemHealthService(_dbPath, SettingsRepo, ProductRepo, Backup, Printer);
+            ApplyPreEncryptionRetentionOnce();
             License = new LicenseService(SettingsRepo, Audit);
 
             HeldSaleRepo = new HeldSaleRepository(_connectionString);
@@ -474,6 +592,48 @@ namespace RafiqPOS.Services
 
         }
 
+        // Decrypted staging copies of legacy (plain) backups can outlive a crash: remove stale ones from the temp folder
+        private static void CleanStaleTempArtifacts()
+        {
+            try
+            {
+                string temp = Path.GetTempPath();
+                string[] patterns = new string[] { "rafiq_staging_*", "rafiq_bk_verify_*", "rafiq_wal_precheck_*" };
+                DateTime cutoff = DateTime.UtcNow.AddHours(-2);
+                for (int p = 0; p < patterns.Length; p++)
+                {
+                    foreach (string file in Directory.GetFiles(temp, patterns[p]))
+                    {
+                        try
+                        {
+                            if (File.GetLastWriteTimeUtc(file) < cutoff) RafiqPOS.Data.SecureDelete.WipeAndDeleteQuietly(file);
+                        }
+                        catch (IOException) { }
+                        catch (UnauthorizedAccessException) { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر تنظيف الملفات المؤقتة القديمة: " + ex.Message);
+            }
+        }
+
+        // Once per process: counts this launch toward the retention of the sealed pre-encryption copy (see DatabaseEncryptionService)
+        private static void ApplyPreEncryptionRetentionOnce()
+        {
+            if (_retentionAppliedThisProcess) return;
+            _retentionAppliedThisProcess = true;
+            try
+            {
+                DatabaseEncryptionService.ApplyPreEncryptionRetention(_dbPath);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر تطبيق سياسة الاحتفاظ بنسخة ما قبل التشفير: " + ex.Message);
+            }
+        }
+
         public static DatabaseIntegrityStatus CheckDatabaseIntegrity()
         {
             if (string.IsNullOrEmpty(_connectionString) || string.IsNullOrEmpty(_dbPath))
@@ -510,10 +670,10 @@ namespace RafiqPOS.Services
 
                 string raw = null;
                 string readOnlyConn = string.Format("Data Source={0};Version=3;Read Only=True;BusyTimeout=2000;", dbPath);
-                using (var conn = new System.Data.SQLite.SQLiteConnection(readOnlyConn))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(readOnlyConn))
                 {
                     conn.Open();
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT value FROM app_settings WHERE key = @key;", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT value FROM app_settings WHERE key = @key;", conn))
                     {
                         cmd.Parameters.AddWithValue("@key", LastFullIntegrityCheckKey);
                         object val = cmd.ExecuteScalar();
@@ -574,7 +734,7 @@ namespace RafiqPOS.Services
                 if (!_integrityCheckCompleted) return;
                 // Close pooled connections so SQLite checkpoints and removes the WAL; a WAL left at the next startup then
                 // reliably means an unclean shutdown (and triggers the full integrity check)
-                System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                RafiqPOS.Data.SQLiteConnection.ClearAllPools();
                 string marker = Path.Combine(Path.GetDirectoryName(_dbPath), SessionOpenMarkerName);
                 if (File.Exists(marker))
                 {
@@ -661,6 +821,51 @@ namespace RafiqPOS.Services
             Logger.Error("فشل فحص قاعدة البيانات عند بدء التشغيل لسبب ليس تلفاً في الملف (" + failure + ")", ex);
         }
 
+        // A "not a database / corrupt" failure on a file whose header is not plain SQLite is what a wrong key looks like
+        public static bool IsEncryptionKeyFailure(string dbPath, Exception ex)
+        {
+            if (!(ex is RafiqPOS.Data.SQLiteException)) return false;
+            if (DatabaseFailureClassifier.Classify(ex) != DatabaseFailureKind.Corrupt) return false;
+            if (!RafiqPOS.Data.DatabaseKeyProvider.IsDefaultEncryptionEnabled) return false;
+            if (RafiqPOS.Data.DatabaseKeyProvider.DetectFileKind(dbPath) != RafiqPOS.Data.DatabaseFileKind.NotPlain) return false;
+            return !KeyDecryptsHeaderPage(dbPath);
+        }
+
+        // Reads only the first (header) page with the program key. If that works the key is right and any other failure is real
+        // corruption; if it does not, the file is a wrong-key / damaged-header case that must never be quarantined or restored over.
+        private static bool KeyDecryptsHeaderPage(string dbPath)
+        {
+            try
+            {
+                using (var conn = RafiqPOS.Data.DatabaseFileAccess.OpenExisting(dbPath, true))
+                using (var cmd = new RafiqPOS.Data.SQLiteCommand("PRAGMA schema_version;", conn))
+                {
+                    cmd.ExecuteScalar();
+                    return true;
+                }
+            }
+            catch (RafiqPOS.Data.SQLiteException)
+            {
+                return false;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+        }
+
+        public static void ApplyEncryptionKeyMismatch(DatabaseIntegrityStatus status, Exception ex)
+        {
+            status.IsValid = false;
+            // Recoverable through the existing restore flow (IsCorrupt drives the recovery UI), but nothing happens automatically
+            status.IsCorrupt = true;
+            status.IsKeyMismatch = true;
+            status.FailureCode = DatabaseFailureClassifier.IpcCode(DatabaseFailureKind.EncryptionKeyMismatch);
+            status.StorageFailure = DatabaseFailureKind.EncryptionKeyMismatch;
+            status.Message = DatabaseFailureClassifier.DescribeArabic(DatabaseFailureKind.EncryptionKeyMismatch);
+            Logger.Error("ENCRYPTION_KEY_MISMATCH: فشل فتح قاعدة البيانات المشفرة بالمفتاح الحالي؛ لم يتم تغيير أي ملف", ex);
+        }
+
         // An integrity result that is neither valid nor corrupt (busy, disk, permission, unknown) is a startup failure with its own message
         public static void ThrowIfStartupBlocked(DatabaseIntegrityStatus status)
         {
@@ -672,16 +877,18 @@ namespace RafiqPOS.Services
 
         private static DatabaseIntegrityStatus CheckAndQuarantine(string connStr, string dbPath, string walSnapshot, DatabaseIntegrityStatus status, bool fullCheck)
         {
+            // A NotADb/corrupt failure on a non-plain file whose header page does not decrypt with our key means "wrong key or damaged
+            // header", which must never trigger quarantine or restore (decision 5)
             try
             {
-                using (var conn = new System.Data.SQLite.SQLiteConnection(connStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(connStr))
                 {
                     conn.Open();
 
                     // 1. Run PRAGMA quick_check (full file scan) only when requested; startup uses it after unclean shutdown or weekly
                     if (fullCheck)
                     {
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("PRAGMA quick_check;", conn))
+                        using (var cmd = new RafiqPOS.Data.SQLiteCommand("PRAGMA quick_check;", conn))
                         {
                             object res = cmd.ExecuteScalar();
                             if (res == null || !res.ToString().Equals("ok", StringComparison.OrdinalIgnoreCase))
@@ -696,7 +903,7 @@ namespace RafiqPOS.Services
                     // 2. Validate essential table can be queried if quick_check returned ok
                     if (!status.IsCorrupt)
                     {
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT count(*) FROM sqlite_master;", conn))
+                        using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT count(*) FROM sqlite_master;", conn))
                         {
                             cmd.ExecuteScalar();
                         }
@@ -705,12 +912,21 @@ namespace RafiqPOS.Services
             }
             catch (Exception ex)
             {
-                ApplyIntegrityFailure(status, ex);
+                if (IsEncryptionKeyFailure(dbPath, ex))
+                {
+                    ApplyEncryptionKeyMismatch(status, ex);
+                }
+                else
+                {
+                    ApplyIntegrityFailure(status, ex);
+                }
             }
 
             // If corrupt, isolate and quarantine file without deleting it (Task 124-2)
             if (status.IsCorrupt)
             {
+                // A key mismatch is never quarantined: the file stays exactly as it is until the user chooses to restore
+                if (!status.IsKeyMismatch)
                 try
                 {
                     string quarantineDir = Path.Combine(Path.GetDirectoryName(dbPath), "quarantine");
@@ -736,32 +952,38 @@ namespace RafiqPOS.Services
                 }
 
                 // Locate latest valid backup file
-                try
-                {
-                    string baseFolder = Path.GetDirectoryName(dbPath);
-                    string backupDir = Path.Combine(Path.GetDirectoryName(baseFolder), "backups");
-                    if (Directory.Exists(backupDir))
-                    {
-                        string[] backups = Directory.GetFiles(backupDir, "rafiq_backup_*.db");
-                        if (backups.Length > 0)
-                        {
-                            Array.Sort(backups);
-                            Array.Reverse(backups);
-                            string latest = backups[0];
-                            var fi = new FileInfo(latest);
-                            status.LatestValidBackupFile = latest;
-                            status.LatestValidBackupDate = fi.CreationTime.ToString("yyyy-MM-dd HH:mm");
-                            status.LatestValidBackupSizeBytes = fi.Length;
-                        }
-                    }
-                }
-                catch
-                {
-                    // Ignore backup discovery failure
-                }
+                AttachLatestValidBackup(status, dbPath);
             }
 
             return status;
+        }
+
+        // Fills the "latest backup" fields the recovery UI shows (corruption, key mismatch and unexpected-plain states)
+        private static void AttachLatestValidBackup(DatabaseIntegrityStatus status, string dbPath)
+        {
+            try
+            {
+                string baseFolder = Path.GetDirectoryName(dbPath);
+                string backupDir = Path.Combine(Path.GetDirectoryName(baseFolder), "backups");
+                if (Directory.Exists(backupDir))
+                {
+                    string[] backups = Directory.GetFiles(backupDir, "rafiq_backup_*.db");
+                    if (backups.Length > 0)
+                    {
+                        Array.Sort(backups);
+                        Array.Reverse(backups);
+                        string latest = backups[0];
+                        var fi = new FileInfo(latest);
+                        status.LatestValidBackupFile = latest;
+                        status.LatestValidBackupDate = fi.CreationTime.ToString("yyyy-MM-dd HH:mm");
+                        status.LatestValidBackupSizeBytes = fi.Length;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore backup discovery failure
+            }
         }
 
         public static TransactionResult RestoreFromBackup(string backupFilePath)
@@ -870,10 +1092,10 @@ namespace RafiqPOS.Services
                 }
 
                 // Verify backup integrity before restoring
-                using (var conn = new System.Data.SQLite.SQLiteConnection(string.Format("Data Source={0};Version=3;Read Only=True;", fileToRestore)))
+                // Legacy backups hold a plain database, current ones an encrypted one: the header decides how it is opened
+                using (var conn = RafiqPOS.Data.DatabaseFileAccess.OpenExisting(fileToRestore, true))
                 {
-                    conn.Open();
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("PRAGMA quick_check;", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("PRAGMA quick_check;", conn))
                     {
                         object res = cmd.ExecuteScalar();
                         if (res == null || !res.ToString().Equals("ok", StringComparison.OrdinalIgnoreCase))
@@ -886,7 +1108,7 @@ namespace RafiqPOS.Services
                     int backupSchemaVersion = 0;
                     try
                     {
-                        using (var cmdVer = new System.Data.SQLite.SQLiteCommand("SELECT COALESCE(MAX(version), 0) FROM schema_migrations;", conn))
+                        using (var cmdVer = new RafiqPOS.Data.SQLiteCommand("SELECT COALESCE(MAX(version), 0) FROM schema_migrations;", conn))
                         {
                             object vRes = cmdVer.ExecuteScalar();
                             if (vRes != null && vRes != DBNull.Value)
@@ -924,7 +1146,7 @@ namespace RafiqPOS.Services
             {
                 if (!string.IsNullOrEmpty(tempStaging) && File.Exists(tempStaging))
                 {
-                    try { File.Delete(tempStaging); } catch { }
+                    RafiqPOS.Data.SecureDelete.WipeAndDeleteQuietly(tempStaging);
                 }
             }
         }
@@ -950,11 +1172,12 @@ namespace RafiqPOS.Services
                 {
                     if (!Directory.Exists(safetyDir)) Directory.CreateDirectory(safetyDir);
                     string snapPath = Path.Combine(safetyDir, string.Format("{0}_{1}.db", safetyPrefix, stamp));
-                    using (var srcConn = new System.Data.SQLite.SQLiteConnection(connectionString))
-                    using (var dstConn = new System.Data.SQLite.SQLiteConnection(string.Format("Data Source={0};Version=3;", snapPath)))
+                    // The snapshot has the live file's format, so it never exposes more than the original does
+                    bool livePlain = RafiqPOS.Data.DatabaseKeyProvider.IsPlainSqliteFile(dbPath);
+                    using (var srcConn = new RafiqPOS.Data.SQLiteConnection(connectionString))
+                    using (var dstConn = RafiqPOS.Data.DatabaseFileAccess.Open(snapPath, false, livePlain))
                     {
                         srcConn.Open();
-                        dstConn.Open();
                         srcConn.BackupDatabase(dstConn, "main", "main", -1, null, 0);
                     }
                     PruneDirectoryFiles(safetyDir, safetyPrefix + "_*.db", 2);
@@ -984,12 +1207,23 @@ namespace RafiqPOS.Services
             string incomingPath = dbPath + ".incoming_" + Guid.NewGuid().ToString("N");
             try
             {
-                File.Copy(replacementDbPath, incomingPath, true);
+                // A legacy plain database (old backup / store package) is converted to the encrypted format and verified
+                // before it can become the live file; encrypted replacements are copied as they are
+                if (RafiqPOS.Data.DatabaseKeyProvider.IsDefaultEncryptionEnabled
+                    && !RafiqPOS.Data.DatabaseKeyProvider.IsPlainFallbackActive
+                    && RafiqPOS.Data.DatabaseKeyProvider.IsPlainSqliteFile(replacementDbPath))
+                {
+                    DatabaseEncryptionService.EncryptPlainCopy(replacementDbPath, incomingPath);
+                }
+                else
+                {
+                    File.Copy(replacementDbPath, incomingPath, true);
+                }
             }
             catch (Exception stageEx)
             {
                 Logger.Error("تعذر تجهيز ملف قاعدة البيانات المسترجعة", stageEx);
-                try { if (File.Exists(incomingPath)) File.Delete(incomingPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                RafiqPOS.Data.SecureDelete.WipeAndDeleteQuietly(incomingPath);
                 return new TransactionResult(false, "تم إيقاف الاسترجاع: تعذر تجهيز ملف النسخة (مساحة القرص أو الفلاشة). لم يتم المساس بقاعدة البيانات الحالية.");
             }
 
@@ -1001,10 +1235,10 @@ namespace RafiqPOS.Services
                 // Fold the WAL into the main file so nothing committed depends on the files about to be removed
                 if (!sourceCorrupt && File.Exists(dbPath))
                 {
-                    using (var ckConn = new System.Data.SQLite.SQLiteConnection(connectionString))
+                    using (var ckConn = new RafiqPOS.Data.SQLiteConnection(connectionString))
                     {
                         ckConn.Open();
-                        using (var ckCmd = new System.Data.SQLite.SQLiteCommand("PRAGMA wal_checkpoint(TRUNCATE);", ckConn))
+                        using (var ckCmd = new RafiqPOS.Data.SQLiteCommand("PRAGMA wal_checkpoint(TRUNCATE);", ckConn))
                         using (var ckReader = ckCmd.ExecuteReader())
                         {
                             if (ckReader.Read() && Convert.ToInt32(ckReader[0]) != 0)
@@ -1015,7 +1249,7 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                RafiqPOS.Data.SQLiteConnection.ClearAllPools();
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
 
@@ -1040,7 +1274,7 @@ namespace RafiqPOS.Services
                         afterCopy();
                     }
 
-                    System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                    RafiqPOS.Data.SQLiteConnection.ClearAllPools();
                     if (isLive)
                     {
                         Initialize(_baseFolder);
@@ -1064,7 +1298,7 @@ namespace RafiqPOS.Services
             }
             finally
             {
-                try { if (File.Exists(incomingPath)) File.Delete(incomingPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                RafiqPOS.Data.SecureDelete.WipeAndDeleteQuietly(incomingPath);
                 if (isLive && _backgroundChecksRequested && !IsCorrupted)
                 {
                     StartBackgroundChecks();
@@ -1077,7 +1311,7 @@ namespace RafiqPOS.Services
         {
             try
             {
-                System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                RafiqPOS.Data.SQLiteConnection.ClearAllPools();
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 if (rollbackPath != null && File.Exists(rollbackPath))
@@ -1163,15 +1397,15 @@ namespace RafiqPOS.Services
             try
             {
                 string connStr = string.Format("Data Source={0};Version=3;BusyTimeout=500;Pooling=False;", dbPath);
-                using (var conn = new System.Data.SQLite.SQLiteConnection(connStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(connStr))
                 {
                     conn.Open();
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("PRAGMA journal_mode;", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("PRAGMA journal_mode;", conn))
                     {
                         object mode = cmd.ExecuteScalar();
                         info.JournalMode = mode != null && mode != DBNull.Value ? mode.ToString().ToLowerInvariant() : "";
                     }
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT COALESCE(MAX(version), 0) FROM schema_migrations;", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT COALESCE(MAX(version), 0) FROM schema_migrations;", conn))
                     {
                         object ver = cmd.ExecuteScalar();
                         info.SchemaVersion = ver != null && ver != DBNull.Value ? Convert.ToInt32(ver) : 0;
@@ -1188,6 +1422,187 @@ namespace RafiqPOS.Services
             return info;
         }
 
+        // ------------------------------------------------------------ database encryption (root tools, status)
+
+        public static EncryptionStatus GetEncryptionStatus()
+        {
+            if (string.IsNullOrEmpty(_dbPath)) return new EncryptionStatus();
+            EncryptionStatus status = DatabaseEncryptionService.GetStatus(_dbPath);
+            // The conversion that started with this process decides what is shown (the marker is gone after a success)
+            EncryptionStartupResult startup = DatabaseEncryptionService.LastStartupResult;
+            if (startup != null && startup.Outcome == EncryptionStartupOutcome.RunningPlain)
+            {
+                status.DatabaseEncrypted = false;
+                if (startup.Stopped) status.ConversionStopped = true;
+            }
+            return status;
+        }
+
+        // Returns false when the entry could not be written (callers that must audit first refuse to continue)
+        private static bool LogEncryptionAudit(string action, string details)
+        {
+            try
+            {
+                if (AuditRepo == null) return false;
+                RafiqPOS.Models.UserDto actor = SecurityService.CurrentUser;
+                AuditRepo.Log(new RafiqPOS.Models.AuditLog
+                {
+                    UserId = actor != null ? actor.Id : "usr_admin_default",
+                    Action = action,
+                    EntityType = "database",
+                    EntityId = "rafiq_pos.db",
+                    DetailsJson = details
+                });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر تسجيل حدث التشفير في سجل التدقيق: " + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Validates the destination of the decrypted export: a fully-qualified LOCAL path only. Rejects drive-relative paths (C:x), UNC and
+        /// device paths, "..", alternate data streams, wrong extension, folders that are or sit behind a reparse point (junction/symlink),
+        /// and anything inside the data folder. Returns null when acceptable, otherwise the Arabic reason; fullPath is the normalised target.
+        /// </summary>
+        internal static string ValidateExportPath(string destinationPath, string liveDataFolder, out string fullPath)
+        {
+            fullPath = null;
+            if (string.IsNullOrWhiteSpace(destinationPath)) return "يرجى تحديد مسار ملف الوجهة.";
+            string raw = destinationPath.Trim();
+            if (raw.IndexOf('\0') >= 0) return "مسار الوجهة غير صالح.";
+            if (raw.StartsWith("\\\\", StringComparison.Ordinal) || raw.StartsWith("//", StringComparison.Ordinal)) return "مسارات الشبكة والأجهزة غير مسموحة؛ اختر مساراً محلياً كاملاً.";
+            bool driveForm = raw.Length >= 2 && char.IsLetter(raw[0]) && raw[1] == ':';
+            if (driveForm && (raw.Length < 3 || (raw[2] != '\\' && raw[2] != '/'))) return "يجب أن يكون المسار كاملاً (مثل D:\\export\\store.db) وليس نسبياً للقرص.";
+            string rest = driveForm ? raw.Substring(2) : raw;
+            if (rest.IndexOf(':') >= 0) return "المسارات التي تحتوي على تدفقات بيانات بديلة غير مسموحة.";
+            if (!driveForm && !raw.StartsWith("/", StringComparison.Ordinal)) return "يجب أن يكون المسار كاملاً وينتهي بالامتداد .db";
+            string[] parts = raw.Split(new char[] { '\\', '/' });
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (parts[i] == "..") return "المسارات التي تحتوي على .. غير مسموحة.";
+            }
+            try
+            {
+                fullPath = Path.GetFullPath(raw);
+            }
+            catch (Exception)
+            {
+                return "مسار الوجهة غير صالح.";
+            }
+            if (!string.Equals(Path.GetExtension(fullPath), ".db", StringComparison.OrdinalIgnoreCase)) return "يجب أن يكون المسار كاملاً وينتهي بالامتداد .db";
+            string folder = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return "مجلد الوجهة غير موجود.";
+
+            // A junction or symlink anywhere on the way could redirect the write into the data folder: compare the REAL locations
+            string realFolder = RealPathResolver.ResolveDirectory(folder);
+            if (realFolder == null) return "تعذر التحقق من مسار مجلد الوجهة.";
+            if (!string.IsNullOrEmpty(liveDataFolder))
+            {
+                string realLive = RealPathResolver.ResolveDirectory(liveDataFolder);
+                if (realLive == null) return "تعذر التحقق من مسار مجلد البيانات.";
+                string liveReal = realLive.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                string folderReal = realFolder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                if (folderReal.StartsWith(liveReal, StringComparison.OrdinalIgnoreCase)) return "لا يمكن التصدير داخل مجلد بيانات البرنامج (ولا عبر رابط إليه)؛ اختر مجلداً آخر.";
+            }
+            // The whole RafiqPOS base folder (backups, logs, quarantine, ... and the data folder) is off limits, also through links
+            if (!string.IsNullOrEmpty(liveDataFolder))
+            {
+                string baseFolder = Path.GetDirectoryName(Path.GetFullPath(liveDataFolder).TrimEnd(Path.DirectorySeparatorChar));
+                if (!string.IsNullOrEmpty(baseFolder) && Directory.Exists(baseFolder))
+                {
+                    string realBase = RealPathResolver.ResolveDirectory(baseFolder);
+                    if (realBase == null) return "تعذر التحقق من مسار مجلد البرنامج.";
+                    string baseReal = realBase.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                    string folderReal2 = realFolder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                    if (folderReal2.StartsWith(baseReal, StringComparison.OrdinalIgnoreCase)) return "لا يمكن التصدير داخل مجلد بيانات رفيق (backups أو data أو غيرها)؛ اختر مجلداً آخر.";
+                    string baseFull = Path.GetFullPath(baseFolder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                    if (fullPath.StartsWith(baseFull, StringComparison.OrdinalIgnoreCase)) return "لا يمكن التصدير داخل مجلد بيانات رفيق؛ اختر مجلداً آخر.";
+                }
+            }
+            string liveFolder = string.IsNullOrEmpty(liveDataFolder) ? null : Path.GetFullPath(liveDataFolder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (liveFolder != null && fullPath.StartsWith(liveFolder, StringComparison.OrdinalIgnoreCase)) return "لا يمكن التصدير داخل مجلد بيانات البرنامج؛ اختر مجلداً آخر.";
+            if (File.Exists(fullPath)) return "الملف الوجهة موجود بالفعل، اختر اسماً جديداً.";
+            return null;
+        }
+
+        /// <summary>
+        /// Root-only escape hatch: writes a plain, row-for-row verified copy of the live database to a new file chosen by the caller.
+        /// The path must be absolute, new, outside the data folder and end with .db. Audited.
+        /// </summary>
+        public static TransactionResult ExportDecryptedCopy(string destinationPath)
+        {
+            string full;
+            string pathError = ValidateExportPath(destinationPath, string.IsNullOrEmpty(_dbPath) ? null : Path.GetDirectoryName(_dbPath), out full);
+            if (pathError != null)
+            {
+                return new TransactionResult(false, pathError);
+            }
+            if (string.IsNullOrEmpty(_connectionString))
+            {
+                return new TransactionResult(false, "قاعدة البيانات غير مهيأة.");
+            }
+
+            // The audit entry comes FIRST: no plain copy of the store is written unless the attempt is on record
+            if (!LogEncryptionAudit("تصدير_قاعدة_بيانات_غير_مشفرة", "محاولة تصدير نسخة غير مشفرة من قاعدة البيانات إلى: " + full))
+            {
+                return new TransactionResult(false, "تم إلغاء التصدير: تعذر تسجيل العملية في سجل التدقيق.");
+            }
+
+            try
+            {
+                DatabaseEncryptionService.ExportDecrypted(_connectionString, full);
+                Logger.Warn("تم تصدير نسخة غير مشفرة من قاعدة البيانات بواسطة المستخدم الجذر: " + full);
+                return new TransactionResult(true, "تم تصدير نسخة غير مشفرة وموثقة من قاعدة البيانات. احفظها في مكان آمن واحذفها بعد الانتهاء.");
+            }
+            catch (DatabaseConversionException ex)
+            {
+                return new TransactionResult(false, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("فشل تصدير نسخة غير مشفرة", ex);
+                return new TransactionResult(false, "فشل التصدير: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Root action: puts the sealed pre-encryption copy back as the live database when (and only when) the live file is missing or empty.
+        /// The audit entry is written after the restore (when the store is open, it can only be written to the restored file); the
+        /// application log always records it.
+        /// </summary>
+        public static TransactionResult RestoreFromPreEncryptionCopy()
+        {
+            if (string.IsNullOrEmpty(_dbPath)) return new TransactionResult(false, "قاعدة البيانات غير مهيأة.");
+            string error = DatabaseEncryptionService.RestoreFromPreEncryptionCopy(_dbPath);
+            if (error != null) return new TransactionResult(false, error);
+            RafiqPOS.Data.SQLiteConnection.ClearAllPools();
+            LogEncryptionAudit("استرجاع_من_نسخة_ما_قبل_التشفير", "تم استرجاع قاعدة البيانات من نسخة ما قبل التشفير المحفوظة بطلب المستخدم الجذر");
+            return new TransactionResult(true, "تم استرجاع قاعدة البيانات من نسخة ما قبل التشفير. أعد تشغيل البرنامج.");
+        }
+
+        public static TransactionResult DeletePreEncryptionCopy()
+        {
+            if (string.IsNullOrEmpty(_dbPath)) return new TransactionResult(false, "قاعدة البيانات غير مهيأة.");
+            if (!File.Exists(DatabaseEncryptionService.PreEncryptionPath(_dbPath)))
+            {
+                return new TransactionResult(false, "لا توجد نسخة ما قبل التشفير.");
+            }
+            bool deleted = DatabaseEncryptionService.DeletePreEncryptionCopy(_dbPath);
+            if (deleted) LogEncryptionAudit("حذف_نسخة_ما_قبل_التشفير", "تم حذف نسخة ما قبل التشفير بطلب المستخدم الجذر");
+            return new TransactionResult(deleted, deleted ? "تم حذف نسخة ما قبل التشفير." : "تعذر حذف نسخة ما قبل التشفير.");
+        }
+
+        public static TransactionResult RetryEncryptionConversion()
+        {
+            if (string.IsNullOrEmpty(_dbPath)) return new TransactionResult(false, "قاعدة البيانات غير مهيأة.");
+            DatabaseEncryptionService.ResetConversionFailures(Path.GetDirectoryName(_dbPath));
+            LogEncryptionAudit("إعادة_محاولة_تشفير_قاعدة_البيانات", "تمت تهيئة محاولة تشفير جديدة عند التشغيل القادم");
+            return new TransactionResult(true, "سيتم إعادة محاولة تشفير قاعدة البيانات عند تشغيل البرنامج في المرة القادمة.");
+        }
+
         public static TransactionResult ExecuteAtomicSaleTransaction(int itemCount)
         {
             // Isolate test transactions to a temporary DB to avoid polluting the active store DB (BUG-03)
@@ -1195,7 +1610,7 @@ namespace RafiqPOS.Services
             try
             {
                 string connStr = string.Format("Data Source={0};Version=3;Journal Mode=WAL;", tempDbPath);
-                using (var conn = new System.Data.SQLite.SQLiteConnection(connStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(connStr))
                 {
                     conn.Open();
                     using (var cmd = conn.CreateCommand())
@@ -1248,7 +1663,7 @@ namespace RafiqPOS.Services
             RafiqPOS.Models.UserDto resetActor = SecurityService.CurrentUser;
             string preResetBackupName = "";
 
-            using (var conn = new System.Data.SQLite.SQLiteConnection(_connectionString))
+            using (var conn = new RafiqPOS.Data.SQLiteConnection(_connectionString))
             {
                 conn.Open();
 
@@ -1256,7 +1671,7 @@ namespace RafiqPOS.Services
                 if (TableExists(conn, null, "shifts"))
                 {
                     long openShifts;
-                    using (var shiftCmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM shifts WHERE status = 'open';", conn))
+                    using (var shiftCmd = new RafiqPOS.Data.SQLiteCommand("SELECT COUNT(*) FROM shifts WHERE status = 'open';", conn))
                     {
                         openShifts = Convert.ToInt64(shiftCmd.ExecuteScalar());
                     }
@@ -1298,7 +1713,7 @@ namespace RafiqPOS.Services
                         result.DeletedProductsCount = (int)CountRowsIfTableExists(conn, trans, "products");
 
                         // Temporarily drop delete prevention triggers to allow complete factory reset
-                        using (var dropTrgCmd = new System.Data.SQLite.SQLiteCommand(@"
+                        using (var dropTrgCmd = new RafiqPOS.Data.SQLiteCommand(@"
                             DROP TRIGGER IF EXISTS trg_prevent_daily_closing_delete;
                             DROP TRIGGER IF EXISTS trg_prevent_shift_delete;
                             DROP TRIGGER IF EXISTS trg_prevent_drawer_tx_delete;
@@ -1362,7 +1777,7 @@ namespace RafiqPOS.Services
                         }
 
                         // Recreate immutability triggers for daily closings, shifts, and cash drawer
-                        using (var recTrgCmd = new System.Data.SQLite.SQLiteCommand(@"
+                        using (var recTrgCmd = new RafiqPOS.Data.SQLiteCommand(@"
                             CREATE TRIGGER IF NOT EXISTS trg_prevent_daily_closing_delete
                             BEFORE DELETE ON daily_closings
                             BEGIN
@@ -1387,7 +1802,7 @@ namespace RafiqPOS.Services
 
                         // 4. Reset sequence counters, wipe all app settings, and restore factory users
                         // Licence state (activation, clock guard, used offline codes, transfer data) survives a data reset, so a wipe never un-licenses the shop or re-opens used codes
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand(@"
+                        using (var cmd = new RafiqPOS.Data.SQLiteCommand(@"
                             DELETE FROM counters;
                             DELETE FROM app_settings
                             WHERE key NOT LIKE 'license_%'
@@ -1400,7 +1815,7 @@ namespace RafiqPOS.Services
 
                         if (TableExists(conn, trans, "sqlite_sequence"))
                         {
-                            using (var seqCmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM sqlite_sequence WHERE name IN ('sales', 'customers', 'products', 'held_sales');", conn, trans))
+                            using (var seqCmd = new RafiqPOS.Data.SQLiteCommand("DELETE FROM sqlite_sequence WHERE name IN ('sales', 'customers', 'products', 'held_sales');", conn, trans))
                             {
                                 seqCmd.ExecuteNonQuery();
                             }
@@ -1409,17 +1824,17 @@ namespace RafiqPOS.Services
                         SecurityService.ResetUsersToFactoryDefaults(conn, trans);
 
                         // 5. Reset audit logs with genesis reset entry (temporarily authorized to bypass tamper trigger)
-                        using (var authCmd = new System.Data.SQLite.SQLiteCommand("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('allow_audit_reset', 'CONFIRM_PURGE_AUTHORIZED', datetime('now'));", conn, trans))
+                        using (var authCmd = new RafiqPOS.Data.SQLiteCommand("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('allow_audit_reset', 'CONFIRM_PURGE_AUTHORIZED', datetime('now'));", conn, trans))
                         {
                             authCmd.ExecuteNonQuery();
                         }
 
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM audit_logs;", conn, trans))
+                        using (var cmd = new RafiqPOS.Data.SQLiteCommand("DELETE FROM audit_logs;", conn, trans))
                         {
                             cmd.ExecuteNonQuery();
                         }
 
-                        using (var cleanCmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM app_settings WHERE key = 'allow_audit_reset';", conn, trans))
+                        using (var cleanCmd = new RafiqPOS.Data.SQLiteCommand("DELETE FROM app_settings WHERE key = 'allow_audit_reset';", conn, trans))
                         {
                             cleanCmd.ExecuteNonQuery();
                         }
@@ -1438,7 +1853,7 @@ namespace RafiqPOS.Services
                             genesisHash, resetLogId, "usr_admin_default", "factory_reset", "system", "all", detailsJson, nowIso
                         );
 
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand(@"
+                        using (var cmd = new RafiqPOS.Data.SQLiteCommand(@"
                             INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at, prev_hash, record_hash)
                             VALUES (@id, 'usr_admin_default', 'factory_reset', 'system', 'all', @details, @now, @prev, @rec);
                         ", conn, trans))
@@ -1452,7 +1867,7 @@ namespace RafiqPOS.Services
                         }
 
                         // 6. Zero pre-seeded categories policy: keep categories clean
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand(@"
+                        using (var cmd = new RafiqPOS.Data.SQLiteCommand(@"
                             DELETE FROM customer_ledger WHERE customer_id = 'cust_general_cash';
                             DELETE FROM customers WHERE id = 'cust_general_cash';
                         ", conn, trans))
@@ -1477,7 +1892,7 @@ namespace RafiqPOS.Services
                 // 7. Vacuum database to reclaim disk space
                 try
                 {
-                    using (var vacCmd = new System.Data.SQLite.SQLiteCommand("VACUUM;", conn))
+                    using (var vacCmd = new RafiqPOS.Data.SQLiteCommand("VACUUM;", conn))
                     {
                         vacCmd.ExecuteNonQuery();
                     }
@@ -1485,32 +1900,42 @@ namespace RafiqPOS.Services
                 catch { }
             }
 
+            if (result.Success)
+            {
+                // No old store data may survive a reset: the sealed pre-encryption copy and the encryption marker/state files go too
+                string[] notRemoved = DatabaseEncryptionService.PurgeEncryptionArtifacts(_dbPath);
+                if (notRemoved.Length > 0)
+                {
+                    result.Message += " تنبيه: تعذر حذف " + notRemoved.Length + " ملف من ملفات التشفير القديمة، احذفها يدوياً من مجلد البيانات: " + string.Join("، ", Array.ConvertAll(notRemoved, delegate(string f) { return Path.GetFileName(f); }));
+                }
+            }
+
             return result;
         }
 
-        private static bool TableExists(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans, string tableName)
+        private static bool TableExists(RafiqPOS.Data.SQLiteConnection conn, RafiqPOS.Data.SQLiteTransaction trans, string tableName)
         {
-            using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @name;", conn, trans))
+            using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @name;", conn, trans))
             {
                 cmd.Parameters.AddWithValue("@name", tableName);
                 return Convert.ToInt64(cmd.ExecuteScalar()) > 0;
             }
         }
 
-        private static long CountRowsIfTableExists(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans, string tableName)
+        private static long CountRowsIfTableExists(RafiqPOS.Data.SQLiteConnection conn, RafiqPOS.Data.SQLiteTransaction trans, string tableName)
         {
             if (!TableExists(conn, trans, tableName)) return 0;
             // tableName comes only from the hard-coded list above, never from user input
-            using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM " + tableName + ";", conn, trans))
+            using (var cmd = new RafiqPOS.Data.SQLiteCommand("SELECT COUNT(*) FROM " + tableName + ";", conn, trans))
             {
                 return Convert.ToInt64(cmd.ExecuteScalar());
             }
         }
 
-        private static void DeleteAllIfTableExists(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans, string tableName)
+        private static void DeleteAllIfTableExists(RafiqPOS.Data.SQLiteConnection conn, RafiqPOS.Data.SQLiteTransaction trans, string tableName)
         {
             if (!TableExists(conn, trans, tableName)) return;
-            using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM " + tableName + ";", conn, trans))
+            using (var cmd = new RafiqPOS.Data.SQLiteCommand("DELETE FROM " + tableName + ";", conn, trans))
             {
                 cmd.ExecuteNonQuery();
             }

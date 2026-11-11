@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <!-- libgdiplus (System.Drawing.Common 5.0.3 on macOS/Linux) lives outside the default dyld search path on Homebrew. Harmless on Windows. -->
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <DYLD_FALLBACK_LIBRARY_PATH>/opt/homebrew/lib:/usr/local/lib:/usr/lib</DYLD_FALLBACK_LIBRARY_PATH>
+    </EnvironmentVariables>
+  </RunConfiguration>
+  <NUnit>
+    <!-- Default run: everything except the slow/diagnostic categories (run them with a TestCategory filter). No test is excluded for a known defect. -->
+    <Where>cat != SelfTestRunners &amp;&amp; cat != Performance</Where>
+  </NUnit>
+</RunSettings>

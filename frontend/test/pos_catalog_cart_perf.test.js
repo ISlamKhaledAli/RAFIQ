@@ -58,12 +58,13 @@ describe('POS exact barcode scan path', () => {
 
   it('the host exposes the lookup as equality unions on the three indexed barcode columns', () => {
     assert.match(productsIpc, /case "products:getByExactBarcode":/);
-    const method = products.slice(products.indexOf('public List<Product> GetByExactBarcode'), products.indexOf('public Product GetOwnerOfBarcode(string barcode)'));
+    // the SQL text lives in BuildExactBarcodeSql (extracted so the plan-shape test can read it), which sits right before GetByExactBarcode
+    const method = products.slice(products.indexOf('internal static string BuildExactBarcodeSql'), products.indexOf('public Product GetOwnerOfBarcode(string barcode)'));
     assert.match(method, /FROM products WHERE barcode = @bc/);
     assert.match(method, /FROM product_barcodes WHERE barcode = @bc/);
     assert.match(method, /FROM product_units WHERE barcode = @bc/);
     assert.match(method, /p\.is_active = 1/);
-    assert.ok(!/LIKE/.test(method), 'exact lookup never uses LIKE');
+    assert.ok(!/LIKE/.test(method.replace(/\/\/.*$/gm, '')), 'exact lookup never uses LIKE');
   });
 
   it('search callers that only need rows skip the three count scans', () => {

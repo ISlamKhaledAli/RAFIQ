@@ -1,5 +1,5 @@
 using System;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
@@ -388,7 +388,11 @@ namespace RafiqPOS.Tests.Scenarios
                 Assert.IsFalse(string.IsNullOrEmpty(inspected.Message), path);
                 Assert.IsFalse(_target.RestorePackage(path, _code).Success, path);
             }
-            StringAssert.Contains("مسارات الشبكة", _target.InspectPackage("\\\\server\\share\\shop.rafiqpkg", _code).Message);
+            // The "network path" wording needs Windows path semantics (on Unix a backslash path is just a relative file name)
+            if (Path.DirectorySeparatorChar == '\\')
+            {
+                StringAssert.Contains("مسارات الشبكة", _target.InspectPackage("\\\\server\\share\\shop.rafiqpkg", _code).Message);
+            }
 
             string[] badFolders = new string[] { "\\\\server\\share\\usb", "\\\\?\\C:\\usb", "usb", Path.Combine(_sourceFolder, "usb"), _sourceFolder };
             foreach (string folder in badFolders)

@@ -1,5 +1,5 @@
 using System;
-using System.Data.SQLite;
+using RafiqPOS.Data;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using RafiqPOS.Bridge;

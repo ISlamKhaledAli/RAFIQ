@@ -1,0 +1,21 @@
+# SHA-256 pins of the NuGet DLLs the Rafiq POS build ships (computed from the exact .nupkg files).
+# Format: <sha256><two spaces><PackageId>/<Version>/<path inside the package>   (lines starting with # are ignored)
+# Verified by installer/verify_nuget_dlls.ps1 (CI and Build_Installer*.bat): the build FAILS on a missing file or a mismatch.
+# There is deliberately NO startup hash check in the application.
+# Change a pin only together with the version in desktop/packages.config and RafiqPOS.csproj, after reviewing the new package.
+5c8c1ebcda165080f47028ae562488fa6aeb137e5cb9d65f50926bb1f4d2c3de  Microsoft.Web.WebView2/1.0.1518.46/lib/net45/Microsoft.Web.WebView2.Core.dll
+392de22ba90a106447af6ab06223d3941bc024028fa53f2ec32a225b08856544  Microsoft.Web.WebView2/1.0.1518.46/lib/net45/Microsoft.Web.WebView2.WinForms.dll
+e1e27af7b07eeedf5ce71a9255f0422816a6fc5849a483c6714e1b472044fa9d  Newtonsoft.Json/13.0.3/lib/net45/Newtonsoft.Json.dll
+d32c985b0d96cd027495afef665364b6f173da723380e75b1cd556fe38625f41  Microsoft.Data.Sqlite.Core/9.0.10/lib/netstandard2.0/Microsoft.Data.Sqlite.dll
+626b7902809d6d4a7508d92c84cecfa447761f3e992e708fff97f0738e530615  SQLitePCLRaw.core/3.0.2/lib/netstandard2.0/SQLitePCLRaw.core.dll
+689a1d0d041491ba770056b4290a85d23eca606bd23bf1c906a3439410c8c564  SQLite3MC.PCLRaw.bundle/2.4.0/lib/netstandard2.0/SQLitePCLRaw.batteries_v2.dll
+a52315def94789a6c1bff1a3f1d94cd01d599fdcebb0369485f35a837b0df092  SQLite3MC.PCLRaw.provider/2.4.0/lib/netstandard2.0/SQLite3MC.PCLRaw.provider.dll
+d5e8e4866f9cfa66f7765660f84b210198893e55335487afe5ebda342c0e913d  System.Memory/4.6.3/lib/net462/System.Memory.dll
+2d78d770c9cb997199154ae8c018b9f1d1efbc86729f7264dde6dbad2a12cac3  System.Buffers/4.6.1/lib/net462/System.Buffers.dll
+20c2fa81b8c70d651099d762954f285fd4f942e63b2d7217c145dab8d4b2f4c9  System.Numerics.Vectors/4.6.1/lib/net462/System.Numerics.Vectors.dll
+08cbd7278b66f1e68425a82d4b97181a4130d93e3dd91831407aba7212ccdacf  System.Runtime.CompilerServices.Unsafe/6.1.2/lib/net462/System.Runtime.CompilerServices.Unsafe.dll
+0fb78f72d170944e6a78d0b631d629487d984bba163a3e2aa7232bd3ddcf25bf  ClosedXML/0.95.4/lib/net46/ClosedXML.dll
+a687968a49e584136ad4e788a6c4945ade1f0868e92d0b2580b3b397647df147  DocumentFormat.OpenXml/2.7.2/lib/net46/DocumentFormat.OpenXml.dll
+27680288672ca8f9f8fcca0118d32f70d007394055f17e65239499c95b803b0d  ExcelNumberFormat/1.0.10/lib/net20/ExcelNumberFormat.dll
+0f7dc28d095dc127c7e945f0dd21ef9aaa2fe181f06624aff3d581dc2cee78ec  SQLite3MC.PCLRaw.lib/2.4.0/runtimes/win-x86/native/sqlite3mc.dll
+f8a29a46bd38cf41c361374ebf3d47bead974caa57f1325337dd39523d313fe9  Microsoft.Web.WebView2/1.0.1518.46/build/native/x86/WebView2Loader.dll

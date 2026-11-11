@@ -1,0 +1,85 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Portable (macOS/Linux/Windows) NUnit harness: compiles the host sources and the NUnit scenarios into ONE net8.0 test assembly and runs them
+    against the RafiqPOS.Data shim. It is NOT part of the shipping build: the Windows csproj files use explicit <Compile Include> lists, so this
+    folder is never picked up by them, the installer or CI. See README.md.
+
+    Source lists are read from the Windows csproj files at build time (single source of truth, nothing to keep in sync):
+      host      = <Compile Include> items of desktop/RafiqPOS.csproj minus ExcludedHostFiles
+      scenarios = <Compile Include> items of desktop/RafiqPOS.Tests/RafiqPOS.Tests.csproj minus ExcludedScenarioFiles
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>RafiqPOS.Tests.Portable</AssemblyName>
+    <RootNamespace>RafiqPOS</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <StartupObject>RafiqPOS.Tests.Portable.HarnessEntry</StartupObject>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <DefineConstants>$(DefineConstants);PORTABLE_TESTS;DEBUG</DefineConstants>
+    <NoWarn>$(NoWarn);CS0168;CS0219;CS0162;CS0649;CS0169;CS0414;CS1591;CS0618;CS0108;CS0114;CA1416;NU1701;SYSLIB0021;SYSLIB0023;SYSLIB0041;SYSLIB0050;SYSLIB0051;SYSLIB0011</NoWarn>
+    <DesktopDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))/</DesktopDir>
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)portable.runsettings</RunSettingsFilePath>
+    <!-- host files that cannot run headless; each reason is listed in README.md -->
+    <ExcludedHostFiles>MainForm.cs;Common/ChildProcessTracker.cs</ExcludedHostFiles>
+    <ExcludedScenarioFiles></ExcludedScenarioFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Stubs/*.cs" />
+    <Compile Include="PortableSetup.cs" />
+    <Compile Include="HarnessEntry.cs" />
+    <Compile Include="PerformanceTest.cs" />
+    <Compile Include="SelfTestRunnersTest.cs" />
+    <EmbeddedResource Include="$(DesktopDir)Resources/signatures/*.png">
+      <LogicalName>RafiqPOS.signatures.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <!-- runtime files the host reads next to the executable -->
+    <Content Include="$(DesktopDir)logo.png;$(DesktopDir)logo_full.png;$(DesktopDir)security_seal.png" CopyToOutputDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+    <Content Include="$(DesktopDir)Resources/security_seal.png" CopyToOutputDirectory="PreserveNewest" Link="Resources/security_seal.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.13.3" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.10" />
+    <PackageReference Include="SQLitePCLRaw.core" Version="3.0.2" />
+    <PackageReference Include="SQLite3MC.PCLRaw.bundle" Version="2.4.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="ClosedXML" Version="0.95.4" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="2.7.2" />
+    <PackageReference Include="ExcelNumberFormat" Version="1.0.10" />
+    <PackageReference Include="System.Drawing.Common" Version="5.0.3" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Reads the explicit Compile lists of the Windows projects (XmlPeek) and adds them to this project. -->
+  <Target Name="AddSourcesFromWindowsProjects" BeforeTargets="BeforeCompile;CoreCompile" Condition="'$(PortableSourcesAdded)' != 'true'">
+    <PropertyGroup>
+      <PortableSourcesAdded>true</PortableSourcesAdded>
+      <MsbuildNs>&lt;Namespace Prefix='m' Uri='http://schemas.microsoft.com/developer/msbuild/2003' /&gt;</MsbuildNs>
+    </PropertyGroup>
+    <XmlPeek XmlInputPath="$(DesktopDir)RafiqPOS.csproj" Query="//m:Compile/@Include" Namespaces="$(MsbuildNs)">
+      <Output TaskParameter="Result" ItemName="HostCompileRaw" />
+    </XmlPeek>
+    <XmlPeek XmlInputPath="$(DesktopDir)RafiqPOS.Tests/RafiqPOS.Tests.csproj" Query="//m:Compile/@Include" Namespaces="$(MsbuildNs)">
+      <Output TaskParameter="Result" ItemName="ScenarioCompileRaw" />
+    </XmlPeek>
+    <ItemGroup>
+      <HostCompilePath Include="@(HostCompileRaw->Replace('\','/'))" />
+      <HostCompilePath Remove="$(ExcludedHostFiles)" />
+      <ScenarioCompilePath Include="@(ScenarioCompileRaw->Replace('\','/'))" />
+      <ScenarioCompilePath Remove="$(ExcludedScenarioFiles)" />
+      <Compile Include="@(HostCompilePath->'$(DesktopDir)%(Identity)')" />
+      <Compile Include="@(ScenarioCompilePath->'$(DesktopDir)RafiqPOS.Tests/%(Identity)')" />
+    </ItemGroup>
+    <Message Importance="high" Text="Portable harness: @(HostCompilePath->Count()) host files + @(ScenarioCompilePath->Count()) scenario files" />
+  </Target>
+</Project>

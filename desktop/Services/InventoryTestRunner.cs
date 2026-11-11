@@ -77,10 +77,10 @@ namespace RafiqPOS.Services
                 Assert(discrepancies.Count == 0, "فحص مطابقة الأرصدة: لا يوجد أي تفاوت بين الرصيد ومجموع الحركات", result);
 
                 // TEST 4: Simulate discrepancy and repair with Recalculate (Task 34-3)
-                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                using (var conn = new RafiqPOS.Data.SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("UPDATE products SET stock_quantity_milli = 99999 WHERE id = @id;", conn))
+                    using (var cmd = new RafiqPOS.Data.SQLiteCommand("UPDATE products SET stock_quantity_milli = 99999 WHERE id = @id;", conn))
                     {
                         cmd.Parameters.AddWithValue("@id", prod.Id);
                         cmd.ExecuteNonQuery();
@@ -158,7 +158,7 @@ namespace RafiqPOS.Services
             {
                 try
                 {
-                    System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                    RafiqPOS.Data.SQLiteConnection.ClearAllPools();
                     if (File.Exists(tempDbPath))
                     {
                         File.Delete(tempDbPath);

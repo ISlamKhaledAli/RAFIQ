@@ -41,6 +41,8 @@ audit_results.json
 
 # Databases & Runtime Data
 data/
+# desktop/Data holds the source of the database layer (case-insensitive systems would match data/)
+!/desktop/Data/
 *.db
 *.db-wal
 *.db-shm
