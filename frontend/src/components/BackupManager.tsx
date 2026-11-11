@@ -23,6 +23,7 @@ import { useDataSubscription } from '../utils/eventBus';
 import { DatabaseRecoveryModal } from './DatabaseRecoveryModal';
 import { AppButton } from './AppButton';
 import { MigrationWizardModal } from './MigrationWizardModal';
+import { RecoveryCodeModal } from './RecoveryCodeModal';
 import { rafiqAlert } from '../utils/dialogService';
 import { useAuth } from '../context/useAuth';
 import { useUnsavedChangesGuard } from '../context/useUnsavedChanges';
@@ -139,6 +140,9 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<BackupFileInfo | null>(null);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
+  const [ownerRecoveryCode, setOwnerRecoveryCode] = useState<string>('');
+  const [isRevealingCode, setIsRevealingCode] = useState(false);
   // The period is applied by the backend to the backup's own timestamp, before the list cap
   const { dateFilter, setDateFilter, resetDateFilter } = useDateFilter();
   const today = useToday();
@@ -366,6 +370,32 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
     }
   };
 
+  const handleOpenRecoveryModal = async () => {
+    setIsRevealingCode(true);
+    try {
+      const res = await invoke<{ success: boolean; recoveryCode?: string }>('backup:revealRecoveryCode');
+      if (res && res.success && res.recoveryCode) {
+        setOwnerRecoveryCode(res.recoveryCode);
+        setIsRecoveryModalOpen(true);
+      } else {
+        void rafiqAlert({
+          title: 'كود استرجاع المالك',
+          message: 'يلزم تسجيل الدخول بحساب المالك (Root أو Admin) لعرض كود استرجاع المالك.',
+          variant: 'warning',
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      void rafiqAlert({
+        title: 'كود استرجاع المالك',
+        message: msg || 'تعذر جلب كود الاسترجاع.',
+        variant: 'error',
+      });
+    } finally {
+      setIsRevealingCode(false);
+    }
+  };
+
   const { saveBarRef: policySaveBarRef } = useUnsavedChangesGuard({
     id: 'backup-policy',
     label: 'سياسة النسخ الاحتياطي',
@@ -535,6 +565,36 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
               <span>اجتازت الفحص بنجاح</span>
             </div>
           </div>
+        </div>
+
+        {/* 2.5 Owner Recovery Code Security Strip */}
+        <div className="mt-4 p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-dark/30 flex items-center justify-center shrink-0">
+              <KeyRound className="w-5 h-5 text-brand dark:text-brand-bright" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="t-card-title text-ink dark:text-ink-dark m-0">كود استرجاع المالك</h3>
+                <span className="text-micro px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold">
+                  مشفر ومحمي
+                </span>
+              </div>
+              <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5">
+                الكود المشفر المخصص لفك حزم النسخ الاحتياطي ونقل المحل لجهاز جديد عند الطوارئ.
+              </p>
+            </div>
+          </div>
+          <AppButton
+            variant="secondary"
+            icon={KeyRound}
+            loading={isRevealingCode}
+            disabled={isRevealingCode}
+            onClick={() => void handleOpenRecoveryModal()}
+            className="w-full sm:w-auto shrink-0"
+          >
+            عرض أو طباعة كود الاسترجاع
+          </AppButton>
         </div>
       </div>
 
@@ -935,6 +995,15 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
           void fetchDrives();
         }}
       />
+
+      {isRecoveryModalOpen && ownerRecoveryCode && (
+        <RecoveryCodeModal
+          isOpen={isRecoveryModalOpen}
+          recoveryCode={ownerRecoveryCode}
+          isViewingOnly={true}
+          onClose={() => setIsRecoveryModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

@@ -75,8 +75,11 @@ npx wrangler d1 execute rafiq-licenses --remote --file=./schema.sql
 ```bash
 npx wrangler secret put APP_API_KEY
 npx wrangler secret put ADMIN_SECRET
-npx wrangler secret put TOKEN_SIGNING_SECRET
+npx wrangler secret put LICENSE_PRIVATE_KEY
 ```
+*يجب ألا يقل `ADMIN_SECRET` عن 32 حرفاً (يُفضّل قيمة عشوائية طويلة)؛ أي قيمة أقصر أو غير مضبوطة تُغلق لوحة الإدارة بالكامل (401). لا توجد أي كلمة سر احتياطية داخل الكود.*
+
+*اختياري: `RELEASE_DOWNLOAD_HOSTS` (مضيفون مسموحون مفصولون بفاصلة) لروابط تحميل التحديثات؛ الافتراضي: `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`. الروابط يجب أن تكون https فقط.*
 
 ### 5. الرفع بنقرة زر (Deploy):
 ```bash
@@ -86,3 +89,22 @@ deploy.bat
 # أو عبر سطر الأوامر:
 npx wrangler deploy
 ```
+
+---
+
+## 🔒 Cloudflare dashboard steps (خطوات يدوية بعد النشر)
+
+هذه الخطوات تُنفَّذ يدوياً من لوحة Cloudflare وليست جزءاً من الكود:
+
+1. **تدوير المفاتيح (Rotate secrets):** غيّر `ADMIN_SECRET` فوراً بقيمة عشوائية لا تقل عن 32 حرفاً (`npx wrangler secret put ADMIN_SECRET`). وفكّر في تدوير `APP_API_KEY` و`LICENSE_PRIVATE_KEY` أيضاً (تدوير `LICENSE_PRIVATE_KEY` يتطلب تحديث المفتاح العام داخل التطبيق وإعادة إصدار التراخيص).
+2. **Rate limiting:** من Security > WAF > Rate limiting rules أضف قاعدة على `/api/*` وأخرى أشد على `/api/admin/*` (مثلاً 10 طلبات في الدقيقة لكل IP للطلبات الفاشلة/المرفوضة 401 و403) مع إجراء Block أو Managed Challenge.
+3. **حماية `/admin`:** فكّر في Cloudflare Access (Zero Trust) أمام مسار `/admin*` و`/api/admin*` ليكون الدخول عبر هوية الإدارة قبل الوصول إلى الـ Worker.
+4. **حذف التراخيص التجريبية:** لم يعد `schema.sql` يزرع بيانات تجريبية، لكن قواعد البيانات المنشورة سابقاً قد تحتويها. نفّذ:
+   ```bash
+   npx wrangler d1 execute rafiq-licenses --remote --command "DELETE FROM licenses WHERE id IN ('demo-lic-1','demo-lic-2','demo-lic-3') OR license_key IN ('RFQ-TEST-2026-DEMO','RFQ-PERM-8899-A1B2','RFQ-DISA-0000-DEAD');"
+   ```
+5. **مراجعة سجل التدقيق:** راجع الإجراءات المنفّذة من لوحة الإدارة (قد تكون نُفّذت بكلمات السر القديمة المدمجة في الكود):
+   ```bash
+   npx wrangler d1 execute rafiq-licenses --remote --command "SELECT * FROM activation_logs WHERE ip_address = 'admin_portal' ORDER BY created_at DESC LIMIT 200;"
+   ```
+   وراجع أيضاً التراخيص والإصدارات (`app_releases`) المضافة مؤخراً بحثاً عن أي شيء غير معروف.

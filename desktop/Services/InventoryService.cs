@@ -265,7 +265,7 @@ namespace RafiqPOS.Services
                 referenceId: Guid.NewGuid().ToString(),
                 referenceType: string.IsNullOrWhiteSpace(referenceType) ? "MANUAL_ADJUSTMENT" : referenceType,
                 note: fullNote,
-                batchNumber: cleanAdjType,
+                batchNumber: null,
                 conn: conn,
                 trans: trans);
 

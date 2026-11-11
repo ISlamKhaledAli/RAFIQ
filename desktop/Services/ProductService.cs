@@ -562,6 +562,16 @@ namespace RafiqPOS.Services
             return _repo.GetSmartCatalog(limit);
         }
 
+        public int GetTotalCount()
+        {
+            return _repo.GetTotalCount();
+        }
+
+        public List<Product> GetByExactBarcode(string barcode, int limit = 5)
+        {
+            return _repo.GetByExactBarcode(barcode, limit);
+        }
+
         public List<Product> GetLowStock(int limit = 100)
         {
             return _repo.GetLowStock(limit);

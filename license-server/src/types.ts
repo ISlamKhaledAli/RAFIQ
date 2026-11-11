@@ -9,6 +9,8 @@ export interface Env {
   ADMIN_SECRET: string;
   /** RSA private key (PKCS#8 PEM) used to sign license tokens and support codes. Worker secret only. */
   LICENSE_PRIVATE_KEY: string;
+  /** Optional comma-separated hosts allowed for release download_url (default: GitHub release hosts). */
+  RELEASE_DOWNLOAD_HOSTS?: string;
 }
 
 export type LicenseStatus = 'pending' | 'active' | 'disabled' | 'expired';

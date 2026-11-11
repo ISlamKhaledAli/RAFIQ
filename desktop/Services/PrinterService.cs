@@ -2331,7 +2331,7 @@ namespace RafiqPOS.Services
                 : GetContentWidthPoints(configuredWidth);
 
             // الدرج يُفتح فقط عند رد المبلغ نقداً (لا يُفتح للرد على حساب العميل أو المحافظ)
-            bool shouldOpenDrawer = IsCashRefund(returnObj.RefundMethod)
+            bool shouldOpenDrawer = RefundOpensDrawer(returnObj)
                 && (openDrawer.HasValue ? openDrawer.Value : GetConfiguredOpenDrawer());
 
             // إعادة طباعة إيصال سبقت طباعته تُوسم نسخة على الخادم بغض النظر عن طلب العميل
@@ -2498,6 +2498,33 @@ namespace RafiqPOS.Services
                 || string.Equals(refundMethod.Trim(), "cash", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>الدرج يُفتح إذا كان المرتجع أو أي جزء من استرداده المقسّم نقدياً</summary>
+        public static bool RefundOpensDrawer(Return returnObj)
+        {
+            if (returnObj.Refunds != null && returnObj.Refunds.Count > 0)
+            {
+                for (int i = 0; i < returnObj.Refunds.Count; i++)
+                {
+                    if (returnObj.Refunds[i] != null && IsCashRefund(returnObj.Refunds[i].Method)) return true;
+                }
+                return false;
+            }
+            return IsCashRefund(returnObj.RefundMethod);
+        }
+
+        /// <summary>اسم طريقة الرد بالعربية على الإيصال</summary>
+        public static string RefundMethodReceiptLabel(string refundMethod)
+        {
+            string key = (refundMethod ?? "").Trim().ToLowerInvariant();
+            if (key == "credit" || key == "customer_balance") return "خصم من حساب العميل";
+            if (key == "instapay") return "تحويل انستاباي";
+            if (key == "vodafone_cash") return "تحويل فودافون كاش";
+            if (key == "wallet") return "تحويل إلى المحفظة";
+            if (key == "card") return "على البطاقة";
+            if (IsCashRefund(refundMethod)) return "نقداً من الخزينة";
+            return refundMethod.Trim();
+        }
+
         private float RenderReturnReceiptPage(Graphics g, Return returnObj, ReceiptStoreInfo store, Image logo, int contentWidth, bool isCopy)
         {
             using (var p = new ReceiptPainter(g, contentWidth))
@@ -2548,15 +2575,20 @@ namespace RafiqPOS.Services
                 p.Separator(p.Solid, 0f, 3f);
                 p.GrandTotal("إجمالي المبلغ المسترد", FormatReceiptMoney(returnObj.TotalPiasters), "ج.م");
 
-                string refundKey = (returnObj.RefundMethod ?? "").Trim().ToLowerInvariant();
-                string methodText;
-                if (refundKey == "credit" || refundKey == "customer_balance") methodText = "طريقة الرد: خصم من حساب العميل";
-                else if (refundKey == "instapay") methodText = "طريقة الرد: تحويل انستاباي";
-                else if (refundKey == "vodafone_cash") methodText = "طريقة الرد: تحويل فودافون كاش";
-                else if (refundKey == "wallet") methodText = "طريقة الرد: تحويل إلى المحفظة";
-                else if (IsCashRefund(returnObj.RefundMethod)) methodText = "طريقة الرد: نقداً من الخزينة";
-                else methodText = "طريقة الرد: " + returnObj.RefundMethod.Trim();
-                p.WrapText(methodText, p.Regular, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                if (returnObj.Refunds != null && returnObj.Refunds.Count > 1)
+                {
+                    // Split refund: one line per method so the paper shows exactly where each part of the money went
+                    p.WrapText("طريقة الرد: مقسّم على عدة طرق", p.Regular, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                    for (int partIdx = 0; partIdx < returnObj.Refunds.Count; partIdx++)
+                    {
+                        var part = returnObj.Refunds[partIdx];
+                        p.WrapText(RefundMethodReceiptLabel(part.Method) + ": " + FormatReceiptMoney(part.AmountPiasters) + " ج.م", p.Regular, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                    }
+                }
+                else
+                {
+                    p.WrapText("طريقة الرد: " + RefundMethodReceiptLabel(returnObj.RefundMethod), p.Regular, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                }
 
                 DrawReceiptSignature(p, store, true, returnObj.Id);
 
@@ -4290,7 +4322,6 @@ namespace RafiqPOS.Services
             Font fontBarcodeText = new Font("Courier New", isCompact ? 7f : 8f, FontStyle.Regular);
             Font fontNoticeTitle = new Font("Arial", isCompact ? 8f : 9f, FontStyle.Bold);
             Font fontNoticeBody = new Font("Arial", isCompact ? 6.8f : 7.5f, FontStyle.Regular);
-            Font fontSig = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Bold);
             Font fontFooter = new Font("Arial", isCompact ? 7f : 8f, FontStyle.Regular);
             Font fontFooterBold = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Bold);
 
@@ -4443,19 +4474,7 @@ namespace RafiqPOS.Services
             g.DrawLine(penDashed, margin, y, margin + usableWidth, y);
             y += 5f;
 
-            // 8. Signatures
-            float colW = usableWidth / 2f;
-            g.DrawString("توقيع المالك / المسؤول", fontSig, Brushes.Black, new RectangleF(margin + colW, y, colW, 14f), centerFormat);
-            g.DrawString("الختم المعتمد", fontSig, Brushes.Black, new RectangleF(margin, y, colW, 14f), centerFormat);
-            y += 28f;
-            g.DrawLine(penThin, margin + colW + 15f, y, margin + usableWidth - 15f, y);
-            g.DrawLine(penThin, margin + 15f, y, margin + colW - 15f, y);
-            y += 6f;
-
-            // 9. Security Seal / Security Emblem Image (صورة تعبر عن الأمان زي اللي في الفاتورة)
-            g.DrawLine(penDashed, margin, y, margin + usableWidth, y);
-            y += 5f;
-
+            // 8. Security Seal / Security Emblem Image (صورة تعبر عن الأمان زي اللي في الفاتورة)
             using (Image sealImg = TryLoadSecuritySealImage())
             {
                 if (sealImg != null && sealImg.Width > 0 && sealImg.Height > 0)
@@ -4503,7 +4522,6 @@ namespace RafiqPOS.Services
             fontBarcodeText.Dispose();
             fontNoticeTitle.Dispose();
             fontNoticeBody.Dispose();
-            fontSig.Dispose();
             fontFooter.Dispose();
             fontFooterBold.Dispose();
 

@@ -52,6 +52,10 @@ namespace RafiqPOS.Services
         // Separate persistent throttles so one channel can never reset or shorten another (F6/F14)
         private const string KEY_SUPERVISOR_FAILED = "security_supervisor_failed_attempts";
         private const string KEY_SUPERVISOR_LOCKOUT = "security_supervisor_lockout_until";
+        private const string KEY_SUPERVISOR_LAST_FAILURE = "security_supervisor_last_failure_at";
+        // The shared supervisor throttle forgets old failures after 15 minutes and never exceeds 5 minutes of lockout
+        private const int SUPERVISOR_FAILURE_DECAY_SECONDS = 900;
+        private const int SUPERVISOR_MAX_LOCKOUT_SECONDS = 300;
         private const string KEY_RECOVERY_FAILED = "security_recovery_failed_attempts";
         private const string KEY_RECOVERY_LOCKOUT = "security_recovery_lockout_until";
 
@@ -527,7 +531,18 @@ namespace RafiqPOS.Services
             return _currentUserSession;
         }
 
+        // Serializes every read-modify-write of failure counters and lockout state so parallel IPC calls cannot outrun the delay
+        private static readonly object _authStateGate = new object();
+
         public LoginResult Login(string usernameOrId, string pin)
+        {
+            lock (_authStateGate)
+            {
+                return LoginCore(usernameOrId, pin);
+            }
+        }
+
+        private LoginResult LoginCore(string usernameOrId, string pin)
         {
             // Security hardening: immediately invalidate prior session so failed attempts never inherit privileges
             _currentUserSession = null;
@@ -581,24 +596,39 @@ namespace RafiqPOS.Services
                 return res;
             }
 
-            // 1. Strict Lockout check upfront before any credential evaluation
-            int remainingSec = GetUserRemainingLockoutSeconds(user);
+            // Emergency Recovery Code for Store Owner only (managers never receive or use it)
+            // Root stays challenge-only: recovery codes are never accepted for it
+            bool isRecoveryCodeAttempt = user.Role == "admin" && IsOwnerUser(user) && !string.IsNullOrEmpty(pin) &&
+                (pin.Trim().StartsWith("RFQ-REC-", StringComparison.OrdinalIgnoreCase) || pin.Trim().StartsWith("RFK", StringComparison.OrdinalIgnoreCase));
+
+            // 1. Lockout/delay check upfront before any credential evaluation.
+            //    The owner recovery-code path is never blocked by it, so a cashier spamming wrong PINs cannot lock the owner out.
+            int remainingSec = isRecoveryCodeAttempt ? 0 : GetUserRemainingLockoutSeconds(user);
             if (remainingSec > 0)
             {
                 res.Success = false;
                 res.IsLocked = true;
                 res.RemainingLockoutSeconds = remainingSec;
-                res.Message = string.Format("الحساب مقفل مؤقتاً لحماية الأمان. يرجى الانتظار {0} ثانية.", remainingSec);
+                res.Message = IsDelayOnlyAccount(user)
+                    ? string.Format("يرجى الانتظار {0} ثانية قبل المحاولة التالية.", remainingSec)
+                    : string.Format("الحساب مقفل مؤقتاً لحماية الأمان. يرجى الانتظار {0} ثانية.", remainingSec);
                 return res;
             }
 
             bool matches = false;
 
-            // Emergency Recovery Code for Store Owner only (managers never receive or use it)
-            // Root stays challenge-only: recovery codes are never accepted for it
-            if (user.Role == "admin" && IsOwnerUser(user) && !string.IsNullOrEmpty(pin) &&
-                (pin.Trim().StartsWith("RFQ-REC-", StringComparison.OrdinalIgnoreCase) || pin.Trim().StartsWith("RFK", StringComparison.OrdinalIgnoreCase)))
+            if (isRecoveryCodeAttempt)
             {
+                int recoveryWait = GetRemainingLockoutSeconds(KEY_LOGIN_RECOVERY_LOCKOUT);
+                if (recoveryWait > 0)
+                {
+                    res.Success = false;
+                    res.IsLocked = true;
+                    res.RemainingLockoutSeconds = recoveryWait;
+                    res.Message = string.Format("تم إدخال كود الاسترجاع بشكل خاطئ عدة مرات. يرجى الانتظار {0} ثانية قبل المحاولة التالية.", recoveryWait);
+                    return res;
+                }
+
                 if (VerifyRecoveryCodeInternal(pin))
                 {
                     matches = true;
@@ -606,6 +636,22 @@ namespace RafiqPOS.Services
                     _userRepo.Update(user);
                     _recoveryLoginUserId = user.Id;
                     LogAudit("EMERGENCY_RECOVERY_LOGIN", "SECURITY", user.Username, "تم تسجيل الدخول بنجاح باستخدام كود استرجاع الدعم الفني المعتمد");
+                }
+                else
+                {
+                    // A wrong recovery code never feeds the account PIN delay (otherwise it could be used to delay the owner)
+                    if (ShouldAuditWrongLoginRecovery())
+                    {
+                        LogAudit("RECOVERY_CODE_FAILED", "SECURITY", user.Username, "محاولة دخول بكود استرجاع غير صحيح");
+                    }
+                    int waitAfter = RegisterWrongLoginRecoveryAttempt();
+                    res.Success = false;
+                    res.IsLocked = waitAfter > 0;
+                    res.RemainingLockoutSeconds = waitAfter;
+                    res.Message = waitAfter > 0
+                        ? string.Format("كود الاسترجاع غير صحيح. يرجى الانتظار {0} ثانية قبل المحاولة التالية.", waitAfter)
+                        : "كود الاسترجاع غير صحيح.";
+                    return res;
                 }
             }
 
@@ -672,7 +718,7 @@ namespace RafiqPOS.Services
             else
             {
                 int failed = user.FailedAttempts + 1;
-                int lockoutSec = LoginLockoutSeconds(failed);
+                int lockoutSec = LoginLockoutSecondsFor(user, failed);
 
                 _userRepo.RecordLoginAttempt(user.Id, false, lockoutSec);
                 LogAudit("LOGIN_FAILED", "SECURITY", user.Username, string.Format("محاولة دخول خاطئة للموظف: {0} (المحاولة {1})", user.DisplayName, failed));
@@ -680,9 +726,19 @@ namespace RafiqPOS.Services
                 res.Success = false;
                 res.IsLocked = lockoutSec > 0;
                 res.RemainingLockoutSeconds = lockoutSec;
-                res.Message = lockoutSec > 0
-                    ? string.Format("تم إدخال الرقم السري بشكل خاطئ عدة مرات. تم قفل الحساب لمدة {0} ثانية.", lockoutSec)
-                    : string.Format("الرقم السري غير صحيح. المحاولات المتبقية قبل القفل: {0}", Math.Max(0, 5 - failed));
+                if (IsDelayOnlyAccount(user))
+                {
+                    // Owner/admin accounts are never hard-locked: only a growing delay (capped) between attempts
+                    res.Message = lockoutSec > 0
+                        ? string.Format("الرقم السري غير صحيح. يرجى الانتظار {0} ثانية قبل المحاولة التالية.", lockoutSec)
+                        : "الرقم السري غير صحيح.";
+                }
+                else
+                {
+                    res.Message = lockoutSec > 0
+                        ? string.Format("تم إدخال الرقم السري بشكل خاطئ عدة مرات. تم قفل الحساب لمدة {0} ثانية.", lockoutSec)
+                        : string.Format("الرقم السري غير صحيح. المحاولات المتبقية قبل القفل: {0}", Math.Max(0, 5 - failed));
+                }
                 return res;
             }
         }
@@ -692,6 +748,104 @@ namespace RafiqPOS.Services
             if (failedAttempts >= 10) return 300;
             if (failedAttempts >= 5) return 30;
             return 0;
+        }
+
+        private const int ADMIN_MAX_LOGIN_DELAY_SECONDS = 60;
+
+        // 3 failures: 30 s; 5 or more: 300 s (the cap, so a cashier can block approvals for a few minutes at most)
+        public static int SupervisorLockoutSeconds(int failedAttempts)
+        {
+            int lockout = 0;
+            if (failedAttempts >= 5) lockout = 300;
+            else if (failedAttempts >= 3) lockout = 30;
+            return lockout > SUPERVISOR_MAX_LOCKOUT_SECONDS ? SUPERVISOR_MAX_LOCKOUT_SECONDS : lockout;
+        }
+
+        // Owner, managers and root are never hard-locked by failures (a cashier could otherwise lock the owner out)
+        private static bool IsDelayOnlyAccount(User user)
+        {
+            return user != null && (user.Role == "admin" || user.Role == "root");
+        }
+
+        // Exponential delay for admin-tier accounts: free first two failures, then 2, 4, 8, 16, 32 and at most 60 seconds
+        public static int AdminLoginDelaySeconds(int failedAttempts)
+        {
+            return AdminLoginDelaySeconds(failedAttempts, false);
+        }
+
+        private const int OWNER_EXTENDED_LOGIN_DELAY_AFTER_FAILURES = 15;
+        private const int OWNER_EXTENDED_MAX_LOGIN_DELAY_SECONDS = 300;
+
+        // Owner/root (who have the recovery-code and challenge paths) rise to a 300 s cap after 15 consecutive failures; managers stay at 60 s
+        public static int AdminLoginDelaySeconds(int failedAttempts, bool ownerOrRoot)
+        {
+            if (ownerOrRoot && failedAttempts >= OWNER_EXTENDED_LOGIN_DELAY_AFTER_FAILURES) return OWNER_EXTENDED_MAX_LOGIN_DELAY_SECONDS;
+            if (failedAttempts < 3) return 0;
+            int exponent = failedAttempts - 2;
+            if (exponent > 6) return ADMIN_MAX_LOGIN_DELAY_SECONDS;
+            int delay = 1 << exponent;
+            return delay > ADMIN_MAX_LOGIN_DELAY_SECONDS ? ADMIN_MAX_LOGIN_DELAY_SECONDS : delay;
+        }
+
+        private static int LoginLockoutSecondsFor(User user, int failedAttempts)
+        {
+            if (!IsDelayOnlyAccount(user)) return LoginLockoutSeconds(failedAttempts);
+            bool ownerOrRoot = user.Role == "root" || IsOwnerUser(user);
+            return AdminLoginDelaySeconds(failedAttempts, ownerOrRoot);
+        }
+
+        // Owner recovery-code logins: after 5 wrong codes within 5 minutes the path waits 60 s (never a hard lock)
+        private const string KEY_LOGIN_RECOVERY_LOCKOUT = "security_login_recovery_lockout_until";
+        private const string KEY_LOGIN_RECOVERY_WINDOW_START = "security_login_recovery_window_start";
+        private const string KEY_LOGIN_RECOVERY_WINDOW_COUNT = "security_login_recovery_window_count";
+        private const string KEY_LOGIN_RECOVERY_AUDIT_HOUR = "security_login_recovery_audit_hour_start";
+        private const string KEY_LOGIN_RECOVERY_AUDIT_COUNT = "security_login_recovery_audit_count";
+        private const int LOGIN_RECOVERY_WINDOW_SECONDS = 300;
+        private const int LOGIN_RECOVERY_MAX_WRONG_IN_WINDOW = 5;
+        private const int LOGIN_RECOVERY_DELAY_SECONDS = 60;
+        private const int LOGIN_RECOVERY_MAX_AUDIT_ROWS_PER_HOUR = 10;
+
+        // Returns the seconds to wait after this wrong recovery attempt (0 when none)
+        private int RegisterWrongLoginRecoveryAttempt()
+        {
+            DateTime windowStart;
+            int count;
+            int.TryParse(_settingsRepo.Get(KEY_LOGIN_RECOVERY_WINDOW_COUNT, "0"), out count);
+            if (!TryParseUtc(_settingsRepo.Get(KEY_LOGIN_RECOVERY_WINDOW_START, ""), out windowStart) ||
+                (DateTime.UtcNow - windowStart).TotalSeconds > LOGIN_RECOVERY_WINDOW_SECONDS)
+            {
+                count = 0;
+                _settingsRepo.Set(KEY_LOGIN_RECOVERY_WINDOW_START, DateTime.UtcNow.ToString("o"));
+            }
+
+            count++;
+            if (count >= LOGIN_RECOVERY_MAX_WRONG_IN_WINDOW)
+            {
+                ExtendLockout(KEY_LOGIN_RECOVERY_LOCKOUT, LOGIN_RECOVERY_DELAY_SECONDS);
+                count = 0;
+                _settingsRepo.Set(KEY_LOGIN_RECOVERY_WINDOW_START, "");
+                _settingsRepo.Set(KEY_LOGIN_RECOVERY_WINDOW_COUNT, "0");
+                return LOGIN_RECOVERY_DELAY_SECONDS;
+            }
+            _settingsRepo.Set(KEY_LOGIN_RECOVERY_WINDOW_COUNT, count.ToString());
+            return 0;
+        }
+
+        // At most 10 audit rows per hour for wrong recovery codes, so spamming cannot flood the audit log
+        private bool ShouldAuditWrongLoginRecovery()
+        {
+            DateTime hourStart;
+            int count;
+            int.TryParse(_settingsRepo.Get(KEY_LOGIN_RECOVERY_AUDIT_COUNT, "0"), out count);
+            if (!TryParseUtc(_settingsRepo.Get(KEY_LOGIN_RECOVERY_AUDIT_HOUR, ""), out hourStart) ||
+                (DateTime.UtcNow - hourStart).TotalSeconds > 3600)
+            {
+                count = 0;
+                _settingsRepo.Set(KEY_LOGIN_RECOVERY_AUDIT_HOUR, DateTime.UtcNow.ToString("o"));
+            }
+            if (count >= LOGIN_RECOVERY_MAX_AUDIT_ROWS_PER_HOUR) return false;
+            _settingsRepo.Set(KEY_LOGIN_RECOVERY_AUDIT_COUNT, (count + 1).ToString());
+            return true;
         }
 
         public void Logout()
@@ -1508,10 +1662,9 @@ namespace RafiqPOS.Services
                 throw new UnauthorizedAccessException("حساب المطور يُدار بالتحدي المشفر فقط ولا يمكن تغيير بياناته.");
             }
 
-            bool callerIsAdmin = caller.Role == "admin" || caller.Role == "root";
-            if (caller.Id == user.Id && !callerIsAdmin)
+            if (caller.Id == user.Id && caller.Role != "root")
             {
-                // Self-service change must prove the current credential and is throttled like a login
+                // Changing your own password (cashier, manager or owner) must prove the current credential and is throttled like a login
                 int remaining = GetUserRemainingLockoutSeconds(user);
                 if (remaining > 0)
                 {
@@ -1524,7 +1677,7 @@ namespace RafiqPOS.Services
                 if (!proven)
                 {
                     int failed = user.FailedAttempts + 1;
-                    _userRepo.RecordLoginAttempt(user.Id, false, LoginLockoutSeconds(failed));
+                    _userRepo.RecordLoginAttempt(user.Id, false, LoginLockoutSecondsFor(user, failed));
                     LogAudit("PASSWORD_CHANGE_FAILED", "SECURITY", user.Username, string.Format("محاولة تغيير كلمة مرور بكلمة حالية خاطئة (المحاولة {0})", failed));
                     throw new UnauthorizedAccessException("كلمة المرور الحالية غير صحيحة.");
                 }
@@ -1695,7 +1848,7 @@ namespace RafiqPOS.Services
             if (VerifyUserPin(user.Id, pin)) return true;
 
             int failed = user.FailedAttempts + 1;
-            _userRepo.RecordLoginAttempt(user.Id, false, LoginLockoutSeconds(failed));
+            _userRepo.RecordLoginAttempt(user.Id, false, LoginLockoutSecondsFor(user, failed));
             LogAudit("PIN_CHANGE_FAILED", "SECURITY", user.Username, string.Format("محاولة تغيير رقم سري برقم حالي خاطئ (المحاولة {0})", failed));
             return false;
         }
@@ -1756,6 +1909,14 @@ namespace RafiqPOS.Services
         // minApproverTier: 1 = any admin (manager/owner/root), 2 = owner or root only
         public PinVerificationResult VerifySupervisorPin(string pin, string action, int minApproverTier)
         {
+            lock (_authStateGate)
+            {
+                return VerifySupervisorPinCore(pin, action, minApproverTier);
+            }
+        }
+
+        private PinVerificationResult VerifySupervisorPinCore(string pin, string action, int minApproverTier)
+        {
             var result = new PinVerificationResult();
 
             if (string.IsNullOrEmpty(pin))
@@ -1800,9 +1961,8 @@ namespace RafiqPOS.Services
                 if (Tier(admin) < minApproverTier) continue;
                 anyAdmin = true;
                 if (string.IsNullOrEmpty(admin.PinCodeHash)) continue;
-                // An admin whose login is locked cannot approve operations either
-                if (GetUserRemainingLockoutSeconds(admin) > 0) continue;
-
+                // Admin-tier accounts are only ever delayed at login (never hard-locked), so that delay must not block approvals;
+                // brute-force protection for this path is the shared supervisor throttle below.
                 bool needsUpgrade;
                 if (!VerifyStoredPin(admin.PinCodeHash, admin.PinSalt, pin, out needsUpgrade)) continue;
                 if (needsUpgrade)
@@ -1825,12 +1985,17 @@ namespace RafiqPOS.Services
                 return result;
             }
 
+            // Failures decay: after 15 minutes without any failure the counter starts again from zero
+            DateTime lastSupervisorFailure;
+            if (TryParseUtc(_settingsRepo.Get(KEY_SUPERVISOR_LAST_FAILURE, ""), out lastSupervisorFailure) &&
+                (DateTime.UtcNow - lastSupervisorFailure).TotalSeconds > SUPERVISOR_FAILURE_DECAY_SECONDS)
+            {
+                ResetFailureCounter(KEY_SUPERVISOR_FAILED, KEY_SUPERVISOR_LOCKOUT);
+            }
+            _settingsRepo.Set(KEY_SUPERVISOR_LAST_FAILURE, DateTime.UtcNow.ToString("o"));
+
             int failed = IncrementFailureCounter(KEY_SUPERVISOR_FAILED, 1);
-            int lockoutSec = 0;
-            if (failed >= 20) lockoutSec = 3600;
-            else if (failed >= 10) lockoutSec = 1800;
-            else if (failed >= 5) lockoutSec = 300;
-            else if (failed >= 3) lockoutSec = 30;
+            int lockoutSec = SupervisorLockoutSeconds(failed);
             ExtendLockout(KEY_SUPERVISOR_LOCKOUT, lockoutSec);
             LogAudit("SUPERVISOR_PIN_FAILED", "SECURITY", failed.ToString(), string.Format("محاولة خاطئة لاعتماد المشرف للعملية {0} (المحاولة {1})", action, failed));
 

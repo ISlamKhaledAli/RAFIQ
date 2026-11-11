@@ -12,6 +12,31 @@ import { serveTailwindJs } from '../views/admin/tailwindAsset.ts';
 import { serveLogoPng } from '../views/admin/logoAsset.ts';
 import { adminScripts } from '../views/admin/scripts.ts';
 
+const DEFAULT_RELEASE_DOWNLOAD_HOSTS = [
+  'github.com',
+  'objects.githubusercontent.com',
+  'release-assets.githubusercontent.com',
+];
+
+/** Returns true only for https URLs (no credentials) whose host is in the release download allowlist. */
+export function isAllowedReleaseDownloadUrl(rawUrl: string, env: Env): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+    return false;
+  }
+  const configured = (env.RELEASE_DOWNLOAD_HOSTS || '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter((h) => h.length > 0);
+  const allowed = configured.length > 0 ? configured : DEFAULT_RELEASE_DOWNLOAD_HOSTS;
+  return allowed.includes(parsed.hostname.toLowerCase());
+}
+
 /**
  * Handle Admin API & Dashboard
  */
@@ -431,7 +456,8 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
         { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل توليد الكود';
+      console.error('Admin handler error:', err);
+      const msg = 'فشل توليد الكود';
       return new Response(
         JSON.stringify({ success: false, message: msg }),
         { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
@@ -525,7 +551,8 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
         { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل إصدار تصريح Root';
+      console.error('Admin handler error:', err);
+      const msg = 'فشل إصدار تصريح Root';
       return new Response(
         JSON.stringify({ success: false, message: msg }),
         { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
@@ -585,7 +612,8 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
         { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل توليد كود الاستعادة';
+      console.error('Admin handler error:', err);
+      const msg = 'فشل توليد كود الاستعادة';
       return new Response(
         JSON.stringify({ success: false, message: msg }),
         { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
@@ -646,7 +674,8 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
         { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل توليد كود فك حظر الساعة';
+      console.error('Admin handler error:', err);
+      const msg = 'فشل توليد كود فك حظر الساعة';
       return new Response(
         JSON.stringify({ success: false, message: msg }),
         { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
@@ -704,7 +733,8 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
         { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل توليد كود الاستعادة';
+      console.error('Admin handler error:', err);
+      const msg = 'فشل توليد كود الاستعادة';
       return new Response(
         JSON.stringify({ success: false, message: msg }),
         { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
@@ -755,7 +785,8 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
         { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل توليد كود فك حظر الساعة';
+      console.error('Admin handler error:', err);
+      const msg = 'فشل توليد كود فك حظر الساعة';
       return new Response(
         JSON.stringify({ success: false, message: msg }),
         { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
@@ -797,9 +828,23 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     }>();
 
     const rawUrl = (body.download_url || body.package_url || '').trim();
-    if (!body.version || !rawUrl || !body.sha256) {
+    if (!body.version || !rawUrl || !body.sha256 || typeof body.version !== 'string') {
       return new Response(
         JSON.stringify({ success: false, message: 'بيانات رقم الإصدار ورابط التحميل وبصمة الهاش (SHA-256) إلزامية' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    if (!isAllowedReleaseDownloadUrl(rawUrl, env)) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'رابط التحميل يجب أن يكون بصيغة https ومن مصدر موثوق مسموح به (مثل GitHub Releases)' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    if (typeof body.sha256 !== 'string' || !/^[0-9a-fA-F]{64}$/.test(body.sha256.trim())) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'بصمة الهاش (SHA-256) غير صالحة، يجب أن تتكون من 64 خانة سداسية عشرية' }),
         { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
     }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Services;
 
@@ -119,14 +120,33 @@ namespace RafiqPOS.Bridge
 
                 case "excel:browseExportFolder":
                     string chosenFolder = null;
+                    string excelInitFolder = null;
+                    string excelTitle = "اختر المجلد أو الفلاشة لحفظ ملفات التصدير الشاملة";
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null)
+                        {
+                            if (pObj["initialFolder"] != null)
+                            {
+                                excelInitFolder = pObj["initialFolder"].ToString();
+                            }
+                            if (pObj["title"] != null)
+                            {
+                                excelTitle = pObj["title"].ToString();
+                            }
+                        }
+                    }
                     var browseExportThread = new System.Threading.Thread(delegate()
                     {
-                        using (var fbd = new System.Windows.Forms.FolderBrowserDialog())
+                        using (var dlg = new FolderSelectDialog())
                         {
-                            fbd.Description = "اختر المجلد أو الفلاشة لحفظ ملفات التصدير الشاملة";
-                            if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                            dlg.Title = excelTitle;
+                            dlg.InitialDirectory = excelInitFolder;
+                            dlg.OkButtonLabel = "اختيار هذا المجلد";
+                            if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                             {
-                                chosenFolder = fbd.SelectedPath;
+                                chosenFolder = dlg.SelectedPath;
                             }
                         }
                     });

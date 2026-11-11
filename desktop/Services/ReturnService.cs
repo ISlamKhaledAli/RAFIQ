@@ -27,6 +27,11 @@ namespace RafiqPOS.Services
                 // A retry after a UI timeout must not refund twice; the same key with a different return is rejected (L8 / R3)
                 if (returnObj != null && Common.IdempotencyGuard.NormalizeKey(returnObj.IdempotencyKey) != null)
                 {
+                    // 'split:' keys are reserved for the linked rows of a split refund
+                    if (Common.IdempotencyGuard.NormalizeKey(returnObj.IdempotencyKey).StartsWith("split:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("رقم العملية المرسل محجوز للنظام؛ لم يتم تسجيل أي مرتجع. يرجى إعادة فتح الشاشة والمحاولة من جديد.");
+                    }
                     returnObj.IdempotencyFingerprint = ReturnFingerprint(returnObj);
                     Return existing = _returnRepo.FindByIdempotency(returnObj.IdempotencyKey, returnObj.IdempotencyFingerprint);
                     if (existing != null) return existing;
@@ -70,6 +75,8 @@ namespace RafiqPOS.Services
                 }
             }
 
+            // Every return (with or without an invoice) uses a whitelisted refund method; optional split parts are validated here too
+            NormalizeRefundRequest(returnObj);
             // An invoice-linked return always belongs to the invoice's own customer; a different one is rejected
             if (!string.IsNullOrEmpty(returnObj.SaleId))
             {
@@ -83,7 +90,7 @@ namespace RafiqPOS.Services
             }
 
             // Validation: Credit refunds must be attached to a specific registered customer
-            if (string.Equals(returnObj.RefundMethod, "credit", StringComparison.OrdinalIgnoreCase))
+            if (UsesCreditRefund(returnObj))
             {
                 if (string.IsNullOrWhiteSpace(returnObj.CustomerId))
                 {
@@ -333,105 +340,8 @@ namespace RafiqPOS.Services
                     // Totals for every line were computed above from the validated original invoice
                     returnObj.TotalsComputedByService = true;
 
-                    // Enforce financial ceiling for refunds on credit sales (Senior QA Invariant)
-                    // If returning an unpaid credit sale, cash or digital money cannot be disbursed;
-                    // it must be routed to 'credit' to reduce customer debt.
-                    long netCashPaidOnOrig = 0;
-                    long netCardPaidOnOrig = 0;
-                    long netInstapayPaidOnOrig = 0;
-                    long netWalletPaidOnOrig = 0;
-
-                    if (origSale.Payments != null && origSale.Payments.Count > 0)
-                    {
-                        long cashSum = 0;
-                        for (int p = 0; p < origSale.Payments.Count; p++)
-                        {
-                            var pm = origSale.Payments[p];
-                            if (pm != null)
-                            {
-                                if (string.Equals(pm.Method, "cash", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    cashSum += pm.AmountPiasters;
-                                }
-                                else if (string.Equals(pm.Method, "card", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    netCardPaidOnOrig += pm.AmountPiasters;
-                                }
-                                else if (string.Equals(pm.Method, "instapay", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    netInstapayPaidOnOrig += pm.AmountPiasters;
-                                }
-                                else if (string.Equals(pm.Method, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
-                                         string.Equals(pm.Method, "wallet", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    netWalletPaidOnOrig += pm.AmountPiasters;
-                                }
-                            }
-                        }
-                        netCashPaidOnOrig = Math.Max(0, cashSum - origSale.ChangePiasters);
-                    }
-                    else if (string.Equals(origSale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
-                    {
-                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ChangePiasters);
-                    }
-                    else if (string.Equals(origSale.PaymentMethod, "card", StringComparison.OrdinalIgnoreCase))
-                    {
-                        netCardPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
-                    }
-                    else if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // F-14: down payment only here; later cash debt settlements are added once below (BUG-08)
-                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
-                    }
-                    else if (string.Equals(origSale.PaymentMethod, "instapay", StringComparison.OrdinalIgnoreCase))
-                    {
-                        netInstapayPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ServiceFeePiasters);
-                    }
-                    else if (string.Equals(origSale.PaymentMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(origSale.PaymentMethod, "wallet", StringComparison.OrdinalIgnoreCase))
-                    {
-                        netWalletPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ServiceFeePiasters);
-                    }
-
-                    long pastCashRefunds = 0;
-                    long pastCardRefunds = 0;
-                    long pastInstapayRefunds = 0;
-                    long pastWalletRefunds = 0;
-                    long pastTotalRefunds = 0;
-
-                    for (int r = 0; r < pastReturns.Count; r++)
-                    {
-                        pastTotalRefunds += pastReturns[r].TotalPiasters;
-                        if (string.Equals(pastReturns[r].RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
-                        {
-                            pastCashRefunds += pastReturns[r].TotalPiasters;
-                        }
-                        else if (string.Equals(pastReturns[r].RefundMethod, "card", StringComparison.OrdinalIgnoreCase))
-                        {
-                            pastCardRefunds += pastReturns[r].TotalPiasters;
-                        }
-                        else if (string.Equals(pastReturns[r].RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase))
-                        {
-                            pastInstapayRefunds += pastReturns[r].TotalPiasters;
-                        }
-                        else if (string.Equals(pastReturns[r].RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(pastReturns[r].RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
-                        {
-                            pastWalletRefunds += pastReturns[r].TotalPiasters;
-                        }
-                    }
-
-                    // BUG-08: If the original sale has any credit debt, always include settled debt cash collected after the sale
-                    if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase) || (origSale.PaidPiasters < origSale.TotalPiasters))
-                    {
-                        long allocatedDebtCash = _saleRepo != null ? _saleRepo.GetAllocatedDebtCashPiasters(origSale.Id) : 0;
-                        netCashPaidOnOrig += allocatedDebtCash;
-                    }
-
-                    long allowableCashRefund = Math.Max(0, netCashPaidOnOrig - pastCashRefunds);
-                    long allowableCardRefund = Math.Max(0, netCardPaidOnOrig - pastCardRefunds);
-                    long allowableInstapayRefund = Math.Max(0, netInstapayPaidOnOrig - pastInstapayRefunds);
-                    long allowableWalletRefund = Math.Max(0, netWalletPaidOnOrig - pastWalletRefunds);
+                    long pastTotalRefunds;
+                    RefundCaps caps = ComputeRefundCaps(origSale, pastReturns, out pastTotalRefunds);
 
                     long currentReturnTotal = 0;
                     for (int ri = 0; ri < returnObj.Items.Count; ri++)
@@ -446,71 +356,11 @@ namespace RafiqPOS.Services
                             (pastTotalRefunds + currentReturnTotal) / 100.0, origSale.TotalPiasters / 100.0));
                     }
 
-                    // Whitelist validation (F-13)
-                    string refundMethod = (returnObj.RefundMethod ?? "").ToLowerInvariant();
-                    if (refundMethod != "cash" && refundMethod != "card" && refundMethod != "instapay" && refundMethod != "wallet" && refundMethod != "vodafone_cash" && refundMethod != "credit" && refundMethod != "customer_balance")
+                    // Zero-value returns (free line) move stock only: no refund channel (and no split) is needed
+                    List<ReturnRefundPart> charges = ResolveRefundCharges(returnObj, currentReturnTotal);
+                    for (int chargeIdx = 0; chargeIdx < charges.Count; chargeIdx++)
                     {
-                        throw new InvalidOperationException(string.Format(
-                            "طريقة استرداد المرتجع غير صالحة: '{0}'. الطرق المسموح بها هي: نقدي، بطاقة، إنستاباي، محفظة، رصيد آجل.",
-                            returnObj.RefundMethod));
-                    }
-
-                    // A zero-value return (free line) moves stock only, so no refund channel needs paid money
-                    if (currentReturnTotal > 0)
-                    {
-                        if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (netCashPaidOnOrig <= 0)
-                            {
-                                throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل.");
-                            }
-                            else if (currentReturnTotal > allowableCashRefund)
-                            {
-                                throw new InvalidOperationException(string.Format(
-                                    "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
-                                    currentReturnTotal / 100.0, allowableCashRefund / 100.0));
-                            }
-                        }
-                        else if (string.Equals(returnObj.RefundMethod, "card", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (netCardPaidOnOrig <= 0)
-                            {
-                                throw new InvalidOperationException("لا يمكن استرداد المرتجع عبر البطاقة لفاتورة بيع لم يُسدد منها بالبطاقة.");
-                            }
-                            else if (currentReturnTotal > allowableCardRefund)
-                            {
-                                throw new InvalidOperationException(string.Format(
-                                    "لا يمكن صرف مرتجع عبر البطاقة بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً بالبطاقة في الفاتورة الأصلية ({1:N2} ج.م).",
-                                    currentReturnTotal / 100.0, allowableCardRefund / 100.0));
-                            }
-                        }
-                        else if (string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (netInstapayPaidOnOrig <= 0)
-                            {
-                                throw new InvalidOperationException("لا يمكن صرف مرتجع عبر إنستاباي لفاتورة بيع لم يُسدد منها عبر إنستاباي. يجب اختيار استرداد كرصيد آجل.");
-                            }
-                            else if (currentReturnTotal > allowableInstapayRefund)
-                            {
-                                throw new InvalidOperationException(string.Format(
-                                    "لا يمكن صرف مرتجع عبر إنستاباي بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر إنستاباي في الفاتورة الأصلية ({1:N2} ج.م).",
-                                    currentReturnTotal / 100.0, allowableInstapayRefund / 100.0));
-                            }
-                        }
-                        else if (string.Equals(returnObj.RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(returnObj.RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (netWalletPaidOnOrig <= 0)
-                            {
-                                throw new InvalidOperationException("لا يمكن صرف مرتجع عبر المحفظة الإلكترونية لفاتورة بيع لم يُسدد منها عبر المحفظة. يجب اختيار استرداد كرصيد آجل.");
-                            }
-                            else if (currentReturnTotal > allowableWalletRefund)
-                            {
-                                throw new InvalidOperationException(string.Format(
-                                    "لا يمكن صرف مرتجع عبر المحفظة الإلكترونية بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر المحفظة في الفاتورة الأصلية ({1:N2} ج.م).",
-                                    currentReturnTotal / 100.0, allowableWalletRefund / 100.0));
-                            }
-                        }
+                        ValidateRefundCharge(charges[chargeIdx].Method, charges[chargeIdx].AmountPiasters, caps);
                     }
                 }
             }
@@ -527,9 +377,16 @@ namespace RafiqPOS.Services
             }
 
             // Invariant: Cash refunds disburse physical money from drawer; check drawer cash sufficiency
-            if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
+            long totalCashToRefund = 0;
+            if (returnObj.Refunds != null)
             {
-                long totalCashToRefund = 0;
+                for (int cashPartIdx = 0; cashPartIdx < returnObj.Refunds.Count; cashPartIdx++)
+                {
+                    if (returnObj.Refunds[cashPartIdx].Method == "cash") totalCashToRefund += returnObj.Refunds[cashPartIdx].AmountPiasters;
+                }
+            }
+            else if (returnObj.RefundMethod == "cash")
+            {
                 for (int rItemIdx = 0; rItemIdx < returnObj.Items.Count; rItemIdx++)
                 {
                     var cashItem = returnObj.Items[rItemIdx];
@@ -538,7 +395,27 @@ namespace RafiqPOS.Services
                         ? cashItem.TotalPiasters
                         : Money.FromPiasters(cashItem.UnitPricePiasters).MultiplyByMilliUnits(cashItem.QuantityMilli).Piasters;
                 }
+            }
 
+            if (totalCashToRefund > 0)
+            {
+                // Cash leaves the drawer, so the refund must belong to an open shift of the current business day (same guard as selling)
+                if (DatabaseService.Shifts != null)
+                {
+                    var activeShift = DatabaseService.Shifts.GetActiveShift();
+                    if (activeShift == null)
+                    {
+                        throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج بدون وردية مفتوحة. يرجى فتح وردية أولاً أو اختيار طريقة استرداد أخرى.");
+                    }
+                    if (activeShift.IsDanglingFromPreviousDay)
+                    {
+                        throw new InvalidOperationException(string.Format("الوردية المفتوحة تخص يوم العمل {0} وليس يوم العمل الحالي. يرجى إغلاق الوردية السابقة أولاً ثم فتح وردية جديدة قبل صرف مرتجع نقدي.", activeShift.BusinessDate));
+                    }
+                }
+            }
+
+            if (returnObj.RefundMethod == "cash" || totalCashToRefund > 0)
+            {
                 if (closingSvc != null)
                 {
                     string currentBDate = closingSvc.GetCurrentBusinessDate();
@@ -554,6 +431,374 @@ namespace RafiqPOS.Services
             }
 
             return _returnRepo.CreateReturnAtomic(returnObj);
+        }
+
+        private static readonly string[] ALLOWED_REFUND_METHODS = new string[]
+        {
+            "cash", "card", "instapay", "wallet", "vodafone_cash", "credit", "customer_balance"
+        };
+
+        internal static string NormalizeRefundMethod(string method)
+        {
+            string normalized = string.IsNullOrWhiteSpace(method) ? "cash" : method.Trim().ToLowerInvariant();
+            if (Array.IndexOf(ALLOWED_REFUND_METHODS, normalized) < 0)
+            {
+                throw new InvalidOperationException(string.Format(
+                    "طريقة استرداد المرتجع غير صالحة: '{0}'. الطرق المسموح بها هي: نقدي، بطاقة، إنستاباي، محفظة، رصيد آجل.",
+                    method));
+            }
+            return normalized;
+        }
+
+        // wallet == vodafone_cash and credit == customer_balance for duplicate detection
+        private static string RefundBucket(string method)
+        {
+            if (method == "vodafone_cash") return "wallet";
+            if (method == "customer_balance") return "credit";
+            return method;
+        }
+
+        private static int RefundOrder(string method)
+        {
+            switch (RefundBucket(method))
+            {
+                case "cash": return 0;
+                case "card": return 1;
+                case "instapay": return 2;
+                case "wallet": return 3;
+                default: return 4;
+            }
+        }
+
+        /// <summary>
+        /// يوحّد طريقة الاسترداد (قائمة بيضاء + أحرف صغيرة) ويتحقق من أجزاء الاسترداد المقسّم إن وُجدت؛
+        /// الجزء النقدي أولاً ليبقى سلوك فتح الدرج والإيصال مرتبطاً بالطريقة الأساسية.
+        /// </summary>
+        private static void NormalizeRefundRequest(Return returnObj)
+        {
+            returnObj.RefundMethod = NormalizeRefundMethod(returnObj.RefundMethod);
+            if (returnObj.Refunds == null || returnObj.Refunds.Count == 0)
+            {
+                returnObj.Refunds = null;
+                return;
+            }
+
+            if (string.IsNullOrEmpty(returnObj.SaleId) || returnObj.IsWithoutInvoice)
+            {
+                throw new InvalidOperationException("تقسيم الاسترداد على أكثر من طريقة متاح فقط للمرتجع المرتبط بفاتورة أصلية.");
+            }
+
+            var seen = new List<string>();
+            int remainderParts = 0;
+            for (int i = 0; i < returnObj.Refunds.Count; i++)
+            {
+                var part = returnObj.Refunds[i];
+                if (part == null)
+                {
+                    throw new InvalidOperationException(string.Format("جزء الاسترداد رقم {0} غير صالح.", i + 1));
+                }
+                part.Method = NormalizeRefundMethod(part.Method);
+                if (part.AmountPiasters < 0)
+                {
+                    throw new InvalidOperationException("مبلغ جزء الاسترداد لا يمكن أن يكون سالباً.");
+                }
+                if (part.AmountPiasters == 0) remainderParts++;
+
+                string bucket = RefundBucket(part.Method);
+                if (seen.Contains(bucket))
+                {
+                    throw new InvalidOperationException("طريقة الاسترداد مكررة في أجزاء الاسترداد؛ استخدم جزءاً واحداً لكل طريقة.");
+                }
+                seen.Add(bucket);
+            }
+            if (remainderParts > 1)
+            {
+                throw new InvalidOperationException("يُسمح بجزء استرداد واحد فقط بدون مبلغ (يأخذ باقي قيمة المرتجع).");
+            }
+
+            returnObj.Refunds.Sort(delegate(ReturnRefundPart a, ReturnRefundPart b)
+            {
+                return RefundOrder(a.Method).CompareTo(RefundOrder(b.Method));
+            });
+            returnObj.RefundMethod = returnObj.Refunds[0].Method;
+        }
+
+        private static bool UsesCreditRefund(Return returnObj)
+        {
+            if (returnObj.Refunds != null)
+            {
+                for (int i = 0; i < returnObj.Refunds.Count; i++)
+                {
+                    if (RefundBucket(returnObj.Refunds[i].Method) == "credit") return true;
+                }
+                return false;
+            }
+            return RefundBucket(returnObj.RefundMethod) == "credit";
+        }
+
+        /// <summary>
+        /// الأجزاء التي يُصرف عبرها المرتجع بعد حساب الإجمالي من الفاتورة الأصلية: جزء واحد للطريقة المفردة،
+        /// أو الأجزاء المقسمة (جزء واحد بلا مبلغ يأخذ الباقي) ويجب أن يساوي مجموعها الإجمالي بالضبط.
+        /// </summary>
+        private static List<ReturnRefundPart> ResolveRefundCharges(Return returnObj, long returnTotal)
+        {
+            var charges = new List<ReturnRefundPart>();
+            if (returnTotal <= 0)
+            {
+                returnObj.Refunds = null;
+                return charges;
+            }
+
+            if (returnObj.Refunds == null)
+            {
+                charges.Add(new ReturnRefundPart { Method = returnObj.RefundMethod, AmountPiasters = returnTotal });
+                return charges;
+            }
+
+            long fixedSum = 0;
+            ReturnRefundPart remainderPart = null;
+            for (int i = 0; i < returnObj.Refunds.Count; i++)
+            {
+                var part = returnObj.Refunds[i];
+                if (part.AmountPiasters < 0 || part.AmountPiasters > returnTotal)
+                {
+                    throw new InvalidOperationException(string.Format(
+                        "مبلغ جزء الاسترداد رقم {0} غير صالح؛ يجب أن يكون أكبر من الصفر وأقل من أو يساوي قيمة المرتجع ({1:N2} ج.م).",
+                        i + 1, returnTotal / 100.0));
+                }
+                if (part.AmountPiasters == 0)
+                {
+                    remainderPart = part;
+                    continue;
+                }
+                try
+                {
+                    fixedSum = checked(fixedSum + part.AmountPiasters);
+                }
+                catch (OverflowException)
+                {
+                    throw new InvalidOperationException("مجموع أجزاء الاسترداد يتجاوز الحد المسموح به.");
+                }
+            }
+
+            if (remainderPart != null)
+            {
+                long remainder = returnTotal - fixedSum;
+                if (remainder <= 0)
+                {
+                    throw new InvalidOperationException(string.Format(
+                        "مجموع أجزاء الاسترداد ({0:N2} ج.م) لا يترك باقياً من قيمة المرتجع ({1:N2} ج.م).",
+                        fixedSum / 100.0, returnTotal / 100.0));
+                }
+                remainderPart.AmountPiasters = remainder;
+            }
+            else if (fixedSum != returnTotal)
+            {
+                throw new InvalidOperationException(string.Format(
+                    "مجموع أجزاء الاسترداد ({0:N2} ج.م) لا يساوي قيمة المرتجع ({1:N2} ج.م).",
+                    fixedSum / 100.0, returnTotal / 100.0));
+            }
+
+            charges.AddRange(returnObj.Refunds);
+            return charges;
+        }
+
+        private sealed class RefundCaps
+        {
+            public long NetCashPaid, AllowableCash;
+            public long NetCardPaid, AllowableCard;
+            public long NetInstapayPaid, AllowableInstapay;
+            public long NetWalletPaid, AllowableWallet;
+        }
+
+        // Per-method amounts the original invoice can still refund: what each tender collected (cash net of change, plus debt cash
+        // settled later) minus earlier refunds on that method. The one source for both ProcessReturn and GetRefundCaps.
+        private RefundCaps ComputeRefundCaps(Sale origSale, List<Return> pastReturns, out long pastTotalRefunds)
+        {
+            // If returning an unpaid credit sale, cash or digital money cannot be disbursed; it must be routed to 'credit'
+            long netCashPaidOnOrig = 0;
+            long netCardPaidOnOrig = 0;
+            long netInstapayPaidOnOrig = 0;
+            long netWalletPaidOnOrig = 0;
+
+            if (origSale.Payments != null && origSale.Payments.Count > 0)
+            {
+                long cashSum = 0;
+                for (int p = 0; p < origSale.Payments.Count; p++)
+                {
+                    var pm = origSale.Payments[p];
+                    if (pm != null)
+                    {
+                        if (string.Equals(pm.Method, "cash", StringComparison.OrdinalIgnoreCase))
+                        {
+                            cashSum += pm.AmountPiasters;
+                        }
+                        else if (string.Equals(pm.Method, "card", StringComparison.OrdinalIgnoreCase))
+                        {
+                            netCardPaidOnOrig += pm.AmountPiasters;
+                        }
+                        else if (string.Equals(pm.Method, "instapay", StringComparison.OrdinalIgnoreCase))
+                        {
+                            netInstapayPaidOnOrig += pm.AmountPiasters;
+                        }
+                        else if (string.Equals(pm.Method, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(pm.Method, "wallet", StringComparison.OrdinalIgnoreCase))
+                        {
+                            netWalletPaidOnOrig += pm.AmountPiasters;
+                        }
+                    }
+                }
+                netCashPaidOnOrig = Math.Max(0, cashSum - origSale.ChangePiasters);
+            }
+            else if (string.Equals(origSale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
+            {
+                netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ChangePiasters);
+            }
+            else if (string.Equals(origSale.PaymentMethod, "card", StringComparison.OrdinalIgnoreCase))
+            {
+                netCardPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
+            }
+            else if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
+            {
+                // F-14: down payment only here; later cash debt settlements are added once below (BUG-08)
+                netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
+            }
+            else if (string.Equals(origSale.PaymentMethod, "instapay", StringComparison.OrdinalIgnoreCase))
+            {
+                netInstapayPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ServiceFeePiasters);
+            }
+            else if (string.Equals(origSale.PaymentMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(origSale.PaymentMethod, "wallet", StringComparison.OrdinalIgnoreCase))
+            {
+                netWalletPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ServiceFeePiasters);
+            }
+
+            long pastCashRefunds = 0;
+            long pastCardRefunds = 0;
+            long pastInstapayRefunds = 0;
+            long pastWalletRefunds = 0;
+            pastTotalRefunds = 0;
+
+            for (int r = 0; r < pastReturns.Count; r++)
+            {
+                pastTotalRefunds += pastReturns[r].TotalPiasters;
+                if (string.Equals(pastReturns[r].RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                {
+                    pastCashRefunds += pastReturns[r].TotalPiasters;
+                }
+                else if (string.Equals(pastReturns[r].RefundMethod, "card", StringComparison.OrdinalIgnoreCase))
+                {
+                    pastCardRefunds += pastReturns[r].TotalPiasters;
+                }
+                else if (string.Equals(pastReturns[r].RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase))
+                {
+                    pastInstapayRefunds += pastReturns[r].TotalPiasters;
+                }
+                else if (string.Equals(pastReturns[r].RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(pastReturns[r].RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
+                {
+                    pastWalletRefunds += pastReturns[r].TotalPiasters;
+                }
+            }
+
+            // BUG-08: If the original sale has any credit debt, always include settled debt cash collected after the sale
+            if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase) || (origSale.PaidPiasters < origSale.TotalPiasters))
+            {
+                long allocatedDebtCash = _saleRepo != null ? _saleRepo.GetAllocatedDebtCashPiasters(origSale.Id) : 0;
+                netCashPaidOnOrig += allocatedDebtCash;
+            }
+
+            return new RefundCaps
+            {
+                NetCashPaid = netCashPaidOnOrig, AllowableCash = Math.Max(0, netCashPaidOnOrig - pastCashRefunds),
+                NetCardPaid = netCardPaidOnOrig, AllowableCard = Math.Max(0, netCardPaidOnOrig - pastCardRefunds),
+                NetInstapayPaid = netInstapayPaidOnOrig, AllowableInstapay = Math.Max(0, netInstapayPaidOnOrig - pastInstapayRefunds),
+                NetWalletPaid = netWalletPaidOnOrig, AllowableWallet = Math.Max(0, netWalletPaidOnOrig - pastWalletRefunds)
+            };
+        }
+
+        /// <summary>
+        /// المتبقي الممكن استرداده لكل طريقة دفع على الفاتورة الأصلية (نفس حساب ProcessReturn بالضبط) لتخطيط الاسترداد المقسّم في الواجهة
+        /// </summary>
+        public RefundCapsInfo GetRefundCaps(string saleId)
+        {
+            var sale = string.IsNullOrWhiteSpace(saleId) ? null : _saleRepo.GetSaleById(saleId);
+            if (sale == null)
+            {
+                throw new InvalidOperationException("الفاتورة الأصلية غير موجودة.");
+            }
+
+            long pastTotal;
+            RefundCaps caps = ComputeRefundCaps(sale, _returnRepo.GetReturnsForSale(saleId), out pastTotal);
+            bool cancelled = string.Equals(sale.Status, "cancelled", StringComparison.OrdinalIgnoreCase);
+            return new RefundCapsInfo
+            {
+                SaleId = sale.Id,
+                CashPiasters = cancelled ? 0 : caps.AllowableCash,
+                CardPiasters = cancelled ? 0 : caps.AllowableCard,
+                InstapayPiasters = cancelled ? 0 : caps.AllowableInstapay,
+                WalletPiasters = cancelled ? 0 : caps.AllowableWallet,
+                CreditAllowed = !cancelled && !string.IsNullOrWhiteSpace(sale.CustomerId)
+                    && !string.Equals(sale.CustomerId, "cust_general_cash", StringComparison.OrdinalIgnoreCase),
+                RemainingPiasters = cancelled ? 0 : Math.Max(0, sale.TotalPiasters - pastTotal)
+            };
+        }
+
+        // One channel of the refund may never exceed what that tender actually collected on the original invoice
+        private static void ValidateRefundCharge(string method, long amount, RefundCaps caps)
+        {
+            if (amount <= 0) return;
+            switch (RefundBucket(method))
+            {
+                case "cash":
+                    if (caps.NetCashPaid <= 0)
+                    {
+                        throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل.");
+                    }
+                    if (amount > caps.AllowableCash)
+                    {
+                        throw new InvalidOperationException(string.Format(
+                            "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
+                            amount / 100.0, caps.AllowableCash / 100.0));
+                    }
+                    break;
+                case "card":
+                    if (caps.NetCardPaid <= 0)
+                    {
+                        throw new InvalidOperationException("لا يمكن استرداد المرتجع عبر البطاقة لفاتورة بيع لم يُسدد منها بالبطاقة.");
+                    }
+                    if (amount > caps.AllowableCard)
+                    {
+                        throw new InvalidOperationException(string.Format(
+                            "لا يمكن صرف مرتجع عبر البطاقة بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً بالبطاقة في الفاتورة الأصلية ({1:N2} ج.م).",
+                            amount / 100.0, caps.AllowableCard / 100.0));
+                    }
+                    break;
+                case "instapay":
+                    if (caps.NetInstapayPaid <= 0)
+                    {
+                        throw new InvalidOperationException("لا يمكن صرف مرتجع عبر إنستاباي لفاتورة بيع لم يُسدد منها عبر إنستاباي. يجب اختيار استرداد كرصيد آجل.");
+                    }
+                    if (amount > caps.AllowableInstapay)
+                    {
+                        throw new InvalidOperationException(string.Format(
+                            "لا يمكن صرف مرتجع عبر إنستاباي بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر إنستاباي في الفاتورة الأصلية ({1:N2} ج.م).",
+                            amount / 100.0, caps.AllowableInstapay / 100.0));
+                    }
+                    break;
+                case "wallet":
+                    if (caps.NetWalletPaid <= 0)
+                    {
+                        throw new InvalidOperationException("لا يمكن صرف مرتجع عبر المحفظة الإلكترونية لفاتورة بيع لم يُسدد منها عبر المحفظة. يجب اختيار استرداد كرصيد آجل.");
+                    }
+                    if (amount > caps.AllowableWallet)
+                    {
+                        throw new InvalidOperationException(string.Format(
+                            "لا يمكن صرف مرتجع عبر المحفظة الإلكترونية بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر المحفظة في الفاتورة الأصلية ({1:N2} ج.م).",
+                            amount / 100.0, caps.AllowableWallet / 100.0));
+                    }
+                    break;
+            }
         }
 
         // Quantity already returned against one original line. Per-line history is authoritative; the product+unit
@@ -639,6 +884,17 @@ namespace RafiqPOS.Services
                 }
             }
             lines.Sort(StringComparer.Ordinal);
+            if (returnObj.Refunds != null && returnObj.Refunds.Count > 0)
+            {
+                var parts = new List<string>();
+                for (int p = 0; p < returnObj.Refunds.Count; p++)
+                {
+                    if (returnObj.Refunds[p] == null) continue;
+                    parts.Add(string.Format("{0}:{1}", (returnObj.Refunds[p].Method ?? "").Trim().ToLowerInvariant(), returnObj.Refunds[p].AmountPiasters));
+                }
+                parts.Sort(StringComparer.Ordinal);
+                return Common.IdempotencyGuard.Fingerprint("return", returnObj.SaleId, returnObj.RefundMethod, returnObj.IsWithoutInvoice, string.Join(";", lines.ToArray()), string.Join(";", parts.ToArray()));
+            }
             return Common.IdempotencyGuard.Fingerprint("return", returnObj.SaleId, returnObj.RefundMethod, returnObj.IsWithoutInvoice, string.Join(";", lines.ToArray()));
         }
 
@@ -664,9 +920,10 @@ namespace RafiqPOS.Services
             return _returnRepo.GetReturnById(id);
         }
 
+        // Split refunds are stored as linked rows; callers see one return per operation with its refund parts
         public List<Return> GetReturnsForSale(string saleId)
         {
-            return _returnRepo.GetReturnsForSale(saleId);
+            return ReturnRepository.FoldSplitRefunds(_returnRepo.GetReturnsForSale(saleId));
         }
     }
 }

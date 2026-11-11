@@ -5,9 +5,25 @@ using System.Data.SQLite;
 
 namespace RafiqPOS.Database
 {
+    // The database was written by a newer app version: the app must be updated, the file must not be touched
+    public class DatabaseSchemaTooNewException : InvalidOperationException
+    {
+        public DatabaseSchemaTooNewException(string message) : base(message)
+        {
+        }
+    }
+
     public static partial class MigrationRunner
     {
         public const int LATEST_SUPPORTED_VERSION = 66;
+
+        private static void ThrowIfSchemaTooNew(int currentVersion)
+        {
+            if (currentVersion > LATEST_SUPPORTED_VERSION)
+            {
+                throw new DatabaseSchemaTooNewException(string.Format("إصدار هيكل قاعدة البيانات ({0}) أحدث من الإصدار المدعوم في هذا البرنامج ({1}). يرجى تحديث برنامج رفيق أولاً لتفادي تلف البيانات.", currentVersion, LATEST_SUPPORTED_VERSION));
+            }
+        }
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -15,8 +31,23 @@ namespace RafiqPOS.Database
             {
                 conn.Open();
 
+                // 0. A database written by a newer app is refused before any PRAGMA or DDL can touch the file
+                int existingVersion = 0;
+                using (var probeCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations';", conn))
+                {
+                    if (probeCmd.ExecuteScalar() != null)
+                    {
+                        using (var versionCmd = new SQLiteCommand("SELECT COALESCE(MAX(version), 0) FROM schema_migrations;", conn))
+                        {
+                            object versionObj = versionCmd.ExecuteScalar();
+                            if (versionObj != null && versionObj != DBNull.Value) existingVersion = Convert.ToInt32(versionObj);
+                        }
+                    }
+                }
+                ThrowIfSchemaTooNew(existingVersion);
+
                 // 1. Enable WAL mode, in-memory temp tables, and foreign keys
-                using (var cmd = new SQLiteCommand("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA temp_store = MEMORY;", conn))
+                using (var cmd = new SQLiteCommand("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA temp_store = MEMORY;", conn))
                 {
                     cmd.ExecuteNonQuery();
                 }
@@ -80,10 +111,7 @@ namespace RafiqPOS.Database
                 }
 
                 // OPS-03: Block opening newer schema database on older application binary
-                if (currentVersion > LATEST_SUPPORTED_VERSION)
-                {
-                    throw new InvalidOperationException(string.Format("إصدار هيكل قاعدة البيانات ({0}) أحدث من الإصدار المدعوم في هذا البرنامج ({1}). يرجى تحديث برنامج رفيق أولاً لتفادي تلف البيانات.", currentVersion, LATEST_SUPPORTED_VERSION));
-                }
+                ThrowIfSchemaTooNew(currentVersion);
 
                 // 4. Apply Migration 1: Base Enterprise Schema
                 if (currentVersion < 1)
@@ -475,8 +503,116 @@ namespace RafiqPOS.Database
                 ApplyIdempotencyMigrations(conn, dbPath, currentVersion);
                 ApplyUserHierarchyMigrations(conn, dbPath, currentVersion);
                 EnsureSchemaHealth(conn);
+                HandleLegacySaleItemsQuantity(conn, dbPath);
                 EnsureIdempotencySchemaHealth(conn);
                 EnsureUserHierarchySchemaHealth(conn);
+            }
+        }
+
+        private static bool LegacySaleItemsQuantityBlocksInserts(SQLiteConnection conn, SQLiteTransaction trans)
+        {
+            using (var cmd = new SQLiteCommand("PRAGMA table_info(sale_items);", conn, trans))
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    if (!string.Equals(Convert.ToString(reader["name"]), "quantity", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    bool notNull = Convert.ToInt32(reader["notnull"]) == 1;
+                    bool noDefault = reader["dflt_value"] == null || reader["dflt_value"] == DBNull.Value;
+                    return notNull && noDefault;
+                }
+            }
+
+            return false;
+        }
+
+        public const string SALE_ITEMS_QUANTITY_WARNING_KEY = "schema_warning_sale_items_quantity";
+
+        private static void SetSchemaWarning(SQLiteConnection conn, string key, bool active)
+        {
+            try
+            {
+                // Clearing never creates the row: a healthy database is not written to on every start
+                string sql = active
+                    ? "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (@k, '1', datetime('now'));"
+                    : "UPDATE app_settings SET value = '0', updated_at = datetime('now') WHERE key = @k AND value = '1';";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@k", key);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (SQLiteException ex)
+            {
+                Common.Logger.Warn("تعذر حفظ تحذير سلامة الهيكل (" + key + "): " + ex.Message);
+            }
+        }
+
+        // Legacy 'quantity' column (pre-milli schema): sale inserts never supply it, so it only matters when it is NOT NULL
+        // without a default. Otherwise it is left untouched. When it does block inserts it is dropped only after a verified
+        // backup and only if no row would lose its quantity; if the drop cannot be done a persistent warning flag is raised.
+        private static void HandleLegacySaleItemsQuantity(SQLiteConnection conn, string dbPath)
+        {
+            bool blocks = false;
+            using (var tableCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='sale_items';", conn))
+            {
+                if (tableCmd.ExecuteScalar() == null) return;
+            }
+            blocks = LegacySaleItemsQuantityBlocksInserts(conn, null);
+            if (!blocks)
+            {
+                SetSchemaWarning(conn, SALE_ITEMS_QUANTITY_WARNING_KEY, false);
+                return;
+            }
+
+            try
+            {
+                // 1. A verified backup must exist before anything is dropped (the regular once-per-process flag is ignored on purpose)
+                if (!BackupDatabaseCore(dbPath, "drop_sale_items_quantity", false, false))
+                {
+                    throw new InvalidOperationException("تعذر إنشاء نسخة أمان قبل حذف عمود sale_items.quantity القديم");
+                }
+
+                using (var trans = conn.BeginTransaction())
+                {
+                    // 2. Rows that only carry the legacy whole-unit quantity get their milli quantity (same x1000 rule the schema health step uses)
+                    using (var fill = new SQLiteCommand("UPDATE sale_items SET quantity_milli = CAST(ROUND(quantity * 1000) AS INTEGER) WHERE quantity > 0 AND IFNULL(quantity_milli, 0) <= 0;", conn, trans))
+                    {
+                        fill.ExecuteNonQuery();
+                    }
+
+                    // 3. Drop only when nothing would be lost
+                    long unsafeRows = 0;
+                    using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sale_items WHERE quantity > 0 AND IFNULL(quantity_milli, 0) <= 0;", conn, trans))
+                    {
+                        object val = cmd.ExecuteScalar();
+                        if (val != null && val != DBNull.Value) unsafeRows = Convert.ToInt64(val);
+                    }
+
+                    if (unsafeRows > 0)
+                    {
+                        trans.Commit();
+                        Common.Logger.Warn("تم تخطي حذف العمود القديم sale_items.quantity لأن بعض الأسطر لا يمكن تحويل كميتها: " + unsafeRows);
+                        SetSchemaWarning(conn, SALE_ITEMS_QUANTITY_WARNING_KEY, true);
+                        return;
+                    }
+
+                    using (var dropCol = new SQLiteCommand("ALTER TABLE sale_items DROP COLUMN quantity;", conn, trans))
+                    {
+                        dropCol.ExecuteNonQuery();
+                    }
+                    trans.Commit();
+                }
+                SetSchemaWarning(conn, SALE_ITEMS_QUANTITY_WARNING_KEY, false);
+            }
+            catch (Exception ex)
+            {
+                Common.Logger.Error("تعذر حذف العمود القديم sale_items.quantity: قد يفشل حفظ الفواتير على هذه القاعدة حتى المعالجة. " + ex.Message, ex);
+                SetSchemaWarning(conn, SALE_ITEMS_QUANTITY_WARNING_KEY, true);
             }
         }
 
@@ -1049,22 +1185,6 @@ namespace RafiqPOS.Database
                                     {
                                         sync.ExecuteNonQuery();
                                     }
-                                }
-                            }
-
-                            // Clean up legacy 'quantity' column to prevent NOT NULL constraint failures (Feature #1 / Senior Rule #1)
-                            if (existingCols.Contains("quantity"))
-                            {
-                                try
-                                {
-                                    using (var dropCol = new SQLiteCommand("ALTER TABLE sale_items DROP COLUMN quantity;", conn, trans))
-                                    {
-                                        dropCol.ExecuteNonQuery();
-                                    }
-                                }
-                                catch
-                                {
-                                    // Non-blocking fallback for older SQLite engines
                                 }
                             }
 
@@ -2370,9 +2490,29 @@ namespace RafiqPOS.Database
 
         private static bool _migrationBatchBackupTaken = false;
 
+        // A backup needs room for the copy plus the integrity check: at least twice the database size must be free
+        public static void CheckBackupSpace(long dbBytes, long availableBytes)
+        {
+            long requiredBytes = dbBytes * 2;
+            if (availableBytes < requiredBytes)
+            {
+                throw new Services.DatabaseStorageException(Services.DatabaseFailureKind.DiskFull,
+                    string.Format("{0} (المطلوب {1} ميجابايت، المتاح {2} ميجابايت)",
+                        Services.DatabaseFailureClassifier.DescribeArabic(Services.DatabaseFailureKind.DiskFull),
+                        requiredBytes / (1024 * 1024), availableBytes / (1024 * 1024)));
+            }
+        }
+
         private static bool BackupDatabaseBeforeMigration(string dbPath, int targetVersion)
         {
-            if (_migrationBatchBackupTaken)
+            return BackupDatabaseCore(dbPath, "v" + targetVersion, true, true);
+        }
+
+        // honourBatchFlag: the regular pre-migration backup is taken once per process; an optional extra backup (tag) is always taken.
+        // throwOnLowSpace: a required backup that has no room is a disk-full startup failure; an optional one just reports false.
+        private static bool BackupDatabaseCore(string dbPath, string tag, bool honourBatchFlag, bool throwOnLowSpace)
+        {
+            if (honourBatchFlag && _migrationBatchBackupTaken)
             {
                 return true; // Single safety backup per migration batch run (BUG-05)
             }
@@ -2396,21 +2536,27 @@ namespace RafiqPOS.Database
                 }
 
                 // BUG-05: Ensure sufficient disk space (at least 2x db size) before creating migration backup
+                long availableBytes = -1;
                 try
                 {
                     string rootPath = Path.GetPathRoot(Path.GetFullPath(backupDir));
                     DriveInfo drive = new DriveInfo(rootPath);
-                    long requiredBytes = fi.Length * 2;
-                    if (drive.AvailableFreeSpace < requiredBytes)
-                    {
-                        Common.Logger.Warn(string.Format("مساحة القرص غير كافية لنسخة الترحيل. المطلوب: {0} بايت، المتاح: {1} بايت", requiredBytes, drive.AvailableFreeSpace));
-                        return false;
-                    }
+                    availableBytes = drive.AvailableFreeSpace;
                 }
                 catch { }
 
+                if (availableBytes >= 0 && availableBytes < fi.Length * 2)
+                {
+                    Common.Logger.Warn(string.Format("مساحة القرص غير كافية لنسخة الترحيل. المطلوب: {0} بايت، المتاح: {1} بايت", fi.Length * 2, availableBytes));
+                    if (throwOnLowSpace)
+                    {
+                        CheckBackupSpace(fi.Length, availableBytes);
+                    }
+                    return false;
+                }
+
                 string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-                string backupFile = Path.Combine(backupDir, string.Format("pre_v{0}_{1}.db", targetVersion, timestamp));
+                string backupFile = Path.Combine(backupDir, string.Format("pre_{0}_{1}.db", tag, timestamp));
 
                 using (var backupConn = new SQLiteConnection("Data Source=" + backupFile + ";Version=3;"))
                 {
@@ -2438,9 +2584,13 @@ namespace RafiqPOS.Database
                 }
 
                 PruneOldMigrationBackups(backupDir, 30);
-                _migrationBatchBackupTaken = true;
+                if (honourBatchFlag) _migrationBatchBackupTaken = true;
                 Common.Logger.Info("تم إنشاء نسخة أمان لقاعدة البيانات قبل الترحيل بنجاح: " + backupFile);
                 return true;
+            }
+            catch (Services.DatabaseStorageException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

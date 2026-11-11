@@ -130,6 +130,21 @@
     <Compile Include="Scenarios\S69_StoreMigrationRoundTripTest.cs" />
     <Compile Include="Scenarios\S70_DemoDataLifecycleTest.cs" />
     <Compile Include="Scenarios\S71_ReportPrintFallbackTest.cs" />
+    <Compile Include="Scenarios\S80_RefundFollowsOriginalTenderTest.cs" />
+    <Compile Include="Scenarios\S81_ServerAuthorityTest.cs" />
+    <Compile Include="Scenarios\S82_CancelPaymentContraEntriesTest.cs" />
+    <Compile Include="Scenarios\S83_SplitRefundReceiptTest.cs" />
+    <Compile Include="Scenarios\S84_RefundCapsPayloadTest.cs" />
+    <Compile Include="Scenarios\S90_StartupErrorClassificationTest.cs" />
+    <Compile Include="Scenarios\S91_MigrationHistorySafetyTest.cs" />
+    <Compile Include="Scenarios\S92_ExpiredLicenseGateTest.cs" />
+    <Compile Include="Scenarios\S93_LicenseTokenKindPinningTest.cs" />
+    <Compile Include="Scenarios\S94_AuditResealOwnerOnlyTest.cs" />
+    <Compile Include="Scenarios\S95_PinLockoutAbuseTest.cs" />
+    <Compile Include="Scenarios\S96_DurabilityAndBenchmarkSafetyTest.cs" />
+    <Compile Include="Scenarios\S97_CommandRegistryCompletenessTest.cs" />
+    <Compile Include="Scenarios\S100_ExactBarcodeLookupTest.cs" />
+    <Compile Include="Scenarios\S101_BoundedSmartCatalogTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

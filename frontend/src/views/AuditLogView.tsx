@@ -24,6 +24,7 @@ import {
   AlertOctagon,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useAuth } from '../context/useAuth';
 import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from '../components/CustomSelect';
 import { DateFilterControl } from '../components/DateFilterControl';
@@ -86,6 +87,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
   const [verification, setVerification] = useState<AuditChainVerificationResult | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [resealing, setResealing] = useState(false);
+  const { isOwnerOrRoot } = useAuth();
 
   // Local calendar days (both inclusive) sent as UTC instants, since audit_logs.created_at is stored as UTC ISO.
   // Re-evaluated when the day rolls over so "today" is never frozen at the time the screen was mounted.
@@ -650,7 +652,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {verification.isTampered && (
+            {verification.isTampered && isOwnerOrRoot && (
               <AppButton
                 variant="danger"
                 size="sm"

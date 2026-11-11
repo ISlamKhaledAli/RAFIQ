@@ -446,7 +446,33 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "audit:resealChain":
-                    int resealedCount = DatabaseService.Audit.ResealChain();
+                    // Owner/root only (see ACTION_PERMISSIONS); the operation itself is recorded before and after it runs
+                    string resealActorId = SessionActorId();
+                    string resealActorName = SessionActorName();
+                    DatabaseService.Audit.Log("AUDIT_CHAIN_RESEAL_STARTED", "AUDIT", "audit_chain",
+                        JsonConvert.SerializeObject(new { actor = resealActorName }), resealActorId);
+                    int resealedCount;
+                    try
+                    {
+                        resealedCount = DatabaseService.Audit.ResealChain();
+                    }
+                    catch (Exception resealEx)
+                    {
+                        RafiqPOS.Common.Logger.Error("فشلت إعادة ختم سلسلة سجل العمليات", resealEx);
+                        try
+                        {
+                            DatabaseService.Audit.Log("AUDIT_CHAIN_RESEAL_FAILED", "AUDIT", "audit_chain",
+                                JsonConvert.SerializeObject(new { actor = resealActorName }), resealActorId);
+                        }
+                        catch (Exception failedLogEx)
+                        {
+                            // Never mask the original reseal failure with a failure to record it
+                            RafiqPOS.Common.Logger.Error("تعذر تسجيل فشل إعادة ختم السلسلة", failedLogEx);
+                        }
+                        throw;
+                    }
+                    DatabaseService.Audit.Log("AUDIT_CHAIN_RESEALED", "AUDIT", "audit_chain",
+                        JsonConvert.SerializeObject(new { actor = resealActorName, resealedCount = resealedCount }), resealActorId);
                     var newCheck = DatabaseService.Audit.VerifyChainIntegrity();
                     response = BridgeResponse.Ok(request.Id, new { resealedCount = resealedCount, verification = newCheck });
                     return true;

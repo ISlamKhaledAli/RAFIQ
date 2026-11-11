@@ -9,7 +9,10 @@ const cartDraft = read('src', 'utils', 'posCartDraft.ts');
 const posView = read('src', 'views', 'PosView.tsx');
 const service = read('..', 'desktop', 'Services', 'MigrationService.cs');
 const dispatcher = read('..', 'desktop', 'Bridge', 'IpcDispatcher.Backup.cs');
+const excelDispatcher = read('..', 'desktop', 'Bridge', 'IpcDispatcher.Excel.cs');
 const permissions = read('..', 'desktop', 'Bridge', 'IpcDispatcher.cs');
+const ipcBridge = read('src', 'bridge', 'ipc.ts');
+const folderSelectDialog = read('..', 'desktop', 'Common', 'FolderSelectDialog.cs');
 
 const visibleText = wizard
   .split('\n')
@@ -66,7 +69,10 @@ describe('migration wizard (source level)', () => {
 
   it('the cart guard reads the key PosView really writes', () => {
     assert.match(cartDraft, /POS_CART_DRAFT_KEY = 'rafiq_pos_cart_draft'/);
-    assert.ok(posView.includes("'rafiq_pos_cart_draft'"));
+    // PosView writes the draft only through the helpers that own the key
+    assert.match(cartDraft, /localStorage\.setItem\(POS_CART_DRAFT_KEY/);
+    assert.match(posView, /savePosCartDraft\(/);
+    assert.match(posView, /from '\.\.\/utils\/posCartDraft'/);
   });
 
   it('gates export on settings.backup and restore on settings.restore, like the host', () => {
@@ -135,5 +141,31 @@ describe('migration service guards (source level)', () => {
     assert.match(service, /PreparePackage\(finalPath, code, false, verify\)/);
     assert.match(service, /File\.Delete\(leftover\)/);
     assert.doesNotMatch(service, /File\.Delete\(targetFilePath\)/);
+  });
+});
+
+describe('modern folder browser dialog and timeout invariants', () => {
+  it('assigns 10-minute timeout for interactive folder and file browsing in ipc.ts', () => {
+    assert.match(ipcBridge, /action\.endsWith\(':browseFolder'\)/);
+    assert.match(ipcBridge, /return 600000; \/\/ 10 minutes for interactive user file\/folder pickers/);
+  });
+
+  it('MigrationWizardModal passes initialFolder to migration:browseFolder and migration:browseFile', () => {
+    assert.match(wizard, /'migration:browseFolder',\s*\{\s*initialFolder: targetFolder\.trim\(\) \|\| undefined/);
+    assert.match(wizard, /'migration:browseFile',\s*\{\s*initialFolder: packagePath\.trim\(\) \|\| undefined/);
+  });
+
+  it('C# dispatchers use FolderSelectDialog instead of legacy FolderBrowserDialog', () => {
+    assert.match(dispatcher, /using \(var dlg = new FolderSelectDialog\(\)\)/);
+    assert.match(excelDispatcher, /using \(var dlg = new FolderSelectDialog\(\)\)/);
+    assert.doesNotMatch(dispatcher, /new System\.Windows\.Forms\.FolderBrowserDialog\(\)/);
+    assert.doesNotMatch(excelDispatcher, /new System\.Windows\.Forms\.FolderBrowserDialog\(\)/);
+  });
+
+  it('FolderSelectDialog wraps IFileOpenDialog with fallback to FolderBrowserDialog and zero emojis', () => {
+    assert.match(folderSelectDialog, /IFileOpenDialog/);
+    assert.match(folderSelectDialog, /FOS_PICKFOLDERS/);
+    assert.match(folderSelectDialog, /ShowLegacyDialog/);
+    assert.doesNotMatch(folderSelectDialog, /\p{Extended_Pictographic}/u);
   });
 });

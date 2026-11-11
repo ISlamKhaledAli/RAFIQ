@@ -13,6 +13,15 @@ export function createMockD1Database(): any {
   const schemaSql = readFileSync(schemaPath, 'utf-8');
   db.exec(schemaSql);
 
+  // Test-only fixtures: schema.sql itself must never seed licenses (see schema hardening test).
+  db.exec(`
+    INSERT OR IGNORE INTO licenses (id, license_key, shop_name, owner_phone, license_type, status, max_devices, can_receive_updates, notes)
+    VALUES
+    ('demo-lic-1', 'RFQ-TEST-2026-DEMO', 'سوبرماركت البركة للتجربة', '01012345678', 'lifetime', 'pending', 1, 1, 'ترخيص تجريبي للاختبار التلقائي'),
+    ('demo-lic-2', 'RFQ-PERM-8899-A1B2', 'أولاد رجب - فرع النزهة', '01123456789', 'lifetime', 'active', 1, 1, 'ترخيص دائم جاهز ومفعل'),
+    ('demo-lic-3', 'RFQ-DISA-0000-DEAD', 'محل ملغي الصلاحية', '01234567890', 'annual', 'disabled', 1, 0, 'ترخيص معطل من الإدارة');
+  `);
+
   return {
     _rawDb: db,
     prepare(query: string) {

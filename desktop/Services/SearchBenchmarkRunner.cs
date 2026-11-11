@@ -30,24 +30,27 @@ namespace RafiqPOS.Services
 
     public class SearchBenchmarkRunner
     {
-        private readonly string _connectionString;
-        private readonly ProductRepository _repo;
-
-        public SearchBenchmarkRunner(string connectionString, ProductRepository repo)
-        {
-            this._connectionString = connectionString;
-            this._repo = repo;
-        }
+        // Set per run to a temporary database so the live store catalog is never touched.
+        private string _connectionString;
+        private ProductRepository _repo;
 
         public SearchBenchmarkResult RunBenchmark(int productCount = 5000, int queryIterations = 100)
         {
             var result = new SearchBenchmarkResult();
+            if (productCount < 1) productCount = 1;
+            if (productCount > BenchmarkTempDatabase.MaxProducts) productCount = BenchmarkTempDatabase.MaxProducts;
+            if (queryIterations < 1) queryIterations = 1;
+            if (queryIterations > 1000) queryIterations = 1000;
             result.TotalProductsTested = productCount;
 
             Logger.Info(string.Format("بدء اختبار سرعة البحث والباركود على {0} صنف (Feature #22 / Task 22-5)...", productCount));
 
+            string tempDbPath = null;
             try
             {
+                tempDbPath = BenchmarkTempDatabase.Create(out _connectionString);
+                _repo = new ProductRepository(_connectionString, new AuditLogRepository(_connectionString));
+
                 using (var conn = new SQLiteConnection(_connectionString))
                 {
                     conn.Open();
@@ -289,6 +292,10 @@ namespace RafiqPOS.Services
                 result.SummaryReport = "فشل تشغيل فحص أداء البحث: " + ex.Message;
                 result.TestLog.Add("تعذر إتمام الفحص: " + ex.Message);
                 return result;
+            }
+            finally
+            {
+                BenchmarkTempDatabase.Delete(tempDbPath);
             }
         }
     }

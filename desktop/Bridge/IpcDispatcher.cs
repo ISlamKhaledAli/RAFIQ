@@ -133,7 +133,8 @@ namespace RafiqPOS.Bridge
             bool isExclusive =
                 request.Action == "database:restore" ||
                 request.Action == "migration:restore" ||
-                request.Action == "system:factoryReset";
+                request.Action == "system:factoryReset" ||
+                request.Action == "audit:resealChain";
             bool lockTaken = false;
             try
             {
@@ -184,6 +185,13 @@ namespace RafiqPOS.Bridge
                 string cleanMsg = "حدث خطأ أثناء معالجة العملية، يرجى المحاولة مرة أخرى.";
                 if (ex is System.Data.SQLite.SQLiteException)
                 {
+                    // Disk full / read-only / I/O / busy get their own precise Arabic message and error code
+                    DatabaseFailureKind failureKind = DatabaseFailureClassifier.Classify(ex);
+                    string failureCode = DatabaseFailureClassifier.IpcCode(failureKind);
+                    if (failureCode != null)
+                    {
+                        return BridgeResponse.Fail(request.Id, failureCode, DatabaseFailureClassifier.DescribeArabic(failureKind));
+                    }
                     cleanMsg = "تعذر تحديث قاعدة البيانات، يرجى المحاولة مرة أخرى أو التأكد من سلامة البيانات.";
                 }
                 else if (!string.IsNullOrWhiteSpace(ex.Message) && !ex.Message.Contains("SQL") && !ex.Message.Contains("SQLite") && !ex.Message.Contains("table") && !ex.Message.Contains("column"))
@@ -321,6 +329,7 @@ namespace RafiqPOS.Bridge
             { "products:getLowStockCount", "products.view" },
             { "products:getSmartCatalog", "products.view" },
             { "products:search", "products.view" },
+            { "products:getByExactBarcode", "products.view" },
             { "products:getMissingBarcodeCount", "products.view" },
             { "products:save", "products.edit" },
             { "products:delete", "products.archive" },
@@ -491,6 +500,7 @@ namespace RafiqPOS.Bridge
             // Reports & Closing
             { "closing:getPreview", "reports.daily_closing" },
             { "closing:save", "reports.daily_closing" },
+            { "closing:autoCloseShifts", "reports.daily_closing" },
             { "closing:getHistory", "reports.daily_closing" },
             { "reports:getClosingHistory", "reports.daily_closing" },
             { "closing:getById", "reports.daily_closing" },
@@ -603,6 +613,10 @@ namespace RafiqPOS.Bridge
             { "report:savePdf", REQUIRE_SESSION },
             { "report:saveFile", REQUIRE_SESSION },
             { "report:openFolder", REQUIRE_SESSION },
+            { "filePicker:getLocations", REQUIRE_SESSION },
+            { "filePicker:listDirectory", REQUIRE_SESSION },
+            { "filePicker:scanPackages", REQUIRE_SESSION },
+            { "filePicker:createDirectory", REQUIRE_SESSION },
             { "printer:printRecoveryVoucher", REQUIRE_OWNER },
             { "printer:kickDrawer", "shifts.cash_in" },
             { "printer:cutPaper", "settings.printer" },
@@ -613,7 +627,7 @@ namespace RafiqPOS.Bridge
             { "audit:verifyChain", "audit_log.view" },
             { "audit:create", REQUIRE_ADMIN },
             { "auditLogs:create", REQUIRE_ADMIN },
-            { "audit:resealChain", REQUIRE_ADMIN },
+            { "audit:resealChain", REQUIRE_OWNER },
 
             // Settings & Backup & Migration & License
             { "settings:getAll", REQUIRE_ANY_SETTINGS },
@@ -636,6 +650,7 @@ namespace RafiqPOS.Bridge
             { "migration:inspect", "settings.restore" },
             { "migration:browseFile", "settings.restore" },
             { "migration:restore", "settings.restore" },
+            { "migration:detectRecoveryCode", "settings.restore" },
             { "license:activate", "settings.license" },
             { "license:activateSupportCode", "settings.license" },
             { "license:generateSupportCode", "settings.license" },
@@ -673,8 +688,8 @@ namespace RafiqPOS.Bridge
             { "readiness:getStatus", REQUIRE_ADMIN },
             { "readiness:processTestSale", REQUIRE_ADMIN },
             { "db:testTransaction", REQUIRE_ADMIN },
-            { "benchmark:run", REQUIRE_ADMIN },
-            { "search:runBenchmark", REQUIRE_ADMIN },
+            { "benchmark:run", REQUIRE_OWNER },
+            { "search:runBenchmark", REQUIRE_OWNER },
             { "tests:runSalesCompletionTests", REQUIRE_ADMIN },
             { "security:runTests", REQUIRE_ADMIN },
             { "license:runTests", REQUIRE_ADMIN },
@@ -915,64 +930,143 @@ namespace RafiqPOS.Bridge
             return !string.IsNullOrEmpty(user.DisplayName) ? user.DisplayName : user.Username;
         }
 
+        // Expired / invalid license gate: DENY BY DEFAULT. While the license is expired, an action is allowed only when it is
+        // (1) in the explicit allowlist below, (2) in an always-allowed namespace, or (3) a read-only query (name starts with a read verb).
+        // Every other action (any mutation, including ones added in the future) is answered with LICENSE_EXPIRED.
+        private static readonly string[] LICENSE_EXPIRED_ALLOWED_PREFIXES = new string[] { "auth:", "license:", "window:" };
+
+        private static readonly string[] LICENSE_EXPIRED_READ_VERBS = new string[]
+        {
+            "get", "list", "search", "find", "calculate", "preview", "check", "verify", "is", "has"
+        };
+
+        private static readonly HashSet<string> LICENSE_EXPIRED_ALLOWED_ACTIONS = new HashSet<string>(StringComparer.Ordinal)
+        {
+            // Shell, theme and PIN recovery: the owner must always be able to sign in and reach the license screen
+            "system:appReady", "system:ping", "system:setTheme", "system:showPrintDialog",
+            "security:resetWithRecovery", "security:setPin", "users:changePin",
+
+            // Support and diagnostics
+            "support:createBundle",
+
+            // Backup and export of existing data
+            "backup:create", "backup:configure", "backup:confirmRecoveryCode", "backup:revealRecoveryCode",
+            "migration:browseFile", "migration:browseFolder", "migration:export", "migration:inspect",
+            "excel:browseExportFolder", "excel:openExportFolder", "excel:exportCustomers", "excel:exportFullStore", "excel:exportProducts",
+            "insurance:exportBatchExcel", "ddi:exportToExcel", "ddi:generateTemplate", "pharma:downloadDrugReferenceTemplate",
+            "batch:summary",
+
+            // Printing and reprinting of documents that already exist
+            "printer:printReceipt", "printer:saveReceiptImage", "printer:printEpayReceipt", "printer:printWalletReceipt",
+            "printer:printRecoveryVoucher", "epay:printReceipt", "wallets:printReceipt", "returns:printReceipt", "closing:print",
+            "barcode:printLabel", "barcode:printLabels", "printer:printLabels",
+            "printer:test", "printer:testPrint", "printer:testLabel", "printer:cutPaper",
+            "report:openFolder", "report:saveFile", "report:savePdf",
+
+            // Closing the shift that is already open and the daily closing
+            "shifts:close", "closing:save", "closing:autoCloseShifts",
+
+            // Append-only audit entries describing events that already happened
+            "audit:create", "auditLogs:create",
+
+            // Money leaving the drawer, idle-lock setting, and kitchen/bill/dosage prints must not stop a store that has to close the day
+            "shifts:cashOut", "drawer:cashOut", "security:setIdleTimeout",
+            "printer:printKOT", "tables:printPreBill", "pharma:printDosageLabel", "printer:printDosageLabel",
+
+            // Read-only queries whose names contain a banned token (Import, Run) and so miss the read-verb rule
+            "templates:isFirstRunNeeded", "excel:previewCustomerImport", "pharma:previewDrugReferenceImport"
+        };
+
+        // A read-verb name is trusted only when none of its remaining camel-case words is a mutating word
+        private static readonly HashSet<string> LICENSE_EXPIRED_MUTATING_WORDS = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Save", "Create", "Update", "Delete", "Remove", "Apply", "Record", "Set", "Add", "Import", "Adjust", "Cancel", "Void",
+            "Close", "Open", "Run", "Process", "Clear", "Reset", "Restore", "Archive", "Assign", "Generate", "Rebase", "Revert",
+            "Transfer", "Fund", "Settle", "Pay"
+        };
+
+        // Splits "getDeadStock" into get, Dead, Stock (a new word starts at an uppercase letter that follows a lowercase letter or digit,
+        // or that ends an uppercase run before a lowercase letter)
+        internal static List<string> SplitCamelWords(string name)
+        {
+            var words = new List<string>();
+            int start = 0;
+            for (int i = 1; i < name.Length; i++)
+            {
+                bool boundary = false;
+                if (char.IsUpper(name[i]))
+                {
+                    char prev = name[i - 1];
+                    bool nextIsLower = i + 1 < name.Length && char.IsLower(name[i + 1]);
+                    if (char.IsLower(prev) || char.IsDigit(prev)) boundary = true;
+                    else if (char.IsUpper(prev) && nextIsLower) boundary = true;
+                }
+                if (boundary)
+                {
+                    words.Add(name.Substring(start, i - start));
+                    start = i;
+                }
+            }
+            words.Add(name.Substring(start));
+            return words;
+        }
+
+        // "settings.getAll" style aliases use a dot; both spellings map to the same colon form
+        private static string NormalizeActionName(string action)
+        {
+            if (action.IndexOf(':') >= 0) return action;
+            int dot = action.IndexOf('.');
+            return dot > 0 ? action.Substring(0, dot) + ":" + action.Substring(dot + 1) : action;
+        }
+
+        private static bool StartsWithReadVerb(string member)
+        {
+            for (int i = 0; i < LICENSE_EXPIRED_READ_VERBS.Length; i++)
+            {
+                string verb = LICENSE_EXPIRED_READ_VERBS[i];
+                if (member.StartsWith(verb, StringComparison.Ordinal) &&
+                    (member.Length == verb.Length || char.IsUpper(member[verb.Length])))
+                {
+                    // The remaining words must not name a mutation ("getAndSave", "previewImport", ...)
+                    List<string> words = SplitCamelWords(member);
+                    for (int w = 1; w < words.Count; w++)
+                    {
+                        if (LICENSE_EXPIRED_MUTATING_WORDS.Contains(words[w])) return false;
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private static bool IsLicenseBlockedAction(string action)
         {
-            if (string.IsNullOrEmpty(action)) return false;
+            if (string.IsNullOrEmpty(action)) return true;
 
-            // Sales and draft operations
-            if (action == "sales:create" || action == "sales:hold" || action == "sales:saveDraft" ||
-                action == "sales:cancel" || action == "sales:quickSale")
-                return true;
+            string normalized = NormalizeActionName(action);
 
-            // Returns operations
-            if (action == "returns:create" || action == "returns:cancel")
-                return true;
+            // Self-test runners write settings and demo rows: never allowed on an expired license
+            if (normalized == "license:runTests") return true;
 
-            // Purchases & Inventory mutations
-            if (action == "purchases:create" || action == "purchases:saveDraft" ||
-                action == "purchases:cancel" || action == "inventory:recordPurchase" ||
-                action == "inventory:adjust" || action == "inventory:transfer")
-                return true;
+            for (int i = 0; i < LICENSE_EXPIRED_ALLOWED_PREFIXES.Length; i++)
+            {
+                if (normalized.StartsWith(LICENSE_EXPIRED_ALLOWED_PREFIXES[i], StringComparison.Ordinal)) return false;
+            }
 
-            // Expenses mutations
-            if (action == "expenses:create" || action == "expenses:cancel" ||
-                action == "expenses:update" || action == "expenses:createCategory")
-                return true;
+            if (LICENSE_EXPIRED_ALLOWED_ACTIONS.Contains(normalized)) return false;
 
-            // Financial & ledger mutations
-            if (action == "customers:save" || action == "customers:recordPayment" || action == "customers:cancelPayment" ||
-                action == "customers:archive" || action == "customers:recalculateBalance" ||
-                action == "suppliers:save" || action == "suppliers:recordPayment" || action == "suppliers:archive" || action == "suppliers:delete" ||
-                action == "epay:createTransaction" || action == "epay:fundTerminal" || action == "epay:saveTerminal" || action == "epay:adjustBalance" ||
-                action == "wallets:processTransaction" || action == "wallets:fundAccount" || action == "wallets:saveAccount" || action == "wallets:setDefaultAccount" || action == "wallets:adjustBalance" || action == "wallets:cancelTransaction" ||
-                action == "closing:save" || action == "shifts:open" || action == "shifts:close" ||
-                action == "shifts:cashIn" || action == "shifts:cashOut" || action == "drawer:cashIn" || action == "drawer:cashOut")
-                return true;
+            // First-run onboarding must be able to finish before a license can be entered (same exemption as AuthorizeRequest)
+            if ((normalized == "templates:apply" || normalized == "settings:save") &&
+                DatabaseService.Templates != null && DatabaseService.Templates.IsFirstRunNeeded())
+            {
+                return false;
+            }
 
-            // Catalog modifications
-            if (action == "products:save" || action == "products:delete" ||
-                action == "products:bulkDelete" || action == "products:clearAll" ||
-                action == "products:bulkUpdateMinStock" || action == "products:applyBulkPriceAdjustment" ||
-                action == "products:revertBulkPriceAdjustment" ||
-                action == "products:importBatch" || action == "categories:save" || action == "categories:archive" ||
-                action == "categories:reorder" || action == "productUnits:save" || action == "productUnits:delete" ||
-                action == "productUnits:setBase" ||
-                action == "locations:save" || action == "locations:delete" || action == "locations:assignProduct" ||
-                action == "insurance:saveCompany" || action == "insurance:deleteCompany" ||
-                action == "insurance:saveContract" || action == "insurance:deleteContract" ||
-                action == "insurance:saveMember" || action == "insurance:createBatch" ||
-                action == "insurance:settleBatch" ||
-                action == "tables:save" || action == "tables:delete" || action == "tables:open" ||
-                action == "tables:updateOrder" || action == "tables:transfer" || action == "tables:merge" ||
-                action == "tables:split" || action == "modifiers:saveGroup" || action == "modifiers:deleteGroup" ||
-                action == "modifiers:saveOption" || action == "modifiers:deleteOption" || action == "modifiers:linkProduct" ||
-                action == "delivery:saveZone" || action == "delivery:deleteZone" || action == "delivery:saveRider" ||
-                action == "delivery:deleteRider" || action == "delivery:assignOrder" || action == "delivery:updateStatus" ||
-                action == "delivery:settleRider" || action == "recipes:save" || action == "recipes:delete" ||
-                action == "recipes:produce")
-                return true;
+            int colon = normalized.IndexOf(':');
+            string member = colon >= 0 ? normalized.Substring(colon + 1) : normalized;
+            if (StartsWithReadVerb(member)) return false;
 
-            return false;
+            return true;
         }
 
         // While a forced PIN change is pending only the PIN-change screen may talk to the backend (public actions bypass this gate)

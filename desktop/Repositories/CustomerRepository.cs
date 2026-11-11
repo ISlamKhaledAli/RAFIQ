@@ -203,7 +203,7 @@ namespace RafiqPOS.Repositories
                                 ";
                                 using (var lCmd = new SQLiteCommand(ledgerSql, conn, trans))
                                 {
-                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N"));
                                     lCmd.Parameters.AddWithValue("@cid", customer.Id);
                                     lCmd.Parameters.AddWithValue("@amt", Math.Abs(customer.BalancePiasters));
                                     lCmd.Parameters.AddWithValue("@after", customer.BalancePiasters);
@@ -220,8 +220,7 @@ namespace RafiqPOS.Repositories
                                         Action = "CUSTOMER_OPENING_BALANCE_SET",
                                         EntityType = "customer",
                                         EntityId = customer.Id,
-                                        DetailsJson = string.Format("{{\"customerId\":\"{0}\",\"customerName\":\"{1}\",\"openingBalancePiasters\":{2}}}",
-                                            customer.Id, customer.Name, customer.BalancePiasters),
+                                        DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { customerId = customer.Id, customerName = customer.Name, openingBalancePiasters = customer.BalancePiasters }),
                                         CreatedAt = now
                                     });
                                 }
@@ -236,8 +235,7 @@ namespace RafiqPOS.Repositories
                                     Action = "CUSTOMER_CREDIT_LIMIT_SET",
                                     EntityType = "customer",
                                     EntityId = customer.Id,
-                                    DetailsJson = string.Format("{{\"customerId\":\"{0}\",\"customerName\":\"{1}\",\"creditLimitPiasters\":{2}}}",
-                                        customer.Id, customer.Name, customer.CreditLimitPiasters),
+                                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { customerId = customer.Id, customerName = customer.Name, creditLimitPiasters = customer.CreditLimitPiasters }),
                                     CreatedAt = now
                                 });
                             }
@@ -268,8 +266,7 @@ namespace RafiqPOS.Repositories
                                         Action = "CUSTOMER_CREDIT_LIMIT_CHANGE",
                                         EntityType = "customer",
                                         EntityId = customer.Id,
-                                        DetailsJson = string.Format("{{\"customerId\":\"{0}\",\"customerName\":\"{1}\",\"oldLimitPiasters\":{2},\"newLimitPiasters\":{3}}}",
-                                            customer.Id, customer.Name, oldLimit, customer.CreditLimitPiasters),
+                                        DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { customerId = customer.Id, customerName = customer.Name, oldLimitPiasters = oldLimit, newLimitPiasters = customer.CreditLimitPiasters }),
                                         CreatedAt = now
                                     });
                                 }
@@ -433,7 +430,7 @@ namespace RafiqPOS.Repositories
                             long alloc = Math.Min(remainingToAllocate, s.UnpaidPiasters);
 
                             // Insert into debt_allocations table (F-25 & F-28: sales.paid_piasters is immutable)
-                            string allocId = "alloc_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                            string allocId = "alloc_" + Guid.NewGuid().ToString("N");
                             string insAllocSql = @"
                                 INSERT INTO debt_allocations (id, ledger_id, sale_id, amount_piasters, type, created_at)
                                 VALUES (@aid, @lid, @sid, @amt, 'payment', @cat);
@@ -821,22 +818,49 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // Delete debt allocations for this cancelled payment (F-25)
-                        string delAllocSql = "DELETE FROM debt_allocations WHERE ledger_id = @lid;";
-                        using (var dCmd = new SQLiteCommand(delAllocSql, conn, trans))
+                        // Contra rows (negative amounts, same type) instead of deleting history: every SUM over
+                        // type = 'payment' nets to zero, so the invoice outstanding is restored and the trail is kept (F-25)
+                        string reversalLedgerId = "led_rev_" + Guid.NewGuid().ToString("N");
+                        var originalAllocs = new List<Tuple<string, long>>();
+                        using (var aSelCmd = new SQLiteCommand("SELECT sale_id, amount_piasters FROM debt_allocations WHERE ledger_id = @lid AND type = 'payment' AND amount_piasters > 0;", conn, trans))
                         {
-                            dCmd.Parameters.AddWithValue("@lid", ledgerEntryId);
-                            dCmd.ExecuteNonQuery();
+                            aSelCmd.Parameters.AddWithValue("@lid", ledgerEntryId);
+                            using (var aRdr = aSelCmd.ExecuteReader())
+                            {
+                                while (aRdr.Read())
+                                {
+                                    originalAllocs.Add(new Tuple<string, long>(aRdr["sale_id"].ToString(), Convert.ToInt64(aRdr["amount_piasters"])));
+                                }
+                            }
+                        }
+
+                        for (int i = 0; i < originalAllocs.Count; i++)
+                        {
+                            using (var contraAllocCmd = new SQLiteCommand(@"
+                                INSERT INTO debt_allocations (id, ledger_id, sale_id, amount_piasters, type, created_at)
+                                VALUES (@aid, @lid, @sid, @amt, 'payment', @cat);", conn, trans))
+                            {
+                                contraAllocCmd.Parameters.AddWithValue("@aid", "alloc_rev_" + Guid.NewGuid().ToString("N"));
+                                contraAllocCmd.Parameters.AddWithValue("@lid", reversalLedgerId);
+                                contraAllocCmd.Parameters.AddWithValue("@sid", originalAllocs[i].Item1);
+                                contraAllocCmd.Parameters.AddWithValue("@amt", -originalAllocs[i].Item2);
+                                contraAllocCmd.Parameters.AddWithValue("@cat", now);
+                                contraAllocCmd.ExecuteNonQuery();
+                            }
                         }
 
                         for (int i = 0; i < allocatedPmts.Count; i++)
                         {
                             var ap = allocatedPmts[i];
-                            string delPmtSql = "DELETE FROM payments WHERE id = @pid;";
-                            using (var dCmd = new SQLiteCommand(delPmtSql, conn, trans))
+                            using (var contraPmtCmd = new SQLiteCommand(@"
+                                INSERT INTO payments (id, sale_id, amount_piasters, method, created_at)
+                                VALUES (@pid, @sid, @amt, 'debt_settlement', @cat);", conn, trans))
                             {
-                                dCmd.Parameters.AddWithValue("@pid", ap.Item1);
-                                dCmd.ExecuteNonQuery();
+                                contraPmtCmd.Parameters.AddWithValue("@pid", "pmt_unsettle_" + reversalLedgerId + "_" + i);
+                                contraPmtCmd.Parameters.AddWithValue("@sid", ap.Item2);
+                                contraPmtCmd.Parameters.AddWithValue("@amt", -ap.Item3);
+                                contraPmtCmd.Parameters.AddWithValue("@cat", now);
+                                contraPmtCmd.ExecuteNonQuery();
                             }
                         }
 
@@ -871,7 +895,7 @@ namespace RafiqPOS.Repositories
                         ";
                         using (var cmd = new SQLiteCommand(ledgerSql, conn, trans))
                         {
-                            cmd.Parameters.AddWithValue("@lid", "led_rev_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                            cmd.Parameters.AddWithValue("@lid", reversalLedgerId);
                             cmd.Parameters.AddWithValue("@cid", customerId);
                             cmd.Parameters.AddWithValue("@origLid", ledgerEntryId);
                             cmd.Parameters.AddWithValue("@amt", paymentAmount);
@@ -892,7 +916,7 @@ namespace RafiqPOS.Repositories
                             Action = "cancel_payment",
                             EntityType = "customer_ledger",
                             EntityId = ledgerEntryId,
-                            DetailsJson = string.Format("{{\"cancelledAmountPiasters\":{0},\"restoredBalance\":{1},\"reason\":\"{2}\"}}", paymentAmount, newBalance, rsn.Replace("\"", "\\\"")),
+                            DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { cancelledAmountPiasters = paymentAmount, restoredBalance = newBalance, reason = rsn }),
                             CreatedAt = now
                         });
 
@@ -1368,7 +1392,7 @@ namespace RafiqPOS.Repositories
                                         ? "رصيد افتتاحي (استيراد إكسل)"
                                         : ("رصيد افتتاحي: " + row.Notes.Trim());
 
-                                    lCmd.Parameters["@lid"].Value = "led_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                                    lCmd.Parameters["@lid"].Value = "led_" + Guid.NewGuid().ToString("N");
                                     lCmd.Parameters["@cid"].Value = customerId;
                                     lCmd.Parameters["@amt"].Value = Math.Abs(row.InitialBalancePiasters);
                                     lCmd.Parameters["@after"].Value = row.InitialBalancePiasters;
@@ -1508,8 +1532,7 @@ namespace RafiqPOS.Repositories
                                     Action = "customer_archive",
                                     EntityType = "customer",
                                     EntityId = customerId,
-                                    DetailsJson = string.Format("{{\"customerName\":\"{0}\",\"phone\":\"{1}\"}}",
-                                        (cust.Name ?? "").Replace("\"", ""), (cust.Phone ?? "").Replace("\"", ""))
+                                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { customerName = cust.Name ?? "", phone = cust.Phone ?? "" })
                                 });
                             }
                             catch

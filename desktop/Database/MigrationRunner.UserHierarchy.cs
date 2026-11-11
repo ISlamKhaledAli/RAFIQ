@@ -28,7 +28,7 @@ namespace RafiqPOS.Database
                 ApplyMigration65(conn);
             }
 
-            // 69. Apply Migration 66: Clean erroneous tax fields on sales created while taxes disabled
+            // 69. Apply Migration 66: version marker only (historical sales are never rewritten)
             if (currentVersion < 66)
             {
                 BackupDatabaseBeforeMigration(dbPath);
@@ -42,15 +42,11 @@ namespace RafiqPOS.Database
             {
                 try
                 {
+                    // Historical sales are financial records: they are never rewritten by a migration.
+                    // This step only records the version number; new sales already honour feature_taxes at write time.
                     using (var cmd = new SQLiteCommand(@"
-                        UPDATE sales 
-                        SET tax_piasters = 0 
-                        WHERE (SELECT value FROM app_settings WHERE key = 'feature_taxes') = '0' 
-                          AND tax_piasters > 0 
-                          AND id NOT LIKE 'demo_%';
-
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
-                        VALUES (66, 'Clean erroneous tax fields on sales created while taxes disabled', datetime('now'));
+                        VALUES (66, 'Clean erroneous tax fields on sales created while taxes disabled (no-op: historical sales are never rewritten)', datetime('now'));
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();

@@ -303,7 +303,7 @@ namespace RafiqPOS.Services
                             SELECT 
                                 COALESCE(SUM(total_piasters), 0) AS total_returns,
                                 COALESCE(SUM(CASE WHEN refund_method = 'cash' THEN total_piasters ELSE 0 END), 0) AS cash_returns,
-                                COUNT(*) AS ret_count
+                                COUNT(CASE WHEN COALESCE(idempotency_key, '') LIKE 'split:%' THEN NULL ELSE 1 END) AS ret_count
                             FROM returns
                             WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate;
                         ";
@@ -864,12 +864,29 @@ namespace RafiqPOS.Services
             }
         }
 
+        // Business date must be a real yyyy-MM-dd date that is not in the future
+        private static string ValidateBusinessDate(string businessDate)
+        {
+            DateTime parsed;
+            if (string.IsNullOrWhiteSpace(businessDate)
+                || !DateTime.TryParseExact(businessDate.Trim(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out parsed))
+            {
+                throw new InvalidOperationException("تاريخ يوم العمل غير صالح؛ يجب أن يكون بصيغة سنة-شهر-يوم (yyyy-MM-dd).");
+            }
+            if (parsed.Date > DateTime.Now.Date)
+            {
+                throw new InvalidOperationException(string.Format("لا يمكن إقفال أو تسوية ورديات ليوم عمل مستقبلي ({0}).", parsed.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)));
+            }
+            return parsed.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         public AutoCloseShiftsResult AutoClosePendingShifts(string businessDate, string supervisorId, string supervisorName, string notes = null)
         {
             if (string.IsNullOrEmpty(businessDate))
             {
                 businessDate = GetCurrentBusinessDate();
             }
+            businessDate = ValidateBusinessDate(businessDate);
 
             lock (SaleService.FinancialWriteLock)
             {
@@ -921,7 +938,7 @@ namespace RafiqPOS.Services
                                 shift.DifferencePiasters = 0;
                                 shift.InvoicesCount = summary != null ? summary.InvoicesCount : 0;
 
-                                string autoNote = string.Format("إغلاق وتسوية تلقائية مع اليومية بواسطة {0}", string.IsNullOrEmpty(supervisorName) ? "المشرف" : supervisorName);
+                                string autoNote = string.Format("إغلاق وتسوية تلقائية مع اليومية بواسطة {0} (لم يُجرَ عدّ فعلي للنقدية؛ الفرق غير مُثبت)", string.IsNullOrEmpty(supervisorName) ? "المشرف" : supervisorName);
                                 if (!string.IsNullOrEmpty(notes))
                                 {
                                     autoNote += " (" + notes.Trim() + ")";
@@ -940,10 +957,13 @@ namespace RafiqPOS.Services
                                         Action = "SHIFT_AUTO_CLOSE_BY_DAILY_CLOSING",
                                         EntityType = "shift",
                                         EntityId = shift.Id,
-                                        DetailsJson = string.Format(
-                                            "{{\"shiftNumber\":{0},\"cashierId\":\"{1}\",\"expectedCash\":{2},\"autoClosed\":true}}",
-                                            shift.ShiftNumber, shift.CashierId, expectedCash
-                                        )
+                                        DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                                        {
+                                            shiftNumber = shift.ShiftNumber,
+                                            cashierId = shift.CashierId,
+                                            expectedCash = expectedCash,
+                                            autoClosed = true
+                                        })
                                     }
                                 );
 
@@ -1009,15 +1029,27 @@ namespace RafiqPOS.Services
                 throw new ArgumentNullException("request", "بيانات طلب قفل اليومية غير صحيحة");
             }
 
-            string businessDate = string.IsNullOrEmpty(request.BusinessDate)
+            string businessDate = ValidateBusinessDate(string.IsNullOrEmpty(request.BusinessDate)
                 ? GetCurrentBusinessDate()
-                : request.BusinessDate;
+                : request.BusinessDate);
+
+            if (request.ActualCashPiasters < 0)
+            {
+                throw new InvalidOperationException("النقدية الفعلية في الدرج لا يمكن أن تكون سالبة.");
+            }
 
             // Check if already closed
             var existing = _closingRepo.GetByBusinessDate(businessDate);
             if (existing != null)
             {
                 throw new InvalidOperationException(string.Format("تم إقفال هذا اليوم بالفعل مسبقاً برقم إقفال #{0} بتاريخ {1}.", existing.ClosingNumber, existing.ClosedAt));
+            }
+
+            // Check suspicious clock date (Task 127-4); all guards run before any shift is auto-closed
+            var clockCheck = TimeGuard.ValidateSystemClock(_connectionString);
+            if (!clockCheck.IsValid && !request.ConfirmSuspiciousDate)
+            {
+                throw new InvalidOperationException("تحذير أمان: تاريخ وساعة الجهاز مشكوك فيهما. يتطلب الإقفال تأكيداً صريحاً للمتابعة.");
             }
 
             if (request.AutoClosePendingShifts)
@@ -1030,13 +1062,6 @@ namespace RafiqPOS.Services
             if (openShifts > 0)
             {
                 throw new InvalidOperationException(string.Format("لا يمكن إقفال اليومية لتاريخ {0} لوجود {1} وردية مفتوحة. يرجى استخدام زر تسوية وإغلاق الورديات أولاً ثم إقفال اليومية.", businessDate, openShifts));
-            }
-
-            // Check suspicious clock date (Task 127-4)
-            var clockCheck = TimeGuard.ValidateSystemClock(_connectionString);
-            if (!clockCheck.IsValid && !request.ConfirmSuspiciousDate)
-            {
-                throw new InvalidOperationException("تحذير أمان: تاريخ وساعة الجهاز مشكوك فيهما. يتطلب الإقفال تأكيداً صريحاً للمتابعة.");
             }
 
             // Server-side calculation of official preview numbers

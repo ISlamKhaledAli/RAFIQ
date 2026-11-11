@@ -56,6 +56,8 @@ interface PosCatalogPanelProps {
   expandSignal?: number;
   // Called when the catalog is collapsed, so the sections rail can close with it
   onCollapse?: () => void;
+  // Large catalogue: the host's answer to the current search/section was cut at its row limit
+  resultsLimitedHint?: boolean;
 }
 
 export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
@@ -82,6 +84,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   onAfterToggle,
   expandSignal = 0,
   onCollapse,
+  resultsLimitedHint = false,
 }) => {
   const { isEnabled } = useFeatures();
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
@@ -493,6 +496,12 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               عرض المزيد (+{displayedCatalogItems.length - visibleCount} صنف)
             </AppButton>
           </div>
+        )}
+
+        {resultsLimitedHint && displayedCatalogItems.length > 0 && (
+          <p className="col-span-2 px-2 pb-1 text-micro text-ink-muted dark:text-ink-dark-muted text-center leading-relaxed">
+            ده أول جزء من الأصناف، اكتب اسم الصنف أو امسح الباركود للوصول لباقي الأصناف
+          </p>
         )}
 
         {displayedCatalogItems.length === 0 && (

@@ -126,10 +126,13 @@ namespace RafiqPOS.Services
                                     Action = "SHIFT_OPEN",
                                     EntityType = "shift",
                                     EntityId = shift.Id,
-                                    DetailsJson = string.Format(
-                                        "{{\"shiftNumber\":{0},\"cashierId\":\"{1}\",\"cashierName\":\"{2}\",\"openingFloat\":{3}}}",
-                                        shift.ShiftNumber, shift.CashierId, shift.CashierName, shift.OpeningFloatPiasters
-                                    )
+                                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                                    {
+                                        shiftNumber = shift.ShiftNumber,
+                                        cashierId = shift.CashierId,
+                                        cashierName = shift.CashierName,
+                                        openingFloat = shift.OpeningFloatPiasters
+                                    })
                                 }
                             );
 
@@ -159,6 +162,11 @@ namespace RafiqPOS.Services
             if (string.IsNullOrEmpty(request.ShiftId))
             {
                 throw new ArgumentException("معرف الوردية مطلوب لإتمام الإغلاق", "ShiftId");
+            }
+
+            if (request.ActualCashPiasters < 0)
+            {
+                throw new InvalidOperationException("النقدية الفعلية في الدرج لا يمكن أن تكون سالبة.");
             }
 
             lock (SaleService.FinancialWriteLock)

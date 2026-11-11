@@ -38,11 +38,6 @@ namespace RafiqPOS.Common
         private static readonly object _testKeyLock = new object();
         private static RSA _ephemeralTestKey;
 
-        public static VerifiedLicenseToken Verify(string token, string deviceFingerprint, out string error)
-        {
-            return Verify(token, deviceFingerprint, null, out error);
-        }
-
         public static VerifiedLicenseToken Verify(string token, string deviceFingerprint, string requiredKind, out string error)
         {
             error = null;

@@ -21,6 +21,11 @@ namespace RafiqPOS.Repositories
         /// </summary>
         public void Log(SQLiteConnection conn, SQLiteTransaction trans, AuditLog entry)
         {
+            // The stored value and the hashed value must be identical, otherwise VerifyChainIntegrity flags a clean row as tampered
+            if (string.IsNullOrEmpty(entry.UserId))
+            {
+                entry.UserId = "usr_admin_default";
+            }
             if (string.IsNullOrEmpty(entry.Id))
             {
                 entry.Id = "aud_" + Guid.NewGuid().ToString("N");
@@ -179,45 +184,54 @@ namespace RafiqPOS.Repositories
                             authCmd.ExecuteNonQuery();
                         }
 
-                        var rows = new List<string[]>();
-                        using (var readCmd = new SQLiteCommand("SELECT id, user_id, action, entity_type, entity_id, details_json, created_at FROM audit_logs ORDER BY rowid ASC;", conn, trans))
-                        using (var rdr = readCmd.ExecuteReader())
-                        {
-                            while (rdr.Read())
-                            {
-                                rows.Add(new string[] {
-                                    rdr["id"].ToString(),
-                                    rdr["user_id"] != DBNull.Value ? rdr["user_id"].ToString() : "",
-                                    rdr["action"].ToString(),
-                                    rdr["entity_type"].ToString(),
-                                    rdr["entity_id"] != DBNull.Value ? rdr["entity_id"].ToString() : "",
-                                    rdr["details_json"] != DBNull.Value ? rdr["details_json"].ToString() : "",
-                                    rdr["created_at"].ToString()
-                                });
-                            }
-                        }
-
+                        // Rows are processed in rowid pages so a very long chain never has to fit in memory at once
+                        const int pageSize = 500;
                         string lastHash = "GENESIS_RAFIQ_AUDIT_V1";
-                        for (int i = 0; i < rows.Count; i++)
+                        long lastRowId = 0;
+                        int total = 0;
+                        while (true)
                         {
-                            string id = rows[i][0];
-                            string userId = rows[i][1];
-                            string action = rows[i][2];
-                            string entityType = rows[i][3];
-                            string entityId = rows[i][4];
-                            string detailsJson = rows[i][5];
-                            string createdAt = rows[i][6];
-                            string prevHash = lastHash;
-                            string recHash = Database.MigrationRunner.ComputeAuditHash(prevHash, id, userId, action, entityType, entityId, detailsJson, createdAt);
-
-                            using (var updateCmd = new SQLiteCommand("UPDATE audit_logs SET prev_hash = @prev, record_hash = @rec WHERE id = @id;", conn, trans))
+                            var rows = new List<string[]>();
+                            using (var readCmd = new SQLiteCommand("SELECT rowid, id, user_id, action, entity_type, entity_id, details_json, created_at FROM audit_logs WHERE rowid > @last ORDER BY rowid ASC LIMIT @limit;", conn, trans))
                             {
-                                updateCmd.Parameters.AddWithValue("@prev", prevHash);
-                                updateCmd.Parameters.AddWithValue("@rec", recHash);
-                                updateCmd.Parameters.AddWithValue("@id", id);
-                                updateCmd.ExecuteNonQuery();
+                                readCmd.Parameters.AddWithValue("@last", lastRowId);
+                                readCmd.Parameters.AddWithValue("@limit", pageSize);
+                                using (var rdr = readCmd.ExecuteReader())
+                                {
+                                    while (rdr.Read())
+                                    {
+                                        lastRowId = Convert.ToInt64(rdr[0]);
+                                        rows.Add(new string[] {
+                                            rdr["id"].ToString(),
+                                            rdr["user_id"] != DBNull.Value ? rdr["user_id"].ToString() : "",
+                                            rdr["action"].ToString(),
+                                            rdr["entity_type"].ToString(),
+                                            rdr["entity_id"] != DBNull.Value ? rdr["entity_id"].ToString() : "",
+                                            rdr["details_json"] != DBNull.Value ? rdr["details_json"].ToString() : "",
+                                            rdr["created_at"].ToString()
+                                        });
+                                    }
+                                }
                             }
-                            lastHash = recHash;
+
+                            if (rows.Count == 0) break;
+
+                            for (int i = 0; i < rows.Count; i++)
+                            {
+                                string id = rows[i][0];
+                                string prevHash = lastHash;
+                                string recHash = Database.MigrationRunner.ComputeAuditHash(prevHash, id, rows[i][1], rows[i][2], rows[i][3], rows[i][4], rows[i][5], rows[i][6]);
+
+                                using (var updateCmd = new SQLiteCommand("UPDATE audit_logs SET prev_hash = @prev, record_hash = @rec WHERE id = @id;", conn, trans))
+                                {
+                                    updateCmd.Parameters.AddWithValue("@prev", prevHash);
+                                    updateCmd.Parameters.AddWithValue("@rec", recHash);
+                                    updateCmd.Parameters.AddWithValue("@id", id);
+                                    updateCmd.ExecuteNonQuery();
+                                }
+                                lastHash = recHash;
+                            }
+                            total += rows.Count;
                         }
 
                         // Remove temporary authorization before commit
@@ -227,7 +241,7 @@ namespace RafiqPOS.Repositories
                         }
 
                         trans.Commit();
-                        return rows.Count;
+                        return total;
                     }
                     catch
                     {

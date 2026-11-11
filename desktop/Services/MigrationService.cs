@@ -60,6 +60,8 @@ namespace RafiqPOS.Services
         public long FileSizeBytes { get; set; }
         public MigrationPackageManifest Manifest { get; set; }
         public string Message { get; set; }
+        public string RecoveryCode { get; set; }
+        public string RecoveryCodeFilePath { get; set; }
     }
 
     public class MigrationPackageInspectResult
@@ -973,7 +975,42 @@ namespace RafiqPOS.Services
                 result.FileName = fi.Name;
                 result.FileSizeBytes = fi.Length;
                 result.Manifest = manifest;
+                result.RecoveryCode = code;
                 result.Message = "تم إنشاء حزمة النقل وفحصها بنجاح، وهي جاهزة للنقل للجهاز الجديد.";
+
+                // Feature F-194: Automatically save a clean Arabic text file with the recovery code on the flash drive
+                string safeStore = SafeFileNamePart(storeName);
+                string helperTxtPath = Path.Combine(resolvedFolder, string.Format("كود_استرجاع_المحل_{0}.txt", safeStore));
+                try
+                {
+                    var sb = new StringBuilder();
+                    sb.AppendLine("==================================================");
+                    sb.AppendLine("نظام رفيق لنقاط البيع - كود استرجاع بيانات المحل للجهاز الجديد");
+                    sb.AppendLine("==================================================");
+                    sb.AppendLine();
+                    sb.AppendLine(string.Format("اسم المحل: {0}", storeName));
+                    sb.AppendLine(string.Format("اسم ملف النسخة: {0}", fi.Name));
+                    sb.AppendLine(string.Format("تاريخ التصدير: {0}", manifest.CreatedAtLocal));
+                    sb.AppendLine();
+                    sb.AppendLine("كود استرجاع المالك (المطلوب عند فتح الملف على الجهاز الجديد):");
+                    sb.AppendLine("--------------------------------------------------");
+                    sb.AppendLine(code);
+                    sb.AppendLine("--------------------------------------------------");
+                    sb.AppendLine();
+                    sb.AppendLine("ملاحظة أمان:");
+                    sb.AppendLine("هذا الكود هو المفتاح المشفر الوحيد لفك حزمة المحل على جهازك الجديد.");
+                    sb.AppendLine("عند تشغيل برنامج رفيق على الجهاز الجديد، يمكنك نسخ هذا الكود أو الضغط على زر");
+                    sb.AppendLine("[قراءة الكود من الفلاشة تلقائياً] وسيقوم البرنامج بقراءته فوراً.");
+                    sb.AppendLine("==================================================");
+                    File.WriteAllText(helperTxtPath, sb.ToString(), Encoding.UTF8);
+                    result.RecoveryCodeFilePath = helperTxtPath;
+                    Logger.Info(string.Format("تم حفظ ملف كود استرجاع المالك النصي على الفلاشة في: {0}", helperTxtPath));
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn("تحذير عند كتابة ملف كود استرجاع المالك النصي: " + ex.Message);
+                }
+
                 completed = true;
 
                 var details = new JObject();
@@ -1209,6 +1246,64 @@ namespace RafiqPOS.Services
                 string destSubDir = Path.Combine(destinationDir, dirName);
                 CopyDirectoryRecursive(subDirs[i], destSubDir);
             }
+        }
+
+        /// <summary>
+        /// Automatically checks the directory of the specified package file for any helper recovery code text file.
+        /// Searches for RFK-XXXX-XXXX-XXXX and returns it, or null if none found.
+        /// </summary>
+        public string TryDetectRecoveryCodeFromFolder(string packageFilePath)
+        {
+            if (string.IsNullOrEmpty(packageFilePath))
+            {
+                return null;
+            }
+
+            try
+            {
+                string folder = null;
+                if (File.Exists(packageFilePath))
+                {
+                    folder = Path.GetDirectoryName(packageFilePath);
+                }
+                else if (Directory.Exists(packageFilePath))
+                {
+                    folder = packageFilePath;
+                }
+                else
+                {
+                    folder = Path.GetDirectoryName(packageFilePath);
+                }
+
+                if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+                {
+                    return null;
+                }
+
+                string[] txtFiles = Directory.GetFiles(folder, "*.txt");
+                for (int i = 0; i < txtFiles.Length; i++)
+                {
+                    string fileName = Path.GetFileName(txtFiles[i]);
+                    if (fileName.IndexOf("استرجاع", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        fileName.IndexOf("recovery", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        fileName.IndexOf("كود", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        string content = File.ReadAllText(txtFiles[i], Encoding.UTF8);
+                        System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(
+                            content, @"RFK-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}");
+                        if (match.Success)
+                        {
+                            return match.Value.ToUpperInvariant();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر فحص ملف كود الاسترجاع تلقائياً من الفلاشة: " + ex.Message);
+            }
+
+            return null;
         }
     }
 }

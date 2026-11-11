@@ -39,7 +39,15 @@ export function normalizeArabicText(text: string): string {
  * @returns المبلغ بالقروش كعدد صحيح (مثال: 1550)
  */
 export function poundsToPiasters(pounds: number | string): number {
-  const normalized = typeof pounds === 'string' ? normalizeArabicNumerals(pounds).replace(/,/g, '').trim() : String(pounds);
+  return decimalToScaledInteger(pounds, 2);
+}
+
+/**
+ * القيمة العشرية كعدد صحيح مضروب في 10^decimals بالتقريب لأقرب وحدة (نصف الوحدة بعيداً عن الصفر)
+ * قراءة نصية بلا أي ضرب عائم؛ هي أساس poundsToPiasters (decimals = 2) وحساب نسبة الخصم (decimals = 3)
+ */
+function decimalToScaledInteger(value: number | string, decimals: number): number {
+  const normalized = typeof value === 'string' ? normalizeArabicNumerals(value).replace(/,/g, '').trim() : String(value);
   const match = /^([+-]?)(\d*)\.?(\d*)(?:[eE]([+-]?\d+))?/.exec(normalized);
   if (!match) return 0;
 
@@ -49,23 +57,23 @@ export function poundsToPiasters(pounds: number | string): number {
 
   const negative = match[1] === '-';
   const exponent = match[4] ? parseInt(match[4], 10) : 0;
-  // value (pounds) = digits x 10^(exponent - fracLen); piasters = value x 100
+  // value = digits x 10^(exponent - fracLen); scaled = value x 10^decimals
   const digits = (intPart + fracPart).replace(/^0+(?=\d)/, '');
-  const scale = exponent - fracPart.length + 2;
+  const scale = exponent - fracPart.length + decimals;
 
-  let piasters: number;
+  let scaled: number;
   if (scale >= 0) {
     if (scale > 30) return 0;
-    piasters = Number(digits + '0'.repeat(scale));
+    scaled = Number(digits + '0'.repeat(scale));
   } else {
     const cut = digits.length + scale;
     const kept = cut > 0 ? digits.slice(0, cut) : '0';
     const nextDigit = cut >= 0 && cut < digits.length ? digits.charCodeAt(cut) - 48 : 0;
-    piasters = Number(kept) + (nextDigit >= 5 ? 1 : 0);
+    scaled = Number(kept) + (nextDigit >= 5 ? 1 : 0);
   }
 
-  if (!Number.isFinite(piasters) || piasters === 0) return 0;
-  return negative ? -piasters : piasters;
+  if (!Number.isFinite(scaled) || scaled === 0) return 0;
+  return negative ? -scaled : scaled;
 }
 
 export const MAX_MONEY_INTEGER_DIGITS = 11;
@@ -163,36 +171,61 @@ export function tafqeetCurrency(piasters: number | null | undefined): string {
 
   const pounds = Math.floor(absPiasters / 100);
   const remPiasters = absPiasters % 100;
+  // Beyond the trillions the words table ends: no tafqeet is better than a wrong one (callers already treat '' as "no words")
+  if (pounds >= 1000000000000) return '';
 
   const ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
   const tens = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
   const hundreds = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة'];
 
-  function convertGroup(n: number): string {
+  // construct: the counted noun follows directly, so a dual loses its nun (مائتا، اثنا) as Arabic grammar requires
+  function convertGroup(n: number, construct = false): string {
     if (n === 0) return '';
-    let result = '';
     const h = Math.floor(n / 100);
     const rem = n % 100;
 
+    let hundredWord = '';
     if (h > 0) {
-      result += hundreds[h];
+      hundredWord = construct && h === 2 && rem === 0 ? 'مائتا' : hundreds[h];
     }
 
+    let remWord = '';
     if (rem > 0) {
-      if (result) result += ' و';
       if (rem < 20) {
-        result += ones[rem];
+        remWord = construct && rem === 2 ? 'اثنا' : ones[rem];
       } else {
         const o = rem % 10;
         const t = Math.floor(rem / 10);
-        if (o > 0) {
-          result += ones[o] + ' و' + tens[t];
-        } else {
-          result += tens[t];
-        }
+        remWord = o > 0 ? ones[o] + ' و' + tens[t] : tens[t];
       }
     }
-    return result;
+    return hundredWord && remWord ? hundredWord + ' و' + remWord : hundredWord + remWord;
+  }
+
+  const scales = [
+    { size: 1000000000, one: 'مليار', dual: 'ملياران', dualConstruct: 'مليارا', few: 'مليارات', many: 'ملياراً' },
+    { size: 1000000, one: 'مليون', dual: 'مليونان', dualConstruct: 'مليونا', few: 'ملايين', many: 'مليوناً' },
+    { size: 1000, one: 'ألف', dual: 'ألفان', dualConstruct: 'ألفا', few: 'آلاف', many: 'ألفاً' },
+  ];
+
+  // Words of a whole number; nounFollows = the counted noun comes right after the last word
+  function convertNumberWords(n: number, nounFollows: boolean): string {
+    const parts: string[] = [];
+    let rest = n;
+    for (const scale of scales) {
+      const count = Math.floor(rest / scale.size);
+      rest = rest % scale.size;
+      if (count === 0) continue;
+      const isLast = rest === 0;
+      const last2 = count % 100;
+      if (count === 1) parts.push(scale.one);
+      else if (count === 2) parts.push(isLast && nounFollows ? scale.dualConstruct : scale.dual);
+      else if (last2 >= 3 && last2 <= 10) parts.push(convertGroup(count) + ' ' + scale.few);
+      else if (last2 >= 11) parts.push(convertGroup(count) + ' ' + (isLast && nounFollows ? scale.one : scale.many));
+      else parts.push(convertGroup(count, last2 !== 1) + ' ' + scale.one);
+    }
+    if (rest > 0) parts.push(convertGroup(rest, nounFollows));
+    return parts.join(' و');
   }
 
   function convertPounds(p: number): string {
@@ -200,45 +233,14 @@ export function tafqeetCurrency(piasters: number | null | undefined): string {
     if (p === 1) return 'جنيه واحد';
     if (p === 2) return 'جنيهان';
 
-    const billions = Math.floor(p / 1000000000);
-    const millions = Math.floor((p % 1000000000) / 1000000);
-    const thousands = Math.floor((p % 1000000) / 1000);
-    const rem = p % 1000;
-
-    const parts: string[] = [];
-
-    if (billions > 0) {
-      if (billions === 1) parts.push('مليار');
-      else if (billions === 2) parts.push('ملياران');
-      else if (billions >= 3 && billions <= 10) parts.push(convertGroup(billions) + ' مليارات');
-      else parts.push(convertGroup(billions) + ' ملياراً');
+    // The counted noun agrees with the last two digits: 1-2 stand apart, 3-10 plural, 11-99 singular accusative, round numbers singular
+    const last2 = p % 100;
+    if (last2 === 1 || last2 === 2) {
+      return convertNumberWords(p - last2, false) + ' و' + (last2 === 1 ? 'جنيه واحد' : 'جنيهان');
     }
-
-    if (millions > 0) {
-      if (millions === 1) parts.push('مليون');
-      else if (millions === 2) parts.push('مليونان');
-      else if (millions >= 3 && millions <= 10) parts.push(convertGroup(millions) + ' ملايين');
-      else parts.push(convertGroup(millions) + ' مليوناً');
-    }
-
-    if (thousands > 0) {
-      if (thousands === 1) parts.push('ألف');
-      else if (thousands === 2) parts.push('ألفان');
-      else if (thousands >= 3 && thousands <= 10) parts.push(convertGroup(thousands) + ' آلاف');
-      else parts.push(convertGroup(thousands) + ' ألفاً');
-    }
-
-    if (rem > 0) {
-      parts.push(convertGroup(rem));
-    }
-
-    let poundsText = parts.join(' و');
-    if (p >= 3 && p <= 10) {
-      poundsText += ' جنيهات';
-    } else {
-      poundsText += ' جنيهاً مصرياً';
-    }
-    return poundsText;
+    if (last2 >= 3 && last2 <= 10) return convertNumberWords(p, false) + ' جنيهات';
+    if (last2 >= 11) return convertNumberWords(p, false) + ' جنيهاً مصرياً';
+    return convertNumberWords(p, true) + ' جنيه';
   }
 
   function convertPiasters(c: number): string {
@@ -334,14 +336,17 @@ export function calculateDiscountAmount(
   value: number
 ): number {
   if (grossPiasters <= 0 || value <= 0 || isNaN(value)) return 0;
+  if (!Number.isFinite(value)) return grossPiasters;
 
   if (type === 'percent') {
-    // Round to nearest integer piaster
-    const discount = Math.round((grossPiasters * value) / 100);
+    // Exact: percent in thousandths x gross piasters, rounded half up to the nearest piaster (no float product)
+    const percentThousandths = decimalToScaledInteger(value, 3);
+    const gross = Math.round(grossPiasters);
+    const discount = Number((BigInt(gross) * BigInt(percentThousandths) + 50000n) / 100000n);
     return Math.min(grossPiasters, Math.max(0, discount));
   } else {
-    // value is in EGP pounds
-    const piasters = Math.round(value * 100);
+    // value is in EGP pounds; same decimal reading as poundsToPiasters (1.005 -> 101 piasters)
+    const piasters = poundsToPiasters(value);
     return Math.min(grossPiasters, Math.max(0, piasters));
   }
 }

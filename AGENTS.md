@@ -26,10 +26,11 @@
    - تفعيل وضع **WAL (Write-Ahead Logging)** دائماً:
      ```sql
      PRAGMA journal_mode = WAL;
-     PRAGMA synchronous = NORMAL;
+     PRAGMA synchronous = FULL;
      PRAGMA foreign_keys = ON;
      PRAGMA busy_timeout = 5000;
      ```
+   - **سبب `synchronous = FULL` (قرار المالك):** مع WAL يضمن FULL مزامنة ملف الـ WAL على القرص عند كل Commit، فلا تضيع فاتورة مؤكدة عند انقطاع الكهرباء المفاجئ (NORMAL قد يفقد آخر معاملات بعد الـ Commit). يُطبق على كل اتصالات التطبيق بما فيها الترحيل؛ ممنوع خفضه إلى NORMAL.
    - حفظ ملف قاعدة البيانات وملفات الـ WebView profile دائماً في:
      `%ProgramData%\RafiqPOS\data\rafiq_pos.db` في بيئة الإنتاج، لتجنب مشاكل صلاحيات ويندوز 7 (UAC).
 4. **كشف بيئة ويندوز بدقة وعزل الأخطاء (Accurate OS Detection & Error Isolation):**

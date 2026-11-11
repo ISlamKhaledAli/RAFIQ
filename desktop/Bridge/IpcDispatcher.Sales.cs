@@ -431,6 +431,19 @@ namespace RafiqPOS.Bridge
                     if (fSaleObj != null && fSaleObj["saleId"] != null) forSaleId = fSaleObj["saleId"].ToString();
                     else if (request.Payload != null) forSaleId = request.Payload.ToString().Trim('"', ' ');
                     var saleReturns = DatabaseService.Returns.GetReturnsForSale(forSaleId);
+                    // includeCaps keeps the same permission (returns.create) and adds the server-computed refundable amount per tender
+                    if (fSaleObj != null && fSaleObj["includeCaps"] != null && fSaleObj["includeCaps"].Type == JTokenType.Boolean && fSaleObj["includeCaps"].Value<bool>())
+                    {
+                        try
+                        {
+                            response = BridgeResponse.Ok(request.Id, new { returns = saleReturns, caps = DatabaseService.Returns.GetRefundCaps(forSaleId) });
+                        }
+                        catch (InvalidOperationException capsEx)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "RETURN_CAPS_FAILED", capsEx.Message);
+                        }
+                        return true;
+                    }
                     response = BridgeResponse.Ok(request.Id, saleReturns);
                     return true;
 

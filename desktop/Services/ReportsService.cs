@@ -144,7 +144,7 @@ namespace RafiqPOS.Services
                             SELECT 
                                 COALESCE(SUM(total_piasters), 0) AS total_returns,
                                 COALESCE(SUM(CASE WHEN refund_method = 'cash' THEN total_piasters ELSE 0 END), 0) AS cash_returns,
-                                COUNT(*) AS return_count
+                                COUNT(CASE WHEN COALESCE(idempotency_key, '') LIKE 'split:%' THEN NULL ELSE 1 END) AS return_count
                             FROM returns 
                             WHERE " + dateClause + @";
                         ";
@@ -725,7 +725,7 @@ namespace RafiqPOS.Services
                         string returnsSql = string.Format(@"
                             SELECT 
                                 COALESCE(SUM(total_piasters), 0) AS total_returns,
-                                COUNT(*) AS return_count
+                                COUNT(CASE WHEN COALESCE(idempotency_key, '') LIKE 'split:%' THEN NULL ELSE 1 END) AS return_count
                             FROM returns 
                             WHERE {0};
                         ", dateFilterClause);

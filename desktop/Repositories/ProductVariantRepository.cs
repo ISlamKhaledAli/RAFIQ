@@ -567,11 +567,7 @@ namespace RafiqPOS.Repositories
                                     delUnitCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
                                     delUnitCmd.ExecuteNonQuery();
                                 }
-                                using (var delSmCmd = new SQLiteCommand("DELETE FROM stock_movements WHERE product_id = @vid AND reference_type = 'OPENING_BALANCE';", conn, trans))
-                                {
-                                    delSmCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
-                                    delSmCmd.ExecuteNonQuery();
-                                }
+                                VoidOpeningBalanceMovements(conn, trans, ev.VariantProductId, now);
                             }
                         }
 
@@ -860,11 +856,7 @@ namespace RafiqPOS.Repositories
                             delUnitCmd.ExecuteNonQuery();
                         }
 
-                        using (var delSmCmd = new SQLiteCommand("DELETE FROM stock_movements WHERE product_id = @id AND reference_type = 'OPENING_BALANCE';", conn, trans))
-                        {
-                            delSmCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
-                            delSmCmd.ExecuteNonQuery();
-                        }
+                        VoidOpeningBalanceMovements(conn, trans, variantProductId.Trim(), now);
 
                         // Recalculate parent product total stock
                         string syncParentSql = @"
@@ -892,6 +884,61 @@ namespace RafiqPOS.Repositories
                         throw;
                     }
                 }
+            }
+        }
+
+        // The opening-balance movement stays in the ledger; a contra movement zeroes it instead of deleting history (AGENTS rule 2)
+        private static void VoidOpeningBalanceMovements(SQLiteConnection conn, SQLiteTransaction trans, string variantProductId, string now)
+        {
+            long openingQty = 0;
+            long unitCost = 0;
+            using (var sumCmd = new SQLiteCommand(@"
+                SELECT COALESCE(SUM(quantity_milli), 0), COALESCE(MAX(unit_cost_piasters), 0)
+                FROM stock_movements WHERE product_id = @id AND reference_type = 'OPENING_BALANCE';", conn, trans))
+            {
+                sumCmd.Parameters.AddWithValue("@id", variantProductId);
+                using (var rdr = sumCmd.ExecuteReader())
+                {
+                    if (rdr.Read())
+                    {
+                        openingQty = Convert.ToInt64(rdr[0]);
+                        unitCost = Convert.ToInt64(rdr[1]);
+                    }
+                }
+            }
+
+            long alreadyVoided = 0;
+            using (var voidedCmd = new SQLiteCommand("SELECT COALESCE(SUM(-quantity_milli), 0) FROM stock_movements WHERE product_id = @id AND reference_type = 'OPENING_BALANCE_VOID';", conn, trans))
+            {
+                voidedCmd.Parameters.AddWithValue("@id", variantProductId);
+                alreadyVoided = Convert.ToInt64(voidedCmd.ExecuteScalar());
+            }
+
+            long toVoid = openingQty - alreadyVoided;
+            if (toVoid <= 0) return;
+
+            using (var insCmd = new SQLiteCommand(@"
+                INSERT INTO stock_movements (
+                    id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                    unit_cost_piasters, note, created_at
+                ) VALUES (
+                    @id, @pid, 'OPENING_VOID', @qty, @pid, 'OPENING_BALANCE_VOID',
+                    @cost, 'إلغاء الرصيد الافتتاحي عند حذف المتغير', @now
+                );", conn, trans))
+            {
+                insCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
+                insCmd.Parameters.AddWithValue("@pid", variantProductId);
+                insCmd.Parameters.AddWithValue("@qty", -toVoid);
+                insCmd.Parameters.AddWithValue("@cost", unitCost);
+                insCmd.Parameters.AddWithValue("@now", now);
+                insCmd.ExecuteNonQuery();
+            }
+
+            using (var zeroCmd = new SQLiteCommand("UPDATE products SET stock_quantity_milli = 0, updated_at = @now WHERE id = @id;", conn, trans))
+            {
+                zeroCmd.Parameters.AddWithValue("@id", variantProductId);
+                zeroCmd.Parameters.AddWithValue("@now", now);
+                zeroCmd.ExecuteNonQuery();
             }
         }
 
