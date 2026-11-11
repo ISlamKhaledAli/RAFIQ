@@ -41,6 +41,13 @@ namespace RafiqPOS.Services
                 MigrationRunner.ApplyMigrations(tempConnStr, tempDbPath);
                 Assert(File.Exists(tempDbPath), "تم إنشاء قاعدة بيانات اختبار جودة البيانات بنجاح", result);
 
+                if (DatabaseService.License != null && DatabaseService.Encryption != null)
+                {
+                    string myFp = DatabaseService.Encryption.DeviceFingerprint;
+                    string supCode = LicenseService.GenerateOfflineSupportCode(myFp, "lifetime", 9999);
+                    DatabaseService.License.ActivateWithSupportCode(supCode, "متجر فحص جودة البيانات");
+                }
+
                 var auditRepo = new AuditLogRepository(tempConnStr);
                 var productRepo = new ProductRepository(tempConnStr, auditRepo);
                 var smRepo = new StockMovementRepository(tempConnStr);

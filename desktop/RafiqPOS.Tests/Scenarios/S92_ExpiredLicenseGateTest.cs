@@ -39,7 +39,7 @@ namespace RafiqPOS.Tests.Scenarios
                 "customers:save", "customers:recordPayment", "suppliers:recordPayment",
                 "products:save", "products:delete", "products:importBatch", "products:applyBulkPriceAdjustment",
                 "batch:adjust", "batch:disposeExpired", "variants:createMatrix",
-                "shifts:open", "shifts:cashIn", "drawer:cashOut",
+                "shifts:open", "shifts:cashIn", "drawer:cashIn",
                 "wallets:processTransaction", "epay:createTransaction",
                 "pharma:saveControlledDispense", "pharma:writeOffExpiredBatches", "prescriptions:save",
                 "users:create", "users:updatePermissions", "settings:updateBatch", "features:set",
