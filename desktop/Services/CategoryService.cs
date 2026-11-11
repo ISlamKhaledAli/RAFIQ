@@ -60,6 +60,11 @@ namespace RafiqPOS.Services
             _repo.Archive(id, isArchived);
         }
 
+        public int ArchiveEmptyCategories()
+        {
+            return _repo.ArchiveEmptyCategories();
+        }
+
         public void ReorderCategories(List<string> orderedIds)
         {
             if (orderedIds == null || orderedIds.Count == 0) return;

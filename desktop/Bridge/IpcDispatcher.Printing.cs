@@ -34,6 +34,21 @@ namespace RafiqPOS.Bridge
                     response = ToPrintResponse(request.Id, testPrintResult);
                     return true;
 
+                case "printer:testTemplate":
+                    string tmplDoc = null;
+                    string tmplPrinter = null;
+                    string tmplWidth = null;
+                    JObject tmplPayload = request.Payload as JObject;
+                    if (tmplPayload != null)
+                    {
+                        if (tmplPayload["docType"] != null) tmplDoc = tmplPayload["docType"].ToString();
+                        if (tmplPayload["printerName"] != null) tmplPrinter = tmplPayload["printerName"].ToString();
+                        if (tmplPayload["paperWidth"] != null) tmplWidth = tmplPayload["paperWidth"].ToString();
+                    }
+                    var tmplResult = DatabaseService.Printer.PrintTemplateTest(tmplDoc, tmplPrinter, tmplWidth, tmplPayload);
+                    response = ToPrintResponse(request.Id, tmplResult);
+                    return true;
+
                 case "barcode:printLabel":
                 case "barcode:printLabels":
                 case "printer:printLabels":
@@ -278,6 +293,11 @@ namespace RafiqPOS.Bridge
             else if (!isCopy && DatabaseService.Printer.HasSaleReceiptBeenPrinted(sale.Id))
             {
                 isCopy = true;
+            }
+
+            if (isCopy)
+            {
+                openDrawer = false;
             }
 
             PrintResult printResult = DatabaseService.Printer.PrintSaleReceipt(sale, printerName, paperWidth, openDrawer, isCopy);

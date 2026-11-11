@@ -126,12 +126,21 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     return 'punit_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
   }, []);
 
-  // Recalculate prices across higher packaging levels anchored from the Display Unit
+  // Recalculate prices across higher packaging levels anchored from the Display Unit (or healthy retail unit)
   const recalculatePrices = useCallback((newRule: number, newMarginBps: number, targetLevels?: WizardLevelRow[]) => {
     const list = targetLevels || levels;
     if (list.length === 0) return;
     const foundIdx = list.findIndex(r => r.id === displayUnitId);
-    const anchorIdx = foundIdx !== -1 ? foundIdx : Math.max(0, list.length - 1);
+    let anchorIdx = foundIdx !== -1 ? foundIdx : Math.max(0, list.length - 1);
+
+    // Senior Guard: If chosen anchor is selling below its cost, prefer a healthy unit to avoid spreading negative margins
+    if (list[anchorIdx].sellPricePiasters > 0 && list[anchorIdx].costPricePiasters > 0 && list[anchorIdx].sellPricePiasters < list[anchorIdx].costPricePiasters) {
+      const healthyIdx = list.findIndex(r => r.sellPricePiasters > 0 && r.costPricePiasters > 0 && r.sellPricePiasters >= r.costPricePiasters);
+      if (healthyIdx !== -1) {
+        anchorIdx = healthyIdx;
+      }
+    }
+
     const anchor = list[anchorIdx];
     const anchorSell = anchor.sellPricePiasters > 0 ? anchor.sellPricePiasters : (basePricePiasters > 0 ? basePricePiasters : 1000);
     const anchorCost = anchor.costPricePiasters > 0 ? anchor.costPricePiasters : (baseCostPiasters > 0 ? baseCostPiasters : 750);
@@ -425,34 +434,31 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     handleBarcodeChange(index, randomEan);
   };
 
-  // Re-calculate single row price anchored to the Display Unit
+  // Re-calculate single row price anchored to neighboring levels
   const handleAutoCalculateRow = (index: number) => {
     if (levels.length <= 1) return;
-    const foundIdx = levels.findIndex(r => r.id === displayUnitId);
-    const anchorIdx = foundIdx !== -1 ? foundIdx : Math.max(0, levels.length - 1);
     const updated = [...levels];
 
-    if (index === anchorIdx) {
-      // If clicking auto-calc on the anchor itself, re-anchor to base price from outside
-      if (basePricePiasters > 0) updated[index].sellPricePiasters = basePricePiasters;
-      if (baseCostPiasters > 0) updated[index].costPricePiasters = baseCostPiasters;
-    } else if (index > anchorIdx) {
-      // Below anchor: divide from parent above it
-      const parent = updated[index - 1];
-      const r = typeof parent.ratioToNext === 'number' && parent.ratioToNext >= 1 ? parent.ratioToNext : 1;
-      const rawSell = r > 0 ? parent.sellPricePiasters / r : parent.sellPricePiasters;
-      const rawCost = r > 0 ? parent.costPricePiasters / r : parent.costPricePiasters;
-      updated[index].sellPricePiasters = Math.max(25, applyPriceRounding(rawSell, roundingRule, 0));
-      updated[index].costPricePiasters = Math.max(20, Math.round(rawCost));
-    } else {
-      // Above anchor: multiply from child below it
+    if (index < levels.length - 1) {
+      // Level has a smaller child below it (e.g. Carton above Pack, or Pack above Cigarette):
+      // Calculate UPWARDS by multiplying child price * ratio
       const child = updated[index + 1];
       const r = typeof updated[index].ratioToNext === 'number' && updated[index].ratioToNext >= 1 ? updated[index].ratioToNext : 1;
       const rawSell = child.sellPricePiasters * r;
       const rawCost = child.costPricePiasters * r;
       updated[index].sellPricePiasters = applyPriceRounding(rawSell, roundingRule, marginPremiumBps);
       updated[index].costPricePiasters = rawCost;
+    } else if (index > 0) {
+      // It's the bottom base unit (e.g. Cigarette below Pack):
+      // Calculate DOWNWARDS by dividing from parent above it
+      const parent = updated[index - 1];
+      const r = typeof parent.ratioToNext === 'number' && parent.ratioToNext >= 1 ? parent.ratioToNext : 1;
+      const rawSell = r > 0 ? parent.sellPricePiasters / r : parent.sellPricePiasters;
+      const rawCost = r > 0 ? parent.costPricePiasters / r : parent.costPricePiasters;
+      updated[index].sellPricePiasters = Math.max(25, applyPriceRounding(rawSell, roundingRule, 0));
+      updated[index].costPricePiasters = Math.max(20, Math.round(rawCost));
     }
+
     setLevels(updated);
   };
 
@@ -540,6 +546,18 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
       }
     }
 
+    // Synchronize upper packaging units so they don't hold stale or below-cost prices
+    for (let i = updated.length - 3; i >= 0; i--) {
+      const child = updated[i + 1];
+      const r = Number(updated[i].ratioToNext) || 1;
+      const childSum = child.sellPricePiasters * r;
+      const childCostSum = child.costPricePiasters * r;
+      if (updated[i].sellPricePiasters < childSum || updated[i].sellPricePiasters < childCostSum) {
+        updated[i].sellPricePiasters = applyPriceRounding(childSum, roundingRule, marginPremiumBps);
+        updated[i].costPricePiasters = childCostSum;
+      }
+    }
+
     setLevels(updated);
     setIsLooseSellable(true);
 
@@ -589,17 +607,68 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
 
 
 
-  // Pricing warnings check
-  const pricingWarnings: string[] = [];
+  // Pricing warnings check with one-click healing
+  interface PricingWarningItem {
+    id: string;
+    message: string;
+    actionLabel?: string;
+    onFix?: () => void;
+  }
+
+  const pricingWarnings: PricingWarningItem[] = [];
+
+  // 1. Check for selling below cost (Direct loss on every sale!)
+  for (let i = 0; i < levels.length; i++) {
+    const lvl = levels[i];
+    if (lvl.sellPricePiasters > 0 && lvl.costPricePiasters > 0 && lvl.sellPricePiasters < lvl.costPricePiasters) {
+      let suggestedPrice = 0;
+      if (i < levels.length - 1) {
+        const child = levels[i + 1];
+        const r = typeof lvl.ratioToNext === 'number' && lvl.ratioToNext >= 1 ? lvl.ratioToNext : 1;
+        suggestedPrice = child.sellPricePiasters * r;
+      }
+      if (suggestedPrice <= lvl.costPricePiasters) {
+        suggestedPrice = applyPriceRounding(Math.round(lvl.costPricePiasters * 1.05), roundingRule, 0);
+      }
+
+      pricingWarnings.push({
+        id: `below-cost-${lvl.id}`,
+        message: `خطر مالي حرج: سعر بيع «${lvl.name}» (${formatArabicCurrency(lvl.sellPricePiasters)}) أقل من سعر التكلفة (${formatArabicCurrency(lvl.costPricePiasters)})! البيع بهذا السعر يسبب خسارة مباشرة.`,
+        actionLabel: `تصحيح السعر إلى (${formatArabicCurrency(suggestedPrice)})`,
+        onFix: () => {
+          const updated = [...levels];
+          updated[i].sellPricePiasters = suggestedPrice;
+          setLevels(updated);
+        },
+      });
+    }
+  }
+
+  // 2. Check for packaging whole price less than sum of parts (Carton cheaper than its packs)
   for (let i = 0; i < levels.length - 1; i++) {
     const parent = levels[i];
     const child = levels[i + 1];
-    const childSumSell = child.sellPricePiasters * parent.ratioToNext;
+    const r = typeof parent.ratioToNext === 'number' && parent.ratioToNext >= 1 ? parent.ratioToNext : 1;
+    const childSumSell = child.sellPricePiasters * r;
 
-    if (parent.sellPricePiasters > 0 && childSumSell < parent.sellPricePiasters) {
-      pricingWarnings.push(
-        `تنبيه: سعر بيع أجزاء «${child.name}» إجمالاً (${formatArabicCurrency(childSumSell)}) أقل من سعر العبوة الكاملة «${parent.name}» (${formatArabicCurrency(parent.sellPricePiasters)})!`
-      );
+    if (parent.sellPricePiasters > 0 && childSumSell > parent.sellPricePiasters) {
+      if (!pricingWarnings.some(w => w.id === `below-cost-${parent.id}`)) {
+        pricingWarnings.push({
+          id: `pack-less-than-parts-${parent.id}`,
+          message: `تنبيه مالي: سعر العبوة الكاملة «${parent.name}» (${formatArabicCurrency(parent.sellPricePiasters)}) أقل من إجمالي بيع أجزائها «${child.name}» (${formatArabicCurrency(childSumSell)})!`,
+          actionLabel: `رفع سعر «${parent.name}» إلى (${formatArabicCurrency(childSumSell)})`,
+          onFix: () => {
+            const updated = [...levels];
+            updated[i].sellPricePiasters = childSumSell;
+            setLevels(updated);
+          },
+        });
+      }
+    } else if (parent.sellPricePiasters > 0 && childSumSell < parent.sellPricePiasters) {
+      pricingWarnings.push({
+        id: `parts-less-than-pack-${parent.id}`,
+        message: `تنبيه: سعر بيع أجزاء «${child.name}» إجمالاً (${formatArabicCurrency(childSumSell)}) أقل من سعر العبوة الكاملة «${parent.name}» (${formatArabicCurrency(parent.sellPricePiasters)})!`,
+      });
     }
   }
 
@@ -987,11 +1056,23 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
 
           {/* Pricing Warnings */}
           {pricingWarnings.length > 0 && (
-            <div className="p-3 rounded-xl bg-warn/10 border border-warn/30 text-warn-dark dark:text-warn-bright text-xs space-y-1">
-              {pricingWarnings.map((warning, wIdx) => (
-                <div key={wIdx} className="flex items-start gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
-                  <span>{warning}</span>
+            <div className="p-3 rounded-xl bg-warn/10 border border-warn/30 text-warn-dark dark:text-warn-bright text-xs space-y-2">
+              {pricingWarnings.map((warning) => (
+                <div key={warning.id} className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-start gap-1.5 flex-1 min-w-[15rem]">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
+                    <span className="leading-relaxed font-semibold">{warning.message}</span>
+                  </div>
+                  {warning.actionLabel && warning.onFix && (
+                    <AppButton
+                      variant="warningSoft"
+                      size="xs"
+                      onClick={warning.onFix}
+                      className="shrink-0 font-bold"
+                    >
+                      {warning.actionLabel}
+                    </AppButton>
+                  )}
                 </div>
               ))}
             </div>
@@ -1010,6 +1091,17 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                {levels.length > 1 && (
+                  <AppButton
+                    variant="secondary"
+                    size="sm"
+                    icon={RefreshCw}
+                    onClick={() => recalculatePrices(roundingRule, marginPremiumBps)}
+                    title="إعادة حساب ومزامنة أسعار وتكاليف كافة العبوات تلقائياً بناءً على الوحدة الرئيسية والمعاملات"
+                  >
+                    مزامنة كافة الأسعار
+                  </AppButton>
+                )}
                 <AppButton
                   variant="soft"
                   size="sm"
@@ -1034,18 +1126,18 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
             </div>
 
             {/* Wide, fluid, comfortable table */}
-            <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-xs">
-              <table className="w-full text-right text-xs table-fixed">
+            <div className="border border-line dark:border-line-dark rounded-xl overflow-x-auto shadow-xs">
+              <table className="w-full text-right text-xs table-fixed min-w-[58rem]">
                 <thead>
                   <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                    <th className="py-2.5 px-2.5 w-[14%] whitespace-nowrap">المستوى والاسم <RequiredMark /></th>
-                    <th className="py-2.5 px-2 text-center w-[17%] whitespace-nowrap">المحتوى والتعبئة</th>
+                    <th className="py-2.5 px-2.5 w-[13%] whitespace-nowrap">المستوى والاسم <RequiredMark /></th>
+                    <th className="py-2.5 px-2 text-center w-[16%] whitespace-nowrap">المحتوى والتعبئة</th>
                     <th className="py-2.5 px-2 text-center w-[6%] whitespace-nowrap">المعامل</th>
-                    <th className="py-2.5 px-2 w-[14%] whitespace-nowrap">سعر البيع <RequiredMark /></th>
-                    <th className="py-2.5 px-2 w-[12%] whitespace-nowrap">سعر التكلفة</th>
+                    <th className="py-2.5 px-2 w-[18%] whitespace-nowrap">سعر البيع <RequiredMark /></th>
+                    <th className="py-2.5 px-2 w-[13%] whitespace-nowrap">سعر التكلفة</th>
                     <th className="py-2.5 px-2 w-[12%] whitespace-nowrap">الباركود</th>
-                    <th className="py-2.5 px-2 text-center w-[12%] whitespace-nowrap">المعروضة بالخارج</th>
-                    <th className="py-2.5 px-2 text-center w-[10%] whitespace-nowrap">افتراضية الكاشير</th>
+                    <th className="py-2.5 px-2 text-center w-[11%] whitespace-nowrap">المعروضة بالخارج</th>
+                    <th className="py-2.5 px-2 text-center w-[8%] whitespace-nowrap">افتراضية الكاشير</th>
                     <th className="py-2.5 px-1 text-center w-[3%] whitespace-nowrap">حذف</th>
                   </tr>
                 </thead>
@@ -1124,21 +1216,21 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
 
                         {/* Sell Price */}
                         <td className="py-2.5 px-2">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             <MoneyInput
                               valuePiasters={lvl.sellPricePiasters}
                               onChangePiasters={(val) => handlePriceChange(idx, val)}
-                              className="h-8 text-xs font-bold text-paid dark:text-paid-bright flex-1"
+                              className="h-8 text-xs font-bold text-paid dark:text-paid-bright flex-1 min-w-[5.5rem]"
                             />
-                            {!isBase && (
+                            {levels.length > 1 && (
                               <AppButton
                                 variant="soft"
-                                size="sm"
+                                size="xs"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleAutoCalculateRow(idx);
                                 }}
-                                className="shrink-0"
+                                className="shrink-0 h-8 px-2 text-micro font-bold"
                                 title="إعادة الحساب التلقائي للسعر بناءً على المعامل وقاعدة التقريب"
                               >
                                 تلقائي

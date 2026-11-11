@@ -3,6 +3,7 @@ import React, {
   useRef,
   useEffect,
   useCallback,
+  useId,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -64,6 +65,8 @@ export const RafiqTooltip: React.FC<RafiqTooltipProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState<Coords | null>(null);
 
+  const generatedId = useId();
+  const instanceIdRef = useRef<string>(`tooltip-${generatedId.replace(/:/g, '')}`);
   const triggerRef = useRef<HTMLElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const enterTimeoutRef = useRef<number | null>(null);
@@ -160,12 +163,18 @@ export const RafiqTooltip: React.FC<RafiqTooltipProps> = ({
       window.clearTimeout(leaveTimeoutRef.current);
       leaveTimeoutRef.current = null;
     }
-    if (delay > 0) {
-      enterTimeoutRef.current = window.setTimeout(() => {
-        setIsOpen(true);
-      }, delay);
-    } else {
+    const triggerOpen = () => {
       setIsOpen(true);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('rafiq-tooltip-open', { detail: { id: instanceIdRef.current } })
+        );
+      }
+    };
+    if (delay > 0) {
+      enterTimeoutRef.current = window.setTimeout(triggerOpen, delay);
+    } else {
+      triggerOpen();
     }
   }, [hasValidContent, delay]);
 
@@ -226,6 +235,19 @@ export const RafiqTooltip: React.FC<RafiqTooltipProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, hide]);
 
+  // Global mutual exclusion: if any other tooltip opens, dismiss immediately
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOtherTooltipOpen = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id?: string }>;
+      if (customEvent.detail?.id && customEvent.detail.id !== instanceIdRef.current) {
+        hide(true);
+      }
+    };
+    window.addEventListener('rafiq-tooltip-open', handleOtherTooltipOpen);
+    return () => window.removeEventListener('rafiq-tooltip-open', handleOtherTooltipOpen);
+  }, [hide]);
+
   if (!hasValidContent) {
     return <>{children}</>;
   }
@@ -243,7 +265,7 @@ export const RafiqTooltip: React.FC<RafiqTooltipProps> = ({
           aria-hidden={!isOpen}
           onMouseEnter={interactive ? () => show() : undefined}
           onMouseLeave={interactive ? () => hide() : undefined}
-          className={`fixed z-[9999] pointer-events-auto select-none transition-opacity ${
+          className={`fixed z-[9999] ${interactive ? 'pointer-events-auto' : 'pointer-events-none'} select-none transition-opacity ${
             isReducedMotion ? 'duration-0' : 'duration-150 ease-out'
           } ${coords ? 'opacity-100' : 'opacity-0'} ${className}`}
           style={{

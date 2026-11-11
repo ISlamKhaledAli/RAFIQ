@@ -67,14 +67,26 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
   const currentUnits: ProductUnit[] = existingBase
     ? rawList.map(u => {
-        if (!u || !u.isBaseUnit) return u;
+        if (!u) return u;
         const isSingleUnit = rawList.length <= 1;
+        const isTargetUnit = displayUnitId ? u.id === displayUnitId : u.isBaseUnit;
+
+        let sell = u.sellPricePiasters;
+        let cost = u.costPricePiasters;
+        if (isSingleUnit) {
+          if (basePricePiasters > 0) sell = basePricePiasters;
+          if (baseCostPiasters > 0) cost = baseCostPiasters;
+        } else if (isTargetUnit) {
+          if (basePricePiasters > 0 && sell <= 0) sell = basePricePiasters;
+          if (baseCostPiasters > 0 && cost <= 0) cost = baseCostPiasters;
+        }
+
         return {
           ...u,
-          unitName: (u.unitName && u.unitName.trim()) ? u.unitName.trim() : effectiveBaseUnitName,
-          conversionFactor: 1,
-          sellPricePiasters: (isSingleUnit && basePricePiasters > 0) ? basePricePiasters : (u.sellPricePiasters > 0 ? u.sellPricePiasters : basePricePiasters || 0),
-          costPricePiasters: (isSingleUnit && baseCostPiasters > 0) ? baseCostPiasters : (u.costPricePiasters > 0 ? u.costPricePiasters : baseCostPiasters || 0),
+          unitName: (u.unitName && u.unitName.trim()) ? u.unitName.trim() : (u.isBaseUnit ? effectiveBaseUnitName : u.unitName),
+          conversionFactor: u.isBaseUnit ? 1 : u.conversionFactor,
+          sellPricePiasters: sell > 0 ? sell : (u.isBaseUnit && basePricePiasters > 0 ? basePricePiasters : 0),
+          costPricePiasters: cost > 0 ? cost : (u.isBaseUnit && baseCostPiasters > 0 ? baseCostPiasters : 0),
           barcode: isSingleUnit ? (primaryBarcode || u.barcode || '') : (u.barcode || ''),
           isDivisible: !!isWeightItem
         };

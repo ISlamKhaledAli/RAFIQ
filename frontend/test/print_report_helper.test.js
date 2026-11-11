@@ -188,9 +188,6 @@ const REPORT_BUTTON_FILES = [
   'views/products/StorageLocationsModal.tsx',
   'views/customers/CustomerPrintStatementModal.tsx',
   'views/customers/CustomerReceiptVoucherModal.tsx',
-  'views/analytics/CustomerAnalyticsView.tsx',
-  'views/analytics/InventoryAnalyticsView.tsx',
-  'views/analytics/RevenueAnalyticsView.tsx',
 ];
 
 test('every report print button uses usePrintReport with an Arabic report name and a loading state', () => {

@@ -288,13 +288,20 @@ namespace RafiqPOS.Services
                             || (reason != null && reason.IndexOf("منظومة التعبئة", StringComparison.OrdinalIgnoreCase) >= 0)
                             || (reason != null && reason.IndexOf("UNIT_REBASE", StringComparison.OrdinalIgnoreCase) >= 0);
                         string referenceType = isUnitRebase ? "UNIT_REBASE" : "PRODUCT_CARD_EDIT";
+                        string movementType = isUnitRebase ? "UNIT_REBASE" : "ADJUSTMENT";
                         stockLedgerStep = delegate(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans)
                         {
-                            inventory.AdjustStockInTransaction(conn, trans, productId, requestedStockMilli, reason, actorId, null, referenceType);
+                            inventory.AdjustStockInTransaction(conn, trans, productId, requestedStockMilli, reason, actorId, null, referenceType, true, movementType);
                         };
                     }
-                    // The save itself keeps the live stock; only the adjustment step may change it (unless base unit changed)
-                    if (!isBaseUnitChange)
+                    // The save itself preserves the existing stock; only the atomic stock adjustment step may change it!
+                    // This is critical: if stockLedgerStep is set, Upsert MUST NOT overwrite stock_quantity_milli directly,
+                    // otherwise AdjustStockInTransaction reads the already-modified stock and delta becomes 0, dropping the ledger movement!
+                    if (stockLedgerStep != null)
+                    {
+                        product.StockQuantityMilli = existing.StockQuantityMilli;
+                    }
+                    else if (!isBaseUnitChange)
                     {
                         product.StockQuantityMilli = existing.StockQuantityMilli;
                     }

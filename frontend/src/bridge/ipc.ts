@@ -694,6 +694,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'printer:test':
     case 'printer:testPrint':
+    case 'printer:testTemplate':
       return {
         success: true,
         printerName: payload?.printerName || 'POS-80 Thermal Printer',

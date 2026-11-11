@@ -1263,6 +1263,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       setCurrentPage(1);
       setImportSuccessAlert(`تم مسح كل الأصناف (${res?.clearedCount || 0} صنف)`);
       await loadProducts('', 1, pageSize, 'all', 'all');
+      await fetchCategoriesList();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       await rafiqAlert({

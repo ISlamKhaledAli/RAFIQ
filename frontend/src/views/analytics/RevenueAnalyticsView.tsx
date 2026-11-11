@@ -6,7 +6,6 @@ import {
   DollarSign,
   TrendingUp,
   RefreshCw,
-  Printer,
   PieChart as PieIcon,
   BarChart3,
   Layers,
@@ -22,7 +21,6 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
-import { usePrintReport } from '../../hooks/usePrintReport';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
@@ -49,7 +47,6 @@ import type {
   VatReport,
 } from '../../types/models';
 
-import { AppButton } from '../../components/AppButton';
 import { useMotionPanel } from '../../hooks/useMotionPanel';
 const PERIOD_OPTIONS: SelectOption[] = [
   { value: 'today', label: 'اليوم' },
@@ -207,13 +204,6 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
     )
   );
 
-  // Print handler
-  const { print: handlePrint, printing } = usePrintReport({
-    reportName: 'تقرير تحليلات الإيرادات',
-    kind: 'a4only',
-    hasData: salesReport !== null,
-  });
-
   if (showLoading && !salesReport) {
     return (
       <div className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark items-center justify-center select-none p-5" dir="rtl">
@@ -265,10 +255,6 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               }}
             />
           )}
-
-          <AppButton variant="primary" icon={Printer} onClick={handlePrint} loading={printing} title="طباعة التقرير">
-            طباعة التقرير
-          </AppButton>
         </div>
       </div>
 
