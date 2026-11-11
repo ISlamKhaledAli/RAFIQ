@@ -201,6 +201,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
       case 'PURCHASE':
         return 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30';
       case 'ADJUSTMENT':
+      case 'UNIT_REBASE':
         return 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn/20 dark:border-warn-bright/30';
       case 'RETURN':
       case 'REFUND':
@@ -221,6 +222,15 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
     const isPositive = m.quantityMilli >= 0;
     const sign = isPositive ? '+' : '-';
     const absQty = Math.abs(m.quantityMilli / 1000);
+
+    if (m.movementType?.toUpperCase() === 'UNIT_REBASE') {
+      return {
+        mainDisplay: `${sign}${Math.round(absQty)} ${baseUnitClean}`,
+        equivalentDisplay: 'إعادة تأسيس وتعديل رصيد المخزن للوحدة الجديدة',
+        unitLabel: baseUnitClean,
+        factor: 1,
+      };
+    }
 
     if (isKg) {
       return {
@@ -317,6 +327,19 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
     }
 
     if (!isMultiUnit || movementDetail.factor <= 1) {
+      if (units && units.length > 1) {
+        const matchingPackUnit = units.find(
+          (u) => u && !u.isBaseUnit && u.conversionFactor > 1 && Math.abs(u.costPricePiasters - rawCost) <= 20
+        );
+        if (matchingPackUnit) {
+          const packName = formatUnitArabic(matchingPackUnit.unitName);
+          const perBase = Math.round(rawCost / matchingPackUnit.conversionFactor);
+          return {
+            main: `${formatArabicCurrency(rawCost)} لكل ${packName}`,
+            sub: `${formatArabicCurrency(perBase)} لكل ${baseUnitClean}`,
+          };
+        }
+      }
       return {
         main: `${formatArabicCurrency(rawCost)} لكل ${baseUnitClean}`,
         sub: null,
@@ -554,9 +577,9 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                   {movements.map(m => {
                     const isPositive = m.quantityMilli >= 0;
                     const movementDetail = formatMovementDetail(m);
-                    const rawBalanceMilli = typeof m.balanceAfterMilli === 'number'
-                      ? m.balanceAfterMilli
-                      : computedBalances?.get(m.id);
+                    const rawBalanceMilli = computedBalances
+                      ? (computedBalances.get(m.id) ?? m.balanceAfterMilli)
+                      : m.balanceAfterMilli;
                     const bal = formatBalanceAfter(rawBalanceMilli);
 
                     return (

@@ -199,10 +199,10 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// تسوية رصيد صنف إلى رصيد مطلق داخل معاملة قائمة: حركة ADJUSTMENT + تحديث الرصيد والمتغيرات + مطابقة التشغيلات + سجل التدقيق.
+        /// تسوية رصيد صنف إلى رصيد مطلق داخل معاملة قائمة: حركة ADJUSTMENT أو UNIT_REBASE + تحديث الرصيد والمتغيرات + مطابقة التشغيلات + سجل التدقيق.
         /// يجب استدعاؤها والقفل المالي محجوز.
         /// </summary>
-        public StockMovement AdjustStockInTransaction(SQLiteConnection conn, SQLiteTransaction trans, string productId, long newStockQuantityMilli, string reason, string userId, string adjustmentType, string referenceType)
+        public StockMovement AdjustStockInTransaction(SQLiteConnection conn, SQLiteTransaction trans, string productId, long newStockQuantityMilli, string reason, string userId, string adjustmentType, string referenceType, bool recordAudit = true, string movementType = "ADJUSTMENT")
         {
             ValidateAdjustmentInput(productId, reason);
             if (newStockQuantityMilli < 0)
@@ -245,21 +245,36 @@ namespace RafiqPOS.Services
                 ? (delta > 0 ? "SURPLUS" : "SHORTAGE")
                 : adjustmentType.Trim().ToUpperInvariant();
 
+            string cleanMovementType = string.IsNullOrWhiteSpace(movementType) ? "ADJUSTMENT" : movementType.Trim().ToUpperInvariant();
+
             string typeLabel = (cleanAdjType == "SURPLUS" || cleanAdjType == "فائض جردي" || cleanAdjType == "زيادة")
                 ? "فائض جردي"
                 : ((cleanAdjType == "SHORTAGE" || cleanAdjType == "عجز جردي" || cleanAdjType == "عجز") ? "عجز جردي" : cleanAdjType);
 
-            string fullNote = string.Format("تسوية جردية [{0}]: من {1} إلى {2} (فارق: {3}{4}) - السبب: {5}",
-                typeLabel,
-                (currentStock / 1000.0).ToString("0.###"),
-                (newStockQuantityMilli / 1000.0).ToString("0.###"),
-                delta > 0 ? "+" : "",
-                (delta / 1000.0).ToString("0.###"),
-                cleanReason);
+            string fullNote;
+            if (cleanMovementType == "UNIT_REBASE" || referenceType == "UNIT_REBASE")
+            {
+                fullNote = string.Format("إعادة تأسيس وتعديل رصيد المخزن للوحدة الجديدة: من {0} إلى {1} (فارق: {2}{3}) - السبب: {4}",
+                    (currentStock / 1000.0).ToString("0.###"),
+                    (newStockQuantityMilli / 1000.0).ToString("0.###"),
+                    delta > 0 ? "+" : "",
+                    (delta / 1000.0).ToString("0.###"),
+                    cleanReason);
+            }
+            else
+            {
+                fullNote = string.Format("تسوية جردية [{0}]: من {1} إلى {2} (فارق: {3}{4}) - السبب: {5}",
+                    typeLabel,
+                    (currentStock / 1000.0).ToString("0.###"),
+                    (newStockQuantityMilli / 1000.0).ToString("0.###"),
+                    delta > 0 ? "+" : "",
+                    (delta / 1000.0).ToString("0.###"),
+                    cleanReason);
+            }
 
             StockMovement m = RecordStockChange(
                 productId: productId.Trim(),
-                movementType: "ADJUSTMENT",
+                movementType: cleanMovementType,
                 quantityDeltaMilli: delta,
                 unitCostPiasters: costPiasters,
                 referenceId: Guid.NewGuid().ToString(),
@@ -271,7 +286,7 @@ namespace RafiqPOS.Services
 
             ProductBatchRepository.SyncBatchesWithStockDelta(conn, trans, productId.Trim(), delta);
 
-            if (_auditRepo != null)
+            if (recordAudit && _auditRepo != null)
             {
                 _auditRepo.Log(conn, trans, new AuditLog
                 {

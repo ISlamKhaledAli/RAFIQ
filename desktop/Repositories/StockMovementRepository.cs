@@ -94,8 +94,15 @@ namespace RafiqPOS.Repositories
 
                 if (!string.IsNullOrWhiteSpace(movementType) && movementType != "ALL")
                 {
-                    clauses.Add("sm.movement_type = @movementType");
-                    parameters.Add(new SQLiteParameter("@movementType", movementType.Trim()));
+                    if (string.Equals(movementType.Trim(), "ADJUSTMENT", StringComparison.OrdinalIgnoreCase))
+                    {
+                        clauses.Add("sm.movement_type IN ('ADJUSTMENT', 'UNIT_REBASE')");
+                    }
+                    else
+                    {
+                        clauses.Add("sm.movement_type = @movementType");
+                        parameters.Add(new SQLiteParameter("@movementType", movementType.Trim()));
+                    }
                 }
 
                 if (!string.IsNullOrWhiteSpace(fromDate))

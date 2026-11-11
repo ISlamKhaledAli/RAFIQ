@@ -506,6 +506,7 @@ namespace RafiqPOS.Database
                 HandleLegacySaleItemsQuantity(conn, dbPath);
                 EnsureIdempotencySchemaHealth(conn);
                 EnsureUserHierarchySchemaHealth(conn);
+                EnsureStockLedgerHealth(conn);
             }
         }
 
@@ -2620,6 +2621,113 @@ namespace RafiqPOS.Database
                 }
             }
             catch { }
+        }
+
+        private class RebaseRepairItem
+        {
+            public string ProductId { get; set; }
+            public string ProductName { get; set; }
+            public string Unit { get; set; }
+            public long DiffMilli { get; set; }
+            public long CostPiasters { get; set; }
+            public string ProdCreated { get; set; }
+            public string FirstMovDate { get; set; }
+        }
+
+        /// <summary>
+        /// حارس الموازنة المحاسبية الذاتية لحركات المخزون (Self-Healing Stock Ledger Guard)
+        /// يفحص الأصناف ذات العبوات المتعددة التي حدثت لها إعادة تأسيس (Rebase) في الرصيد بدون تسجيل قيد الفارق في دفتر الأستاذ،
+        /// ويسجل قيد تسوية ذري (UNIT_REBASE) ليطابق مجموع الحركات مع رصيد المخزن الفعلي بدقة 100%.
+        /// </summary>
+        private static void EnsureStockLedgerHealth(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    using (var chkTable = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='stock_movements';", conn, trans))
+                    {
+                        if (chkTable.ExecuteScalar() == null) return;
+                    }
+
+                    string findDiscrepanciesSql = @"
+                        SELECT p.id, p.name, p.unit, p.stock_quantity_milli, p.cost_piasters, p.created_at AS prod_created,
+                               COALESCE(SUM(CASE WHEN sm.movement_type != 'DAMAGED_RETURN' THEN sm.quantity_milli ELSE 0 END), 0) AS calculated_stock,
+                               (p.stock_quantity_milli - COALESCE(SUM(CASE WHEN sm.movement_type != 'DAMAGED_RETURN' THEN sm.quantity_milli ELSE 0 END), 0)) AS diff,
+                               MIN(sm.created_at) AS first_mov_date
+                        FROM products p
+                        LEFT JOIN stock_movements sm ON p.id = sm.product_id
+                        WHERE (p.has_variants = 0 OR p.has_variants IS NULL)
+                          AND EXISTS (SELECT 1 FROM product_units pu WHERE pu.product_id = p.id AND pu.conversion_factor > 1)
+                          AND NOT EXISTS (SELECT 1 FROM stock_movements sm2 WHERE sm2.product_id = p.id AND (sm2.movement_type = 'UNIT_REBASE' OR sm2.reference_type = 'UNIT_REBASE'))
+                        GROUP BY p.id
+                        HAVING diff > 0;
+                    ";
+
+                    var toFix = new List<RebaseRepairItem>();
+                    using (var cmd = new SQLiteCommand(findDiscrepanciesSql, conn, trans))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            toFix.Add(new RebaseRepairItem
+                            {
+                                ProductId = reader["id"].ToString(),
+                                ProductName = reader["name"].ToString(),
+                                Unit = reader["unit"] != null ? reader["unit"].ToString() : "قطعة",
+                                DiffMilli = Convert.ToInt64(reader["diff"]),
+                                CostPiasters = Convert.ToInt64(reader["cost_piasters"]),
+                                ProdCreated = reader["prod_created"] != null ? reader["prod_created"].ToString() : null,
+                                FirstMovDate = reader["first_mov_date"] != null ? reader["first_mov_date"].ToString() : null
+                            });
+                        }
+                    }
+
+                    foreach (var item in toFix)
+                    {
+                        string movTime = DateTime.UtcNow.ToString("o");
+                        if (!string.IsNullOrWhiteSpace(item.FirstMovDate))
+                        {
+                            DateTime parsed;
+                            if (DateTime.TryParse(item.FirstMovDate, out parsed))
+                            {
+                                movTime = parsed.AddSeconds(1).ToString("o");
+                            }
+                        }
+                        else if (!string.IsNullOrWhiteSpace(item.ProdCreated))
+                        {
+                            movTime = item.ProdCreated;
+                        }
+
+                        string note = string.Format("تسوية رصيد إعادة تأسيس الوحدات والعبوات (مطابقة دفتر الأستاذ مع رصيد المخزن الفعلي: +{0})", item.DiffMilli / 1000);
+
+                        using (var insCmd = new SQLiteCommand(@"
+                            INSERT INTO stock_movements (
+                                id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                unit_cost_piasters, note, batch_number, created_at
+                            ) VALUES (
+                                @id, @pid, 'UNIT_REBASE', @qty, @pid, 'UNIT_REBASE',
+                                @cost, @note, NULL, @createdAt
+                            );
+                        ", conn, trans))
+                        {
+                            insCmd.Parameters.AddWithValue("@id", "sm_" + Guid.NewGuid().ToString("N"));
+                            insCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                            insCmd.Parameters.AddWithValue("@qty", item.DiffMilli);
+                            insCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
+                            insCmd.Parameters.AddWithValue("@note", note);
+                            insCmd.Parameters.AddWithValue("@createdAt", movTime);
+                            insCmd.ExecuteNonQuery();
+                        }
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                }
+            }
         }
 
         private static void ApplyMigration1(SQLiteConnection conn)
