@@ -331,6 +331,364 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
+        /// طباعة تجريبية مباشرة لنموذج المستند المحدد (مرتجع مبيعات، إقفال اليومية، سند قبض، سند صرف، مشتريات)
+        /// ترسل مباشرة إلى طابعة الإيصالات دون فتح نوافذ ويندوز الحوارية مع حظر فتح درج النقدية نهائياً.
+        /// </summary>
+        public PrintResult PrintTemplateTest(string templateType, string printerName = null, string paperWidth = null, Newtonsoft.Json.Linq.JObject config = null)
+        {
+            try
+            {
+                string doc = (templateType ?? "return").Trim().ToLowerInvariant();
+                string selectedPrinter = ResolvePrinterName(printerName);
+                PrintResult missingPrinter = CheckPrinterAvailable(selectedPrinter, "");
+                if (missingPrinter != null)
+                {
+                    return missingPrinter;
+                }
+                string selectedWidth = paperWidth ?? GetConfiguredPaperWidth();
+                int printWidth = GetContentWidthPoints(selectedWidth);
+
+                string customHeader = null;
+                string customFooter = null;
+                bool showSigs = true;
+
+                if (config != null)
+                {
+                    if (config["customHeader"] != null) customHeader = config["customHeader"].ToString();
+                    if (config["customFooter"] != null) customFooter = config["customFooter"].ToString();
+                    if (config["showSignatures"] != null) bool.TryParse(config["showSignatures"].ToString(), out showSigs);
+                }
+
+                if (doc == "return")
+                {
+                    if (string.IsNullOrWhiteSpace(customHeader) && _settings != null)
+                    {
+                        customHeader = _settings.Get("doc_template_return_custom_header", "فاتورة مرتجع مبيعات معتمدة");
+                    }
+                    if (string.IsNullOrWhiteSpace(customFooter) && _settings != null)
+                    {
+                        customFooter = _settings.Get("doc_template_return_custom_footer", "الاستبدال والاسترجاع خلال 14 يوماً من تاريخ الشراء بموجب أصل الفاتورة وبحالتها الأصلية وفقاً لقانون حماية المستهلك.");
+                    }
+
+                    var testReturn = new Return
+                    {
+                        Id = "test_return_receipt",
+                        ReturnNumber = 48,
+                        InvoiceNumber = 10824,
+                        CreatedAt = DateTime.UtcNow.ToString("o"),
+                        CustomerName = "سوبر ماركت النور",
+                        CashierId = "أحمد محمود",
+                        RefundMethod = "cash",
+                        Reason = "رغبة العميل (الصنف بحالته الأصلية)",
+                        TotalPiasters = 15000,
+                        Items = new List<ReturnItem>
+                        {
+                            new ReturnItem { ProductName = "زيت عباد الشمس 800 مل - عافية", QuantityMilli = 2000, UnitPricePiasters = 7500, TotalPiasters = 15000, Unit = "piece" }
+                        }
+                    };
+                    return PrintReturnReceipt(testReturn, selectedPrinter, printWidth, false, false);
+                }
+
+                if (doc == "daily_closing")
+                {
+                    var testClosing = new DailyClosing
+                    {
+                        Id = "test_daily_closing",
+                        ClosingNumber = 1,
+                        CashierName = "كاشير تجريبي",
+                        ClosedAt = DateTime.UtcNow.ToString("o"),
+                        TotalSalesPiasters = 150000,
+                        ExpectedCashPiasters = 150000,
+                        ActualCashPiasters = 150000,
+                        DifferencePiasters = 0,
+                        Notes = "إقفال تجريبي لمعاينة نموذج التقرير"
+                    };
+                    return PrintDailyClosingReport(testClosing, selectedPrinter, selectedWidth);
+                }
+
+                if (doc == "receipt_voucher")
+                {
+                    if (string.IsNullOrWhiteSpace(customHeader) && _settings != null)
+                    {
+                        customHeader = _settings.Get("doc_template_receipt_voucher_custom_header", "إيصال استلام نقدية - سند قبض رسمي");
+                    }
+                    if (string.IsNullOrWhiteSpace(customFooter) && _settings != null)
+                    {
+                        customFooter = _settings.Get("doc_template_receipt_voucher_custom_footer", "يعتبر هذا السند لاغياً إذا لم يكن ممهوراً بتوقيع الصراف وختم المحل الرسمي.");
+                    }
+
+                    return PrintVoucherReceipt(
+                        !string.IsNullOrWhiteSpace(customHeader) ? customHeader : "إيصال استلام نقدية - سند قبض رسمي",
+                        "VCH-2026-0012",
+                        "استلمنا من السيد/السادة",
+                        "كمال الدين فؤاد (عميل آجل)",
+                        50000,
+                        "سداد دفعة نقدية تحت الحساب لتسوية الرصيد الآجل",
+                        !string.IsNullOrWhiteSpace(customFooter) ? customFooter : "يعتبر هذا السند لاغياً إذا لم يكن ممهوراً بتوقيع الصراف وختم المحل الرسمي.",
+                        showSigs,
+                        selectedPrinter,
+                        selectedWidth);
+                }
+
+                if (doc == "payment_voucher")
+                {
+                    if (string.IsNullOrWhiteSpace(customHeader) && _settings != null)
+                    {
+                        customHeader = _settings.Get("doc_template_payment_voucher_custom_header", "إذن صرف نقدية - سند صرف معتمد");
+                    }
+                    if (string.IsNullOrWhiteSpace(customFooter) && _settings != null)
+                    {
+                        customFooter = _settings.Get("doc_template_payment_voucher_custom_footer", "تم الصرف بعد استيفاء الموافقات الإدارية والمستندات المؤيدة للصرف.");
+                    }
+
+                    return PrintVoucherReceipt(
+                        !string.IsNullOrWhiteSpace(customHeader) ? customHeader : "إذن صرف نقدية - سند صرف معتمد",
+                        "PV-2026-0005",
+                        "يصرف إلى السيد/السادة",
+                        "فني الصيانة - تجهيزات المحل",
+                        35000,
+                        "صرف مستحقات صيانة وتجهيزات الفرع",
+                        !string.IsNullOrWhiteSpace(customFooter) ? customFooter : "تم الصرف بعد استيفاء الموافقات الإدارية والمستندات المؤيدة للصرف.",
+                        showSigs,
+                        selectedPrinter,
+                        selectedWidth);
+                }
+
+                if (doc == "purchase")
+                {
+                    if (string.IsNullOrWhiteSpace(customHeader) && _settings != null)
+                    {
+                        customHeader = _settings.Get("doc_template_purchase_custom_header", "فاتورة استلام وتوريد بضاعة - مشتريات مخزن");
+                    }
+                    if (string.IsNullOrWhiteSpace(customFooter) && _settings != null)
+                    {
+                        customFooter = _settings.Get("doc_template_purchase_custom_footer", "البضاعة الموضحة أعلاه تم فحصها ومطابقتها لأمر الشراء واستلامها سليمة بحالة جيدة.");
+                    }
+
+                    return PrintPurchaseReceipt(
+                        !string.IsNullOrWhiteSpace(customHeader) ? customHeader : "فاتورة استلام وتوريد بضاعة - مشتريات مخزن",
+                        "PUR-2026-0034",
+                        "شركة الأهرام للتوزيع والتجارة",
+                        89000,
+                        !string.IsNullOrWhiteSpace(customFooter) ? customFooter : "البضاعة الموضحة أعلاه تم فحصها ومطابقتها لأمر الشراء واستلامها سليمة بحالة جيدة.",
+                        showSigs,
+                        selectedPrinter,
+                        selectedWidth);
+                }
+
+                return PrintTestReceipt(selectedPrinter, selectedWidth);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("خطأ أثناء طباعة نموذج الاختبار: " + ex.Message, ex);
+                return new PrintResult
+                {
+                    Success = false,
+                    Message = "فشل أمر الطباعة التجريبية للنموذج: " + ex.Message,
+                    PrinterUsed = printerName
+                };
+            }
+        }
+
+        private PrintResult PrintVoucherReceipt(
+            string title,
+            string voucherNumber,
+            string partyLabel,
+            string partyName,
+            long amountPiasters,
+            string notes,
+            string customFooter,
+            bool showSignatures,
+            string printerName = null,
+            string paperWidth = null)
+        {
+            string targetPrinter = ResolvePrinterName(printerName);
+            PrintResult missing = CheckPrinterAvailable(targetPrinter, "");
+            if (missing != null) return missing;
+
+            string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
+            int printWidth = GetContentWidthPoints(targetWidth);
+            bool isThermal = IsThermalPrinter(targetPrinter, targetWidth);
+            bool autoCut = GetConfiguredAutoCut();
+
+            ReceiptStoreInfo store = LoadReceiptStoreInfo();
+            Image logo = TryLoadStoreLogo();
+
+            using (var job = CreateReceiptJob(
+                delegate(Graphics g, int width)
+                {
+                    using (var p = new ReceiptPainter(g, width))
+                    {
+                        DrawStoreHeader(p, store, logo, false);
+                        p.Separator(p.Dashed, 3f, 4f);
+                        p.Badge(title);
+                        p.WrapWithSide("رقم السند: " + voucherNumber, DateTime.Now.ToString("yyyy/MM/dd HH:mm", CultureInfo.InvariantCulture), p.Bold, p.Small);
+                        p.WrapText(partyLabel + ": " + partyName, p.Regular, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                        p.Separator(p.Dashed, 2f, 3f);
+
+                        p.GrandTotal("المبلغ المقبوض / المصروف", FormatReceiptMoney(amountPiasters), "ج.م");
+                        long pounds = amountPiasters / 100;
+                        string tafqeet = pounds == 500 ? "خمسمائة جنيه مصري" : (pounds == 350 ? "ثلاثمائة وخمسون جنيهاً مصرياً" : pounds.ToString(CultureInfo.InvariantCulture) + " جنيهاً مصرياً");
+                        p.WrapText("فقط " + tafqeet + " لا غير", p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+
+                        if (!string.IsNullOrWhiteSpace(notes))
+                        {
+                            p.Separator(p.Dashed, 2f, 2f);
+                            p.WrapText("البيان: " + notes, p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                        }
+
+                        if (showSignatures)
+                        {
+                            p.Separator(p.Dashed, 3f, 3f);
+                            p.WrapWithSide("توقيع المحاسب: ............", "توقيع العميل / المستلم: ............", p.Small, p.Small);
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(customFooter))
+                        {
+                            p.Separator(p.Dashed, 2f, 2f);
+                            p.WrapText(customFooter, p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                        }
+
+                        DrawReceiptSignature(p, store, false, null);
+                        p.Y += 5f;
+                        return p.Y;
+                    }
+                },
+                printWidth,
+                logo))
+            {
+                if (isThermal)
+                {
+                    try
+                    {
+                        byte[] escposBytes = BuildReceiptEscPos(job, false, autoCut);
+                        string rawErr;
+                        string rawTitle = string.Format("Rafiq Voucher {0}", voucherNumber);
+                        if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
+                        {
+                            return new PrintResult
+                            {
+                                Success = true,
+                                Message = string.Format("تم إرسال السند #{0} إلى الطابعة بنجاح.", voucherNumber),
+                                PrinterUsed = targetPrinter
+                            };
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn("خطأ ESC/POS في طباعة السند: " + ex.Message);
+                    }
+                }
+
+                string gdiError;
+                string docName = string.Format("سند {0}", voucherNumber);
+                if (!PrintReceiptJobViaGdi(job, targetPrinter, docName, printWidth <= 210, out gdiError))
+                {
+                    return new PrintResult { Success = false, Message = gdiError, PrinterUsed = targetPrinter };
+                }
+                return new PrintResult { Success = true, Message = string.Format("تم إرسال السند #{0} إلى الطابعة بنجاح.", voucherNumber), PrinterUsed = targetPrinter };
+            }
+        }
+
+        private PrintResult PrintPurchaseReceipt(
+            string title,
+            string invoiceNumber,
+            string supplierName,
+            long totalPiasters,
+            string customFooter,
+            bool showSignatures,
+            string printerName = null,
+            string paperWidth = null)
+        {
+            string targetPrinter = ResolvePrinterName(printerName);
+            PrintResult missing = CheckPrinterAvailable(targetPrinter, "");
+            if (missing != null) return missing;
+
+            string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
+            int printWidth = GetContentWidthPoints(targetWidth);
+            bool isThermal = IsThermalPrinter(targetPrinter, targetWidth);
+            bool autoCut = GetConfiguredAutoCut();
+
+            ReceiptStoreInfo store = LoadReceiptStoreInfo();
+            Image logo = TryLoadStoreLogo();
+
+            using (var job = CreateReceiptJob(
+                delegate(Graphics g, int width)
+                {
+                    using (var p = new ReceiptPainter(g, width))
+                    {
+                        DrawStoreHeader(p, store, logo, false);
+                        p.Separator(p.Dashed, 3f, 4f);
+                        p.Badge(title);
+                        p.WrapWithSide("فاتورة توريد: " + invoiceNumber, DateTime.Now.ToString("yyyy/MM/dd HH:mm", CultureInfo.InvariantCulture), p.Bold, p.Small);
+                        p.WrapText("المورد: " + supplierName, p.Regular, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                        p.Separator(p.Dashed, 2f, 3f);
+
+                        var lines = new List<ReceiptLine>();
+                        lines.Add(new ReceiptLine { Name = "جبنة دومتي فيتا 500 جم", Qty = "10 عبوة", Price = FormatReceiptMoney(3500), Total = FormatReceiptMoney(35000) });
+                        lines.Add(new ReceiptLine { Name = "زيت خليط 700 مل", Qty = "12 زجاجة", Price = FormatReceiptMoney(4500), Total = FormatReceiptMoney(54000) });
+                        for (int i = 0; i < lines.Count; i++)
+                        {
+                            p.WrapWithSide(lines[i].Name + " (" + lines[i].Qty + ")", lines[i].Total + " ج.م", p.Regular, p.Regular);
+                        }
+
+                        p.Separator(p.Solid, 0f, 3f);
+                        p.GrandTotal("إجمالي المشتريات المستلمة", FormatReceiptMoney(totalPiasters), "ج.م");
+
+                        if (showSignatures)
+                        {
+                            p.Separator(p.Dashed, 3f, 3f);
+                            p.WrapWithSide("توقيع أمين المخزن: ............", "توقيع مندوب التوريد: ............", p.Small, p.Small);
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(customFooter))
+                        {
+                            p.Separator(p.Dashed, 2f, 2f);
+                            p.WrapText(customFooter, p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                        }
+
+                        DrawReceiptSignature(p, store, false, null);
+                        p.Y += 5f;
+                        return p.Y;
+                    }
+                },
+                printWidth,
+                logo))
+            {
+                if (isThermal)
+                {
+                    try
+                    {
+                        byte[] escposBytes = BuildReceiptEscPos(job, false, autoCut);
+                        string rawErr;
+                        string rawTitle = string.Format("Rafiq Purchase {0}", invoiceNumber);
+                        if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
+                        {
+                            return new PrintResult
+                            {
+                                Success = true,
+                                Message = string.Format("تم إرسال فاتورة المشتريات #{0} إلى الطابعة بنجاح.", invoiceNumber),
+                                PrinterUsed = targetPrinter
+                            };
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn("خطأ ESC/POS في طباعة فاتورة المشتريات: " + ex.Message);
+                    }
+                }
+
+                string gdiError;
+                string docName = string.Format("فاتورة مشتريات {0}", invoiceNumber);
+                if (!PrintReceiptJobViaGdi(job, targetPrinter, docName, printWidth <= 210, out gdiError))
+                {
+                    return new PrintResult { Success = false, Message = gdiError, PrinterUsed = targetPrinter };
+                }
+                return new PrintResult { Success = true, Message = string.Format("تم إرسال فاتورة المشتريات #{0} إلى الطابعة بنجاح.", invoiceNumber), PrinterUsed = targetPrinter };
+            }
+        }
+
+        /// <summary>
         /// طباعة إيصال بيع حراري عربي كامل على طابعة ويندوز أو طابعة شبكية ESC/POS مع دعم مقاسات 80mm و 57mm
         /// ونبضة فتح الدرج وقص الورق التلقائي
         /// </summary>
@@ -363,19 +721,27 @@ namespace RafiqPOS.Services
             }
             else
             {
-                bool isCashInvolved = sale.PaymentMethod == "cash" || sale.PaidPiasters > 0;
-                if (sale.Payments != null)
+                // إعادة الطباعة (النسخ) تحظر فتح الدرج نهائياً لحماية أموال المتجر
+                if (isCopy)
                 {
-                    for (int pi = 0; pi < sale.Payments.Count; pi++)
+                    shouldOpenDrawer = false;
+                }
+                else
+                {
+                    bool isCashInvolved = sale.PaymentMethod == "cash" || sale.PaidPiasters > 0;
+                    if (sale.Payments != null)
                     {
-                        if (sale.Payments[pi] != null && sale.Payments[pi].Method == "cash" && sale.Payments[pi].AmountPiasters > 0)
+                        for (int pi = 0; pi < sale.Payments.Count; pi++)
                         {
-                            isCashInvolved = true;
-                            break;
+                            if (sale.Payments[pi] != null && sale.Payments[pi].Method == "cash" && sale.Payments[pi].AmountPiasters > 0)
+                            {
+                                isCashInvolved = true;
+                                break;
+                            }
                         }
                     }
+                    shouldOpenDrawer = GetConfiguredOpenDrawer() && isCashInvolved;
                 }
-                shouldOpenDrawer = GetConfiguredOpenDrawer() && isCashInvolved;
             }
 
             // توجيه الطباعة إلى طابعة الشبكة (TCP Port 9100) عبر أوامر ESC/POS النقطية المباشرة
@@ -2330,15 +2696,16 @@ namespace RafiqPOS.Services
                 ? paperWidth.Value
                 : GetContentWidthPoints(configuredWidth);
 
-            // الدرج يُفتح فقط عند رد المبلغ نقداً (لا يُفتح للرد على حساب العميل أو المحافظ)
-            bool shouldOpenDrawer = RefundOpensDrawer(returnObj)
-                && (openDrawer.HasValue ? openDrawer.Value : GetConfiguredOpenDrawer());
-
             // إعادة طباعة إيصال سبقت طباعته تُوسم نسخة على الخادم بغض النظر عن طلب العميل
             if (!isCopy && HasPrintMarker("return", returnObj.Id, ReturnReprintAuditAction))
             {
                 isCopy = true;
             }
+
+            // الدرج يُفتح فقط عند رد المبلغ نقداً لأول مرة (لا يُفتح مع النسخ ولا الرد على حساب العميل أو المحافظ)
+            bool shouldOpenDrawer = !isCopy
+                && RefundOpensDrawer(returnObj)
+                && (openDrawer.HasValue ? openDrawer.Value : GetConfiguredOpenDrawer());
 
             if (RawPrinterHelper.IsNetworkPrinter(targetPrinter))
             {
@@ -2362,7 +2729,10 @@ namespace RafiqPOS.Services
                             string rawTitle = string.Format("Rafiq Return #{0}", returnObj.ReturnNumber);
                             if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
                             {
-                                RecordPrintAudit("return", returnObj.Id, isCopy, ReturnReprintAuditAction, returnObj.ReturnNumber, targetPrinter, false, returnObj.CashierId);
+                                if (returnObj.Id != "test_return_receipt")
+                                {
+                                    RecordPrintAudit("return", returnObj.Id, isCopy, ReturnReprintAuditAction, returnObj.ReturnNumber, targetPrinter, false, returnObj.CashierId);
+                                }
                                 return new PrintResult
                                 {
                                     Success = true,
@@ -2531,7 +2901,8 @@ namespace RafiqPOS.Services
             {
                 DrawStoreHeader(p, store, logo, false);
                 p.Separator(p.Dashed, 3f, 4f);
-                p.Badge("إيصال مرتجع بضاعة");
+                string customReturnHeader = _settings != null ? _settings.Get("doc_template_return_custom_header", "") : null;
+                p.Badge(!string.IsNullOrWhiteSpace(customReturnHeader) ? customReturnHeader.Trim() : "إيصال مرتجع بضاعة");
                 if (isCopy) p.Badge("نسخة - إعادة طباعة");
 
                 // رقم المرتجع + التاريخ، ثم الفاتورة الأصلية والعميل والسبب
@@ -2588,6 +2959,13 @@ namespace RafiqPOS.Services
                 else
                 {
                     p.WrapText("طريقة الرد: " + RefundMethodReceiptLabel(returnObj.RefundMethod), p.Regular, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                }
+
+                string customReturnFooter = _settings != null ? _settings.Get("doc_template_return_custom_footer", "") : null;
+                if (!string.IsNullOrWhiteSpace(customReturnFooter))
+                {
+                    p.Separator(p.Dashed, 2f, 2f);
+                    p.WrapText(customReturnFooter.Trim(), p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
                 }
 
                 DrawReceiptSignature(p, store, true, returnObj.Id);
