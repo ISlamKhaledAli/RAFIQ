@@ -129,9 +129,34 @@ namespace RafiqPOS.Bridge
                     var smartCatalog = DatabaseService.Products.GetSmartCatalog(smartLimit);
                     MarkRecipeConsumption(smartCatalog);
                     var customQuickList = DatabaseService.QuickItems.GetAll();
+                    // totalCount lets the POS know when a bounded limit left products out (it then searches on demand)
+                    int smartTotalCount = DatabaseService.Products.GetTotalCount();
                     response = BridgeResponse.Ok(request.Id, new {
                         products = smartCatalog,
-                        customQuickItems = customQuickList
+                        customQuickItems = customQuickList,
+                        totalCount = smartTotalCount
+                    });
+                    return true;
+
+                case "products:getByExactBarcode":
+                    // Scan fast path: indexed equality lookup only (no LIKE/name search); the UI falls back to products:search when empty
+                    string exactBarcode = "";
+                    int exactLimit = 5;
+                    JObject exactObj = request.Payload as JObject;
+                    if (exactObj != null)
+                    {
+                        if (exactObj["barcode"] != null) exactBarcode = exactObj["barcode"].ToString();
+                        if (exactObj["limit"] != null) exactLimit = exactObj["limit"].Value<int>();
+                    }
+                    else if (request.Payload != null)
+                    {
+                        exactBarcode = request.Payload.ToString().Trim('"', ' ');
+                    }
+                    var exactResults = DatabaseService.Products.GetByExactBarcode(exactBarcode, exactLimit);
+                    MarkRecipeConsumption(exactResults);
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        products = exactResults
                     });
                     return true;
 
@@ -141,9 +166,15 @@ namespace RafiqPOS.Bridge
                     int searchOffset = 0;
                     string stockStatus = "all";
                     string categoryId = "all";
+                    // Callers that only need the rows (POS live search/scan fallback) pass includeCounts=false to skip three extra table scans
+                    bool searchIncludeCounts = true;
                     JObject searchObj = request.Payload as JObject;
                     if (searchObj != null)
                     {
+                        if (searchObj["includeCounts"] != null)
+                        {
+                            searchIncludeCounts = searchObj["includeCounts"].Value<bool>();
+                        }
                         if (searchObj["query"] != null)
                         {
                             query = searchObj["query"].ToString();
@@ -171,9 +202,15 @@ namespace RafiqPOS.Bridge
                     }
                     var searchResults = DatabaseService.Products.Search(query, searchLimit, searchOffset, stockStatus, categoryId);
                     MarkRecipeConsumption(searchResults);
-                    int searchTotalCount = DatabaseService.Products.GetSearchCount(query, stockStatus, categoryId);
-                    int globalLowStockCount = DatabaseService.Products.GetLowStockCount();
-                    int globalOutOfStockCount = DatabaseService.Products.GetOutOfStockCount();
+                    int searchTotalCount = searchResults.Count;
+                    int globalLowStockCount = 0;
+                    int globalOutOfStockCount = 0;
+                    if (searchIncludeCounts)
+                    {
+                        searchTotalCount = DatabaseService.Products.GetSearchCount(query, stockStatus, categoryId);
+                        globalLowStockCount = DatabaseService.Products.GetLowStockCount();
+                        globalOutOfStockCount = DatabaseService.Products.GetOutOfStockCount();
+                    }
                     response = BridgeResponse.Ok(request.Id, new
                     {
                         products = searchResults,

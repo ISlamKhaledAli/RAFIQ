@@ -293,8 +293,16 @@ namespace RafiqPOS.Repositories
                                         Action = "EXPIRED_PRODUCT_SALE_OVERRIDE",
                                         EntityType = "SALE",
                                         EntityId = sale.Id,
-                                        DetailsJson = string.Format("{{\"productId\":\"{0}\",\"productName\":\"{1}\",\"batchNumber\":\"{2}\",\"expiryDate\":\"{3}\",\"saleId\":\"{4}\",\"invoiceNumber\":{5},\"supervisor\":\"{6}\"}}",
-                                            item.ProductId, item.ProductName, itemBatchNum ?? "", itemExpDate ?? "", sale.Id, sale.InvoiceNumber, supervisorName ?? "")
+                                        DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                                        {
+                                            productId = item.ProductId,
+                                            productName = item.ProductName,
+                                            batchNumber = itemBatchNum ?? "",
+                                            expiryDate = itemExpDate ?? "",
+                                            saleId = sale.Id,
+                                            invoiceNumber = sale.InvoiceNumber,
+                                            supervisor = supervisorName ?? ""
+                                        })
                                     });
                                 }
                             }
@@ -796,8 +804,15 @@ namespace RafiqPOS.Repositories
                                             Action = "credit_limit_override",
                                             EntityType = "customer",
                                             EntityId = sale.CustomerId,
-                                            DetailsJson = string.Format("{{\"saleId\":\"{0}\",\"invoiceNumber\":{1},\"creditLimit\":{2},\"newBalance\":{3},\"exceededBy\":{4},\"authorizedBy\":\"{5}\"}}",
-                                                sale.Id, sale.InvoiceNumber, creditLimit, newBal, (newBal - creditLimit), (supervisorName ?? "مدير النظام").Replace("\"", "\\\"")),
+                                            DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                                            {
+                                                saleId = sale.Id,
+                                                invoiceNumber = sale.InvoiceNumber,
+                                                creditLimit = creditLimit,
+                                                newBalance = newBal,
+                                                exceededBy = newBal - creditLimit,
+                                                authorizedBy = supervisorName ?? "مدير النظام"
+                                            }),
                                             CreatedAt = DateTime.UtcNow.ToString("o")
                                         });
                                     }
@@ -837,7 +852,7 @@ namespace RafiqPOS.Repositories
                                 ";
                                 using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
                                 {
-                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N"));
                                     lCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
                                     lCmd.Parameters.AddWithValue("@sid", sale.Id);
                                     lCmd.Parameters.AddWithValue("@amt", debtAmount);
@@ -900,7 +915,7 @@ namespace RafiqPOS.Repositories
                                     ";
                                     using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
                                     {
-                                        lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                        lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N"));
                                         lCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
                                         lCmd.Parameters.AddWithValue("@sid", sale.Id);
                                         lCmd.Parameters.AddWithValue("@amt", excessAmount);
@@ -1631,6 +1646,31 @@ namespace RafiqPOS.Repositories
                     }
                 }
             }
+            return NetOutCancelledSettlements(payments);
+        }
+
+        // A cancelled customer payment leaves its settlement row plus a negative contra row (nothing is deleted);
+        // receipts and refund caps must see the net: each contra row removes one settlement row of the same amount.
+        private static List<SalePayment> NetOutCancelledSettlements(List<SalePayment> payments)
+        {
+            for (int i = 0; i < payments.Count; i++)
+            {
+                SalePayment contra = payments[i];
+                if (contra.AmountPiasters >= 0 || !string.Equals(contra.Method, "debt_settlement", StringComparison.OrdinalIgnoreCase)) continue;
+
+                for (int j = 0; j < payments.Count; j++)
+                {
+                    SalePayment original = payments[j];
+                    if (j != i && original.AmountPiasters == -contra.AmountPiasters
+                        && string.Equals(original.Method, "debt_settlement", StringComparison.OrdinalIgnoreCase))
+                    {
+                        payments.RemoveAt(Math.Max(i, j));
+                        payments.RemoveAt(Math.Min(i, j));
+                        i = -1;
+                        break;
+                    }
+                }
+            }
             return payments;
         }
 
@@ -1986,7 +2026,7 @@ namespace RafiqPOS.Repositories
                                 ";
                                 using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
                                 {
-                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N"));
                                     lCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
                                     lCmd.Parameters.AddWithValue("@sid", sale.Id);
                                     lCmd.Parameters.AddWithValue("@amt", -debtAmount);
@@ -2024,7 +2064,7 @@ namespace RafiqPOS.Repositories
                                 ";
                                 using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
                                 {
-                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N"));
                                     lCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
                                     lCmd.Parameters.AddWithValue("@sid", sale.Id);
                                     lCmd.Parameters.AddWithValue("@amt", excessAmount);

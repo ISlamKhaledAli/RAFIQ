@@ -63,6 +63,13 @@ namespace RafiqPOS
         private Button _btnCopy;
         private Button _btnClose;
         private string _lastErrorFullText;
+        // Render-process crash recovery: at most 3 automatic page reloads per minute, then a fatal dialog
+        private readonly List<DateTime> _webViewReloadTimes = new List<DateTime>();
+        private const int MAX_WEBVIEW_RELOADS_PER_MINUTE = 3;
+        // A hung renderer is given time to recover on its own: it is treated like a crash only after this long
+        private const int WEBVIEW_UNRESPONSIVE_LIMIT_SECONDS = 60;
+        private DateTime? _webViewUnresponsiveSince;
+        private System.Windows.Forms.Timer _webViewUnresponsiveTimer;
         private bool _isDemoError;
         private bool _isKioskFullscreen;
 
@@ -953,6 +960,8 @@ namespace RafiqPOS
             _btnRetry.Click += delegate(object s, EventArgs e)
             {
                 _isDemoError = false;
+                _webViewReloadTimes.Clear();
+                _webViewUnresponsiveSince = null;
                 _errorPanel.Visible = false;
                 UpdateSplashStatus("جاري تحرير مشغل العرض وإغلاق العمليات المعلقة...");
                 if (_splashPanel != null) _splashPanel.Visible = true;
@@ -1165,9 +1174,7 @@ namespace RafiqPOS
                 ShowFatalError(
                     "فشل في تهيئة قاعدة البيانات المحلية (SQLite)",
                     dbEx.Message + "\n\nمسار ملف القاعدة:\n" + DatabaseService.DbPath,
-                    "1. انقر على زر «إعادة المحاولة» لتشغيل فحص التصحيح التلقائي وتحديث أعمدة الجداول.\n" +
-                    "2. يرجى التأكد من عدم استخدام ملف القاعدة بواسطة برنامج آخر (مثل SQLite Browser).\n" +
-                    "3. يمكنك فتح مجلد البيانات للتحقق من سلامة المجلد أو استرجاع نسخة احتياطية سابقة."
+                    BuildDatabaseStartupAdvice(dbEx)
                 );
                 return;
             }
@@ -1294,6 +1301,14 @@ namespace RafiqPOS
                                      "--no-first-run " +
                                      "--autoplay-policy=no-user-gesture-required";
 
+                // Safe mode: the support team (or the owner) creates %ProgramData%\RafiqPOS\safe_mode.flag on machines with GPU/driver crashes
+                string safeModeFlag = Path.Combine(Path.GetDirectoryName(baseDataFolder), "safe_mode.flag");
+                if (File.Exists(safeModeFlag))
+                {
+                    browserArgs += " --disable-gpu --disable-gpu-compositing";
+                    Logger.Warn("الوضع الآمن مفعّل (safe_mode.flag): تم تعطيل تسريع الرسوميات في محرك العرض.");
+                }
+
                 CoreWebView2EnvironmentOptions envOptions = new CoreWebView2EnvironmentOptions(browserArgs, null, null, false);
 
                 if (_webView == null)
@@ -1355,6 +1370,9 @@ namespace RafiqPOS
 
                 // Attach IPC message receiver
                 _webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
+
+                // Renderer crash / hang recovery (bounded reloads, otherwise a precise fatal message)
+                _webView.CoreWebView2.ProcessFailed += CoreWebView2_ProcessFailed;
 
                 // Strict Navigation Boundary: Block navigation to any external URL outside app.rafiq.local
                 _webView.CoreWebView2.NavigationStarting += delegate(object sNavStart, CoreWebView2NavigationStartingEventArgs navStartArgs)
@@ -1440,6 +1458,52 @@ namespace RafiqPOS
             }
         }
 
+        // Precise advice per failure: a newer-schema database and disk/permission problems must never suggest restoring a backup
+        private static string BuildDatabaseStartupAdvice(Exception dbEx)
+        {
+            if (dbEx is RafiqPOS.Database.DatabaseSchemaTooNewException)
+            {
+                return "1. هذه القاعدة أنشأها أو حدّثها إصدار أحدث من رفيق، لذلك لا يستطيع هذا الإصدار فتحها.\n" +
+                       "2. ثبّت أحدث إصدار من البرنامج بملف التثبيت الرسمي (Setup) فوق الإصدار الحالي ثم شغّله من جديد.\n" +
+                       "3. لا تحذف ملف قاعدة البيانات ولا تسترجع نسخة قديمة ولا تعدّله يدوياً حتى لا تفقد بيانات.";
+            }
+
+            DatabaseFailureKind kind = DatabaseFailureClassifier.Classify(dbEx);
+            DatabaseStorageException storageEx = dbEx as DatabaseStorageException;
+            if (storageEx != null)
+            {
+                kind = storageEx.Kind;
+            }
+
+            switch (kind)
+            {
+                case DatabaseFailureKind.DiskFull:
+                    return "1. قرص البيانات ممتلئ: احذف ملفات غير ضرورية أو انقل النسخ الاحتياطية القديمة إلى قرص آخر لتحرير مساحة.\n" +
+                           "2. ثم انقر على زر «إعادة المحاولة».\n" +
+                           "3. لا تحذف ملف قاعدة البيانات؛ بياناتك سليمة ولا حاجة لاسترجاع نسخة احتياطية.";
+                case DatabaseFailureKind.ReadOnly:
+                    return "1. ملف أو مجلد البيانات للقراءة فقط: افتح خصائص المجلد وامنح المستخدم صلاحية الكتابة.\n" +
+                           "2. تأكد أن القرص أو الفلاشة غير مقفلة للقراءة فقط وأن برنامج الحماية لا يمنع الكتابة.\n" +
+                           "3. ثم انقر على زر «إعادة المحاولة». لا حاجة لاسترجاع نسخة احتياطية.";
+                case DatabaseFailureKind.IoError:
+                    return "1. حدث خطأ في قراءة أو كتابة القرص: تحقق من توصيل القرص أو الفلاشة وسلامتها.\n" +
+                           "2. أعد تشغيل الجهاز ثم انقر على زر «إعادة المحاولة».\n" +
+                           "3. لا تحذف ملف قاعدة البيانات؛ إذا تكرر الخطأ فاطلب فحص القرص من فني الصيانة قبل أي استرجاع.";
+                case DatabaseFailureKind.Busy:
+                    return "1. ملف قاعدة البيانات مفتوح في برنامج آخر أو نسخة ثانية من رفيق تعمل: أغلقها ثم انقر على زر «إعادة المحاولة».\n" +
+                           "2. إذا استمر الخطأ فأعد تشغيل الجهاز؛ بياناتك سليمة.\n" +
+                           "3. لا حاجة لاسترجاع نسخة احتياطية ولا تحذف ملف قاعدة البيانات.";
+                case DatabaseFailureKind.CannotOpen:
+                    return "1. تعذر فتح ملف قاعدة البيانات: تأكد من وجود مجلد البيانات وأن المستخدم يملك صلاحية الوصول إليه.\n" +
+                           "2. تأكد أن برنامج الحماية (Antivirus) لا يعزل أو يمنع الملف.\n" +
+                           "3. ثم انقر على زر «إعادة المحاولة». لا حاجة لاسترجاع نسخة احتياطية.";
+                default:
+                    return "1. انقر على زر «إعادة المحاولة» لتشغيل فحص التصحيح التلقائي وتحديث أعمدة الجداول.\n" +
+                           "2. يرجى التأكد من عدم استخدام ملف القاعدة بواسطة برنامج آخر.\n" +
+                           "3. يمكنك فتح مجلد البيانات للتحقق من سلامة المجلد أو استرجاع نسخة احتياطية سابقة.";
+            }
+        }
+
         private void ShowFatalError(string title, string details, string advice)
         {
             _lastErrorFullText = string.Format(
@@ -1470,6 +1534,128 @@ namespace RafiqPOS
             WindowHelper.ActivateAndBringToFront(this);
         }
 
+        private void CoreWebView2_ProcessFailed(object sender, CoreWebView2ProcessFailedEventArgs e)
+        {
+            CoreWebView2ProcessFailedKind kind = e.ProcessFailedKind;
+            Logger.Error("فشل أو توقف عملية من محرك العرض WebView2: " + kind, null);
+
+            try
+            {
+                if (this.IsDisposed || !this.IsHandleCreated) return;
+
+                this.BeginInvoke(new Action(delegate
+                {
+                    try
+                    {
+                        HandleWebViewProcessFailure(kind);
+                    }
+                    catch (Exception recoverEx)
+                    {
+                        Logger.Error("فشل التعافي من انهيار محرك العرض: ", recoverEx);
+                    }
+                }));
+            }
+            catch (Exception invokeEx)
+            {
+                Logger.Error("فشل جدولة التعافي من انهيار محرك العرض: ", invokeEx);
+            }
+        }
+
+        private void StartUnresponsiveTimer()
+        {
+            if (_webViewUnresponsiveTimer == null)
+            {
+                _webViewUnresponsiveTimer = new System.Windows.Forms.Timer();
+                _webViewUnresponsiveTimer.Interval = (WEBVIEW_UNRESPONSIVE_LIMIT_SECONDS + 1) * 1000;
+                _webViewUnresponsiveTimer.Tick += delegate
+                {
+                    _webViewUnresponsiveTimer.Stop();
+                    // Any IPC message from the page clears the flag (it is alive again)
+                    if (_webViewUnresponsiveSince != null &&
+                        (DateTime.UtcNow - _webViewUnresponsiveSince.Value).TotalSeconds >= WEBVIEW_UNRESPONSIVE_LIMIT_SECONDS)
+                    {
+                        _webViewUnresponsiveSince = null;
+                        Logger.Error("بقيت واجهة العرض غير مستجيبة أكثر من " + WEBVIEW_UNRESPONSIVE_LIMIT_SECONDS + " ثانية.", null);
+                        ReloadAfterRenderFailure(CoreWebView2ProcessFailedKind.RenderProcessUnresponsive);
+                    }
+                };
+            }
+            _webViewUnresponsiveTimer.Stop();
+            _webViewUnresponsiveTimer.Start();
+        }
+
+        // Bounded automatic reload (max 3 per minute), then the fatal dialog
+        private void ReloadAfterRenderFailure(CoreWebView2ProcessFailedKind kind)
+        {
+            DateTime now = DateTime.UtcNow;
+            _webViewReloadTimes.RemoveAll(delegate(DateTime t) { return (now - t).TotalSeconds > 60; });
+
+            if (_webViewReloadTimes.Count >= MAX_WEBVIEW_RELOADS_PER_MINUTE)
+            {
+                Logger.Error("تكرر انهيار واجهة العرض أكثر من " + MAX_WEBVIEW_RELOADS_PER_MINUTE + " مرات خلال دقيقة، تم إيقاف إعادة التحميل التلقائي.", null);
+                ShowFatalError(
+                    "توقفت واجهة العرض عن العمل بشكل متكرر",
+                    "تعطلت عملية عرض الواجهة (" + kind + ") أكثر من " + MAX_WEBVIEW_RELOADS_PER_MINUTE + " مرات خلال دقيقة واحدة.",
+                    "1. أغلق رفيق وأعد تشغيله. بياناتك محفوظة ولا تتأثر بهذا العطل.\n" +
+                    "2. إذا تكرر العطل فأنشئ ملفاً فارغاً باسم safe_mode.flag داخل المجلد C:\\ProgramData\\RafiqPOS ثم شغّل البرنامج لتعطيل تسريع الرسوميات.\n" +
+                    "3. حدّث تعريف كرت الشاشة، وإن استمر العطل فتواصل مع الدعم الفني."
+                );
+                return;
+            }
+
+            _webViewReloadTimes.Add(now);
+            if (_webView != null && _webView.CoreWebView2 != null)
+            {
+                Logger.Warn("إعادة تحميل واجهة العرض بعد توقف عملية العرض (" + kind + ").");
+                _webView.CoreWebView2.Reload();
+            }
+        }
+
+        // Must run on the UI thread
+        private void HandleWebViewProcessFailure(CoreWebView2ProcessFailedKind kind)
+        {
+            if (kind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
+            {
+                // A busy page is not a crash: warn, give it a minute, and only then treat it like an exited renderer
+                DateTime nowUtc = DateTime.UtcNow;
+                if (_webViewUnresponsiveSince == null)
+                {
+                    _webViewUnresponsiveSince = nowUtc;
+                    Logger.Warn("واجهة العرض لا تستجيب؛ سيتم الانتظار " + WEBVIEW_UNRESPONSIVE_LIMIT_SECONDS + " ثانية قبل إعادة التحميل.");
+                    StartUnresponsiveTimer();
+                    return;
+                }
+
+                if ((nowUtc - _webViewUnresponsiveSince.Value).TotalSeconds > WEBVIEW_UNRESPONSIVE_LIMIT_SECONDS)
+                {
+                    _webViewUnresponsiveSince = null;
+                    ReloadAfterRenderFailure(kind);
+                }
+                return;
+            }
+
+            if (kind == CoreWebView2ProcessFailedKind.RenderProcessExited)
+            {
+                _webViewUnresponsiveSince = null;
+                ReloadAfterRenderFailure(kind);
+                return;
+            }
+
+            if (kind == CoreWebView2ProcessFailedKind.BrowserProcessExited)
+            {
+                ShowFatalError(
+                    "توقف محرك العرض",
+                    "أُغلقت عملية محرك العرض الرئيسية (" + kind + ") بشكل غير متوقع.",
+                    "1. أغلق رفيق وأعد تشغيله. بياناتك محفوظة ولا تتأثر بهذا العطل.\n" +
+                    "2. تأكد أن برنامج الحماية (Antivirus) أو أداة تنظيف النظام لا تغلق عمليات msedgewebview2.\n" +
+                    "3. إذا تكرر العطل فتواصل مع الدعم الفني."
+                );
+                return;
+            }
+
+            // GPU, utility and plugin processes are restarted by WebView2 itself; only the log entry above is needed
+        }
+
         private static readonly JsonSerializerSettings BridgeSerializerSettings = new JsonSerializerSettings
         {
             ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
@@ -1478,6 +1664,8 @@ namespace RafiqPOS
 
         private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
+            // A message from the page proves the renderer is alive again
+            _webViewUnresponsiveSince = null;
             string rawJson = null;
             try
             {
@@ -1523,7 +1711,27 @@ namespace RafiqPOS
                     response = BridgeResponse.Fail(reqId, "EMPTY_RESPONSE", "لم يتم إرجاع استجابة");
                 }
 
-                string responseJson = JsonConvert.SerializeObject(response, BridgeSerializerSettings);
+                // Runs on a pool thread outside any other try: a serialization failure must never crash the process
+                string responseJson = null;
+                try
+                {
+                    responseJson = JsonConvert.SerializeObject(response, BridgeSerializerSettings);
+                }
+                catch (Exception serEx)
+                {
+                    Logger.Error("فشل تحويل رد IPC إلى JSON: ", serEx);
+                    try
+                    {
+                        responseJson = JsonConvert.SerializeObject(
+                            BridgeResponse.Fail(reqId, "SERIALIZATION_ERROR", "تعذر تجهيز نتيجة العملية للعرض. يرجى إعادة المحاولة."),
+                            BridgeSerializerSettings);
+                    }
+                    catch (Exception serEx2)
+                    {
+                        Logger.Error("فشل تحويل رد الخطأ إلى JSON: ", serEx2);
+                        return;
+                    }
+                }
 
                 try
                 {

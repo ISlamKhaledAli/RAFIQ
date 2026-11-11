@@ -33,7 +33,7 @@ export function serveAdminHtml(): Response {
   <script>
     (function() {
       try {
-        var sec = localStorage.getItem('rafiq_admin_secret') || sessionStorage.getItem('rafiq_admin_secret');
+        var sec = sessionStorage.getItem('rafiq_admin_secret');
         if (sec) {
           document.documentElement.classList.add('is-auth');
         }

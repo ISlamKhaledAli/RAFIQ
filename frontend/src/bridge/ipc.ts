@@ -404,7 +404,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'system:getInfo':
       return {
         appName: 'رفيق نقاط البيع',
-        version: '1.0.0-Spike',
+        version: '1.1.0',
         osVersion: 'Windows 10/11 (Dev Mock)',
         isWebView2: false,
         dbStatus: 'متصلة وسليمة',
@@ -421,23 +421,23 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       let flag = '';
       try { flag = localStorage.getItem('rafiq_mock_update') || ''; } catch { /* ignore */ }
       if (flag === 'offline') {
-        return { hasUpdate: false, isEligible: true, currentVersion: '1.0.0', latestVersion: '', errorMessage: 'تعذر الاتصال بخادم التحديثات (تأكد من اتصال الإنترنت).' };
+        return { hasUpdate: false, isEligible: true, currentVersion: '1.1.0', latestVersion: '', errorMessage: 'تعذر الاتصال بخادم التحديثات (تأكد من اتصال الإنترنت).' };
       }
       if (flag === '1') {
         return {
           hasUpdate: true,
           isEligible: true,
-          currentVersion: '1.0.0',
-          latestVersion: '1.1.0',
+          currentVersion: '1.1.0',
+          latestVersion: '1.2.0',
           releaseDate: '2026-11-01',
           changelog: 'تحسينات في سرعة البيع\nإصلاح طباعة الإيصالات',
-          downloadUrl: 'https://example.com/RafiqPOS_Setup_v1.1.0.exe',
+          downloadUrl: 'https://example.com/RafiqPOS_Setup_v1.2.0.exe',
           sha256: 'a'.repeat(64),
           fileSizeBytes: 98765432,
           isMandatory: false,
         };
       }
-      return { hasUpdate: false, isEligible: true, currentVersion: '1.0.0', latestVersion: '1.0.0' };
+      return { hasUpdate: false, isEligible: true, currentVersion: '1.1.0', latestVersion: '1.1.0' };
     }
 
     case 'db:testTransaction':
@@ -570,6 +570,15 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         outOfStockCount: 0,
         offset: 0,
         limit: payload?.limit || 20,
+      };
+    }
+
+    case 'products:getByExactBarcode': {
+      const exact = String(payload?.barcode || '').trim().toLowerCase();
+      const res: any = await mockHandler('products:search', { query: '' });
+      const mockList = Array.isArray(res) ? res : res?.products || [];
+      return {
+        products: exact ? mockList.filter((p: any) => String(p.barcode || '').toLowerCase() === exact || (p.barcodes || []).some((b: string) => b.toLowerCase() === exact)) : [],
       };
     }
 
@@ -1861,7 +1870,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           printerName: 'طابعة الإيصالات الحرارية XP-80C',
           isPrinterReady: true,
           licenseStatus: 'ترخيص محلي دائم (نشط مدى الحياة)',
-          appVersion: 'رفيق لنقاط البيع v1.0.0 (أوفلاين)',
+          appVersion: 'رفيق لنقاط البيع v1.1.0 (أوفلاين)',
           databaseStatus: 'سليمة (وضع الحماية الفائق)',
           productsCount: 8,
         },
@@ -4622,9 +4631,12 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           fullPath: 'C:\\Users\\User\\Downloads\\rafiq_backup_weekly.rafiqpkg',
           sizeBytes: 1845200,
           lastModified: new Date(Date.now() - 86400000).toISOString(),
-          locationLabel: 'مجلد التنزيلات (Downloads)',
+          locationLabel: 'مجلد التنزيلات',
         },
       ];
+
+    case 'filePicker:createDirectory':
+      return { success: true, path: (payload as { path?: string })?.path || 'E:\\RafiqMigration' };
 
     default:
       return { success: true, echoed: payload };

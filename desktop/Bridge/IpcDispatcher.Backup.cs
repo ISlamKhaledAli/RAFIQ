@@ -528,6 +528,40 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, pickerFoundPackages);
                     return true;
 
+                case "filePicker:createDirectory":
+                    string newDirPath = null;
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null && pObj["path"] != null)
+                        {
+                            newDirPath = pObj["path"].ToString().Trim();
+                        }
+                        else
+                        {
+                            newDirPath = request.Payload.ToString().Trim('"', ' ');
+                        }
+                    }
+                    if (!string.IsNullOrEmpty(newDirPath))
+                    {
+                        try
+                        {
+                            if (!System.IO.Directory.Exists(newDirPath))
+                            {
+                                System.IO.Directory.CreateDirectory(newDirPath);
+                            }
+                            response = BridgeResponse.Ok(request.Id, new { success = true, path = newDirPath });
+                            return true;
+                        }
+                        catch (Exception ex)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "CREATE_DIR_FAILED", "تعذر إنشاء المجلد: " + ex.Message);
+                            return true;
+                        }
+                    }
+                    response = BridgeResponse.Fail(request.Id, "INVALID_PATH", "المسار المحدد غير صالح.");
+                    return true;
+
                 case "updates:check":
                     string manifestOrUrl = null;
                     if (request.Payload != null)

@@ -56,6 +56,8 @@ namespace RafiqPOS.Repositories
             {
                 returnObj.Id = Guid.NewGuid().ToString();
             }
+            // Whitelisted and lower-cased at the persistence boundary too (callers other than ReturnService included)
+            returnObj.RefundMethod = ReturnService.NormalizeRefundMethod(returnObj.RefundMethod);
             // Always stamped by the server (same UTC format as sales); a client time would move the return between business days
             returnObj.CreatedAt = DateTime.UtcNow.ToString("o");
 
@@ -189,6 +191,27 @@ namespace RafiqPOS.Repositories
                         }
                         returnObj.TotalPiasters = calculatedTotal;
 
+                        // Split refund: the parts must add up to the recalculated total exactly; the first part is the master row's method
+                        List<ReturnRefundPart> refundParts = (returnObj.Refunds != null && returnObj.Refunds.Count > 0) ? returnObj.Refunds : null;
+                        if (refundParts != null)
+                        {
+                            long partsSum = 0;
+                            for (int pIdx = 0; pIdx < refundParts.Count; pIdx++)
+                            {
+                                if (refundParts[pIdx] == null || refundParts[pIdx].AmountPiasters <= 0)
+                                {
+                                    throw new InvalidOperationException(string.Format("مبلغ جزء الاسترداد رقم {0} غير صالح.", pIdx + 1));
+                                }
+                                partsSum += refundParts[pIdx].AmountPiasters;
+                            }
+                            if (partsSum != calculatedTotal)
+                            {
+                                throw new InvalidOperationException(string.Format(
+                                    "مجموع أجزاء الاسترداد ({0:N2} ج.م) لا يطابق قيمة المرتجع المحسوبة ({1:N2} ج.م).",
+                                    partsSum / 100.0, calculatedTotal / 100.0));
+                            }
+                            returnObj.RefundMethod = refundParts[0].Method;
+                        }
                         // Senior invariant: Ensure cumulative returns do not exceed original net sale total
                         if (!string.IsNullOrEmpty(returnObj.SaleId) && saleFinalTotal > 0)
                         {
@@ -239,8 +262,8 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@customerId", (object)returnObj.CustomerId ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@customerName", (object)returnObj.CustomerName ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@cashierId", (object)returnObj.CashierId ?? DBNull.Value);
-                            cmd.Parameters.AddWithValue("@total", returnObj.TotalPiasters);
-                            cmd.Parameters.AddWithValue("@refundMethod", returnObj.RefundMethod ?? "cash");
+                            cmd.Parameters.AddWithValue("@total", refundParts != null ? refundParts[0].AmountPiasters : returnObj.TotalPiasters);
+                            cmd.Parameters.AddWithValue("@refundMethod", returnObj.RefundMethod);
                             cmd.Parameters.AddWithValue("@reason", (object)returnObj.Reason ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@isWithoutInvoice", returnObj.IsWithoutInvoice ? 1 : 0);
                             cmd.Parameters.AddWithValue("@shiftId", (object)returnObj.ShiftId ?? DBNull.Value);
@@ -248,6 +271,36 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@idemFp", (object)returnObj.IdempotencyFingerprint ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@createdAt", returnObj.CreatedAt);
                             cmd.ExecuteNonQuery();
+                        }
+
+                        // 2.b Split refund: every further method is stored as an item-less linked row ('split:' + master id) with its own amount,
+                        // so drawer, shift, closing and per-method caps keep summing returns.total_piasters by refund_method
+                        if (refundParts != null)
+                        {
+                            for (int partIdx = 1; partIdx < refundParts.Count; partIdx++)
+                            {
+                                int partReturnNumber = (int)_counters.GetNextCounterNumber(conn, trans, "return_number", "returns", "return_number");
+                                string partReason = string.Format("{0} [جزء من مرتجع مقسّم رقم #{1}]", returnObj.Reason ?? "", returnObj.ReturnNumber).Trim();
+                                using (var partCmd = new SQLiteCommand(insertReturnSql, conn, trans))
+                                {
+                                    partCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                    partCmd.Parameters.AddWithValue("@returnNumber", partReturnNumber);
+                                    partCmd.Parameters.AddWithValue("@saleId", (object)returnObj.SaleId ?? DBNull.Value);
+                                    partCmd.Parameters.AddWithValue("@invoiceNumber", returnObj.InvoiceNumber.HasValue ? (object)returnObj.InvoiceNumber.Value : DBNull.Value);
+                                    partCmd.Parameters.AddWithValue("@customerId", (object)returnObj.CustomerId ?? DBNull.Value);
+                                    partCmd.Parameters.AddWithValue("@customerName", (object)returnObj.CustomerName ?? DBNull.Value);
+                                    partCmd.Parameters.AddWithValue("@cashierId", (object)returnObj.CashierId ?? DBNull.Value);
+                                    partCmd.Parameters.AddWithValue("@total", refundParts[partIdx].AmountPiasters);
+                                    partCmd.Parameters.AddWithValue("@refundMethod", refundParts[partIdx].Method);
+                                    partCmd.Parameters.AddWithValue("@reason", partReason);
+                                    partCmd.Parameters.AddWithValue("@isWithoutInvoice", 0);
+                                    partCmd.Parameters.AddWithValue("@shiftId", (object)returnObj.ShiftId ?? DBNull.Value);
+                                    partCmd.Parameters.AddWithValue("@idemKey", SplitKeyPrefix + returnObj.Id + ":" + partIdx);
+                                    partCmd.Parameters.AddWithValue("@idemFp", DBNull.Value);
+                                    partCmd.Parameters.AddWithValue("@createdAt", returnObj.CreatedAt);
+                                    partCmd.ExecuteNonQuery();
+                                }
+                            }
                         }
 
                         // 3. Process items, restore stock or record damaged, and log stock movements
@@ -685,7 +738,25 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // 4. If credit / customer_balance refund, reduce customer debt in customers and customer_ledger
+                        // 4. Apply each refund channel (credit ledger / digital account). Cash and card leave no extra rows:
+                        // drawer and reports read the returns rows. The blocks below read the current charge from returnObj.
+                        long fullReturnTotal = returnObj.TotalPiasters;
+                        string primaryRefundMethod = returnObj.RefundMethod;
+                        var refundCharges = new List<ReturnRefundPart>();
+                        if (refundParts != null)
+                        {
+                            refundCharges.AddRange(refundParts);
+                        }
+                        else
+                        {
+                            refundCharges.Add(new ReturnRefundPart { Method = returnObj.RefundMethod, AmountPiasters = returnObj.TotalPiasters });
+                        }
+                        for (int chargeIdx = 0; chargeIdx < refundCharges.Count; chargeIdx++)
+                        {
+                        returnObj.RefundMethod = refundCharges[chargeIdx].Method;
+                        returnObj.TotalPiasters = refundCharges[chargeIdx].AmountPiasters;
+
+                        // 4.A If credit / customer_balance refund, reduce customer debt in customers and customer_ledger
                         if (returnObj.TotalPiasters > 0 && (string.Equals(returnObj.RefundMethod, "credit", StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(returnObj.RefundMethod, "customer_balance", StringComparison.OrdinalIgnoreCase)))
                         {
@@ -724,7 +795,7 @@ namespace RafiqPOS.Repositories
                                 uCmd.ExecuteNonQuery();
                             }
 
-                            string refundLedgerId = "led_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                            string refundLedgerId = "led_" + Guid.NewGuid().ToString("N");
                             string insLedgerSql = @"
                                 INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
                                 VALUES (@lid, @cid, 'refund', @sid, @amt, @after, @notes, @cat);
@@ -747,7 +818,7 @@ namespace RafiqPOS.Repositories
                             // Record refund allocation against the original invoice in debt_allocations (F-28)
                             if (!string.IsNullOrEmpty(returnObj.SaleId))
                             {
-                                string retAllocId = "alloc_ret_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                                string retAllocId = "alloc_ret_" + Guid.NewGuid().ToString("N");
                                 string insRetAllocSql = @"
                                     INSERT INTO debt_allocations (id, ledger_id, sale_id, amount_piasters, type, created_at)
                                     VALUES (@aid, @lid, @sid, @amt, 'refund', @cat);
@@ -828,6 +899,10 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        }
+                        returnObj.RefundMethod = primaryRefundMethod;
+                        returnObj.TotalPiasters = fullReturnTotal;
+
                         // 5. Update original sale status: differentiate fully refunded vs partially refunded
                         string targetSaleId = returnObj.SaleId;
                         if (string.IsNullOrEmpty(targetSaleId) && returnObj.InvoiceNumber.HasValue)
@@ -897,12 +972,16 @@ namespace RafiqPOS.Repositories
                         }
 
                         // 6. Audit Log inside transaction
-                        string detailsJson = string.Format(
-                            "{{\"returnNumber\":{0},\"totalPiasters\":{1},\"itemCount\":{2},\"refundMethod\":\"{3}\",\"saleId\":\"{4}\",\"invoiceNumber\":{5}}}",
-                            returnObj.ReturnNumber, returnObj.TotalPiasters, returnObj.Items.Count,
-                            returnObj.RefundMethod, returnObj.SaleId ?? "",
-                            returnObj.InvoiceNumber.HasValue ? returnObj.InvoiceNumber.Value.ToString() : "null"
-                        );
+                        string detailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                        {
+                            returnNumber = returnObj.ReturnNumber,
+                            totalPiasters = returnObj.TotalPiasters,
+                            itemCount = returnObj.Items.Count,
+                            refundMethod = returnObj.RefundMethod,
+                            refunds = refundParts,
+                            saleId = returnObj.SaleId ?? "",
+                            invoiceNumber = returnObj.InvoiceNumber
+                        });
                         _auditRepo.Log(conn, trans, new AuditLog
                         {
                             Id = "aud_" + Guid.NewGuid().ToString("N"),
@@ -926,8 +1005,13 @@ namespace RafiqPOS.Repositories
                                     Action = "RETURN_WITHOUT_INVOICE",
                                     EntityType = "return",
                                     EntityId = returnObj.Id,
-                                    DetailsJson = string.Format("{{\"product\":\"{0}\",\"pricePiasters\":{1},\"reason\":\"{2}\",\"returnNumber\":{3}}}",
-                                        aItem.ProductName ?? aItem.ProductId, aItem.UnitPricePiasters, returnObj.Reason ?? "مرتجع بدون فاتورة", returnObj.ReturnNumber),
+                                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                                    {
+                                        product = aItem.ProductName ?? aItem.ProductId,
+                                        pricePiasters = aItem.UnitPricePiasters,
+                                        reason = returnObj.Reason ?? "مرتجع بدون فاتورة",
+                                        returnNumber = returnObj.ReturnNumber
+                                    }),
                                     CreatedAt = returnObj.CreatedAt
                                 });
                             }
@@ -951,7 +1035,8 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM returns ORDER BY created_at DESC LIMIT @limit;";
+                // Masters only, so LIMIT counts operations; their linked split rows are fetched by creation time afterwards
+                string sql = "SELECT * FROM returns WHERE COALESCE(idempotency_key, '') NOT LIKE 'split:%' ORDER BY created_at DESC LIMIT @limit;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@limit", limit);
@@ -963,8 +1048,24 @@ namespace RafiqPOS.Repositories
                         }
                     }
                 }
+
+                if (list.Count > 0)
+                {
+                    string oldest = list[list.Count - 1].CreatedAt;
+                    using (var cmd = new SQLiteCommand("SELECT * FROM returns WHERE idempotency_key LIKE 'split:%' AND created_at >= @oldest ORDER BY return_number ASC;", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@oldest", oldest);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                list.Add(MapReaderToReturn(reader));
+                            }
+                        }
+                    }
+                }
             }
-            return list;
+            return FoldSplitRefunds(list);
         }
 
         /// <summary>
@@ -999,6 +1100,28 @@ namespace RafiqPOS.Repositories
             if (ret != null)
             {
                 ret.Items = GetReturnItems(ret.Id);
+
+                // A split refund keeps its other methods in linked rows; the caller sees the whole operation
+                var rows = new List<Return>();
+                rows.Add(ret);
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT * FROM returns WHERE idempotency_key = @legacy OR idempotency_key LIKE @pattern ORDER BY return_number ASC;", conn))
+                    {
+                        // Legacy exact key (every companion shared it) plus the numbered keys 'split:<id>:<n>'
+                        cmd.Parameters.AddWithValue("@legacy", SplitKeyPrefix + ret.Id);
+                        cmd.Parameters.AddWithValue("@pattern", SplitKeyPrefix + ret.Id + ":%");
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                rows.Add(MapReaderToReturn(reader));
+                            }
+                        }
+                    }
+                }
+                FoldSplitRefunds(rows);
             }
             return ret;
         }
@@ -1011,7 +1134,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM returns WHERE sale_id = @saleId ORDER BY created_at ASC;";
+                string sql = "SELECT * FROM returns WHERE sale_id = @saleId ORDER BY created_at ASC, return_number ASC;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@saleId", saleId);
@@ -1086,8 +1209,61 @@ namespace RafiqPOS.Repositories
                 Reason = reader["reason"] != DBNull.Value ? reader["reason"].ToString() : null,
                 IsWithoutInvoice = Convert.ToInt32(reader["is_without_invoice"]) == 1,
                 ShiftId = HasColumn(reader, "shift_id") && reader["shift_id"] != DBNull.Value ? reader["shift_id"].ToString() : null,
+                IdempotencyKey = HasColumn(reader, "idempotency_key") && reader["idempotency_key"] != DBNull.Value ? reader["idempotency_key"].ToString() : null,
                 CreatedAt = reader["created_at"].ToString()
             };
+        }
+
+        private const string SplitKeyPrefix = "split:";
+
+        // 'split:<masterId>:<n>' (or the legacy 'split:<masterId>') -> masterId
+        private static string SplitMasterId(string idempotencyKey)
+        {
+            string rest = idempotencyKey.Substring(SplitKeyPrefix.Length);
+            int colon = rest.IndexOf(':');
+            return colon >= 0 ? rest.Substring(0, colon) : rest;
+        }
+
+        private static bool IsSplitCompanion(Return ret)
+        {
+            return ret != null && ret.IdempotencyKey != null && ret.IdempotencyKey.StartsWith(SplitKeyPrefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// يدمج صفوف المرتجع المقسّم: يبقى صف المرتجع الرئيسي فقط وإجماليه الكامل وأجزاء الاسترداد في Refunds؛
+        /// الصفوف الملحقة (بلا أصناف) تُحذف من القائمة.
+        /// </summary>
+        public static List<Return> FoldSplitRefunds(List<Return> rows)
+        {
+            var folded = new List<Return>();
+            if (rows == null) return folded;
+
+            var masters = new Dictionary<string, Return>();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (!IsSplitCompanion(rows[i])) masters[rows[i].Id] = rows[i];
+            }
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                Return row = rows[i];
+                if (!IsSplitCompanion(row))
+                {
+                    folded.Add(row);
+                    continue;
+                }
+
+                Return master;
+                if (!masters.TryGetValue(SplitMasterId(row.IdempotencyKey), out master)) continue;
+                if (master.Refunds == null)
+                {
+                    master.Refunds = new List<ReturnRefundPart>();
+                    master.Refunds.Add(new ReturnRefundPart { Method = master.RefundMethod, AmountPiasters = master.TotalPiasters });
+                }
+                master.Refunds.Add(new ReturnRefundPart { Method = row.RefundMethod, AmountPiasters = row.TotalPiasters });
+                master.TotalPiasters += row.TotalPiasters;
+            }
+            return folded;
         }
 
         private static bool HasColumn(SQLiteDataReader reader, string columnName)

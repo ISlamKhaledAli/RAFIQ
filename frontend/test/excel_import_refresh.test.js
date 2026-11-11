@@ -63,10 +63,11 @@ describe('catalog mutations invalidate every consumer', () => {
     }
   });
 
-  it('every host catalog mutation guarded by the license gate maps to a data-changed topic', () => {
-    const block = hostDispatcher.slice(hostDispatcher.indexOf('// Catalog modifications'));
-    const catalog = block.slice(0, block.indexOf('return true;'));
-    const actions = [...catalog.matchAll(/"((?:products|categories|productUnits|locations):[A-Za-z]+)"/g)].map((m) => m[1]);
+  it('every catalog mutation that the license gate blocks maps to a data-changed topic', () => {
+    const readVerb = /^(get|list|search|find|calculate|preview|check|verify|is|has|run|generate)/;
+    const actions = [...hostDispatcher.matchAll(/\{ "((?:products|categories|productUnits|locations):[A-Za-z]+)",/g)]
+      .map((m) => m[1])
+      .filter((a) => !readVerb.test(a.split(':')[1]));
     assert.ok(actions.length >= 10, `parsed ${actions.length} host actions`);
     for (const action of actions) {
       assert.ok(getAutoTopicsForAction(action).includes('products'), `${action} does not invalidate products`);

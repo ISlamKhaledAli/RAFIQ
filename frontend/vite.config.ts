@@ -20,26 +20,10 @@ export default defineConfig({
           if (id.includes('node_modules/lucide-react')) {
             return 'vendor-icons';
           }
+          // Only the cashier screen is a fixed chunk (it is always loaded); every other screen is a lazy chunk
+          // that Rolldown splits on its own, so nothing but the cashier is preloaded at startup.
           if (id.includes('src/views/PosView')) {
             return 'view-pos';
-          }
-          if (id.includes('src/views/ProductsView') || id.includes('src/components/ProductFormModal')) {
-            return 'view-products';
-          }
-          if (id.includes('src/views/PurchasesView')) {
-            return 'view-purchases';
-          }
-          if (id.includes('src/views/SettingsView')) {
-            return 'view-settings';
-          }
-          if (id.includes('src/views/pharma/')) {
-            return 'view-pharma';
-          }
-          if (id.includes('src/views/insurance/')) {
-            return 'view-insurance';
-          }
-          if (id.includes('src/views/cafe/')) {
-            return 'view-cafe';
           }
         },
       },

@@ -71,9 +71,16 @@ namespace RafiqPOS.Common
         /// </summary>
         public Money MultiplyByMilliUnits(long milliUnits)
         {
-            decimal total = ((decimal)this._piasters * milliUnits) / 1000m;
-            long roundedPiasters = (long)Math.Round(total, 0, MidpointRounding.AwayFromZero);
-            return new Money(roundedPiasters);
+            try
+            {
+                decimal total = ((decimal)this._piasters * milliUnits) / 1000m;
+                long roundedPiasters = (long)Math.Round(total, 0, MidpointRounding.AwayFromZero);
+                return new Money(roundedPiasters);
+            }
+            catch (OverflowException)
+            {
+                throw new InvalidOperationException("قيمة السعر × الكمية تتجاوز الحد الأقصى المسموح به للنظام. يرجى مراجعة السعر أو الكمية.");
+            }
         }
 
         /// <summary>

@@ -79,7 +79,7 @@ namespace RafiqPOS.Services
             var alerts = new List<SystemAlert>();
             var metrics = new SystemHealthMetrics();
 
-            metrics.AppVersion = "رفيق POS v1.0.0 (أوفلاين)";
+            metrics.AppVersion = "رفيق POS v" + AppUpdateService.CurrentVersion + " (أوفلاين)";
             var lic = DatabaseService.License != null ? DatabaseService.License.GetLicenseInfo() : null;
             metrics.LicenseStatus = lic != null ? lic.StatusLabel : "ترخيص دائم نشط (مدى الحياة)";
 
@@ -124,6 +124,20 @@ namespace RafiqPOS.Services
             catch
             {
                 metrics.DiskFreeFormatted = "غير متاح";
+            }
+
+            // A legacy sale_items column that could not be removed may block saving invoices (raised by MigrationRunner at startup)
+            if (_settingsRepo != null && _settingsRepo.Get(Database.MigrationRunner.SALE_ITEMS_QUANTITY_WARNING_KEY, "0") == "1")
+            {
+                alerts.Add(new SystemAlert
+                {
+                    Id = "schema_sale_items_quantity",
+                    Level = "critical",
+                    Title = "هيكل جدول بنود الفواتير يحتاج معالجة",
+                    Message = "يوجد عمود قديم في جدول بنود الفواتير قد يمنع حفظ الفواتير. تواصل مع الدعم الفني قبل البيع، وأرسل حزمة الدعم من هذه الشاشة.",
+                    FixAction = "التواصل مع الدعم الفني",
+                    FixTarget = "settings:system"
+                });
             }
 
             // Database status

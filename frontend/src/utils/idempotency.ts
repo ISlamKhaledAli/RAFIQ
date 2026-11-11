@@ -20,6 +20,29 @@ export function createAttemptKey(prefix: string): { current: () => string; compl
   };
 }
 
+// Sale key bound to the exact request content: the same fingerprint (a pure retry after a timeout) keeps the key,
+// any change to the cart or payments rotates it, because the server rejects one key used for two different requests.
+export function createFingerprintedAttemptKey(prefix: string): {
+  keyFor: (fingerprint: string) => string;
+  reset: () => void;
+} {
+  let key: string | null = null;
+  let keyFingerprint: string | null = null;
+  return {
+    keyFor: (fingerprint: string) => {
+      if (!key || keyFingerprint !== fingerprint) {
+        key = newIdempotencyKey(prefix);
+        keyFingerprint = fingerprint;
+      }
+      return key;
+    },
+    reset: () => {
+      key = null;
+      keyFingerprint = null;
+    },
+  };
+}
+
 // Server rejection when the same key is reused for different data (see Common/IdempotencyGuard.cs); the key must then be rotated.
 const IDEMPOTENCY_MISMATCH_MARKER = 'نفس رقم العملية لطلب مختلف';
 

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Repositories;
@@ -46,7 +48,9 @@ namespace RafiqPOS.Services
                 // 1. Fast in-memory cache lookup
                 if (!string.IsNullOrWhiteSpace(idempotencyKey) && _completedByIdempotencyKey.ContainsKey(idempotencyKey))
                 {
-                    return _completedByIdempotencyKey[idempotencyKey];
+                    Sale cached = _completedByIdempotencyKey[idempotencyKey];
+                    EnsureSameCart(sale, cached);
+                    return cached;
                 }
 
                 // 2. Persistent SQLite idempotency check across app restarts (Audit F-09)
@@ -55,6 +59,7 @@ namespace RafiqPOS.Services
                     Sale existing = _saleRepo.GetSaleByIdempotencyKey(idempotencyKey);
                     if (existing != null)
                     {
+                        EnsureSameCart(sale, existing);
                         _completedByIdempotencyKey[idempotencyKey] = existing;
                         return existing;
                     }
@@ -80,6 +85,36 @@ namespace RafiqPOS.Services
             }
         }
 
+        /// <summary>
+        /// The same key is only a retry when it carries the same cart. Totals and payments are recomputed by the server,
+        /// so the comparable identity of a sale is its lines (product and quantity).
+        /// </summary>
+        private static void EnsureSameCart(Sale requested, Sale stored)
+        {
+            if (requested == null || stored == null) return;
+            if (!string.Equals(CartFingerprint(requested), CartFingerprint(stored), StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("تم استخدام نفس رقم العملية لفاتورة بمحتوى مختلف؛ لم يتم تسجيل أي فاتورة جديدة. يرجى إعادة فتح السلة والمحاولة من جديد.");
+            }
+        }
+
+        private static string CartFingerprint(Sale sale)
+        {
+            var lines = new List<string>();
+            if (sale.Items != null)
+            {
+                for (int i = 0; i < sale.Items.Count; i++)
+                {
+                    var it = sale.Items[i];
+                    if (it == null) continue;
+                    // The pack factor tells a carton from pieces (the client sends it with the unit it picked; the server keeps it)
+                    lines.Add(string.Format("{0}|{1}|{2}", it.ProductId ?? "", it.QuantityMilli, it.ConversionFactor > 0 ? it.ConversionFactor : 1));
+                }
+            }
+            lines.Sort(StringComparer.Ordinal);
+            return IdempotencyGuard.Fingerprint("sale-cart", string.Join(";", lines.ToArray()));
+        }
+
         public static void ClearIdempotencyCache()
         {
             lock (FinancialWriteLock)
@@ -103,12 +138,63 @@ namespace RafiqPOS.Services
         public const long MAX_QUANTITY_MILLI = 10000000000L; // 10,000,000 units
         public const long MAX_PRICE_PIASTERS = 100000000000L; // 1,000,000,000 EGP
 
+        // Methods the closing/shift/report SQL and the digital-account ledger understand; anything else is rejected before it can be stored
+        private static readonly HashSet<string> ALLOWED_SALE_PAYMENT_METHODS = new HashSet<string>(new string[]
+        {
+            "cash", "card", "credit", "multi", "insurance", "instapay", "vodafone_cash", "wallet"
+        }, StringComparer.Ordinal);
+
+        // Provider/brand names are canonicalised to the bucket the reports, refund caps and account ledger use
+        // (card brands -> card, other mobile wallets -> wallet, "split" -> multi)
+        private static string CanonicalPaymentMethod(string normalized)
+        {
+            switch (normalized)
+            {
+                case "visa":
+                case "mastercard":
+                case "meeza":
+                    return "card";
+                case "orange_cash":
+                case "etisalat_cash":
+                case "we_pay":
+                    return "wallet";
+                case "split":
+                    return "multi";
+                default:
+                    return normalized;
+            }
+        }
+
+        internal static string NormalizeSalePaymentMethod(string method)
+        {
+            string normalized = CanonicalPaymentMethod(string.IsNullOrWhiteSpace(method) ? "cash" : method.Trim().ToLowerInvariant());
+            if (!ALLOWED_SALE_PAYMENT_METHODS.Contains(normalized))
+            {
+                throw new InvalidOperationException(string.Format("طريقة الدفع '{0}' غير مدعومة.", method));
+            }
+            return normalized;
+        }
+
         private Sale ProcessSaleCore(Sale sale)
         {
             if (sale == null) throw new ArgumentNullException("sale");
             if (sale.Items == null || sale.Items.Count == 0)
             {
                 throw new InvalidOperationException("لا يمكن حفظ فاتورة بدون أصناف");
+            }
+
+            // Status is server-owned and payment methods come from a fixed whitelist (never a free client string)
+            sale.Status = "completed";
+            sale.PaymentMethod = NormalizeSalePaymentMethod(sale.PaymentMethod);
+            if (sale.Payments != null)
+            {
+                for (int pm = 0; pm < sale.Payments.Count; pm++)
+                {
+                    if (sale.Payments[pm] != null)
+                    {
+                        sale.Payments[pm].Method = NormalizeSalePaymentMethod(sale.Payments[pm].Method);
+                    }
+                }
             }
 
             // Closed Day Validation & Post-Closing Freeze (Story 87 / Feature 49)
@@ -873,8 +959,13 @@ namespace RafiqPOS.Services
                                 Action = "DISCOUNT_SUPERVISOR_OVERRIDE",
                                 EntityType = "SALE",
                                 EntityId = sale.Id,
-                                DetailsJson = string.Format("{{\"discountPiasters\":{0},\"subtotalPiasters\":{1},\"supervisor\":\"{2}\",\"saleId\":\"{3}\"}}",
-                                    totalDiscountPiasters, subtotal.Piasters, supCheck.SupervisorName ?? "", sale.Id),
+                                DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                                {
+                                    discountPiasters = totalDiscountPiasters,
+                                    subtotalPiasters = subtotal.Piasters,
+                                    supervisor = supCheck.SupervisorName ?? "",
+                                    saleId = sale.Id
+                                }),
                                 CreatedAt = DateTime.UtcNow.ToString("o")
                             });
                         }
@@ -889,7 +980,14 @@ namespace RafiqPOS.Services
             bool isEpayMethod = sale.ServiceFeePiasters > 0;
             if (isEpayMethod)
             {
-                // The customer pays the invoice total plus the provider fee in full through the wallet
+                // The wallet amount must cover the whole invoice (the UI sends the total and the server adds the provider fee);
+                // a partial amount is rejected instead of being silently raised
+                if (sale.PaidPiasters < sale.TotalPiasters)
+                {
+                    throw new InvalidOperationException(string.Format(
+                        "المبلغ المدفوع عبر المحفظة/إنستاباي ({0:N2} ج.م) أقل من قيمة الفاتورة ({1:N2} ج.م). الدفع الإلكتروني يجب أن يغطي الفاتورة بالكامل.",
+                        sale.PaidPiasters / 100.0, sale.TotalPiasters / 100.0));
+                }
                 if (sale.PaidPiasters < sale.TotalPiasters + sale.ServiceFeePiasters)
                 {
                     sale.PaidPiasters = sale.TotalPiasters + sale.ServiceFeePiasters;
@@ -1152,6 +1250,82 @@ namespace RafiqPOS.Services
             return false;
         }
 
+        private static long ReadJsonLong(JObject obj, string name)
+        {
+            JToken token = obj[name];
+            if (token == null) return 0;
+            if (token.Type == JTokenType.Integer) return token.Value<long>();
+            if (token.Type == JTokenType.Float) return (long)Math.Round(token.Value<decimal>(), 0, MidpointRounding.AwayFromZero);
+            return 0;
+        }
+
+        // Mirrors the POS allocation of a bundle price over its components (list-price proportional, last line takes the remainder)
+        private static bool IsBundleComponentPrice(QuickItem bundle, string productId, long price, int factor)
+        {
+            if (price <= 0) return false;
+            JArray components;
+            try
+            {
+                components = JArray.Parse(bundle.BundleItemsJson);
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+
+            int count = components.Count;
+            var listLines = new long[count];
+            long listTotal = 0;
+            for (int i = 0; i < count; i++)
+            {
+                JObject c = components[i] as JObject;
+                long line = 1;
+                if (c != null)
+                {
+                    decimal rawLine = (decimal)ReadJsonLong(c, "originalPricePiasters") * ReadJsonLong(c, "quantityMilli") / 1000m;
+                    line = Math.Max(1, (long)Math.Round(rawLine, 0, MidpointRounding.AwayFromZero));
+                }
+                listLines[i] = line;
+                listTotal += line;
+            }
+
+            long distributed = 0;
+            for (int i = 0; i < count; i++)
+            {
+                JObject c = components[i] as JObject;
+                if (c == null) continue;
+
+                long allocated = listLines[i];
+                if (listTotal > 0 && bundle.PricePiasters > 0)
+                {
+                    if (i == count - 1)
+                    {
+                        allocated = Math.Max(1, bundle.PricePiasters - distributed);
+                    }
+                    else
+                    {
+                        allocated = Math.Max(1, (long)Math.Round((decimal)listLines[i] * bundle.PricePiasters / listTotal, 0, MidpointRounding.AwayFromZero));
+                        distributed += allocated;
+                    }
+                }
+
+                JToken idToken = c["productId"];
+                string componentId = idToken != null && idToken.Type == JTokenType.String ? idToken.Value<string>() : null;
+                if (!string.Equals(componentId, productId, StringComparison.Ordinal)) continue;
+
+                long explicitPrice = ReadJsonLong(c, "unitPricePiasters");
+                if (explicitPrice > 0 && price == explicitPrice * factor) return true;
+
+                long quantityMilli = ReadJsonLong(c, "quantityMilli");
+                if (quantityMilli > 0)
+                {
+                    long expectedUnit = Math.Max(1, (long)Math.Round((decimal)allocated * 1000m / quantityMilli, 0, MidpointRounding.AwayFromZero));
+                    if (price == expectedUnit * factor) return true;
+                }
+            }
+            return false;
+        }
+
         private bool IsCataloguePrice(SaleItem item, Product product, ProductUnit matchedUnit)
         {
             long price = item.UnitPricePiasters;
@@ -1216,14 +1390,11 @@ namespace RafiqPOS.Services
                         if (qi.IsOpenPrice || qi.PricePiasters == price) return true;
                     }
 
-                    // Authorized store combo / bundle offer component:
-                    // If product is a configured component in an active quick item bundle offer, allow it
-                    if (!string.IsNullOrEmpty(qi.BundleItemsJson) && qi.BundleItemsJson.IndexOf(product.Id, StringComparison.OrdinalIgnoreCase) >= 0)
+                    // Authorized store combo / bundle offer component: the price must equal the component price the offer
+                    // configures (explicit unit price, or the share of the bundle price the POS allocates to it)
+                    if (!string.IsNullOrEmpty(qi.BundleItemsJson) && IsBundleComponentPrice(qi, product.Id, price, factor))
                     {
-                        if (price > 0 && price <= (product.PricePiasters * factor))
-                        {
-                            return true;
-                        }
+                        return true;
                     }
                 }
             }

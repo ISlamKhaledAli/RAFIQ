@@ -56,14 +56,90 @@ namespace RafiqPOS.Tests
         protected DeliveryService DeliveryService;
         protected RecipeService RecipeService;
 
+        // One fully migrated database is built per test process and copied for every test. Running all
+        // migrations in every [SetUp] dominated the suite's run time. Any failure falls back to the old behaviour.
+        private static readonly object TemplateLock = new object();
+        private static string _templateDbPath;
+        private static bool _templateUnavailable;
+
+        private static string GetMigratedTemplate()
+        {
+            lock (TemplateLock)
+            {
+                if (_templateUnavailable) return null;
+                if (_templateDbPath != null && File.Exists(_templateDbPath)) return _templateDbPath;
+                if (Environment.GetEnvironmentVariable("RAFIQ_TEST_NO_TEMPLATE") == "1")
+                {
+                    _templateUnavailable = true;
+                    return null;
+                }
+
+                try
+                {
+                    string path = Path.Combine(Path.GetTempPath(), "rafiq_nunit_template_" + Guid.NewGuid().ToString("N") + ".db");
+                    string connString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", path);
+                    MigrationRunner.ApplyMigrations(connString, path);
+
+                    // Fold the WAL into the main file so copying the .db alone yields a complete database
+                    using (var conn = new SQLiteConnection(connString))
+                    {
+                        conn.Open();
+                        using (var cmd = new SQLiteCommand("PRAGMA wal_checkpoint(TRUNCATE);", conn))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    SQLiteConnection.ClearAllPools();
+
+                    _templateDbPath = path;
+                    AppDomain.CurrentDomain.ProcessExit += delegate
+                    {
+                        try
+                        {
+                            SQLiteConnection.ClearAllPools();
+                            if (File.Exists(path)) File.Delete(path);
+                            if (File.Exists(path + "-wal")) File.Delete(path + "-wal");
+                            if (File.Exists(path + "-shm")) File.Delete(path + "-shm");
+                        }
+                        catch
+                        {
+                        }
+                    };
+                    return _templateDbPath;
+                }
+                catch
+                {
+                    _templateUnavailable = true;
+                    return null;
+                }
+            }
+        }
+
         [SetUp]
         public virtual void BaseSetUp()
         {
             TestDbPath = Path.Combine(Path.GetTempPath(), "rafiq_nunit_" + Guid.NewGuid().ToString("N") + ".db");
             ConnectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", TestDbPath);
 
-            // Apply all migrations on isolated SQLite database (1 to LATEST_SUPPORTED_VERSION)
-            MigrationRunner.ApplyMigrations(ConnectionString, TestDbPath);
+            // Isolated SQLite database at the latest schema (1 to LATEST_SUPPORTED_VERSION)
+            bool copiedFromTemplate = false;
+            string template = GetMigratedTemplate();
+            if (template != null)
+            {
+                try
+                {
+                    File.Copy(template, TestDbPath, true);
+                    copiedFromTemplate = true;
+                }
+                catch
+                {
+                    copiedFromTemplate = false;
+                }
+            }
+            if (!copiedFromTemplate)
+            {
+                MigrationRunner.ApplyMigrations(ConnectionString, TestDbPath);
+            }
 
             // Initialize Repositories
             CounterRepo = new CounterRepository(ConnectionString);

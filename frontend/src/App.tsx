@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
-import type { FC } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef, lazy, Suspense } from 'react';
+import type { FC, ComponentType } from 'react';
 import { 
   ShoppingCart, 
   Package, 
@@ -62,22 +62,12 @@ import { invoke } from './bridge/ipc';
 import { useDataSubscription, emitDataChanged } from './utils/eventBus';
 import { PANEL_TOGGLE_BUTTON_CLASS, PANEL_TOGGLE_ICON_CLASS } from './utils/panelToggle';
 import { PosView } from './views/PosView';
-import { EpayView, type EpaySubTab } from './views/epay/EpayView';
-import { WalletsView, type WalletsSubTab } from './views/wallets/WalletsView';
-import { InsuranceContractsView, type InsuranceSubTab } from './views/insurance/InsuranceContractsView';
-import { DashboardView } from './views/DashboardView';
-import { RevenueAnalyticsView } from './views/analytics/RevenueAnalyticsView';
-import { InventoryAnalyticsView } from './views/analytics/InventoryAnalyticsView';
-import { CustomerAnalyticsView } from './views/analytics/CustomerAnalyticsView';
+import type { EpaySubTab } from './views/epay/EpayView';
+import type { WalletsSubTab } from './views/wallets/WalletsView';
+import type { InsuranceSubTab } from './views/insurance/InsuranceContractsView';
 import type { DashboardSubTab, Shift } from './types/models';
-import { CustomersView } from './views/CustomersView';
-import { ProductsView } from './views/ProductsView';
-import { PurchasesView } from './views/PurchasesView';
 import type { PurchasesSubView } from './views/PurchasesView';
-import { SalesHistoryView } from './views/SalesHistoryView';
-import { SettingsView } from './views/SettingsView';
 import type { SettingsSubTab } from './views/SettingsView';
-import { RootConsoleView } from './views/root/RootConsoleView';
 import { ROOT_SUB_TAB_META } from './views/root/rootSubTabMeta';
 import { DatabaseRecoveryModal } from './components/DatabaseRecoveryModal';
 import type { DatabaseIntegrityStatus } from './components/DatabaseRecoveryModal';
@@ -120,6 +110,32 @@ import { getRoleLabel, getRoleNameClasses } from './utils/roleLabels';
 import { APP_TITLE, getShopSubtitle } from './utils/appBranding';
 import { AppUpdateModal } from './components/AppUpdateModal';
 import type { AppUpdateInfo } from './bridge/ipc';
+
+// The cashier screen and the login stay in the entry bundle; every other screen loads the first time it is opened.
+// Each screen carries its own loading state, so a screen that is still loading never hides the others.
+function lazyView<P extends object>(load: () => Promise<ComponentType<P>>): FC<P> {
+  const Lazy = lazy(() => load().then((component) => ({ default: component })));
+  const LazyView: FC<P> = (props) => (
+    <Suspense fallback={<RafiqLoadingState label="جاري فتح الشاشة..." sublabel="" />}>
+      <Lazy {...props} />
+    </Suspense>
+  );
+  return LazyView;
+}
+
+const EpayView = lazyView(() => import('./views/epay/EpayView').then((m) => m.EpayView));
+const WalletsView = lazyView(() => import('./views/wallets/WalletsView').then((m) => m.WalletsView));
+const InsuranceContractsView = lazyView(() => import('./views/insurance/InsuranceContractsView').then((m) => m.InsuranceContractsView));
+const DashboardView = lazyView(() => import('./views/DashboardView').then((m) => m.DashboardView));
+const RevenueAnalyticsView = lazyView(() => import('./views/analytics/RevenueAnalyticsView').then((m) => m.RevenueAnalyticsView));
+const InventoryAnalyticsView = lazyView(() => import('./views/analytics/InventoryAnalyticsView').then((m) => m.InventoryAnalyticsView));
+const CustomerAnalyticsView = lazyView(() => import('./views/analytics/CustomerAnalyticsView').then((m) => m.CustomerAnalyticsView));
+const CustomersView = lazyView<{ isActive?: boolean }>(() => import('./views/CustomersView').then((m) => m.CustomersView));
+const ProductsView = lazyView(() => import('./views/ProductsView').then((m) => m.ProductsView));
+const PurchasesView = lazyView(() => import('./views/PurchasesView').then((m) => m.PurchasesView));
+const SalesHistoryView = lazyView(() => import('./views/SalesHistoryView').then((m) => m.SalesHistoryView));
+const SettingsView = lazyView(() => import('./views/SettingsView').then((m) => m.SettingsView));
+const RootConsoleView = lazyView(() => import('./views/root/RootConsoleView').then((m) => m.RootConsoleView));
 
 export interface SystemInfo {
   appName: string;

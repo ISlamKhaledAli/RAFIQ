@@ -69,7 +69,10 @@ describe('migration wizard (source level)', () => {
 
   it('the cart guard reads the key PosView really writes', () => {
     assert.match(cartDraft, /POS_CART_DRAFT_KEY = 'rafiq_pos_cart_draft'/);
-    assert.ok(posView.includes("'rafiq_pos_cart_draft'"));
+    // PosView writes the draft only through the helpers that own the key
+    assert.match(cartDraft, /localStorage\.setItem\(POS_CART_DRAFT_KEY/);
+    assert.match(posView, /savePosCartDraft\(/);
+    assert.match(posView, /from '\.\.\/utils\/posCartDraft'/);
   });
 
   it('gates export on settings.backup and restore on settings.restore, like the host', () => {

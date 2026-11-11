@@ -429,19 +429,6 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
               </div>
             </div>
 
-            {/* Signatures */}
-            <div className="border-t border-dashed border-black my-2.5"></div>
-            <div className="grid grid-cols-2 gap-4 text-center text-micro text-neutral-800 print-keep-cols my-2">
-              <div>
-                <span className="block font-bold">توقيع المالك / المسؤول</span>
-                <span className="block mt-7 border-b border-black/60 w-24 mx-auto"></span>
-              </div>
-              <div>
-                <span className="block font-bold">الختم المعتمد</span>
-                <span className="block mt-7 border-b border-black/60 w-24 mx-auto"></span>
-              </div>
-            </div>
-
             {/* Official Security Vault Seal / Shield Image Banner */}
             <div className="border-t border-dashed border-black my-2.5"></div>
             <div className="my-2 text-center select-none">

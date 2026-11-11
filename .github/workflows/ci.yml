@@ -19,9 +19,11 @@ jobs:
   # ---------------------------------------------------------------------------------------------
   # Fast feedback: React UI (lint, type-check + build, unit tests)
   # ---------------------------------------------------------------------------------------------
+  # Pure Node jobs run on Linux (faster start and install than windows-latest); both suites were verified
+  # on a case-sensitive filesystem.
   frontend:
     name: Frontend (lint, build, test)
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
     - name: Checkout Repository
@@ -53,7 +55,7 @@ jobs:
   # ---------------------------------------------------------------------------------------------
   license-server:
     name: License server tests
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
     - name: Checkout Repository
@@ -114,21 +116,20 @@ jobs:
 
     - name: Build C# Host (Release x86)
       run: |
-        msbuild desktop/RafiqPOS.csproj /p:Configuration=Release /p:Platform=x86 /v:m
+        msbuild desktop/RafiqPOS.csproj /p:Configuration=Release /p:Platform=x86 /v:m /m
 
-    - name: Build C# Host (Debug x86)
-      run: |
-        msbuild desktop/RafiqPOS.csproj /p:Configuration=Debug /p:Platform=x86 /v:m
+    # The Debug x86 build of the host is compiled by the desktop-nunit and desktop-selftests jobs below
+    # (they need it anyway), so it is not built a third time here.
 
   # ---------------------------------------------------------------------------------------------
-  # C# business-logic gate: NUnit scenarios + in-app self-test runners (Debug x86 only)
-  # Runs in parallel with desktop-build (it compiles its own Debug build), so a failure here
-  # blocks the PR without waiting on the Release build.
+  # NUnit scenarios (Debug x86). Runs in parallel with desktop-build and desktop-selftests.
+  # TestBase builds one migrated template database per run and copies it per test.
+  # Set RAFIQ_TEST_NO_TEMPLATE=1 to force the old run-every-migration-per-test behaviour.
   # ---------------------------------------------------------------------------------------------
-  desktop-tests:
-    name: Desktop tests (NUnit + self-test suites)
+  desktop-nunit:
+    name: Desktop tests (NUnit)
     runs-on: windows-latest
-    timeout-minutes: 150
+    timeout-minutes: 60
     env:
       TEST_RESULTS_DIR: ${{ github.workspace }}\test-results
     steps:
@@ -196,47 +197,125 @@ jobs:
         if ($code -ne 0) { Write-Host "::error title=NUnit::nunit3-console exited with $code" }
         exit $code
 
-    # Blocking suites. Each one runs from a fresh copy of desktop/bin/Debug (clean data\, logs\),
-    # with a per-suite timeout; any non-zero exit code or timeout fails this step.
-    - name: Run in-app self-test suites (blocking)
-      # Run even if NUnit failed (report everything), but only if the Debug build succeeded.
-      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-      timeout-minutes: 120
-      run: >-
-        ./.github/workflows/scripts/Invoke-RafiqSelfTests.ps1
-        -Title 'Self-test suites (blocking)'
-        -AppDir desktop/bin/Debug
-        -WorkRoot "$env:RUNNER_TEMP\rafiq-selftests"
-        -ArtifactDir "$env:TEST_RESULTS_DIR\selftests"
-        -TimeoutMinutes 15
-        -Suites 'license,update,export,variant,internal-barcode,batch,shift,bulk-price,data-quality,sales-completion,controlled-drug,inventory,purchases,baseline,shift-audit,customer,location,pharma,insurance,unit,excel,migration,reports,audit,deep-audit,chaos,senior-stress,master-edge,domain-stress,comprehensive,ruthless-audit,forensic-audit'
-
-    # NON-BLOCKING: printer and barcode-label suites touch Windows printing/GDI. Hosted runners have
-    # no physical printer, so results may depend on the image rather than on our code. Failures are
-    # reported (annotation + summary + artifact) but do not fail the workflow. Promote them into the
-    # blocking list above once they are proven stable on windows-latest.
-    - name: Run printer/label self-tests (non-blocking)
-      # Run even if NUnit failed (report everything), but only if the Debug build succeeded.
-      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-      continue-on-error: true
-      timeout-minutes: 20
-      run: >-
-        ./.github/workflows/scripts/Invoke-RafiqSelfTests.ps1
-        -Title 'Printer/label self-tests (non-blocking)'
-        -AppDir desktop/bin/Debug
-        -WorkRoot "$env:RUNNER_TEMP\rafiq-selftests"
-        -ArtifactDir "$env:TEST_RESULTS_DIR\selftests-nonblocking"
-        -TimeoutMinutes 8
-        -Suites 'printer,label'
+    # Shows where NUnit time goes (slowest tests) in the job summary so the suite can be tuned with data.
+    - name: Summarise slowest NUnit tests
+      if: always()
+      run: |
+        $f = Join-Path $env:TEST_RESULTS_DIR 'TestResult.xml'
+        if (Test-Path -LiteralPath $f) {
+          [xml]$x = Get-Content -LiteralPath $f
+          $cases = @($x.SelectNodes('//test-case'))
+          $top = $cases | Sort-Object { [double]$_.duration } -Descending | Select-Object -First 15
+          $lines = @('### Slowest NUnit tests', '', "Total: $($cases.Count) tests, $([math]::Round([double]$x.'test-run'.duration, 1)) s", '', '| Test | Seconds |', '|---|---|')
+          foreach ($t in $top) { $lines += "| $($t.fullname) | $([math]::Round([double]$t.duration, 2)) |" }
+          $lines -join [Environment]::NewLine | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding UTF8
+        }
 
     - name: Upload test results and logs
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: desktop-test-results
+        name: desktop-nunit-results
+        path: |
+          test-results/
+          desktop/RafiqPOS.Tests/bin/Debug/logs/
+        if-no-files-found: warn
+        retention-days: 14
+
+  # ---------------------------------------------------------------------------------------------
+  # In-app self-test suites (Debug x86 flags: RafiqPOS.exe --run-<suite>-tests), sharded across parallel
+  # runners. Each suite runs from a fresh copy of desktop/bin/Debug (clean data\, logs\) with a per-suite
+  # timeout; any non-zero exit code or timeout fails the shard. Shards are balanced by estimated size;
+  # adjust them from the per-suite seconds shown in each shard's summary.
+  # The printer/label shard is NON-BLOCKING: it touches Windows printing/GDI and hosted runners have no
+  # physical printer, so failures are reported but do not fail the workflow.
+  # ---------------------------------------------------------------------------------------------
+  desktop-selftests:
+    name: Self-tests (${{ matrix.shard }})
+    runs-on: windows-latest
+    timeout-minutes: 60
+    continue-on-error: ${{ !matrix.blocking }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - shard: A
+          blocking: true
+          timeout: 15
+          suites: 'ruthless-audit,license,update,export,variant,internal-barcode,batch,shift'
+        - shard: B
+          blocking: true
+          timeout: 15
+          suites: 'senior-stress,bulk-price,data-quality,sales-completion,controlled-drug,inventory,purchases,baseline'
+        - shard: C
+          blocking: true
+          timeout: 15
+          suites: 'master-edge,domain-stress,shift-audit,customer,location,pharma,insurance,unit'
+        - shard: D
+          blocking: true
+          timeout: 15
+          suites: 'comprehensive,forensic-audit,excel,migration,reports,audit,deep-audit,chaos'
+        - shard: printer-label
+          blocking: false
+          timeout: 8
+          suites: 'printer,label'
+    env:
+      TEST_RESULTS_DIR: ${{ github.workspace }}\test-results
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        # Do not leave the GITHUB_TOKEN in .git/config for later steps (npm/nuget/msbuild run third-party code)
+        persist-credentials: false
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2.0.0
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@d105a947828025cd7a980103c35ba2bfae586d0f # v2.0.2
+      with:
+        # Pinned NuGet CLI version (reproducible restores)
+        nuget-version: '6.11.1'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: desktop/packages
+        key: nuget-${{ runner.os }}-${{ hashFiles('desktop/packages.config', 'desktop/RafiqPOS.Tests/packages.config') }}
+
+    - name: Restore NuGet Packages (host)
+      run: nuget restore desktop/RafiqPOS.csproj -PackagesDirectory desktop/packages
+
+    # The self-test flags exist only in a Debug build (#if DEBUG in Program.cs).
+    - name: Build C# Host (Debug x86)
+      id: build
+      run: msbuild desktop/RafiqPOS.csproj /p:Configuration=Debug /p:Platform=x86 /v:m /m
+
+    - name: Verify build outputs
+      run: |
+        $required = @('desktop/bin/Debug/RafiqPOS.exe', 'desktop/bin/Debug/x86/SQLite.Interop.dll')
+        $missing = @($required | Where-Object { -not (Test-Path -LiteralPath $_) })
+        if ($missing.Count -gt 0) { Write-Host "::error::Missing build outputs: $($missing -join ', ')"; exit 1 }
+        Write-Host 'All expected build outputs are present.'
+
+    - name: Run self-test suites (shard ${{ matrix.shard }})
+      timeout-minutes: 50
+      run: >-
+        ./.github/workflows/scripts/Invoke-RafiqSelfTests.ps1
+        -Title 'Self-test suites (shard ${{ matrix.shard }})'
+        -AppDir desktop/bin/Debug
+        -WorkRoot "$env:RUNNER_TEMP\rafiq-selftests"
+        -ArtifactDir "$env:TEST_RESULTS_DIR\selftests"
+        -TimeoutMinutes ${{ matrix.timeout }}
+        -Suites '${{ matrix.suites }}'
+
+    - name: Upload test results and logs
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: desktop-selftest-results-${{ matrix.shard }}
         path: |
           test-results/
           desktop/bin/Debug/logs/
-          desktop/RafiqPOS.Tests/bin/Debug/logs/
         if-no-files-found: warn
         retention-days: 14

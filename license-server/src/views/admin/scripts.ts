@@ -40,11 +40,12 @@ export const adminScripts = `
     // AUTHENTICATION & SESSION HANDLING
     // ==========================================
     function getSecret() {
-      return localStorage.getItem('rafiq_admin_secret') || sessionStorage.getItem('rafiq_admin_secret') || '';
+      return sessionStorage.getItem('rafiq_admin_secret') || '';
     }
 
     function setSecret(sec) {
-      localStorage.setItem('rafiq_admin_secret', sec);
+      sessionStorage.setItem('rafiq_admin_secret', sec);
+      localStorage.removeItem('rafiq_admin_secret');
     }
 
     function hideLoginScreen() {
@@ -575,6 +576,7 @@ export const adminScripts = `
 
         if (res.status === 401) {
           localStorage.removeItem('rafiq_admin_secret');
+          sessionStorage.removeItem('rafiq_admin_secret');
           checkAuth();
           return;
         }

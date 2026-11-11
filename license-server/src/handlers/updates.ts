@@ -18,6 +18,9 @@ export function compareVersions(v1: string, v2: string): number {
   return 0;
 }
 
+// Same text for unknown and inactive keys so the endpoint cannot be used to probe license state.
+const GENERIC_INELIGIBLE_MESSAGE = 'تعذر التحقق من أهلية الترخيص لاستلام التحديثات. يرجى التأكد من تفعيل النسخة أو مراجعة إدارة رفيق.';
+
 export async function handleCheckUpdate(request: Request, env: Env): Promise<Response> {
   try {
     const url = new URL(request.url);
@@ -57,7 +60,7 @@ export async function handleCheckUpdate(request: Request, env: Env): Promise<Res
           hasUpdate: false,
           isEligible: false,
           currentVersion,
-          message: 'مفتاح الترخيص غير مسجل في النظام. يرجى تفعيل النسخة أولاً.',
+          message: GENERIC_INELIGIBLE_MESSAGE,
         };
         return new Response(JSON.stringify(resp), {
           status: 200,
@@ -77,7 +80,7 @@ export async function handleCheckUpdate(request: Request, env: Env): Promise<Res
           hasUpdate: false,
           isEligible: false,
           currentVersion,
-          message: 'الترخيص غير نشط أو موقوف من قبل الإدارة.',
+          message: GENERIC_INELIGIBLE_MESSAGE,
         };
         return new Response(JSON.stringify(resp), {
           status: 200,
@@ -159,12 +162,11 @@ export async function handleCheckUpdate(request: Request, env: Env): Promise<Res
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     });
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
     console.error('Error in handleCheckUpdate:', err);
     return new Response(
       JSON.stringify({
         hasUpdate: false,
-        message: 'حدث خطأ أثناء فحص التحديثات: ' + errorMsg,
+        message: 'حدث خطأ أثناء فحص التحديثات. يرجى المحاولة لاحقاً.',
       }),
       {
         status: 500,
