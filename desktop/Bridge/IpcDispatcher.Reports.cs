@@ -49,8 +49,32 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "reports:getLowStock":
-                    var lowStockItems = DatabaseService.Reports.GetLowStockReport();
-                    response = BridgeResponse.Ok(request.Id, lowStockItems);
+                    int lowStockLimit = 0;
+                    int lowStockOffset = 0;
+                    string lowStockSearch = null;
+                    string lowStockFilter = null;
+                    bool returnPagedObject = false;
+
+                    JObject lowStockPayload = request.Payload as JObject;
+                    if (lowStockPayload != null)
+                    {
+                        returnPagedObject = true;
+                        if (lowStockPayload["limit"] != null) lowStockLimit = lowStockPayload["limit"].Value<int>();
+                        if (lowStockPayload["offset"] != null) lowStockOffset = lowStockPayload["offset"].Value<int>();
+                        if (lowStockPayload["search"] != null) lowStockSearch = lowStockPayload["search"].ToString();
+                        if (lowStockPayload["filter"] != null) lowStockFilter = lowStockPayload["filter"].ToString();
+                    }
+
+                    if (returnPagedObject)
+                    {
+                        var pagedResult = DatabaseService.Reports.GetLowStockReportPaged(lowStockLimit, lowStockOffset, lowStockSearch, lowStockFilter);
+                        response = BridgeResponse.Ok(request.Id, pagedResult);
+                    }
+                    else
+                    {
+                        var lowStockItems = DatabaseService.Reports.GetLowStockReport();
+                        response = BridgeResponse.Ok(request.Id, lowStockItems);
+                    }
                     return true;
 
                 case "reports:getDebtors":

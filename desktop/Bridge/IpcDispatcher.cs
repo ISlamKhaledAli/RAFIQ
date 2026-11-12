@@ -55,10 +55,12 @@ namespace RafiqPOS.Bridge
                 request.Action == "expenses:createCategory" ||
                 request.Action == "epay:createTransaction" ||
                 request.Action == "epay:fundTerminal" ||
+                request.Action == "epay:fundTillCash" ||
                 request.Action == "epay:saveTerminal" ||
                 request.Action == "epay:adjustBalance" ||
                 request.Action == "wallets:processTransaction" ||
                 request.Action == "wallets:fundAccount" ||
+                request.Action == "wallets:fundTillCash" ||
                 request.Action == "wallets:saveAccount" ||
                 request.Action == "wallets:createAccount" ||
                 request.Action == "wallets:updateAccount" ||
@@ -553,6 +555,7 @@ namespace RafiqPOS.Bridge
             { "epay:createTransaction", "epay.transact" },
             { "epay:cancelTransaction", "epay.cancel" },
             { "epay:fundTerminal", "epay.fund" },
+            { "epay:fundTillCash", "epay.fund" },
             { "epay:saveTerminal", "epay.terminals_manage" },
             { "epay:deleteTerminal", "epay.terminals_manage" },
             { "epay:adjustBalance", "epay.balance_adjust" },
@@ -566,6 +569,7 @@ namespace RafiqPOS.Bridge
             { "wallets:getAccounts", "wallets.access" },
             { "wallets:processTransaction", "wallets.transact" },
             { "wallets:fundAccount", "wallets.fund" },
+            { "wallets:fundTillCash", "wallets.fund" },
             { "wallets:saveAccount", "wallets.accounts_manage" },
             { "wallets:createAccount", "wallets.accounts_manage" },
             { "wallets:updateAccount", "wallets.accounts_manage" },

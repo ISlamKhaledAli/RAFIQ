@@ -541,10 +541,7 @@ namespace RafiqPOS.Repositories
                         if (string.Equals(paymentSource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
                             var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
-                            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
-                            {
-                                throw new InvalidOperationException("لا يمكن صرف دفعة للمورد من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                            }
+                            // Daily closing is an informational snapshot; it does NOT block operations on the same day.
 
                             if (DatabaseService.DailyClosing != null)
                             {

@@ -63,29 +63,7 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // Closed Day & Post-Closing Freeze Protection: Prevent retroactive sales into sealed business dates
-                        int cutoffHour = 0;
-                        using (var cutCmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'business_day_cutoff_hour' LIMIT 1;", conn, trans))
-                        {
-                            object cutVal = cutCmd.ExecuteScalar();
-                            int parsedCut;
-                            if (cutVal != null && cutVal != DBNull.Value && int.TryParse(cutVal.ToString(), out parsedCut) && parsedCut >= 0 && parsedCut <= 12)
-                            {
-                                cutoffHour = parsedCut;
-                            }
-                        }
-                        string targetCreatedAt = sale.CreatedAt ?? DateTime.UtcNow.ToString("o");
-                        using (var checkClosedCmd = new SQLiteCommand(@"
-                            SELECT COUNT(*) FROM daily_closings
-                            WHERE business_date = date(datetime(@targetDate, 'localtime', '-' || @cutoff || ' hours'));", conn, trans))
-                        {
-                            checkClosedCmd.Parameters.AddWithValue("@targetDate", targetCreatedAt);
-                            checkClosedCmd.Parameters.AddWithValue("@cutoff", cutoffHour);
-                            if (Convert.ToInt64(checkClosedCmd.ExecuteScalar()) > 0)
-                            {
-                                throw new InvalidOperationException("لا يمكن تسجيل أو تعديل أي فواتير في يومية تم إقفالها وتشميعها نهائياً (فترة مقفلة).");
-                            }
-                        }
+                        // Daily closing is an informational snapshot; it does NOT block operations on the same day.
 
                         // 0.5. Persistent Idempotency Check (Audit F-09): Prevent duplicate sale and stock deduction on retries
                         if (!string.IsNullOrWhiteSpace(sale.IdempotencyKey))
@@ -1777,28 +1755,7 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // Business rule 33-1: cancellation is allowed only before the business day is closed (Audit F-38)
-                        int cutoffHour = 0;
-                        using (var cutCmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'business_day_cutoff_hour' LIMIT 1;", conn, trans))
-                        {
-                            object cutVal = cutCmd.ExecuteScalar();
-                            int parsedCut;
-                            if (cutVal != null && cutVal != DBNull.Value && int.TryParse(cutVal.ToString(), out parsedCut) && parsedCut >= 0 && parsedCut <= 12)
-                            {
-                                cutoffHour = parsedCut;
-                            }
-                        }
-                        using (var closedCmd = new SQLiteCommand(@"
-                            SELECT COUNT(*) FROM daily_closings
-                            WHERE business_date = date(datetime(@createdAt, 'localtime', '-' || @cutoff || ' hours'));", conn, trans))
-                        {
-                            closedCmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt);
-                            closedCmd.Parameters.AddWithValue("@cutoff", cutoffHour);
-                            if (Convert.ToInt64(closedCmd.ExecuteScalar()) > 0)
-                            {
-                                throw new InvalidOperationException("لا يمكن إلغاء فاتورة بعد إقفال يومية تاريخها. يرجى استخدام المرتجع بدلاً من الإلغاء.");
-                            }
-                        }
+                        // Daily closing is an informational snapshot; it does NOT block operations on the same day.
 
                         // Owner rule: a sealed shift's totals must not change; refunds for it go through returns in the current shift
                         using (var shiftCmd = new SQLiteCommand(@"

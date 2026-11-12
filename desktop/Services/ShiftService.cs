@@ -83,11 +83,8 @@ namespace RafiqPOS.Services
                     ? _dailyClosingService.GetCurrentBusinessDate() 
                     : DateTime.Now.ToString("yyyy-MM-dd");
 
-                // Check if current day is already sealed
-                if (_dailyClosingService != null && _dailyClosingService.IsDayClosed(currentBDate))
-                {
-                    throw new InvalidOperationException(string.Format("تم إقفال اليومية لتاريخ {0} مسبقاً. يرجى مراجعة إدارة النظام.", currentBDate));
-                }
+                // Daily closing is an informational snapshot; it does NOT block further shifts/sales on the same day.
+                // The owner can re-close the day later to get an updated snapshot.
 
                 var shift = new Shift
                 {

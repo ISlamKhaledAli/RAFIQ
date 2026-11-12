@@ -343,15 +343,12 @@ namespace RafiqPOS.Repositories
                     {
                         if (string.Equals(fundingSource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
-                            var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
-                            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
-                            {
-                                throw new InvalidOperationException("لا يمكن تغذية رصيد الماكينة من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                            }
+                            // Daily closing is an informational snapshot; it does NOT block operations on the same day.
 
                             if (DatabaseService.DailyClosing != null)
                             {
-                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
+                                var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(conn, trans, currentBDate.ToString("yyyy-MM-dd"));
                                 if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
                                 {
                                     throw new InvalidOperationException(string.Format("رصيد نقدية درج الكاشير المتاح حالياً ({0:N2} ج.م) غير كافٍ لتغذية ماكينة الدفع بمبلغ ({1:N2} ج.م). يرجى تغذية الدرج أولاً أو اختيار مصدر تمويل آخر (مثل: كاش خارجي / صاحب المحل).", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
@@ -450,6 +447,199 @@ namespace RafiqPOS.Repositories
                     CreatedBy = createdBy,
                     CreatedAt = now
                 };
+            }
+        }
+
+        /// <summary>
+        /// يحسب الرصيد النقدي الفعلي المتاح حالياً في محفظة / درج الكاش المنفصل لماكينات الدفع الإلكتروني.
+        /// </summary>
+        public long GetLiveTerminalTillCash(SQLiteConnection conn, SQLiteTransaction trans = null)
+        {
+            string sql = @"
+                SELECT COALESCE(SUM(
+                    CASE 
+                        WHEN service_type = 'cash_out' THEN (customer_fee_piasters - bill_amount_piasters) 
+                        WHEN service_type = 'till_cash_funding' OR service_type = 'till_funding' THEN total_received_piasters
+                        WHEN service_type = 'till_cash_withdrawal' OR service_type = 'till_withdrawal' THEN -bill_amount_piasters
+                        ELSE total_received_piasters 
+                    END
+                ), 0)
+                FROM epay_transactions
+                WHERE status = 'completed' AND payment_channel = 'terminal_till';";
+            using (var cmd = new SQLiteCommand(sql, conn, trans))
+            {
+                object res = cmd.ExecuteScalar();
+                return (res != null && res != DBNull.Value) ? Convert.ToInt64(res) : 0L;
+            }
+        }
+
+        public long GetLiveTerminalTillCash()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                return GetLiveTerminalTillCash(conn, null);
+            }
+        }
+
+        /// <summary>
+        /// يغذي الرصيد النقدي الفعلي لدرج ماكينات الدفع المنفصل (terminal_till).
+        /// </summary>
+        public EpayTransaction FundTerminalTillCash(long amountPiasters, string fundingSource, string notes, string cashierName, string terminalId = null)
+        {
+            if (amountPiasters <= 0)
+                throw new ArgumentException("مبلغ التغذية النقدية يجب أن يكون أكبر من الصفر");
+
+            string source = !string.IsNullOrWhiteSpace(fundingSource) ? fundingSource : "external_cash";
+
+            lock (SaleService.FinancialWriteLock)
+            {
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            // Daily closing is an informational snapshot; it does NOT block operations on the same day.
+
+                            string shiftId = null;
+                            if (string.Equals(source, "cash_drawer", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (DatabaseService.Shifts != null)
+                                {
+                                    var activeShift = DatabaseService.Shifts.GetActiveShift();
+                                    if (activeShift == null)
+                                    {
+                                        throw new InvalidOperationException("لا يمكن صرف نقدية من درج كاشير المحل لتغذية درج الماكينة قبل فتح وردية رسمية.");
+                                    }
+                                    shiftId = activeShift.Id;
+                                }
+
+                                if (DatabaseService.DailyClosing != null)
+                                {
+                                    var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                                    var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(conn, trans, currentBDate.ToString("yyyy-MM-dd"));
+                                    if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
+                                    {
+                                        throw new InvalidOperationException(string.Format(
+                                            "رصيد نقدية درج كاشير المحل المتاح حالياً ({0:N2} ج.م) غير كافٍ لتغذية نقدية الماكينة بمبلغ ({1:N2} ج.م). يرجى تغذية الدرج أولاً أو اختيار مصدر «كاش خارجي / صاحب المحل».",
+                                            liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
+                                    }
+                                }
+                            }
+
+                            string now = DateTime.UtcNow.ToString("o");
+
+                            string termId = terminalId;
+                            if (string.IsNullOrEmpty(termId))
+                            {
+                                string getTermSql = "SELECT id FROM epay_terminals WHERE is_active = 1 ORDER BY created_at ASC LIMIT 1;";
+                                using (var cmd = new SQLiteCommand(getTermSql, conn, trans))
+                                {
+                                    object tRes = cmd.ExecuteScalar();
+                                    if (tRes != null && tRes != DBNull.Value)
+                                    {
+                                        termId = tRes.ToString();
+                                    }
+                                    else
+                                    {
+                                        termId = "term_default";
+                                        string insDefSql = @"
+                                            INSERT INTO epay_terminals (
+                                                id, name, provider, terminal_code, balance_piasters, low_balance_alert_piasters,
+                                                is_active, created_at, updated_at
+                                            ) VALUES (
+                                                @id, 'ماكينة الدفع الأساسية', 'super_pay', 'POS-01', 0, 50000,
+                                                1, @now, @now
+                                            );";
+                                        using (var insCmd = new SQLiteCommand(insDefSql, conn, trans))
+                                        {
+                                            insCmd.Parameters.AddWithValue("@id", termId);
+                                            insCmd.Parameters.AddWithValue("@now", now);
+                                            insCmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (string.Equals(source, "cash_drawer", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(shiftId))
+                            {
+                                string cdtxSql = @"
+                                    INSERT INTO cash_drawer_transactions (
+                                        id, shift_id, type, amount_piasters, reason, performed_by_id, performed_by_name, created_at
+                                    ) VALUES (
+                                        @id, @shiftId, 'cash_out', @amount, @reason, @userId, @userName, @now
+                                    );";
+                                using (var cmd = new SQLiteCommand(cdtxSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@id", "cdtx_" + Guid.NewGuid().ToString("N"));
+                                    cmd.Parameters.AddWithValue("@shiftId", shiftId);
+                                    cmd.Parameters.AddWithValue("@amount", amountPiasters);
+                                    cmd.Parameters.AddWithValue("@reason", string.Format("تغذية نقدية لدرج ماكينة الدفع الإلكتروني{0}", string.IsNullOrWhiteSpace(notes) ? "" : ": " + notes));
+                                    cmd.Parameters.AddWithValue("@userId", SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "system");
+                                    cmd.Parameters.AddWithValue("@userName", cashierName ?? "الكاشير");
+                                    cmd.Parameters.AddWithValue("@now", now);
+                                    cmd.ExecuteNonQuery();
+                                }
+                            }
+
+                            string sourceArabic = string.Equals(source, "cash_drawer", StringComparison.OrdinalIgnoreCase) ? "من درج كاشير المحل" : "كاش خارجي / صاحب المحل";
+                            string txNotes = string.Format("تغذية نقدية لدرج الماكينة ({0}){1}", sourceArabic, string.IsNullOrWhiteSpace(notes) ? "" : ": " + notes);
+
+                            var tx = new EpayTransaction
+                            {
+                                Id = Guid.NewGuid().ToString(),
+                                TerminalId = termId,
+                                ServiceType = "till_funding",
+                                ServiceName = "تغذية نقدية لدرج الماكينة",
+                                BillAmountPiasters = amountPiasters,
+                                CustomerFeePiasters = 0,
+                                TotalReceivedPiasters = amountPiasters,
+                                MachineDeductedPiasters = 0,
+                                ProviderCommissionPiasters = 0,
+                                NetProfitPiasters = 0,
+                                PaymentChannel = "terminal_till",
+                                CashierName = cashierName ?? (SecurityService.CurrentUser != null ? SecurityService.CurrentUser.DisplayName : "الكاشير"),
+                                Status = "completed",
+                                Notes = txNotes,
+                                CreatedAt = now
+                            };
+
+                            string insertTxSql = @"
+                                INSERT INTO epay_transactions (
+                                    id, terminal_id, service_type, service_name, bill_amount_piasters, customer_fee_piasters,
+                                    total_received_piasters, machine_deducted_piasters, provider_commission_piasters,
+                                    net_profit_piasters, payment_channel, cashier_name, status, notes, created_at
+                                ) VALUES (
+                                    @id, @termId, @srvType, @srvName, @billAmt, 0,
+                                    @totalRec, 0, 0,
+                                    0, 'terminal_till', @cashier, 'completed', @notes, @now
+                                );";
+                            using (var cmd = new SQLiteCommand(insertTxSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", tx.Id);
+                                cmd.Parameters.AddWithValue("@termId", tx.TerminalId);
+                                cmd.Parameters.AddWithValue("@srvType", tx.ServiceType);
+                                cmd.Parameters.AddWithValue("@srvName", tx.ServiceName);
+                                cmd.Parameters.AddWithValue("@billAmt", tx.BillAmountPiasters);
+                                cmd.Parameters.AddWithValue("@totalRec", tx.TotalReceivedPiasters);
+                                cmd.Parameters.AddWithValue("@cashier", (object)tx.CashierName ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@notes", tx.Notes);
+                                cmd.Parameters.AddWithValue("@now", now);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            trans.Commit();
+                            return tx;
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
+                    }
+                }
             }
         }
 
@@ -651,26 +841,39 @@ namespace RafiqPOS.Repositories
                             throw new InvalidOperationException("ماكينة الدفع الإلكتروني موقوفة ومُعطلة حالياً ولا يمكن إجراء معاملات عليها");
                         }
 
-                        // Closed day protection if affecting cash drawer
+                        // Daily closing is an informational snapshot; it does NOT block operations on the same day.
+
                         if (string.Equals(tx.PaymentChannel, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
-                            var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
-                            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
-                            {
-                                throw new InvalidOperationException("لا يمكن تنفيذ معاملة نقدية تؤثر على درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                            }
-
                             if (string.Equals(tx.ServiceType, "cash_out", StringComparison.OrdinalIgnoreCase))
                             {
                                 long netDrawerOutflow = tx.BillAmountPiasters - tx.CustomerFeePiasters;
                                 if (netDrawerOutflow > 0 && RafiqPOS.Services.DatabaseService.DailyClosing != null)
                                 {
-                                    var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
+                                    var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                                    var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance(conn, trans, currentBDate.ToString("yyyy-MM-dd"));
                                     if (liveBal != null && liveBal.AvailableCashPiasters < netDrawerOutflow)
                                     {
                                         throw new InvalidOperationException(string.Format(
-                                            "رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف سحب نقدي للمستهلك بقيمة ({1:N2} ج.م). يرجى توريد نقدية للدرج أولاً.",
+                                            "رصيد نقدية درج الكاشير المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف سحب نقدي للمستهلك بقيمة ({1:N2} ج.م). يرجى توريد نقدية للدرج أولاً.",
                                             liveBal.AvailableCashPiasters / 100.0, netDrawerOutflow / 100.0));
+                                    }
+                                }
+                            }
+                        }
+                        else if (string.Equals(tx.PaymentChannel, "terminal_till", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (string.Equals(tx.ServiceType, "cash_out", StringComparison.OrdinalIgnoreCase))
+                            {
+                                long netDrawerOutflow = tx.BillAmountPiasters - tx.CustomerFeePiasters;
+                                if (netDrawerOutflow > 0)
+                                {
+                                    long liveTillCash = GetLiveTerminalTillCash(conn, trans);
+                                    if (liveTillCash < netDrawerOutflow)
+                                    {
+                                        throw new InvalidOperationException(string.Format(
+                                            "رصيد نقدية محفظة/درج الماكينة المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف سحب نقدي للمستهلك بقيمة ({1:N2} ج.م). يرجى تغذية درج الماكينة بالسيولة أولاً.",
+                                            liveTillCash / 100.0, netDrawerOutflow / 100.0));
                                     }
                                 }
                             }
@@ -1123,8 +1326,13 @@ namespace RafiqPOS.Repositories
                         COALESCE(SUM(customer_fee_piasters), 0) as total_fees,
                         COALESCE(SUM(provider_commission_piasters), 0) as total_comm,
                         COALESCE(SUM(net_profit_piasters), 0) as total_profit,
-                        COALESCE(SUM(CASE WHEN payment_channel = 'cash_drawer' THEN total_received_piasters ELSE 0 END), 0) as total_cash_drawer,
-                        COALESCE(SUM(CASE WHEN payment_channel = 'terminal_till' THEN total_received_piasters ELSE 0 END), 0) as total_terminal_till
+                        COALESCE(SUM(CASE WHEN payment_channel = 'cash_drawer' THEN (CASE WHEN service_type = 'cash_out' THEN (customer_fee_piasters - bill_amount_piasters) ELSE total_received_piasters END) ELSE 0 END), 0) as total_cash_drawer,
+                        COALESCE(SUM(CASE WHEN payment_channel = 'terminal_till' THEN 
+                            (CASE WHEN service_type = 'cash_out' THEN (customer_fee_piasters - bill_amount_piasters) 
+                                  WHEN service_type = 'till_cash_funding' OR service_type = 'till_funding' THEN total_received_piasters
+                                  WHEN service_type = 'till_cash_withdrawal' OR service_type = 'till_withdrawal' THEN -bill_amount_piasters
+                                  ELSE total_received_piasters END) 
+                            ELSE 0 END), 0) as total_terminal_till
                     FROM epay_transactions
                     WHERE {0};
                 ", string.Join(" AND ", whereClauses.ToArray()));

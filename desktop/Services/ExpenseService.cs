@@ -39,17 +39,8 @@ namespace RafiqPOS.Services
                 // Server authority (M5): business date always comes from the server clock and cutoff hour, ignoring any client value
                 string businessDate = _dailyClosingService != null ? _dailyClosingService.GetCurrentBusinessDate() : DateTime.Now.ToString("yyyy-MM-dd");
 
-                if (_dailyClosingService != null)
-                {
-                    if (!string.IsNullOrEmpty(request.BusinessDate) && _dailyClosingService.IsDayClosed(request.BusinessDate.Trim()))
-                    {
-                        throw new InvalidOperationException(string.Format("لا يمكن تسجيل مصروف لتاريخ يومية تم إقفالها مسبقاً ({0}).", request.BusinessDate.Trim()));
-                    }
-                    if (_dailyClosingService.IsDayClosed(businessDate))
-                    {
-                        throw new InvalidOperationException(string.Format("لا يمكن تسجيل مصروف لتاريخ يومية تم إقفالها مسبقاً ({0}).", businessDate));
-                    }
-                }
+                // Daily closing is an informational snapshot; it does NOT block further expenses on the same day.
+                // The owner can re-close the day later to get an updated snapshot.
 
                 string source = string.IsNullOrEmpty(request.Source) ? "drawer" : request.Source.Trim().ToLowerInvariant();
                 if (source != "safe" && source != "main_safe")

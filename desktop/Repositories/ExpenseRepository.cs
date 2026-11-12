@@ -58,15 +58,7 @@ namespace RafiqPOS.Repositories
                             }
                             expense.Source = source;
 
-                            // Closed day validation
-                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = @bdate LIMIT 1;", conn, trans))
-                            {
-                                clCmd.Parameters.AddWithValue("@bdate", expense.BusinessDate);
-                                if (clCmd.ExecuteScalar() != null)
-                                {
-                                    throw new InvalidOperationException(string.Format("لا يمكن تسجيل مصروف لتاريخ عمل تم إقفاله وتشميعه مسبقاً ({0}).", expense.BusinessDate));
-                                }
-                            }
+                            // Daily closing is an informational snapshot; it does NOT block operations on the same day.
 
                             // Live drawer cash balance validation - ONLY if expense is paid from drawer
                             if (source == "drawer" && RafiqPOS.Services.DatabaseService.DailyClosing != null)
@@ -217,15 +209,7 @@ namespace RafiqPOS.Repositories
                                 throw new InvalidOperationException("هذا المصروف ملغى بالفعل مسبقاً.");
                             }
 
-                            // Verify business day is not closed
-                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = @bdate LIMIT 1;", conn, trans))
-                            {
-                                clCmd.Parameters.AddWithValue("@bdate", existing.BusinessDate);
-                                if (clCmd.ExecuteScalar() != null)
-                                {
-                                    throw new InvalidOperationException(string.Format("لا يمكن إلغاء مصروف ليوم عمل تم إقفاله واعتماده مسبقاً ({0}).", existing.BusinessDate));
-                                }
-                            }
+                            // Daily closing is an informational snapshot; it does NOT block operations on the same day.
 
                             string nowUtc = DateTime.UtcNow.ToString("o");
                             string updateSql = @"
@@ -331,15 +315,7 @@ namespace RafiqPOS.Repositories
                                 throw new InvalidOperationException("لا يمكن تعديل مصروف تم إلغاؤه مسبقاً.");
                             }
 
-                            // Verify business day is not closed
-                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = @bdate LIMIT 1;", conn, trans))
-                            {
-                                clCmd.Parameters.AddWithValue("@bdate", existing.BusinessDate);
-                                if (clCmd.ExecuteScalar() != null)
-                                {
-                                    throw new InvalidOperationException(string.Format("لا يمكن تعديل مصروف ليوم عمل تم إقفاله واعتماده مسبقاً ({0}).", existing.BusinessDate));
-                                }
-                            }
+                            // Daily closing is an informational snapshot; it does NOT block operations on the same day.
 
                             string targetSource = string.IsNullOrEmpty(request.Source) ? existing.Source : request.Source.Trim().ToLowerInvariant();
                             if (targetSource != "safe" && targetSource != "main_safe")

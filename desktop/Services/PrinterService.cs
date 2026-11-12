@@ -1111,7 +1111,11 @@ namespace RafiqPOS.Services
                 string configured = _settings != null ? _settings.Get("store_logo_path", "") : "";
                 if (string.IsNullOrWhiteSpace(configured) && _settings != null)
                 {
-                    configured = _settings.Get("store_logo_url", "");
+                    configured = _settings.Get("store_logo_raw", "");
+                    if (string.IsNullOrWhiteSpace(configured))
+                    {
+                        configured = _settings.Get("store_logo_url", "");
+                    }
                 }
 
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -4104,7 +4108,8 @@ namespace RafiqPOS.Services
                     {
                         if (bmp != null)
                         {
-                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, GetConfiguredAutoCut(), GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
+                            bool shouldOpenDrawer = GetConfiguredOpenDrawer() && string.Equals(tx.PaymentChannel, "cash_drawer", StringComparison.OrdinalIgnoreCase);
+                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, GetConfiguredAutoCut(), GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
                             string rawErr;
                             string rawTitle = string.Format("Rafiq EPay #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : (!string.IsNullOrEmpty(tx.Id) && tx.Id.Length >= 8 ? tx.Id.Substring(0, 8) : "Receipt"));
                             if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
@@ -4180,7 +4185,8 @@ namespace RafiqPOS.Services
                     }
 
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
+                    bool shouldOpenDrawer = GetConfiguredOpenDrawer() && string.Equals(tx.PaymentChannel, "cash_drawer", StringComparison.OrdinalIgnoreCase);
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network EPay #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : "Receipt");
@@ -4409,7 +4415,8 @@ namespace RafiqPOS.Services
                     {
                         if (bmp != null)
                         {
-                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, GetConfiguredAutoCut(), GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
+                            bool shouldOpenDrawer = GetConfiguredOpenDrawer() && (tx.TxType == "cash_out" || tx.TxType == "cash_in" || string.Equals(tx.PaymentDestination, "cash_drawer", StringComparison.OrdinalIgnoreCase));
+                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, GetConfiguredAutoCut(), GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
                             string rawErr;
                             string rawTitle = string.Format("Rafiq Wallet #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : (!string.IsNullOrEmpty(tx.Id) && tx.Id.Length >= 8 ? tx.Id.Substring(0, 8) : "Receipt"));
                             if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
@@ -4485,7 +4492,8 @@ namespace RafiqPOS.Services
                     }
 
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
+                    bool shouldOpenDrawer = GetConfiguredOpenDrawer() && (tx.TxType == "cash_out" || tx.TxType == "cash_in" || string.Equals(tx.PaymentDestination, "cash_drawer", StringComparison.OrdinalIgnoreCase));
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network Wallet #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : "Receipt");

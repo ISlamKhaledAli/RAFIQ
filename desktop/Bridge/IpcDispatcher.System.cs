@@ -28,7 +28,7 @@ namespace RafiqPOS.Bridge
         private static readonly HashSet<string> STORE_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)
         {
             "store_name", "cashier_name", "store_phone", "store_address", "tax_number",
-            "receipt_header", "receipt_footer", "show_receipt_logo", "receipt_show_cashier", "receipt_show_invoice_number", "receipt_show_paid", "receipt_show_change", "store_logo_url", "thermal_logo_mode", "logo_variant",
+            "receipt_header", "receipt_footer", "show_receipt_logo", "receipt_show_cashier", "receipt_show_invoice_number", "receipt_show_paid", "receipt_show_change", "store_logo_url", "store_logo_raw", "thermal_logo_mode", "logo_variant",
             "store_instapay_address", "store_wallet_number"
         };
 

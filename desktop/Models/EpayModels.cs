@@ -151,6 +151,20 @@ namespace RafiqPOS.Models
         [JsonProperty("cashierName")]
         public string CashierName { get; set; }
 
+        [JsonProperty("createdBy")]
+        public string CreatedBy
+        {
+            get { return CashierName; }
+            set { if (string.IsNullOrEmpty(CashierName)) CashierName = value; }
+        }
+
+        [JsonProperty("createdByName")]
+        public string CreatedByName
+        {
+            get { return CashierName; }
+            set { if (string.IsNullOrEmpty(CashierName)) CashierName = value; }
+        }
+
         [JsonProperty("status")]
         public string Status { get; set; } // completed, cancelled
 
@@ -213,6 +227,13 @@ namespace RafiqPOS.Models
 
         [JsonProperty("createdBy")]
         public string CreatedBy { get; set; }
+
+        [JsonProperty("createdByName")]
+        public string CreatedByName
+        {
+            get { return CreatedBy; }
+            set { if (string.IsNullOrEmpty(CreatedBy)) CreatedBy = value; }
+        }
 
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }

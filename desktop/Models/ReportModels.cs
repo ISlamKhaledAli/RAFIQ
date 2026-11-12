@@ -173,6 +173,35 @@ namespace RafiqPOS.Models
         public string CategoryName { get; set; }
     }
 
+    public class LowStockReportResponse
+    {
+        [JsonProperty("items")]
+        public List<LowStockReportItem> Items { get; set; }
+
+        [JsonProperty("totalCount")]
+        public int TotalCount { get; set; }
+
+        [JsonProperty("totalSuggestedBudgetPiasters")]
+        public long TotalSuggestedBudgetPiasters { get; set; }
+
+        [JsonProperty("zeroStockCount")]
+        public int ZeroStockCount { get; set; }
+
+        [JsonProperty("lowStockCount")]
+        public int LowStockCount { get; set; }
+
+        [JsonProperty("page")]
+        public int Page { get; set; }
+
+        [JsonProperty("pageSize")]
+        public int PageSize { get; set; }
+
+        public LowStockReportResponse()
+        {
+            Items = new List<LowStockReportItem>();
+        }
+    }
+
     public class DebtorReportItem
     {
         [JsonProperty("customerId")]

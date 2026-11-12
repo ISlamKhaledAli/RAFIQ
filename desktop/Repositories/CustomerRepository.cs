@@ -359,27 +359,8 @@ namespace RafiqPOS.Repositories
                             throw new InvalidOperationException("لا يمكن تسجيل سداد لعميل مؤرشف");
                         }
 
-                        // Closed day protection
-                        int cutoffHour = 0;
-                        using (var cutCmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'business_day_cutoff_hour' LIMIT 1;", conn, trans))
-                        {
-                            object cutVal = cutCmd.ExecuteScalar();
-                            int parsedCut;
-                            if (cutVal != null && cutVal != DBNull.Value && int.TryParse(cutVal.ToString(), out parsedCut) && parsedCut >= 0 && parsedCut <= 12)
-                            {
-                                cutoffHour = parsedCut;
-                            }
-                        }
-                        using (var clCmd = new SQLiteCommand(@"
-                            SELECT COUNT(*) FROM daily_closings 
-                            WHERE business_date = date(datetime('now', 'localtime', '-' || @cutoff || ' hours'));", conn, trans))
-                        {
-                            clCmd.Parameters.AddWithValue("@cutoff", cutoffHour);
-                            if (Convert.ToInt64(clCmd.ExecuteScalar()) > 0)
-                            {
-                                throw new InvalidOperationException("لا يمكن تسجيل سداد نقدي من عميل لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                            }
-                        }
+                        // Daily closing is an informational snapshot; it does NOT block operations on the same day.
+                        var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
 
                         long newBalance = currentBalance - amountPiasters;
                         string now = DateTime.UtcNow.ToString("o");
@@ -717,12 +698,8 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // Closed day protection
+                        // Daily closing is an informational snapshot; it does NOT block operations on the same day.
                         var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
-                        if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
-                        {
-                            throw new InvalidOperationException("لا يمكن إلغاء دفعة نقدية لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                        }
 
                         // Same predicate as RecordPayment: digital (incl. card) payments never touched the drawer
                         bool isDigitalPayment = IsDigitalPaymentMethod(origPaymentMethod, origDigitalAccountId);
