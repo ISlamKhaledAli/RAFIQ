@@ -5,7 +5,7 @@ title Rafiq POS - Setup Builder
 
 rem =====================================================================
 rem  Rafiq POS - Offline installer builder (Windows 7 SP1 .. Windows 11)
-rem  Output: installer\Output\RafiqPOS_Setup_v1.1.1.exe
+rem  Output: installer\Output\RafiqPOS_Setup_v1.1.2.exe
 rem
 rem  Optional environment variables:
 rem    RAFIQ_PREREQ_DIR      folder with the downloaded Microsoft prerequisites (default: installer\prerequisites).
@@ -70,11 +70,11 @@ echo.
 :edition_chosen
 
 if /i "%BUILD_MODE%"=="SLIM" (
-    set "SETUP_EXE=%ROOT%installer\Output\RafiqPOS_Setup_Slim_v1.1.1.exe"
+    set "SETUP_EXE=%ROOT%installer\Output\RafiqPOS_Setup_Slim_v1.1.2.exe"
     set "ISCC_EDITION_FLAG=/DSlim=1"
     set "EDITION_TITLE=Slim Modern Edition (Windows 10 and 11)"
 ) else (
-    set "SETUP_EXE=%ROOT%installer\Output\RafiqPOS_Setup_v1.1.1.exe"
+    set "SETUP_EXE=%ROOT%installer\Output\RafiqPOS_Setup_v1.1.2.exe"
     set "ISCC_EDITION_FLAG="
     set "EDITION_TITLE=Full Offline Edition (Windows 7 SP1 .. 11)"
 )
