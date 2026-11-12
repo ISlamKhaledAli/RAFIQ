@@ -216,10 +216,8 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                if (DatabaseService.DailyClosing.IsDayClosed(targetBDate))
-                {
-                    throw new InvalidOperationException(string.Format("تم إقفال وتشميع يومية العمل لتاريخ {0} مسبقاً. لا يمكن تسجيل أي فواتير جديدة.", targetBDate));
-                }
+                // Daily closing is an informational snapshot; it does NOT block further sales on the same day.
+                // The owner can re-close the day later to get an updated snapshot.
             }
 
             // Scenario 1: Financial Operation Guard - Require open active shift

@@ -145,6 +145,20 @@ namespace RafiqPOS.Models
         [JsonProperty("cashierName")]
         public string CashierName { get; set; }
 
+        [JsonProperty("createdBy")]
+        public string CreatedBy
+        {
+            get { return CashierName; }
+            set { if (string.IsNullOrEmpty(CashierName)) CashierName = value; }
+        }
+
+        [JsonProperty("createdByName")]
+        public string CreatedByName
+        {
+            get { return CashierName; }
+            set { if (string.IsNullOrEmpty(CashierName)) CashierName = value; }
+        }
+
         [JsonProperty("paymentDestination")]
         public string PaymentDestination { get; set; } // "cash_drawer", "terminal_till", "safe", "external"
 
@@ -182,11 +196,15 @@ namespace RafiqPOS.Models
             {
                 switch (TxType)
                 {
-                    case "cash_out": return "سحب كاش";
-                    case "cash_in": return "إيداع كاش";
+                    case "cash_out": return "تحويل للزبون (خصم)";
+                    case "cash_in": return "سحب كاش للزبون (صرف نقدية)";
                     case "pos_sale": return "مبيعات كاشير";
                     case "pos_return": return "مرتجع مبيعات";
                     case "funding": return "شحن وتغذية";
+                    case "till_funding":
+                    case "till_cash_funding": return "تغذية نقدية للدرج";
+                    case "till_withdrawal":
+                    case "till_cash_withdrawal": return "صرف نقدية من الدرج";
                     case "customer_debt_payment": return "سداد آجل عميل";
                     case "payment_cancellation": return "إلغاء سداد";
                     case "balance_adjustment": return "تسوية رصيد";
@@ -302,6 +320,54 @@ namespace RafiqPOS.Models
 
         [JsonProperty("activeAccountsCount")]
         public int ActiveAccountsCount { get; set; }
+
+        [JsonProperty("todayDrawerCashPiasters")]
+        public long TodayDrawerCashPiasters { get; set; }
+
+        [JsonProperty("totalDrawerCashPiasters")]
+        public long TotalDrawerCashPiasters { get; set; }
+
+        [JsonProperty("periodDrawerCashPiasters")]
+        public long PeriodDrawerCashPiasters { get; set; }
+
+        [JsonProperty("todayTerminalTillCashPiasters")]
+        public long TodayTerminalTillCashPiasters { get; set; }
+
+        [JsonProperty("totalTerminalTillCashPiasters")]
+        public long TotalTerminalTillCashPiasters { get; set; }
+
+        [JsonProperty("periodTerminalTillCashPiasters")]
+        public long PeriodTerminalTillCashPiasters { get; set; }
+
+        [JsonProperty("todayDrawerCashFormatted")]
+        public string TodayDrawerCashFormatted
+        {
+            get { return Money.FormatPiasters(TodayDrawerCashPiasters); }
+        }
+
+        [JsonProperty("totalDrawerCashFormatted")]
+        public string TotalDrawerCashFormatted
+        {
+            get { return Money.FormatPiasters(TotalDrawerCashPiasters); }
+        }
+
+        [JsonProperty("todayTerminalTillCashFormatted")]
+        public string TodayTerminalTillCashFormatted
+        {
+            get { return Money.FormatPiasters(TodayTerminalTillCashPiasters); }
+        }
+
+        [JsonProperty("totalTerminalTillCashFormatted")]
+        public string TotalTerminalTillCashFormatted
+        {
+            get { return Money.FormatPiasters(TotalTerminalTillCashPiasters); }
+        }
+
+        [JsonProperty("periodDrawerCashFormatted")]
+        public string PeriodDrawerCashFormatted
+        {
+            get { return Money.FormatPiasters(PeriodDrawerCashPiasters); }
+        }
 
         [JsonProperty("totalWalletsBalanceFormatted")]
         public string TotalWalletsBalanceFormatted

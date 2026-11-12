@@ -222,6 +222,48 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
 
+                case "wallets:fundTillCash":
+                    {
+                        var repo = GetWalletsRepo();
+                        if (request.Payload == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "بيانات التغذية النقدية فارغة");
+                            return true;
+                        }
+
+                        JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
+                        long amountPiasters = payloadObj["amountPiasters"] != null ? (long)payloadObj["amountPiasters"] : 0;
+                        string fundingSource = null;
+                        if (payloadObj["fundingSource"] != null && !string.IsNullOrWhiteSpace(payloadObj["fundingSource"].ToString()))
+                        {
+                            fundingSource = payloadObj["fundingSource"].ToString().Trim();
+                        }
+                        else if (payloadObj["source"] != null && !string.IsNullOrWhiteSpace(payloadObj["source"].ToString()))
+                        {
+                            fundingSource = payloadObj["source"].ToString().Trim();
+                        }
+                        if (string.IsNullOrEmpty(fundingSource))
+                        {
+                            fundingSource = "external_cash";
+                        }
+                        string notes = payloadObj["notes"] != null ? (string)payloadObj["notes"] : null;
+                        string cashierName = payloadObj["cashierName"] != null ? (string)payloadObj["cashierName"] : SessionActorName();
+                        string accountId = payloadObj["accountId"] != null ? (string)payloadObj["accountId"] : null;
+
+                        if (amountPiasters <= 0)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "مبلغ التغذية النقدية يجب أن يكون أكبر من الصفر");
+                            return true;
+                        }
+
+                        lock (SaleService.FinancialWriteLock)
+                        {
+                            var tx = repo.FundWalletTillCash(amountPiasters, fundingSource, notes, cashierName, accountId);
+                            response = BridgeResponse.Ok(request.Id, tx);
+                        }
+                        return true;
+                    }
+
                 case "wallets:processTransaction":
                     {
                         var repo = GetWalletsRepo();
@@ -370,10 +412,15 @@ namespace RafiqPOS.Bridge
                         int periodCount;
                         long periodProfit;
                         long periodVolume;
-                        repo.GetPeriodTotals(aFrom, aTo, out periodCount, out periodProfit, out periodVolume);
+                        long periodDrawerCash;
+                        long periodTillCash;
+                        repo.GetPeriodTotals(aFrom, aTo, out periodCount, out periodProfit, out periodVolume, out periodDrawerCash, out periodTillCash);
                         analyticsObj["periodTransactionsCount"] = periodCount;
                         analyticsObj["periodProfitPiasters"] = periodProfit;
                         analyticsObj["periodVolumePiasters"] = periodVolume;
+                        analyticsObj["periodDrawerCashPiasters"] = periodDrawerCash;
+                        analyticsObj["periodTerminalTillCashPiasters"] = periodTillCash;
+                        analyticsObj["periodTotalCashPiasters"] = periodDrawerCash + periodTillCash;
 
                         response = BridgeResponse.Ok(request.Id, analyticsObj);
                         return true;

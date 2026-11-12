@@ -565,8 +565,8 @@ namespace RafiqPOS.Services
                 // =========================================================================
                 // 14. SENIOR TREASURY AUDITOR: SCENARIO 4 - POST-CLOSING FREEZE (التجميد بعد الإغلاق)
                 // =========================================================================
-                // Test 4.1: Attempting to insert a backdated sale on a closed business day (اليوم الأول) -> MUST FAIL
-                bool retroSaleBlocked = false;
+                // Test 4.1: Creating a sale on a closed business day is now allowed (informational snapshot)
+                bool retroSaleSucceeded = false;
                 try
                 {
                     var retroSale = new Sale
@@ -582,27 +582,28 @@ namespace RafiqPOS.Services
                         }
                     };
                     saleRepo.CreateSaleAtomic(retroSale);
+                    retroSaleSucceeded = true;
                 }
-                catch (InvalidOperationException ex)
+                catch (InvalidOperationException)
                 {
-                    retroSaleBlocked = ex.Message.Contains("إقفالها") || ex.Message.Contains("مقفلة");
+                    retroSaleSucceeded = false;
                 }
-                Assert(retroSaleBlocked, "منع تسجيل فاتورة مبيعات بأثر رجعي في يوم عمل مقفل نهائياً (اليوم الأول)", result);
+                Assert(retroSaleSucceeded, "السماح بتسجيل فاتورة مبيعات بعد إقفال اليومية (إقفال اليومية لقطة معلوماتية فقط)", result);
 
-                // Test 4.2: Attempting to cancel an invoice belonging to a closed day -> MUST FAIL
+                // Test 4.2: Attempting to cancel an invoice belonging to a closed shift -> MUST FAIL
                 bool cancelClosedBlocked = false;
                 try
                 {
-                    saleRepo.CancelSaleAtomic(saleNight1.Id, "محاولة إلغاء فاتورة بعد إقفال اليوم", "admin");
+                    saleRepo.CancelSaleAtomic(saleNight1.Id, "محاولة إلغاء فاتورة بعد إقفال الوردية", "admin");
                 }
                 catch (InvalidOperationException ex)
                 {
-                    cancelClosedBlocked = ex.Message.Contains("إقفال") || ex.Message.Contains("مغلق");
+                    cancelClosedBlocked = ex.Message.Contains("إقفال") || ex.Message.Contains("مغلق") || ex.Message.Contains("وردية");
                 }
-                Assert(cancelClosedBlocked, "منع إلغاء أي فاتورة تابعة ليوم عمل تم إقفاله مسبقاً لحماية الأرقام الضريبية والمالية", result);
+                Assert(cancelClosedBlocked, "منع إلغاء أي فاتورة تابعة لوردية مغلقة لحماية الأرقام الضريبية والمالية", result);
 
-                // Test 4.3: Attempting to create an expense on a closed business day -> MUST FAIL
-                bool retroExpenseBlocked = false;
+                // Test 4.3: Creating an expense on a closed business day is now allowed (informational snapshot)
+                bool retroExpenseAllowed = false;
                 try
                 {
                     expService.CreateExpense(new CreateExpenseRequest
@@ -610,14 +611,15 @@ namespace RafiqPOS.Services
                         AmountPiasters = 1000,
                         Category = "نثريات",
                         BusinessDate = nightDay1,
-                        Notes = "محاولة تسجيل مصروف في يوم مقفل"
+                        Notes = "تسجيل مصروف في يوم مقفل"
                     });
+                    retroExpenseAllowed = true;
                 }
-                catch (InvalidOperationException ex)
+                catch (InvalidOperationException)
                 {
-                    retroExpenseBlocked = ex.Message.Contains("إقفالها") || ex.Message.Contains("مغلق");
+                    retroExpenseAllowed = false;
                 }
-                Assert(retroExpenseBlocked, "منع تسجيل أي مصروف على يوم عمل مقفل نهائياً", result);
+                Assert(retroExpenseAllowed, "السماح بتسجيل مصروف بعد إقفال اليومية (إقفال اليومية لقطة معلوماتية فقط)", result);
 
                 // Test 4.4: Attempting to collect customer cash debt on a closed business day -> MUST FAIL
                 bool custPayClosedBlocked = false;

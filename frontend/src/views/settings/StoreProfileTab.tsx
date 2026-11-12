@@ -60,6 +60,10 @@ interface StoreProfileTabProps {
   setShowReceiptChange?: (val: boolean) => void;
   storeLogoUrl?: string;
   setStoreLogoUrl?: (val: string) => void;
+  rawLogoSource?: string | null;
+  setRawLogoSource?: (val: string | null) => void;
+  thermalLogoMode?: ThermalOptimizeMode;
+  setThermalLogoMode?: (mode: ThermalOptimizeMode) => void;
   /** Developer signature settings, read only here (edited on the root console): they only feed the live preview */
   developerSignature?: string;
   developerSignatureVisible?: boolean;
@@ -105,6 +109,10 @@ export const StoreProfileTab = ({
   setShowReceiptChange,
   storeLogoUrl = DEFAULT_LOGO_URL,
   setStoreLogoUrl,
+  rawLogoSource = null,
+  setRawLogoSource,
+  thermalLogoMode = 'dither',
+  setThermalLogoMode,
   developerSignature = DEFAULT_DEVELOPER_SIGNATURE,
   developerSignatureVisible = true,
   developerSignatureImage = '',
@@ -119,8 +127,9 @@ export const StoreProfileTab = ({
   const [isUploading, setIsUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const [profileViewMode, setProfileViewMode] = useState<'sales_receipt' | 'other_templates'>('sales_receipt');
-  const [rawLogoSource, setRawLogoSource] = useState<string | null>(null);
-  const [logoMode, setLogoMode] = useState<ThermalOptimizeMode>('crisp');
+  const [localRawSource, setLocalRawSource] = useState<string | null>(null);
+  const effectiveRawSource = rawLogoSource || localRawSource || null;
+  const logoMode = thermalLogoMode;
   const [isThermalSim, setIsThermalSim] = useState(false);
   const [thermalSimUrl, setThermalSimUrl] = useState('');
 
@@ -149,7 +158,8 @@ export const StoreProfileTab = ({
     reader.onload = async () => {
       if (typeof reader.result === 'string') {
         const raw = reader.result;
-        setRawLogoSource(raw);
+        setLocalRawSource(raw);
+        setRawLogoSource?.(raw);
         try {
           const tempImg = new Image();
           tempImg.onload = async () => {
@@ -167,7 +177,7 @@ export const StoreProfileTab = ({
             } catch {
               // fallback to crisp
             }
-            setLogoMode(autoMode);
+            setThermalLogoMode?.(autoMode);
             const optimized = await optimizeImageForThermal(raw, { mode: autoMode });
             setStoreLogoUrl(optimized);
             const sim = await generateThermal1BitSimulation(optimized);
@@ -175,6 +185,7 @@ export const StoreProfileTab = ({
             setIsUploading(false);
           };
           tempImg.onerror = async () => {
+            setThermalLogoMode?.('crisp');
             const optimized = await optimizeImageForThermal(raw, { mode: 'crisp' });
             setStoreLogoUrl(optimized);
             setIsUploading(false);
@@ -192,10 +203,13 @@ export const StoreProfileTab = ({
   };
 
   const handleModeChange = async (nextMode: ThermalOptimizeMode) => {
-    if (nextMode === logoMode || !setStoreLogoUrl) return;
-    setLogoMode(nextMode);
-    const src = rawLogoSource || storeLogoUrl;
-    if (!src || isDefaultLogo) return;
+    if (!setStoreLogoUrl || isUploading) return;
+    const src = effectiveRawSource || storeLogoUrl;
+    if (!src || isDefaultLogo) {
+      setThermalLogoMode?.(nextMode);
+      return;
+    }
+    setThermalLogoMode?.(nextMode);
     setIsUploading(true);
     try {
       const optimized = await optimizeImageForThermal(src, { mode: nextMode });
@@ -206,6 +220,22 @@ export const StoreProfileTab = ({
       console.warn('Thermal logo mode change fallback:', err);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleToggleThermalSim = async () => {
+    const next = !isThermalSim;
+    setIsThermalSim(next);
+    if (next && (!thermalSimUrl || thermalSimUrl === '')) {
+      const active = storeLogoUrl;
+      if (active && !isDefaultLogo) {
+        try {
+          const sim = await generateThermal1BitSimulation(active);
+          setThermalSimUrl(sim);
+        } catch (err) {
+          console.warn('Thermal sim fallback:', err);
+        }
+      }
     }
   };
 
@@ -365,7 +395,7 @@ export const StoreProfileTab = ({
                     <img
                       src={isThermalSim && thermalSimUrl ? thermalSimUrl : storeLogoUrl}
                       alt="معاينة الشعار"
-                      className="max-h-full max-w-full object-contain"
+                      className="max-h-full max-w-full object-contain [image-rendering:pixelated]"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).src = DEFAULT_LOGO_URL;
                       }}
@@ -404,7 +434,8 @@ export const StoreProfileTab = ({
                     </label>
                     {!isDefaultLogo && (
                       <AppButton variant="secondary" icon={RotateCcw} onClick={() => {
-                        setRawLogoSource(null);
+                        setLocalRawSource(null);
+                        setRawLogoSource?.(null);
                         setThermalSimUrl('');
                         setIsThermalSim(false);
                         setStoreLogoUrl?.(DEFAULT_LOGO_URL);
@@ -426,11 +457,11 @@ export const StoreProfileTab = ({
                         onClick={() => handleModeChange('crisp')}
                         disabled={isUploading}
                         aria-pressed={logoMode === 'crisp'}
-                        className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border ${
+                        className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border cursor-pointer ${
                           logoMode === 'crisp'
                             ? 'bg-brand dark:bg-paid-bright text-white dark:text-surface-dark border-transparent shadow-xs'
                             : 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-                        }`}
+                        } ${isUploading ? 'opacity-60 cursor-not-allowed' : ''}`}
                       >
                         <Type className="w-3.5 h-3.5" />
                         <span>خطوط ونصوص حادة</span>
@@ -440,11 +471,11 @@ export const StoreProfileTab = ({
                         onClick={() => handleModeChange('dither')}
                         disabled={isUploading}
                         aria-pressed={logoMode === 'dither'}
-                        className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border ${
+                        className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border cursor-pointer ${
                           logoMode === 'dither'
                             ? 'bg-brand dark:bg-paid-bright text-white dark:text-surface-dark border-transparent shadow-xs'
                             : 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-                        }`}
+                        } ${isUploading ? 'opacity-60 cursor-not-allowed' : ''}`}
                       >
                         <Layers className="w-3.5 h-3.5" />
                         <span>تدرجات وتفاصيل دقيقة</span>
@@ -453,9 +484,9 @@ export const StoreProfileTab = ({
 
                     <button
                       type="button"
-                      onClick={() => setIsThermalSim(!isThermalSim)}
+                      onClick={handleToggleThermalSim}
                       aria-pressed={isThermalSim}
-                      className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border ${
+                      className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border cursor-pointer ${
                         isThermalSim
                           ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid dark:border-paid-bright/40 shadow-xs'
                           : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-muted-dark border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-ink-dark'
@@ -586,7 +617,7 @@ export const StoreProfileTab = ({
                 },
               )}
               paper={previewPaper}
-              logoUrl={showReceiptLogo ? storeLogoUrl : null}
+              logoUrl={showReceiptLogo ? (isThermalSim && thermalSimUrl ? thermalSimUrl : storeLogoUrl) : null}
             />
           </div>
           <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0">

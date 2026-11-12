@@ -1,5 +1,5 @@
-﻿param(
-    [string]$Version = "1.1.0"
+param(
+    [string]$Version = "1.1.2"
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,6 +17,14 @@ $debugBin = Join-Path $desktopDir "bin\Debug"
 $outputDir = Join-Path $rootDir "output"
 $packageZip = Join-Path $outputDir "RafiqPOS_Update_v$Version.zip"
 $stagingDir = Join-Path $rootDir "temp_package_staging"
+
+# Close any running RafiqPOS instance to release file locks
+$running = Get-Process -Name "RafiqPOS" -ErrorAction SilentlyContinue
+if ($running) {
+    Write-Host "[NOTE] RafiqPOS.exe is running - closing it to release files..." -ForegroundColor Yellow
+    $running | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+}
 
 # 1. Build Frontend
 Write-Host ""

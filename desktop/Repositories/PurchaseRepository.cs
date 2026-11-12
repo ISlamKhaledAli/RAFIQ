@@ -225,10 +225,7 @@ namespace RafiqPOS.Repositories
                         if (purchase.PaidAmountPiasters > 0 && string.Equals(paySource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
                             var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
-                            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
-                            {
-                                throw new InvalidOperationException("لا يمكن سداد فاتورة شراء من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                            }
+                            // Daily closing is an informational snapshot; it does NOT block operations on the same day.
 
                             if (DatabaseService.DailyClosing != null)
                             {
@@ -962,10 +959,7 @@ namespace RafiqPOS.Repositories
         private static void RecordSupplierCashRefund(SQLiteConnection conn, SQLiteTransaction trans, PurchaseReturn returnDoc, string userId, string now)
         {
             var businessDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
-            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, businessDate))
-            {
-                throw new InvalidOperationException("لا يمكن استلام نقدية مرتجع المشتريات في درج يوم عمل تم إقفاله.");
-            }
+            // Daily closing is an informational snapshot; it does NOT block operations on the same day.
 
             string shiftId = null;
             using (var cmd = new SQLiteCommand("SELECT id FROM shifts WHERE status = 'open' ORDER BY opened_at DESC LIMIT 1;", conn, trans))

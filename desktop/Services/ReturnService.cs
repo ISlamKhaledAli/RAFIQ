@@ -365,16 +365,9 @@ namespace RafiqPOS.Services
                 }
             }
 
-            // Closed Day Validation & Post-Closing Freeze
+            // Daily closing is an informational snapshot; it does NOT block further returns on the same day.
+            // The owner can re-close the day later to get an updated snapshot.
             var closingSvc = _dailyClosingService ?? DatabaseService.DailyClosing;
-            if (closingSvc != null)
-            {
-                string currentBDate = closingSvc.GetCurrentBusinessDate();
-                if (closingSvc.IsDayClosed(currentBDate))
-                {
-                    throw new InvalidOperationException(string.Format("لا يمكن تسجيل أي عملية مرتجع لتاريخ عمل تم إقفاله وتشميعه مسبقاً ({0}).", currentBDate));
-                }
-            }
 
             // Invariant: Cash refunds disburse physical money from drawer; check drawer cash sufficiency
             long totalCashToRefund = 0;

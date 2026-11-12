@@ -1027,9 +1027,28 @@ namespace RafiqPOS.Services
         /// <summary>
         /// تقرير الأصناف الناقصة مع الكمية المقترحة للطلب والتكلفة التقديرية (Story 86 / Task 48-1)
         /// </summary>
+        /// <summary>
+        /// تقرير الأصناف الناقصة مع الكمية المقترحة للطلب والتكلفة التقديرية (Story 86 / Task 48-1)
+        /// استبعاد الأصناف الافتراضية غير المستخدمة التي لم تُباع ولم تُشترَ ووُضعت كعناصر كتالوج فقط
+        /// </summary>
         public List<LowStockReportItem> GetLowStockReport()
         {
-            var list = new List<LowStockReportItem>();
+            var res = GetLowStockReportInternal(0, 0, null, null);
+            return res.Items;
+        }
+
+        public LowStockReportResponse GetLowStockReportPaged(int limit, int offset, string search, string filter)
+        {
+            return GetLowStockReportInternal(limit, offset, search, filter);
+        }
+
+        private LowStockReportResponse GetLowStockReportInternal(int limit, int offset, string search, string filter)
+        {
+            var response = new LowStockReportResponse();
+            if (limit <= 0 && offset > 0) limit = 50;
+            if (offset < 0) offset = 0;
+            response.Page = (limit > 0) ? (offset / limit) + 1 : 1;
+            response.PageSize = limit > 0 ? limit : 0;
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -1039,6 +1058,74 @@ namespace RafiqPOS.Services
                     pragmaCmd.ExecuteNonQuery();
                 }
 
+                // شرط حصر النواقص الحقيقية فقط وعزل الكتالوج الخامل غير المستعمل
+                string baseCondition = @"
+                    p.is_active = 1
+                    AND (p.has_variants = 0 OR p.has_variants IS NULL)
+                    AND (
+                        (p.min_stock_quantity_milli > 0 AND p.stock_quantity_milli > 0 AND p.stock_quantity_milli <= p.min_stock_quantity_milli)
+                        OR (p.stock_quantity_milli <= 0 AND (
+                            EXISTS (SELECT 1 FROM sale_items si WHERE si.product_id = p.id)
+                            OR EXISTS (SELECT 1 FROM stock_movements sm WHERE sm.product_id = p.id)
+                            OR EXISTS (SELECT 1 FROM purchase_items pi WHERE pi.product_id = p.id)
+                            OR EXISTS (SELECT 1 FROM shortage_entries se WHERE se.product_id = p.id)
+                            OR (p.min_stock_quantity_milli > 0 AND p.min_stock_quantity_milli != 5000)
+                        ))
+                    )";
+
+                string stockFilterClause = "";
+                if (string.Equals(filter, "zero", StringComparison.OrdinalIgnoreCase))
+                {
+                    stockFilterClause = " AND p.stock_quantity_milli <= 0";
+                }
+                else if (string.Equals(filter, "low", StringComparison.OrdinalIgnoreCase))
+                {
+                    stockFilterClause = " AND p.stock_quantity_milli > 0";
+                }
+
+                string searchClause = "";
+                bool hasSearch = !string.IsNullOrEmpty(search) && search.Trim().Length > 0;
+                if (hasSearch)
+                {
+                    searchClause = " AND (p.name LIKE @search OR p.barcode LIKE @search OR c.name LIKE @search)";
+                }
+
+                // حساب إجمالي النواقص والميزانية التقديرية بدقة عبر مصفوفة استعلام مجمعة
+                string summarySql = @"
+                    SELECT 
+                        COUNT(1) AS total_count,
+                        COALESCE(SUM(CASE WHEN p.stock_quantity_milli <= 0 THEN 1 ELSE 0 END), 0) AS zero_count,
+                        COALESCE(SUM(CASE WHEN p.stock_quantity_milli > 0 THEN 1 ELSE 0 END), 0) AS low_count,
+                        COALESCE(SUM(
+                            (CASE 
+                                WHEN (CASE WHEN p.min_stock_quantity_milli > 0 THEN (p.min_stock_quantity_milli * 2) ELSE 5000 END) - p.stock_quantity_milli < 1000 
+                                THEN 1000 
+                                ELSE (CASE WHEN p.min_stock_quantity_milli > 0 THEN (p.min_stock_quantity_milli * 2) ELSE 5000 END) - p.stock_quantity_milli 
+                             END) * p.cost_piasters / 1000
+                        ), 0) AS total_budget
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    WHERE " + baseCondition + stockFilterClause + searchClause + ";";
+
+                using (var sumCmd = new SQLiteCommand(summarySql, conn))
+                {
+                    if (hasSearch)
+                    {
+                        sumCmd.Parameters.AddWithValue("@search", "%" + search.Trim() + "%");
+                    }
+                    using (var rdr = sumCmd.ExecuteReader())
+                    {
+                        if (rdr.Read())
+                        {
+                            response.TotalCount = Convert.ToInt32(rdr["total_count"]);
+                            response.ZeroStockCount = Convert.ToInt32(rdr["zero_count"]);
+                            response.LowStockCount = Convert.ToInt32(rdr["low_count"]);
+                            response.TotalSuggestedBudgetPiasters = Convert.ToInt64(rdr["total_budget"]);
+                        }
+                    }
+                }
+
+                // استخراج الأصناف المستهدفة مع دعم الترقيم والحد الأقصى لمنع تجميد الشاشة
                 string sql = @"
                     SELECT 
                         p.id,
@@ -1051,14 +1138,27 @@ namespace RafiqPOS.Services
                         COALESCE(c.name, 'عام') AS category_name
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
-                    WHERE p.is_active = 1
-                      AND (p.has_variants = 0 OR p.has_variants IS NULL)
-                      AND p.stock_quantity_milli <= p.min_stock_quantity_milli
-                    ORDER BY (p.stock_quantity_milli - p.min_stock_quantity_milli) ASC, p.name ASC;
-                ";
+                    WHERE " + baseCondition + stockFilterClause + searchClause + @"
+                    ORDER BY (p.stock_quantity_milli - p.min_stock_quantity_milli) ASC, p.name ASC";
+
+                if (limit > 0)
+                {
+                    sql += " LIMIT @limit OFFSET @offset";
+                }
+                sql += ";";
 
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
+                    if (hasSearch)
+                    {
+                        cmd.Parameters.AddWithValue("@search", "%" + search.Trim() + "%");
+                    }
+                    if (limit > 0)
+                    {
+                        cmd.Parameters.AddWithValue("@limit", limit);
+                        cmd.Parameters.AddWithValue("@offset", offset);
+                    }
+
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -1067,14 +1167,14 @@ namespace RafiqPOS.Services
                             long minMilli = Convert.ToInt64(reader["min_stock_quantity_milli"]);
                             long unitCost = Convert.ToInt64(reader["cost_piasters"]);
 
-                            // Suggested order quantity logic: target is min_stock * 2 (safety buffer)
+                            // حساب كمية الطلب المقترحة بهامش أمان
                             long targetStockMilli = minMilli > 0 ? (minMilli * 2) : 5000;
                             long suggestedMilli = targetStockMilli - stockMilli;
-                            if (suggestedMilli < 1000) suggestedMilli = 1000; // At least 1 unit
+                            if (suggestedMilli < 1000) suggestedMilli = 1000; // على الأقل وحدة واحدة
 
                             long estimatedCost = (suggestedMilli * unitCost) / 1000;
 
-                            list.Add(new LowStockReportItem
+                            response.Items.Add(new LowStockReportItem
                             {
                                 ProductId = reader["id"].ToString(),
                                 Name = reader["name"].ToString(),
@@ -1092,7 +1192,7 @@ namespace RafiqPOS.Services
                 }
             }
 
-            return list;
+            return response;
         }
 
         /// <summary>

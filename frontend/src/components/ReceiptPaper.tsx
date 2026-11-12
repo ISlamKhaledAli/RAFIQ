@@ -81,7 +81,7 @@ export function ReceiptPaper({ model, paper, logoUrl, id }: ReceiptPaperProps) {
           <img
             src={logoUrl}
             alt="شعار المتجر"
-            className={`object-contain max-h-[48px] ${is57mm ? 'max-w-[90px]' : 'max-w-[130px]'}`}
+            className={`object-contain max-h-[48px] ${is57mm ? 'max-w-[90px]' : 'max-w-[130px]'} [image-rendering:pixelated]`}
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).src = '/receipt_logo_square.png';
             }}

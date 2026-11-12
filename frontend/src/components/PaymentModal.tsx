@@ -399,14 +399,14 @@ export const PaymentModal = ({
 
     const payments: SalePayment[] = [
       {
-        amountPiasters: Math.min(receivedPiasters, netTotalPiasters),
+        amountPiasters: receivedPiasters,
         method: 'cash',
       },
     ];
 
     onConfirmPayment({
       paymentMethod: 'cash',
-      paidPiasters: Math.min(receivedPiasters, netTotalPiasters),
+      paidPiasters: receivedPiasters,
       payments,
       changeDuePiasters,
       customerId: currentCustomerId,

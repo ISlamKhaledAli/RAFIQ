@@ -236,11 +236,6 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                       >
                         {item.productName}
                       </span>
-                      {isSelected && (
-                        <span className="shrink-0 text-micro px-1.5 py-0.5 rounded bg-brand/10 dark:bg-brand-bright/15 text-brand dark:text-brand-bright font-bold">
-                          محدد (Backspace)
-                        </span>
-                      )}
                     </div>
                     <AppButton
                       variant="dangerSubtle"

@@ -32,10 +32,10 @@ import { formatUnitArabic } from '../../utils/units';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { SegmentedTabs, type SegmentedTabOption } from '../../components/SegmentedTabs';
-import { FinancialGaugeMeter } from '../../components/analytics/FinancialGaugeMeter';
-import { FinancialWaterfallChart } from '../../components/analytics/FinancialWaterfallChart';
 import { HourlyHeatmapBar } from '../../components/analytics/HourlyHeatmapBar';
 import { CashierPerformanceCard } from '../../components/analytics/CashierPerformanceCard';
+import { FinancialGaugeMeter } from '../../components/analytics/FinancialGaugeMeter';
+import { FinancialWaterfallChart } from '../../components/analytics/FinancialWaterfallChart';
 import type {
   PeriodSalesReport,
   InventoryLossReport,
@@ -198,7 +198,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         50 +
         (cashPct * 0.25) +
         Math.min(25, netMarginPercent * 1.2) -
-        (totalSales > 0 ? ((inventoryLosses + operationalExpenses) * 100 / totalSales) * 1.5 : 0) -
+        (totalSales > 0 ? (inventoryLosses * 100 / totalSales) * 2 : 0) -
         (creditPct > 35 ? (creditPct - 35) * 0.5 : 0)
       )
     )

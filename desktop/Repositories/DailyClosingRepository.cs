@@ -137,35 +137,39 @@ namespace RafiqPOS.Repositories
 
             using (var cmd = new SQLiteCommand(sql, conn, trans))
             {
-                cmd.Parameters.AddWithValue("@id", closing.Id);
-                cmd.Parameters.AddWithValue("@cnum", closing.ClosingNumber);
-                cmd.Parameters.AddWithValue("@bdate", closing.BusinessDate);
-                cmd.Parameters.AddWithValue("@closedAt", closing.ClosedAt);
-                cmd.Parameters.AddWithValue("@cashierId", (object)closing.CashierId ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@cashierName", (object)closing.CashierName ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@sales", closing.TotalSalesPiasters);
-                cmd.Parameters.AddWithValue("@cash", closing.CashSalesPiasters);
-                cmd.Parameters.AddWithValue("@card", closing.CardSalesPiasters);
-                cmd.Parameters.AddWithValue("@instapay", closing.InstapaySalesPiasters);
-                cmd.Parameters.AddWithValue("@vodafone", closing.VodafoneCashSalesPiasters);
-                cmd.Parameters.AddWithValue("@credit", closing.CreditSalesPiasters);
-                cmd.Parameters.AddWithValue("@expenses", closing.ExpensesPiasters);
-                cmd.Parameters.AddWithValue("@retTotal", closing.ReturnsTotalPiasters);
-                cmd.Parameters.AddWithValue("@retCash", closing.ReturnsCashPiasters);
-                cmd.Parameters.AddWithValue("@cancTotal", closing.CancelledTotalPiasters);
-                cmd.Parameters.AddWithValue("@debtPay", closing.DebtPaymentsPiasters);
-                cmd.Parameters.AddWithValue("@expCash", closing.ExpectedCashPiasters);
-                cmd.Parameters.AddWithValue("@actCash", closing.ActualCashPiasters);
-                cmd.Parameters.AddWithValue("@diff", closing.DifferencePiasters);
-                cmd.Parameters.AddWithValue("@profit", closing.GrossProfitPiasters);
-                cmd.Parameters.AddWithValue("@invCount", closing.InvoicesCount);
-                cmd.Parameters.AddWithValue("@retCount", closing.ReturnsCount);
-                cmd.Parameters.AddWithValue("@cancCount", closing.CancelledCount);
-                cmd.Parameters.AddWithValue("@notes", (object)closing.Notes ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@summaryJson", (object)closing.SummaryJson ?? DBNull.Value);
-
+                BindClosingParams(cmd, closing);
                 cmd.ExecuteNonQuery();
             }
+        }
+
+        private static void BindClosingParams(SQLiteCommand cmd, DailyClosing closing)
+        {
+            cmd.Parameters.AddWithValue("@id", closing.Id);
+            cmd.Parameters.AddWithValue("@cnum", closing.ClosingNumber);
+            cmd.Parameters.AddWithValue("@bdate", closing.BusinessDate);
+            cmd.Parameters.AddWithValue("@closedAt", closing.ClosedAt);
+            cmd.Parameters.AddWithValue("@cashierId", (object)closing.CashierId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cashierName", (object)closing.CashierName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@sales", closing.TotalSalesPiasters);
+            cmd.Parameters.AddWithValue("@cash", closing.CashSalesPiasters);
+            cmd.Parameters.AddWithValue("@card", closing.CardSalesPiasters);
+            cmd.Parameters.AddWithValue("@instapay", closing.InstapaySalesPiasters);
+            cmd.Parameters.AddWithValue("@vodafone", closing.VodafoneCashSalesPiasters);
+            cmd.Parameters.AddWithValue("@credit", closing.CreditSalesPiasters);
+            cmd.Parameters.AddWithValue("@expenses", closing.ExpensesPiasters);
+            cmd.Parameters.AddWithValue("@retTotal", closing.ReturnsTotalPiasters);
+            cmd.Parameters.AddWithValue("@retCash", closing.ReturnsCashPiasters);
+            cmd.Parameters.AddWithValue("@cancTotal", closing.CancelledTotalPiasters);
+            cmd.Parameters.AddWithValue("@debtPay", closing.DebtPaymentsPiasters);
+            cmd.Parameters.AddWithValue("@expCash", closing.ExpectedCashPiasters);
+            cmd.Parameters.AddWithValue("@actCash", closing.ActualCashPiasters);
+            cmd.Parameters.AddWithValue("@diff", closing.DifferencePiasters);
+            cmd.Parameters.AddWithValue("@profit", closing.GrossProfitPiasters);
+            cmd.Parameters.AddWithValue("@invCount", closing.InvoicesCount);
+            cmd.Parameters.AddWithValue("@retCount", closing.ReturnsCount);
+            cmd.Parameters.AddWithValue("@cancCount", closing.CancelledCount);
+            cmd.Parameters.AddWithValue("@notes", (object)closing.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@summaryJson", (object)closing.SummaryJson ?? DBNull.Value);
         }
 
         private static bool HasColumn(SQLiteDataReader reader, string columnName)

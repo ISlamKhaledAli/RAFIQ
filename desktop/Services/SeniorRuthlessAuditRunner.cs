@@ -1505,8 +1505,9 @@ namespace RafiqPOS.Services
                 "تأكيد إغلاق يوم العمل المحدد مسبقاً (2026-03-01)",
                 "فشل فحص إغلاق يوم العمل عبر IsDayClosed", report);
 
-            bool expenseBlocked = false;
-            string expenseBlockMsg = "";
+            // Daily closing is now an informational snapshot; expenses are allowed on closed days.
+            // Verify that creating an expense on a closed day succeeds (no longer blocked).
+            bool expenseAllowed = false;
             try
             {
                 var req = new CreateExpenseRequest
@@ -1518,25 +1519,16 @@ namespace RafiqPOS.Services
                     CreatedBy = "الكاشير"
                 };
                 expService.CreateExpense(req);
+                expenseAllowed = true;
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
-                expenseBlocked = true;
-                expenseBlockMsg = ex.Message;
+                expenseAllowed = false;
             }
 
-            AssertCondition(expenseBlocked,
-                "منع تسجيل أي مصروف على يوم عمل مغلق ومرحل مسبقاً بنجاح",
-                "فشل الحظر! تم السماح بتسجيل مصروف على يوم عمل مقفل مما يشوه الحسابات الختامية!", report);
-
-            AssertCondition(expenseBlockMsg.Contains("إقفالها") || expenseBlockMsg.Contains("مغلق"),
-                "رسالة الخطأ توضح للمستخدم أن اليوم مغلق ومرحل: " + expenseBlockMsg,
-                "رسالة الخطأ غير واضحة: " + expenseBlockMsg, report);
-
-            var expenses = expService.GetExpenses(closedDate);
-            AssertCondition(expenses.Count == 0,
-                "تأكيد عدم إدراج أي مصروف في قاعدة البيانات لليوم المغلق (عدد المصروفات = 0)",
-                "تم حفظ مصروف في قاعدة البيانات بالخطأ!", report);
+            AssertCondition(expenseAllowed,
+                "السماح بتسجيل مصروفات على يوم عمل مغلق (إقفال اليومية لقطة معلوماتية فقط)",
+                "فشل! رفض تسجيل مصروف على يوم مغلق بالرغم من إلغاء الحجب!", report);
         }
 
         private static void RunTest16_ReturnOnCancelledSaleBlocked(AuditReport report)
@@ -2277,8 +2269,8 @@ namespace RafiqPOS.Services
                 "منع إعادة إقفال يوم عمل مشمع ومقفل مسبقاً بنجاح",
                 "ثغرة خطيرة! تم السماح بإعادة إقفال يوم عمل مقفل وتكرار الحسابات الختامية!", report);
 
-            // 11. Attempt adding expense on sealed day -> MUST FAIL
-            bool expBlocked = false;
+            // 11. Expenses on closed day are now allowed (snapshot, not a seal)
+            bool expAllowed = false;
             try
             {
                 expenseService.CreateExpense(new CreateExpenseRequest
@@ -2289,14 +2281,15 @@ namespace RafiqPOS.Services
                     Notes = "محاولة تسجيل بعد التقفيل",
                     CreatedBy = "الكاشير"
                 });
+                expAllowed = true;
             }
             catch (InvalidOperationException)
             {
-                expBlocked = true;
+                expAllowed = false;
             }
-            AssertCondition(expBlocked,
-                "منع تسجيل أي حركة مصروف جديدة على يومية مشمعة ومقفلة بنجاح",
-                "تم السماح بتسجيل مصروف بعد إقفال اليومية وتشميعها!", report);
+            AssertCondition(expAllowed,
+                "السماح بتسجيل مصروفات بعد إقفال اليومية (إقفال اليومية لقطة معلوماتية فقط)",
+                "فشل! رفض تسجيل مصروف بعد إقفال اليومية!", report);
         }
 
         /// <summary>
@@ -3828,7 +3821,10 @@ namespace RafiqPOS.Services
                 "تأكيد تشميع اليومية وإغلاق تاريخ العمل عبر IsDayClosed",
                 "اليومية ليست مغلقة بعد الحفظ", report);
 
-            // 1. DigitalTransaction touching cash_drawer -> MUST FAIL
+            // Daily closing is now an informational snapshot; all operations are allowed on closed days.
+            // Verify that operations on closed days succeed (no longer blocked).
+
+            // 1. DigitalTransaction touching cash_drawer -> now ALLOWED
             var digRepo = new DigitalAccountRepository(_connStr);
             var acc = new DigitalAccount
             {
@@ -3841,7 +3837,7 @@ namespace RafiqPOS.Services
             };
             digRepo.SaveAccount(acc);
 
-            bool digDrawerBlocked = false;
+            bool digDrawerAllowed = false;
             try
             {
                 digRepo.ProcessTransaction(new DigitalTransaction
@@ -3852,30 +3848,32 @@ namespace RafiqPOS.Services
                     ProfitPiasters = 100,
                     PaymentDestination = "cash_drawer"
                 });
+                digDrawerAllowed = true;
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
-                digDrawerBlocked = ex.Message.Contains("درج الكاشير");
+                digDrawerAllowed = false;
             }
-            AssertCondition(digDrawerBlocked,
-                "منع إجراء معاملة محفظة نقدية تؤثر على درج الكاشير بعد تشميع اليومية",
-                "ثغرة! تم السماح بمعاملة محفظة نقدية في الدرج بعد إقفال اليوم!", report);
+            AssertCondition(digDrawerAllowed,
+                "السماح بمعاملة محفظة نقدية تؤثر على درج الكاشير بعد إقفال اليومية (لقطة معلوماتية)",
+                "فشل! رفض معاملة محفظة بالرغم من إلغاء حجب اليوم المغلق!", report);
 
-            // 2. DigitalAccountFunding from cash_drawer -> MUST FAIL
-            bool fundDrawerBlocked = false;
+            // 2. DigitalAccountFunding from cash_drawer -> now ALLOWED
+            bool fundDrawerAllowed = false;
             try
             {
                 digRepo.FundAccount(acc.Id, 5000, "cash_drawer", "تغذية تجريبية بعد الإغلاق", "admin");
+                fundDrawerAllowed = true;
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
-                fundDrawerBlocked = ex.Message.Contains("درج الكاشير");
+                fundDrawerAllowed = false;
             }
-            AssertCondition(fundDrawerBlocked,
-                "منع تغذية حساب رقمي من درج الكاشير بعد تشميع اليومية",
-                "ثغرة! تم السماح بتغذية حساب من الدرج بعد إقفال اليوم!", report);
+            AssertCondition(fundDrawerAllowed,
+                "السماح بتغذية حساب رقمي من درج الكاشير بعد إقفال اليومية (لقطة معلوماتية)",
+                "فشل! رفض تغذية حساب من الدرج بالرغم من إلغاء حجب اليوم المغلق!", report);
 
-            // 3. EpayTerminal funding from cash_drawer -> MUST FAIL
+            // 3. EpayTerminal funding from cash_drawer -> now ALLOWED
             var epayRepo = new EpayRepository(_connStr, auditRepo);
             var terminal = new EpayTerminal
             {
@@ -3887,20 +3885,21 @@ namespace RafiqPOS.Services
             };
             epayRepo.SaveTerminal(terminal);
 
-            bool epayFundBlocked = false;
+            bool epayFundAllowed = false;
             try
             {
                 epayRepo.FundTerminal(terminal.Id, 10000, "cash_drawer", "تغذية بعد الإغلاق", "admin");
+                epayFundAllowed = true;
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
-                epayFundBlocked = ex.Message.Contains("درج الكاشير");
+                epayFundAllowed = false;
             }
-            AssertCondition(epayFundBlocked,
-                "منع تغذية ماكينة دفع إلكتروني من درج الكاشير بعد تشميع اليومية",
-                "ثغرة! تم السماح بتغذية ماكينة دفع من الدرج بعد إقفال اليوم!", report);
+            AssertCondition(epayFundAllowed,
+                "السماح بتغذية ماكينة دفع إلكتروني من درج الكاشير بعد إقفال اليومية (لقطة معلوماتية)",
+                "فشل! رفض تغذية ماكينة دفع من الدرج بالرغم من إلغاء حجب اليوم المغلق!", report);
 
-            // 4. Supplier Payment from cash_drawer -> MUST FAIL
+            // 4. Supplier Payment from cash_drawer -> now ALLOWED
             var supRepo = new SupplierRepository(_connStr, auditRepo);
             var sup = new Supplier
             {
@@ -3911,20 +3910,21 @@ namespace RafiqPOS.Services
             };
             supRepo.Save(sup);
 
-            bool supPayBlocked = false;
+            bool supPayAllowed = false;
             try
             {
                 supRepo.RecordPayment(sup.Id, 20000, "دفعة بعد الإغلاق", "admin", "cash_drawer");
+                supPayAllowed = true;
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
-                supPayBlocked = ex.Message.Contains("درج الكاشير");
+                supPayAllowed = false;
             }
-            AssertCondition(supPayBlocked,
-                "منع صرف دفعة نقدية لمورد من درج الكاشير بعد تشميع اليومية",
-                "ثغرة! تم السماح بسداد دفعة للمورد من الدرج بعد إقفال اليوم!", report);
+            AssertCondition(supPayAllowed,
+                "السماح بصرف دفعة نقدية لمورد من درج الكاشير بعد إقفال اليومية (لقطة معلوماتية)",
+                "فشل! رفض سداد دفعة للمورد من الدرج بالرغم من إلغاء حجب اليوم المغلق!", report);
 
-            // 5. Purchase Invoice from cash_drawer -> MUST FAIL
+            // 5. Purchase Invoice from cash_drawer -> now ALLOWED
             var purRepo = new PurchaseRepository(_connStr, counterRepo, supRepo, null, auditRepo);
             var prodRepo = new ProductRepository(_connStr);
             var prod = new Product
@@ -3938,7 +3938,7 @@ namespace RafiqPOS.Services
             };
             prodRepo.Upsert(prod);
 
-            bool purBlocked = false;
+            bool purAllowed = false;
             try
             {
                 purRepo.CreatePurchase(new Purchase
@@ -3956,14 +3956,15 @@ namespace RafiqPOS.Services
                         }
                     }
                 });
+                purAllowed = true;
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
-                purBlocked = ex.Message.Contains("درج الكاشير");
+                purAllowed = false;
             }
-            AssertCondition(purBlocked,
-                "منع سداد فاتورة شراء نقداً من درج الكاشير بعد تشميع اليومية",
-                "ثغرة! تم السماح بسداد فاتورة شراء من الدرج بعد إقفال اليوم!", report);
+            AssertCondition(purAllowed,
+                "السماح بسداد فاتورة شراء نقداً من درج الكاشير بعد إقفال اليومية (لقطة معلوماتية)",
+                "فشل! رفض سداد فاتورة شراء من الدرج بالرغم من إلغاء حجب اليوم المغلق!", report);
         }
 
         // Test 28: Held Sales and Quick Items Sanity Guards

@@ -991,20 +991,43 @@ namespace RafiqPOS.Services
 
         public LiveDrawerBalanceResult GetLiveDrawerBalance(string businessDate = null)
         {
-            var preview = GetClosingPreview(businessDate);
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                return GetLiveDrawerBalance(conn, null, businessDate);
+            }
+        }
+
+        public LiveDrawerBalanceResult GetLiveDrawerBalance(SQLiteConnection conn, SQLiteTransaction trans, string businessDate = null)
+        {
+            if (string.IsNullOrEmpty(businessDate))
+            {
+                businessDate = GetCurrentBusinessDate();
+            }
+
+            DateTime bDate;
+            if (!DateTime.TryParse(businessDate, out bDate))
+            {
+                bDate = BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+            }
+
+            DateTime wStart, wEnd;
+            BusinessDayHelper.GetBusinessDayWindow(conn, trans, bDate, out wStart, out wEnd);
+
+            var calc = DrawerCashCalculator.Calculate(conn, trans, wStart, wEnd, null);
             var res = new LiveDrawerBalanceResult();
-            res.BusinessDate = preview.BusinessDate;
-            res.AvailableCashPiasters = preview.ExpectedCashPiasters;
-            res.CashSalesPiasters = preview.CashSalesPiasters;
-            res.ReturnsCashPiasters = preview.ReturnsCashPiasters;
-            res.DebtPaymentsPiasters = preview.DebtPaymentsPiasters;
-            res.ExpensesPiasters = preview.ExpensesPiasters;
-            res.EpayDrawerCashPiasters = preview.EpayDrawerCashPiasters;
-            res.EpayDrawerFundingPiasters = preview.EpayDrawerFundingPiasters;
-            res.WalletsDrawerCashPiasters = preview.WalletsDrawerCashPiasters;
-            res.WalletsDrawerFundingPiasters = preview.WalletsDrawerFundingPiasters;
-            res.PurchasesDrawerCashPiasters = preview.PurchasesDrawerCashPiasters;
-            res.SupplierPaymentsDrawerCashPiasters = preview.SupplierPaymentsDrawerCashPiasters;
+            res.BusinessDate = bDate.ToString("yyyy-MM-dd");
+            res.AvailableCashPiasters = calc.ExpectedCashPiasters;
+            res.CashSalesPiasters = calc.CashSalesPiasters;
+            res.ReturnsCashPiasters = calc.CashReturnsPiasters;
+            res.DebtPaymentsPiasters = calc.DebtPaymentsCashPiasters;
+            res.ExpensesPiasters = calc.ExpensesPiasters;
+            res.EpayDrawerCashPiasters = calc.EpayNetCashPiasters;
+            res.EpayDrawerFundingPiasters = calc.TerminalFundingPiasters;
+            res.WalletsDrawerCashPiasters = calc.WalletsNetCashPiasters;
+            res.WalletsDrawerFundingPiasters = calc.WalletFundingPiasters;
+            res.PurchasesDrawerCashPiasters = calc.PurchasesCashPiasters;
+            res.SupplierPaymentsDrawerCashPiasters = calc.SupplierPaymentsPiasters;
             return res;
         }
 
