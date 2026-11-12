@@ -1033,6 +1033,16 @@ export interface LowStockReportItem {
   categoryName: string;
 }
 
+export interface LowStockReportResponse {
+  items: LowStockReportItem[];
+  totalCount: number;
+  totalSuggestedBudgetPiasters: number;
+  zeroStockCount: number;
+  lowStockCount: number;
+  page?: number;
+  pageSize?: number;
+}
+
 export interface DebtorReportItem {
   customerId: string;
   name: string;
@@ -1585,7 +1595,9 @@ export interface EpayTransaction {
   paymentChannel?: EpayPaymentDestination;
   status: 'completed' | 'cancelled' | 'COMPLETED' | 'CANCELLED';
   notes?: string;
+  cashierName?: string;
   createdBy?: string;
+  createdByName?: string;
   createdAt: string;
   billAmountFormatted?: string;
   customerFeeFormatted?: string;
@@ -1605,6 +1617,7 @@ export interface EpayTerminalFunding {
   newBalancePiasters: number;
   notes?: string;
   createdBy?: string;
+  createdByName?: string;
   createdAt: string;
   amountFormatted?: string;
 }
@@ -1678,6 +1691,7 @@ export interface DigitalTransaction {
   txType: DigitalTxType;
   amountPiasters: number;
   profitPiasters: number;
+  totalCollectedPiasters?: number;
   cashGivenPiasters: number;
   cashTakenPiasters: number;
   balanceBeforePiasters: number;
@@ -1688,6 +1702,7 @@ export interface DigitalTransaction {
   notes?: string;
   paymentDestination?: string;
   saleId?: string;
+  cashierName?: string;
   createdBy?: string;
   createdByName?: string;
   createdAt: string;
@@ -1695,6 +1710,7 @@ export interface DigitalTransaction {
   cancelReason?: string;
   amountFormatted?: string;
   profitFormatted?: string;
+  totalCollectedFormatted?: string;
   balanceAfterFormatted?: string;
   txTypeArabic?: string;
 }
@@ -1709,6 +1725,7 @@ export interface DigitalAccountFunding {
   newBalancePiasters: number;
   notes?: string;
   createdBy?: string;
+  createdByName?: string;
   createdAt: string;
   amountFormatted?: string;
 }
@@ -1722,6 +1739,13 @@ export interface DigitalAnalyticsSummary {
   totalProfitPiasters?: number;
   todayTransactionsCount: number;
   todayVolumePiasters: number;
+  todayDrawerCashPiasters?: number;
+  totalDrawerCashPiasters?: number;
+  periodDrawerCashPiasters?: number;
+  todayTerminalTillCashPiasters?: number;
+  totalTerminalTillCashPiasters?: number;
+  periodTerminalTillCashPiasters?: number;
+  periodTotalCashPiasters?: number;
   activeAccountsCount: number;
   walletsBalanceFormatted?: string;
   instapayBalanceFormatted?: string;

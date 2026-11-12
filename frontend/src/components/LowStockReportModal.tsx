@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Printer, 
   X, 
-  Boxes
+  Boxes,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
-import type { LowStockReportItem } from '../types/models';
+import type { LowStockReportItem, LowStockReportResponse } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { usePrintReport } from '../hooks/usePrintReport';
 import { formatUnitArabic } from '../utils/units';
@@ -25,12 +27,18 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterMode, setFilterMode] = useState<'all' | 'zero'>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 50;
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await invoke<LowStockReportItem[]>('reports:getLowStock');
-      setItems(res || []);
+      const res = await invoke<LowStockReportResponse | LowStockReportItem[]>('reports:getLowStock');
+      if (res && !Array.isArray(res) && typeof res === 'object' && 'items' in res) {
+        setItems(res.items || []);
+      } else {
+        setItems(Array.isArray(res) ? res : []);
+      }
     } catch (err: unknown) {
       console.error(err);
     } finally {
@@ -42,9 +50,14 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
     if (isOpen) {
       setSearchQuery('');
       setFilterMode('all');
+      setCurrentPage(1);
       void loadData();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterMode]);
 
   const filteredItems = useMemo(() => {
     let result = items;
@@ -71,11 +84,19 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
     return items.filter(item => item.stockMilli <= 0).length;
   }, [items]);
 
+  const totalPages = Math.ceil(filteredItems.length / PAGE_SIZE) || 1;
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredItems.slice(start, start + PAGE_SIZE);
+  }, [filteredItems, currentPage]);
+
   const { print: handlePrint, printing } = usePrintReport({
     reportName: 'تقرير النواقص',
     kind: 'a4only',
     hasData: filteredItems.length > 0,
   });
+
+  const displayItems = printing ? filteredItems : paginatedItems;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -221,15 +242,16 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line dark:divide-line-dark">
-                  {filteredItems.map((item, idx) => {
+                  {displayItems.map((item, idx) => {
                     const currentStock = (item.stockMilli / 1000).toLocaleString('en-US');
                     const minStock = (item.minStockMilli / 1000).toLocaleString('en-US');
                     const suggested = (item.suggestedOrderMilli / 1000).toLocaleString('en-US');
                     const isZero = item.stockMilli <= 0;
+                    const itemRowIndex = printing ? idx + 1 : (currentPage - 1) * PAGE_SIZE + idx + 1;
 
                     return (
                       <tr key={item.productId} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40 transition">
-                        <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted text-center">{idx + 1}</td>
+                        <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted text-center">{itemRowIndex}</td>
                         <td className="p-3 font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || '-'}</td>
                         <td className="p-3 font-bold text-ink dark:text-ink-dark">
                           <div>{item.name}</div>
@@ -262,10 +284,39 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
         </div>
 
         {/* Footer (hidden in print) */}
-        <div className="px-6 py-3 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex items-center justify-between print:hidden">
+        <div className="px-6 py-3 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 print:hidden">
           <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
             معادلة الاقتراح: ضعف حد الأمان مطروحاً منه الرصيد الحالي بما يضمن عدم انقطاع الصنف.
           </span>
+
+          {filteredItems.length > PAGE_SIZE && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted">
+                {currentPage} / {totalPages} (عرض {paginatedItems.length} من أصل {filteredItems.length})
+              </span>
+              <AppButton
+                variant="secondary"
+                size="xs"
+                icon={ChevronRight}
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                title="الصفحة السابقة"
+              >
+                السابق
+              </AppButton>
+              <AppButton
+                variant="secondary"
+                size="xs"
+                icon={ChevronLeft}
+                iconPosition="end"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                title="الصفحة التالية"
+              >
+                التالي
+              </AppButton>
+            </div>
+          )}
         </div>
 
       </div>

@@ -4,7 +4,6 @@ import {
   Zap, 
   Wallet, 
   FileText, 
-  Landmark, 
   Banknote, 
   Plus,
   PlusCircle, 
@@ -24,7 +23,7 @@ import {
   Hash
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
-import { useDataSubscription } from '../../utils/eventBus';
+import { useDataSubscription, emitDataChanged } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
 import { formatPhoneDisplay } from '../../utils/phoneFormat';
 import { rafiqConfirm, rafiqAlert } from '../../utils/dialogService';
@@ -148,7 +147,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
   }, [activeSubTab]);
 
   const activeTabRaw = activeSubTab || internalTab;
-  const { hasPermission, isRoot, isAdmin } = useAuth();
+  const { hasPermission, isRoot, isAdmin, currentUser } = useAuth();
+  const currentUserName = currentUser?.displayName || currentUser?.username || 'صاحب المحل';
   const canFund = isRoot || isAdmin || hasPermission('epay.fund');
   const canManageTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage');
   const canViewAnalytics = isRoot || isAdmin || hasPermission('epay.analytics');
@@ -174,6 +174,29 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [periodAnalytics, setPeriodAnalytics] = useState<EpayPeriodAnalytics | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTop = useCallback(() => {
+    if (containerRef.current) {
+      try {
+        containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {
+        containerRef.current.scrollTop = 0;
+      }
+    }
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {
+      // fallback
+    }
+  }, []);
+
+  // Scroll to top immediately when an error appears so the cashier sees the alert banner
+  useEffect(() => {
+    if (errorMsg) {
+      scrollToTop();
+    }
+  }, [errorMsg, scrollToTop]);
 
   // Auto-dismiss success notification after 4 seconds
   useEffect(() => {
@@ -209,6 +232,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [billAmountPiasters, setBillAmountPiasters] = useState<number>(0);
   const [machineCommissionPiasters, setMachineCommissionPiasters] = useState<number>(0);
   const [shopProfitPiasters, setShopProfitPiasters] = useState<number>(0);
+  const [isProfitEntered, setIsProfitEntered] = useState<boolean>(false);
   const [paymentDestination, setPaymentDestination] = useState<EpayPaymentDestination>('terminal_till');
   const [notes, setNotes] = useState<string>('');
   const [isSubmittingTx, setIsSubmittingTx] = useState<boolean>(false);
@@ -294,6 +318,73 @@ export const EpayView: React.FC<EpayViewProps> = ({
     confirmTitle: 'تعديلات شحن الرصيد غير محفوظة',
     confirmMessage: 'لقد قمت بإدخال بيانات لشحن رصيد الماكينة. هل أنت متأكد من الخروج وتجاهل العملية؟',
   });
+
+  // Fund Till Cash Modal (تغذية نقدية لدرج الماكينة المنفصل)
+  const [isFundTillModalOpen, setIsFundTillModalOpen] = useState<boolean>(false);
+  const [fundTillAmountPiasters, setFundTillAmountPiasters] = useState<number>(0);
+  const [fundTillSource, setFundTillSource] = useState<'external_cash' | 'cash_drawer'>('external_cash');
+  const fundTillPanel = useMotionPanel(fundTillSource);
+  const [fundTillNotes, setFundTillNotes] = useState<string>('');
+  const [isFundingTillLoading, setIsFundingTillLoading] = useState<boolean>(false);
+  const [fundTillModalError, setFundTillModalError] = useState<string | null>(null);
+
+  const isFundTillDirty = useCallback(() => {
+    return fundTillAmountPiasters > 0 || fundTillNotes.trim().length > 0;
+  }, [fundTillAmountPiasters, fundTillNotes]);
+
+  const { requestClose: requestCloseFundTill, handleBackdropClick: handleFundTillBackdropClick } = useModalDismiss({
+    isOpen: isFundTillModalOpen,
+    onClose: () => {
+      setIsFundTillModalOpen(false);
+      setFundTillAmountPiasters(0);
+      setFundTillNotes('');
+      setFundTillModalError(null);
+    },
+    isDirty: isFundTillDirty,
+    confirmTitle: 'تعديلات تغذية النقدية غير محفوظة',
+    confirmMessage: 'لقد قمت بإدخال بيانات لتغذية النقدية. هل أنت متأكد من الخروج وتجاهل العملية؟',
+  });
+
+  const handleSaveFundTill = async () => {
+    if (fundTillAmountPiasters <= 0) {
+      setFundTillModalError('يرجى إدخال مبلغ صحيح للتغذية النقدية أكبر من الصفر.');
+      return;
+    }
+    if (fundTillSource === 'cash_drawer' && liveDrawerCashPiasters !== null) {
+      if (liveDrawerCashPiasters <= 0) {
+        setFundTillModalError('درج كاشير المحل فارغ (0.00 ج.م). يرجى اختيار «كاش خارجي / صاحب المحل».');
+        return;
+      }
+      if (fundTillAmountPiasters > liveDrawerCashPiasters) {
+        setFundTillModalError(
+          `المبلغ المطلوب (${formatArabicCurrency(fundTillAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى تقليل المبلغ أو اختيار «كاش خارجي / صاحب المحل».`
+        );
+        return;
+      }
+    }
+    try {
+      setIsFundingTillLoading(true);
+      setFundTillModalError(null);
+      await invoke('epay:fundTillCash', {
+        amountPiasters: fundTillAmountPiasters,
+        fundingSource: fundTillSource,
+        notes: fundTillNotes.trim() || undefined,
+        cashierName: currentUserName,
+        terminalId: currentTerminal?.id,
+      });
+      setIsFundTillModalOpen(false);
+      setFundTillAmountPiasters(0);
+      setFundTillNotes('');
+      setSuccessMsg(`تمت تغذية نقدية درج الماكينة بمبلغ ${formatArabicCurrency(fundTillAmountPiasters)} بنجاح.`);
+      await loadData();
+      emitDataChanged(['epay', 'drawer', 'shifts']);
+    } catch (err: any) {
+      console.error('Failed to fund till cash for epay:', err);
+      setFundTillModalError(err?.message || 'فشلت عملية تغذية النقدية. يرجى إعادة المحاولة.');
+    } finally {
+      setIsFundingTillLoading(false);
+    }
+  };
 
   const editingTerminal = useMemo(() => {
     return terminals.find((t) => t.id === editingTerminalId) || null;
@@ -456,6 +547,17 @@ export const EpayView: React.FC<EpayViewProps> = ({
     return currentTerminal.balancePiasters < deductedBalancePiasters;
   }, [currentTerminal, serviceType, deductedBalancePiasters]);
 
+  // Financial Calculations for Cash Dispensing & Till Cash Validation
+  const cashGivenToCustomer = useMemo(() => {
+    if (serviceType !== 'cash_out') return 0;
+    return Math.max(0, billAmountPiasters - shopProfitPiasters);
+  }, [serviceType, billAmountPiasters, shopProfitPiasters]);
+
+  const availableTillCash = analytics?.totalInTerminalTillPiasters ?? 0;
+  const hasInsufficientCashTill = serviceType === 'cash_out' && cashGivenToCustomer > 0 && cashGivenToCustomer > availableTillCash;
+  const hasInsufficientCashDrawer = serviceType === 'cash_out' && cashGivenToCustomer > 0 && liveDrawerCashPiasters !== null && cashGivenToCustomer > liveDrawerCashPiasters;
+  const hasInsufficientCash = paymentDestination === 'terminal_till' ? hasInsufficientCashTill : hasInsufficientCashDrawer;
+
   // Handle Select Service Preset (keeps amounts empty for cashier entry)
   const handleSelectServicePreset = (opt: ServiceQuickOption) => {
     setServiceType(opt.type);
@@ -466,6 +568,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
     setBillAmountPiasters(0);
     setMachineCommissionPiasters(0);
     setShopProfitPiasters(0);
+    setIsProfitEntered(false);
     setCustomerPhone('');
     setCustomerName('');
     setReferenceNumber('');
@@ -487,14 +590,38 @@ export const EpayView: React.FC<EpayViewProps> = ({
     if (isSubmittingTx) return false;
     if (!currentTerminal) {
       setErrorMsg('يرجى اختيار ماكينة دفع صالحة');
+      scrollToTop();
       return false;
     }
     if (billAmountPiasters <= 0) {
       setErrorMsg('يرجى تحديد مبلغ العملية أو الشحن');
+      scrollToTop();
+      return false;
+    }
+    if (!isProfitEntered) {
+      setErrorMsg('تنبيه: يجب كتابة أو تحديد ربح المحل من العملية (اكتب 0 إذا كانت بدون ربح لتفادي نسيان تسجيل الأرباح).');
+      scrollToTop();
       return false;
     }
     if (isBalanceInsufficient) {
       setErrorMsg(`رصيد الماكينة (${formatArabicCurrency(currentTerminal.balancePiasters)}) غير كافٍ لتنفيذ هذه العملية (${formatArabicCurrency(deductedBalancePiasters)}). يرجى تغذية رصيد الماكينة أولاً.`);
+      scrollToTop();
+      return false;
+    }
+
+    if (paymentDestination === 'terminal_till' && hasInsufficientCashTill) {
+      setErrorMsg(
+        `رصيد نقدية درج الماكينة المتاح حالياً (${formatArabicCurrency(availableTillCash)}) غير كافٍ لصرف نقدية السحب للعميل (${formatArabicCurrency(cashGivenToCustomer)}). يرجى تغذية درج الماكينة بالسيولة أولاً.`
+      );
+      scrollToTop();
+      return false;
+    }
+
+    if (paymentDestination === 'cash_drawer' && hasInsufficientCashDrawer) {
+      setErrorMsg(
+        `رصيد النقدية المتاح بدرج الكاشير (${formatArabicCurrency(liveDrawerCashPiasters ?? 0)}) غير كافٍ لصرف نقدية السحب للعميل (${formatArabicCurrency(cashGivenToCustomer)}). يرجى تغذية الدرج بالسيولة أولاً.`
+      );
+      scrollToTop();
       return false;
     }
 
@@ -516,6 +643,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
         paymentChannel: paymentDestination,
         machineDeductedPiasters: deductedBalancePiasters,
         notes: notes.trim() || undefined,
+        cashierName: currentUserName,
+        performedBy: currentUserName,
         idempotencyKey: txAttemptRef.current.current(),
       };
 
@@ -535,10 +664,12 @@ export const EpayView: React.FC<EpayViewProps> = ({
             setSuccessMsg(`تم تنفيذ عملية "${serviceName}" بنجاح وتمت طباعة الإيصال.`);
           } else if (pRes && !pRes.success) {
             setErrorMsg(pRes.message || 'تم حفظ العملية بنجاح ولكن تعذر إرسال الإيصال للطابعة');
+            scrollToTop();
           }
         }).catch((pErr: unknown) => {
           console.error('فشل الإرسال التلقائي لإيصال الدفع الإلكتروني للطابعة:', pErr);
           setErrorMsg('تم حفظ العملية ولكن تعذر إرسال أمر الطباعة إلى الطابعة');
+          scrollToTop();
         });
       } else {
         setSuccessMsg(`تم تنفيذ عملية "${serviceName}" بنجاح. صافي ربح المحل: ${formatArabicCurrency(netProfitPiasters)}`);
@@ -549,6 +680,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
       await loadData();
     } catch (err: any) {
       setErrorMsg(err?.message || 'فشل تنفيذ عملية الدفع الإلكتروني');
+      scrollToTop();
     } finally {
       setIsSubmittingTx(false);
     }
@@ -588,6 +720,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
       await invoke('epay:cancelTransaction', {
         transactionId: cancellingTx.id,
         reason: cancelReason.trim() || 'إلغاء يدوي من سجل العمليات',
+        cashierName: currentUserName,
+        performedBy: currentUserName,
+        cancelledBy: currentUserName,
       });
       setSuccessMsg(`تم إلغاء عملية "${cancellingTx.serviceName}" واسترجاع رصيد الماكينة`);
       setCancellingTx(null);
@@ -632,6 +767,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
         fundingSource,
         source: fundingSource,
         notes: fundingNotes.trim() || undefined,
+        cashierName: currentUserName,
+        performedBy: currentUserName,
+        createdBy: currentUserName,
         idempotencyKey: fundAttemptRef.current.current(),
       });
       fundAttemptRef.current.complete();
@@ -831,13 +969,20 @@ export const EpayView: React.FC<EpayViewProps> = ({
   // مجاميع الفترة من قاعدة البيانات (كل العمليات المكتملة في الفترة، لا آخر N صف فقط)
   const analyticsPeriodCount = periodAnalytics?.totalTransactionsCount || 0;
   const analyticsPeriodProfitPiasters = periodAnalytics?.totalNetProfitPiasters || 0;
-  const analyticsPeriodVolumePiasters = periodAnalytics?.totalBillVolumePiasters || 0;
+  const _analyticsPeriodVolumePiasters = periodAnalytics?.totalBillVolumePiasters || 0;
+  void _analyticsPeriodVolumePiasters;
   const analyticsPeriodCommissionsPiasters = periodAnalytics?.totalProviderCommissionsPiasters || 0;
   const analyticsCashDrawerPiasters = periodAnalytics?.totalInCashDrawerPiasters || 0;
   const analyticsTerminalTillPiasters = periodAnalytics?.totalInTerminalTillPiasters || 0;
 
+  const totalTerminalsBalancePiasters = useMemo(() => {
+    return terminals.reduce((sum, t) => sum + (t.balancePiasters || 0), 0);
+  }, [terminals]);
+  const periodTotalCashPiasters = analyticsTerminalTillPiasters + analyticsCashDrawerPiasters;
+  const grandTotalLiquidityPiasters = totalTerminalsBalancePiasters + periodTotalCashPiasters;
+
   return (
-    <div {...motionPanel} className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
+    <div ref={containerRef} {...motionPanel} className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
       {/* 1. Top Header Bar */}
       <header className="motion-static bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
         <div className="flex items-center gap-3">
@@ -864,17 +1009,35 @@ export const EpayView: React.FC<EpayViewProps> = ({
           </div>
         </div>
 
-        {activeTab === 'terminals' && canManageTerminals && terminals.length > 0 && (
-          <AppButton variant="primary" size="md" icon={PlusCircle} onClick={openNewTerminalModal}>
-            إضافة ماكينة جديدة
-          </AppButton>
-        )}
+        <div className="flex items-center gap-2">
+          {canManageTerminals && (
+            <AppButton
+              variant="secondary"
+              size="md"
+              icon={Banknote}
+              onClick={() => {
+                setFundTillSource('external_cash');
+                setFundTillModalError(null);
+                void fetchLiveDrawerCash();
+                setIsFundTillModalOpen(true);
+              }}
+            >
+              تغذية نقدية لدرج الماكينة
+            </AppButton>
+          )}
+
+          {activeTab === 'terminals' && canManageTerminals && terminals.length > 0 && (
+            <AppButton variant="primary" size="md" icon={PlusCircle} onClick={openNewTerminalModal}>
+              إضافة ماكينة جديدة
+            </AppButton>
+          )}
+        </div>
       </header>
 
-      {/* 2. Top Summary 4-KPI Cards (Displayed only on Terminals tab for authorized users) */}
+      {/* 2. Top Summary 3-KPI Cards (Displayed only on Terminals tab for authorized users) */}
       {activeTab === 'terminals' && canAccessTerminals && (
         <section className="px-4 sm:px-6 pt-3.5 shrink-0">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
             {/* Card 1: إجمالي رصيد الماكينات */}
             <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-paid/40 dark:hover:border-paid-bright/40 transition-colors">
               <div className="min-w-0">
@@ -907,23 +1070,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
             </div>
 
-            {/* Card 3: حجم المعاملات */}
-            <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-line-hover dark:hover:border-line-dark-hover transition-colors">
-              <div className="min-w-0">
-                <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">حجم المعاملات الإجمالي</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark tracking-tight">
-                    {formatArabicCurrency(analytics?.totalVolumePiasters || 0)}
-                  </span>
-                </div>
-                <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">إجمالي المبالغ المنفذة</span>
-              </div>
-              <div className="w-9 h-9 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-muted-dark shadow-2xs shrink-0">
-                <Layers className="w-4.5 h-4.5" />
-              </div>
-            </div>
-
-            {/* Card 4: عدد العمليات */}
+            {/* Card 3: عدد العمليات */}
             <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-line-hover dark:hover:border-line-dark-hover transition-colors">
               <div className="min-w-0">
                 <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">العمليات الناجحة</span>
@@ -1077,8 +1224,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="p-4 rounded-2xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
-                    <label className="text-xs font-black text-ink dark:text-ink-dark flex items-center gap-2 mb-2">
+                  <div className="p-4 sm:p-5 rounded-2xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
+                    <label className="text-sm font-black text-ink dark:text-ink-dark flex items-center gap-2 mb-2.5">
                       <CreditCard className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
                       <span>عمولة الماكينة</span>
                     </label>
@@ -1086,20 +1233,36 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       valuePiasters={machineCommissionPiasters}
                       onChangePiasters={setMachineCommissionPiasters}
                       placeholder="0.00"
-                      className="h-12 text-xl font-black"
+                      className="h-14 text-2xl font-black"
                     />
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/25 dark:border-paid-bright/30 transition-all focus-within:border-paid dark:focus-within:border-paid-bright">
-                    <label className="text-xs font-black text-paid dark:text-paid-bright flex items-center gap-2 mb-2">
-                      <TrendingUp className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
-                      <span>ربح المحل</span>
-                    </label>
+                  <div
+                    className={`p-4 sm:p-5 rounded-2xl transition-all ${
+                      !isProfitEntered && billAmountPiasters > 0
+                        ? 'bg-warn-soft/20 dark:bg-warn-dark-soft/20 border-2 border-warn/50 dark:border-warn-bright/50'
+                        : 'bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/25 dark:border-paid-bright/30 focus-within:border-paid dark:focus-within:border-paid-bright'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2.5">
+                      <label className="text-sm font-black text-paid dark:text-paid-bright flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
+                        <span>ربح المحل <RequiredMark /></span>
+                      </label>
+                      {!isProfitEntered && billAmountPiasters > 0 && (
+                        <span className="text-micro font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft px-2 py-0.5 rounded border border-warn/30">
+                          إلزامي (حدد 0 إذا مجاناً) *
+                        </span>
+                      )}
+                    </div>
                     <MoneyInput
                       valuePiasters={shopProfitPiasters}
-                      onChangePiasters={setShopProfitPiasters}
+                      onChangePiasters={(val) => {
+                        setShopProfitPiasters(val);
+                        setIsProfitEntered(true);
+                      }}
                       placeholder="0.00"
-                      className="h-12 text-xl font-black text-paid dark:text-paid-bright"
+                      className="h-14 text-2xl font-black text-paid dark:text-paid-bright"
                     />
                   </div>
                 </div>
@@ -1156,7 +1319,10 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
               {/* Step 5: Cash Destination */}
               <div className="border-t border-line dark:border-line-dark pt-5">
-                <StepHeading step={5} title="أين يتم توريد المبلغ المستلم من الزبون؟" />
+                <StepHeading 
+                  step={5} 
+                  title={serviceType === 'cash_out' ? 'من أين يتم صرف النقدية للزبون؟' : 'أين يتم توريد المبلغ المستلم من الزبون؟'} 
+                />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -1168,14 +1334,23 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     }`}
                   >
                     <Wallet className="w-5 h-5 text-brand dark:text-brand-bright shrink-0" />
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
                         <span className="text-xs font-bold">درج/محفظة الماكينة المنفصلة</span>
-                        <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/30">
-                          الافتراضي
-                        </span>
+                        <div className="flex items-center gap-1">
+                          {hasInsufficientCashTill && (
+                            <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30">
+                              عجز نقدية
+                            </span>
+                          )}
+                          <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/30">
+                            الافتراضي
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">مفصول كلياً ومخصص لماكينات الدفع والشحن</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">
+                        الرصيد المتاح: <span className="font-mono font-bold text-ink dark:text-ink-dark">{formatArabicCurrency(availableTillCash)}</span>
+                      </span>
                     </div>
                   </button>
 
@@ -1189,9 +1364,18 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     }`}
                   >
                     <Banknote className="w-5 h-5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
-                    <div className="min-w-0">
-                      <span className="text-xs font-bold block">درج كاشير المحل</span>
-                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">يدخل ضمن نقدية وعهدة الكاشير الرئيسية</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <span className="text-xs font-bold">درج كاشير المحل</span>
+                        {hasInsufficientCashDrawer && (
+                          <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30">
+                            عجز نقدية
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">
+                        الرصيد المتاح: <span className="font-mono font-bold text-ink dark:text-ink-dark">{liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}</span>
+                      </span>
                     </div>
                   </button>
                 </div>
@@ -1206,13 +1390,17 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   ملخص العملية
                 </h2>
 
-                {/* Total To Receive From Customer */}
-                <div className="p-5 rounded-2xl bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-bright/30">
-                  <span className="text-xs text-paid dark:text-paid-bright font-black block mb-1.5">
-                    {serviceType === 'cash_out' ? 'إجمالي العملية / المطلوب تحصيله' : 'المطلوب تحصيله من الزبون'}
+                {/* Total To Receive / Give From Customer */}
+                <div className={`p-5 rounded-2xl border ${
+                  serviceType === 'cash_out'
+                    ? 'bg-danger-soft/30 dark:bg-danger-dark-soft/30 border-danger/25 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
+                    : 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright'
+                }`}>
+                  <span className="text-xs font-black block mb-1.5">
+                    {serviceType === 'cash_out' ? 'المطلوب تسليمه كاش للزبون' : 'المطلوب تحصيله من الزبون'}
                   </span>
-                  <div className="text-4xl font-black font-mono text-paid dark:text-paid-bright tracking-tight tabular-nums">
-                    {formatArabicCurrency(totalReceivedPiasters)}
+                  <div className="text-4xl font-black font-mono tracking-tight tabular-nums">
+                    {formatArabicCurrency(serviceType === 'cash_out' ? cashGivenToCustomer : totalReceivedPiasters)}
                   </div>
                   <span className="text-micro font-medium text-paid dark:text-paid-bright block mt-1 min-h-4">
                     (شامل المبلغ والعمولة وربح المحل)
@@ -1317,19 +1505,54 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 {/* Confirm Action Button */}
                 <div ref={transactSaveBarRef} className="flex flex-col gap-2 rounded-xl">
                 <UnsavedChangesChip dirty={transactionDraftDirty} />
+
+                {/* Cash Shortfall Warning */}
+                {hasInsufficientCash && (
+                  <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 text-danger dark:text-danger-bright text-xs space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>عجز في نقدية {paymentDestination === 'terminal_till' ? 'درج الماكينة' : 'درج الكاشير'}!</span>
+                    </div>
+                    <p className="text-micro leading-relaxed">
+                      الرصيد المتاح بالدرج ({formatArabicCurrency(paymentDestination === 'terminal_till' ? availableTillCash : (liveDrawerCashPiasters ?? 0))}) غير كافٍ لصرف نقدية السحب للزبون ({formatArabicCurrency(cashGivenToCustomer)}). يرجى تغذية الدرج بالسيولة أولاً.
+                    </p>
+                    {canManageTerminals && paymentDestination === 'terminal_till' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFundTillSource('external_cash');
+                          setFundTillModalError(null);
+                          void fetchLiveDrawerCash();
+                          setIsFundTillModalOpen(true);
+                        }}
+                        className="cursor-pointer text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>+ تغذية درج الماكينة بالنقدية الآن</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <AppButton
                   variant="success"
                   size="lg"
                   fullWidth
                   icon={CheckCircle2}
                   onClick={() => void handleCreateTransaction()}
-                  disabled={isSubmittingTx || isBalanceInsufficient || billAmountPiasters <= 0}
+                  disabled={isSubmittingTx || isBalanceInsufficient || billAmountPiasters <= 0 || !isProfitEntered || hasInsufficientCash}
                 >
                   {isSubmittingTx
                     ? 'جاري تنفيذ العملية...'
-                    : autoPrintReceipt
-                      ? 'تأكيد العملية وتسجيل الحساب (مع طباعة الإيصال)'
-                      : 'تأكيد العملية وتسجيل الحساب (بدون طباعة)'}
+                    : hasInsufficientCash
+                      ? `عجز في نقدية ${paymentDestination === 'terminal_till' ? 'درج الماكينة' : 'درج الكاشير'}`
+                      : !isProfitEntered && billAmountPiasters > 0
+                        ? 'يرجى تحديد أو كتابة ربح المحل للمتابعة'
+                        : isBalanceInsufficient
+                          ? 'رصيد الماكينة غير كافٍ'
+                          : autoPrintReceipt
+                            ? (serviceType === 'cash_out' ? 'تأكيد صرف النقدية (مع طباعة الإيصال)' : 'تأكيد العملية وتسجيل الحساب (مع طباعة الإيصال)')
+                            : (serviceType === 'cash_out' ? 'تأكيد صرف النقدية وحفظ الربح' : 'تأكيد العملية وتسجيل الحساب (بدون طباعة)')}
                 </AppButton>
                 </div>
 
@@ -1590,6 +1813,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         <th className="py-3 px-3.5 whitespace-nowrap">المبلغ المشحون</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">الرصيد السابق</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">الرصيد بعد الشحن</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">المستخدم</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">ملاحظات</th>
                       </tr>
                     </thead>
@@ -1616,6 +1840,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap font-black text-ink dark:text-ink-dark font-mono tabular-nums align-middle">
                             {formatArabicCurrency(fnd.newBalancePiasters)}
+                          </td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-xs text-ink-muted dark:text-ink-muted-dark truncate max-w-[6rem] align-middle" title={fnd.createdByName || fnd.createdBy || 'كاشير'}>
+                            {fnd.createdByName || fnd.createdBy || 'كاشير'}
                           </td>
                           <td className="py-3.5 px-3.5 text-xs text-ink-muted dark:text-ink-muted-dark align-middle">
                             {fnd.notes || <span className="text-ink-muted/30 dark:text-ink-muted-dark/30">—</span>}
@@ -1750,6 +1977,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         <th className="py-3 px-3.5 whitespace-nowrap font-bold text-paid dark:text-paid-bright">المستلم من الزبون</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-danger dark:text-danger-bright">مخصوم الماكينة</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-center">وجهة النقدية</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">المستخدم</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-center sticky left-0 z-10 bg-surface-2 dark:bg-surface-dark-2">إجراءات</th>
                       </tr>
                     </thead>
@@ -1797,11 +2025,39 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           <td className={`py-3.5 px-3.5 whitespace-nowrap text-paid dark:text-paid-bright font-mono tabular-nums font-bold align-middle ${tx.status === 'cancelled' ? 'line-through text-ink-muted dark:text-ink-muted-dark' : ''}`}>
                             {formatArabicCurrency(tx.customerFeePiasters)}
                           </td>
-                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-black text-paid dark:text-paid-bright font-mono tabular-nums align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
-                            {formatArabicCurrency(tx.totalReceivedPiasters)}
+                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-mono tabular-nums align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
+                            {tx.serviceType === 'cash_out' ? (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-danger dark:text-danger-bright flex items-center gap-1">
+                                  <span className="text-micro font-sans px-1.5 py-0.2 rounded bg-danger-soft dark:bg-danger-dark-soft border border-danger/30">صرف</span>
+                                  <span>{formatArabicCurrency(tx.billAmountPiasters)}</span>
+                                </span>
+                                <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
+                                  خصم كارت: {formatArabicCurrency(tx.totalReceivedPiasters)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-black text-paid dark:text-paid-bright">
+                                {formatArabicCurrency(tx.totalReceivedPiasters)}
+                              </span>
+                            )}
                           </td>
-                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-mono tabular-nums text-danger dark:text-danger-bright align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
-                            {formatArabicCurrency(tx.machineDeductedPiasters || (tx.serviceType === 'cash_out' ? 0 : (tx.billAmountPiasters + (tx.providerCommissionPiasters || 0))))}
+                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-mono tabular-nums align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
+                            {tx.serviceType === 'cash_out' ? (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-paid dark:text-paid-bright flex items-center gap-1">
+                                  <span className="text-micro font-sans px-1.5 py-0.2 rounded bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-bright/30">إيداع</span>
+                                  <span>+{formatArabicCurrency(tx.billAmountPiasters)}</span>
+                                </span>
+                                <span className="text-micro text-paid/70 dark:text-paid-bright/70 font-sans">
+                                  إضافة للماكينة
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-danger dark:text-danger-bright">
+                                {formatArabicCurrency(tx.machineDeductedPiasters || (tx.billAmountPiasters + (tx.providerCommissionPiasters || 0)))}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-micro font-bold border ${
@@ -1811,6 +2067,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                             }`}>
                               {tx.paymentDestination === 'cash_drawer' ? 'درج المحل' : 'درج الماكينة'}
                             </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-xs text-ink-muted dark:text-ink-muted-dark truncate max-w-[6rem] align-middle" title={tx.cashierName || tx.createdByName || tx.createdBy || 'كاشير'}>
+                            {tx.cashierName || tx.createdByName || tx.createdBy || 'كاشير'}
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle sticky left-0 z-10 bg-surface dark:bg-surface-dark">
                             <div className="flex items-center justify-center gap-1">
@@ -1887,7 +2146,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
             </div>
 
             {/* KPI Cards Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-paid/40 dark:hover:border-paid-bright/40 transition-colors">
                 <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
                   صافي أرباح الخدمات ({getDatePresetLabel(analyticsDateFilter.preset)})
@@ -1897,18 +2156,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </span>
                 <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
                   إجمالي مكسب المحل الصافي من {analyticsPeriodCount} عملية
-                </span>
-              </div>
-
-              <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
-                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">
-                  حجم النقدية المتداولة ({getDatePresetLabel(analyticsDateFilter.preset)})
-                </span>
-                <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
-                  {formatArabicCurrency(analyticsPeriodVolumePiasters)}
-                </span>
-                <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  إجمالي قيمة الفواتير والشحن المنفذة بالفترة
                 </span>
               </div>
 
@@ -1928,33 +2175,84 @@ export const EpayView: React.FC<EpayViewProps> = ({
             {/* Cash Flow Distribution Card */}
             <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 sm:p-6">
               <h3 className="t-card-title text-ink dark:text-ink-dark mb-4 flex items-center gap-2">
-                <Landmark className="w-5 h-5 text-brand dark:text-brand-bright" />
-                توزيع النقدية المحصلة من خدمات الدفع
+                <Banknote className="w-5 h-5 text-paid dark:text-paid-bright" />
+                توزيع النقدية والسيولة لخدمات وماكينات الدفع
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                {/* Card 1: نقدية محفظة / درج الماكينة المنفصل (الأكثر استخداماً) */}
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-xs sm:text-sm text-ink dark:text-ink-dark">
+                        نقدية محفظة / درج الماكينة
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 font-bold">
+                        مخصصة للماكينة
+                      </span>
+                    </div>
+                    <span className={`t-kpi-lg font-mono block ${analyticsTerminalTillPiasters >= 0 ? 'text-brand dark:text-brand-bright' : 'text-danger dark:text-danger-bright'}`}>
+                      {formatArabicCurrency(analyticsTerminalTillPiasters)}
+                    </span>
+                    <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-1">
+                      المبالغ النقدية المحصلة والمحفوظة في المحفظة المنفصلة للماكينة ({getDatePresetLabel(analyticsDateFilter.preset)}).
+                    </p>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-line dark:border-line-dark flex items-center justify-between text-micro">
+                    <span className="text-ink-muted dark:text-ink-muted-dark font-medium">
+                      الرصيد الفعلي بالدرج: <span className="font-mono font-bold text-ink dark:text-ink-dark">{formatArabicCurrency(availableTillCash)}</span>
+                    </span>
+                    {(canFund || canManageTerminals) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFundTillSource('external_cash');
+                          setFundTillModalError(null);
+                          void fetchLiveDrawerCash();
+                          setIsFundTillModalOpen(true);
+                        }}
+                        className="cursor-pointer text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>تغذية نقدية</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card 2: نقدية محصلة في درج كاشير المحل */}
                 <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-xs sm:text-sm text-ink dark:text-ink-dark">دخلت في درج كاشير المحل</span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/20 font-bold">عهدة الكاشير</span>
+                    <span className="font-bold text-xs sm:text-sm text-ink dark:text-ink-dark">
+                      دخلت في درج كاشير المحل
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/20 font-bold">
+                      عهدة الكاشير
+                    </span>
                   </div>
-                  <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
+                  <span className={`t-kpi-lg font-mono block ${analyticsCashDrawerPiasters >= 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
                     {formatArabicCurrency(analyticsCashDrawerPiasters)}
                   </span>
                   <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-1">
-                    هذه المبالغ مسجلة في درج المحل لتغطية التغذية أو التسليم عند الإغلاق اليومي.
+                    المبالغ النقدية المحصلة من العملاء والمودعة في درج الكاشير الرئيسي للمحل ({getDatePresetLabel(analyticsDateFilter.preset)}).
                   </p>
                 </div>
 
+                {/* Card 3: إجمالي السيولة الشاملة لخدمات الدفع */}
                 <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-xs sm:text-sm text-ink dark:text-ink-dark">بقيت في محفظة/درج الماكينة المنفصلة</span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 font-bold">مفصولة تماماً</span>
+                    <span className="font-bold text-xs sm:text-sm text-ink dark:text-ink-dark">
+                      إجمالي السيولة الشاملة للماكينات
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 font-bold">
+                      رقمي + كاش
+                    </span>
                   </div>
-                  <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
-                    {formatArabicCurrency(analyticsTerminalTillPiasters)}
+                  <span className="t-kpi-lg font-mono text-brand dark:text-brand-bright block">
+                    {formatArabicCurrency(grandTotalLiquidityPiasters)}
                   </span>
                   <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-1">
-                    هذه المبالغ معزولة ولا تؤثر على حساب درج المحل الرئيسي.
+                    إجمالي أموال ماكينات الدفع: الأرصدة الرقمية بالماكينات ({formatArabicCurrency(totalTerminalsBalancePiasters)}) + النقدية المحصلة ({formatArabicCurrency(periodTotalCashPiasters)}).
                   </p>
                 </div>
               </div>
@@ -1966,34 +2264,48 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 <Layers className="w-5 h-5 text-brand dark:text-brand-bright" />
                 تحليل العمليات حسب نوع الخدمة
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                {SERVICE_PRESETS.map((preset) => {
-                  const serviceCount = periodAnalytics?.transactionsByType?.[preset.type] || 0;
-                  const vol = periodAnalytics?.volumeByTypePiasters?.[preset.type] || 0;
-                  const prof = periodAnalytics?.profitByTypePiasters?.[preset.type] || 0;
-                  const Icon = preset.icon;
-
-                  return (
-                    <div key={preset.type} className="p-4 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Icon className="w-4.5 h-4.5 text-brand dark:text-brand-bright shrink-0" />
-                        <span className="font-black text-xs sm:text-sm text-ink dark:text-ink-dark">{preset.name}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1">
-                        <span>عدد العمليات:</span>
-                        <span className="font-bold text-ink dark:text-ink-dark">{serviceCount}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1">
-                        <span>إجمالي المعاملات:</span>
-                        <span className="font-bold font-mono text-ink dark:text-ink-dark tabular-nums">{formatArabicCurrency(vol)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs font-bold text-brand dark:text-brand-bright mt-2 pt-2 border-t border-line dark:border-line-dark">
-                        <span>صافي الربح:</span>
-                        <span className="font-mono tabular-nums">{formatArabicCurrency(prof)}</span>
-                      </div>
-                    </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {(() => {
+                  const activeServices = SERVICE_PRESETS.filter(
+                    (p) => (periodAnalytics?.transactionsByType?.[p.type] || 0) > 0
                   );
-                })}
+
+                  if (activeServices.length === 0) {
+                    return (
+                      <div className="col-span-full py-8 text-center text-xs text-ink-muted dark:text-ink-muted-dark bg-surface-2/40 dark:bg-surface-dark-2/40 rounded-xl border border-dashed border-line dark:border-line-dark">
+                        لا توجد عمليات خدمات دفع منفذة في هذه الفترة المحددة.
+                      </div>
+                    );
+                  }
+
+                  return activeServices.map((preset) => {
+                    const serviceCount = periodAnalytics?.transactionsByType?.[preset.type] || 0;
+                    const volume = periodAnalytics?.volumeByTypePiasters?.[preset.type] || 0;
+                    const prof = periodAnalytics?.profitByTypePiasters?.[preset.type] || 0;
+                    const Icon = preset.icon;
+
+                    return (
+                      <div key={preset.type} className="p-4 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Icon className="w-4.5 h-4.5 text-brand dark:text-brand-bright shrink-0" />
+                          <span className="font-black text-xs sm:text-sm text-ink dark:text-ink-dark truncate">{preset.name}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1.5">
+                          <span>عدد العمليات:</span>
+                          <span className="font-bold text-ink dark:text-ink-dark font-mono">{serviceCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-2">
+                          <span>إجمالي المعاملات:</span>
+                          <span className="font-bold text-ink dark:text-ink-dark font-mono tabular-nums">{formatArabicCurrency(volume)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-bold text-paid dark:text-paid-bright pt-2 border-t border-line/60 dark:border-line-dark/60">
+                          <span>صافي الربح:</span>
+                          <span className="font-mono tabular-nums">{formatArabicCurrency(prof)}</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           </div>
@@ -2284,6 +2596,10 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   <span className="font-bold text-ink dark:text-ink-dark">{receiptTx.referenceNumber}</span>
                 </div>
               )}
+              <div className="flex justify-between">
+                <span className="text-ink-muted dark:text-ink-muted-dark font-sans">المستخدم:</span>
+                <span className="font-bold text-ink dark:text-ink-dark">{receiptTx.cashierName || receiptTx.createdByName || receiptTx.createdBy || 'كاشير'}</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5 text-xs border-b border-dashed border-line dark:border-line-dark pb-3 mb-3">
@@ -2401,6 +2717,123 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   {isSubmittingCancel ? 'جاري الإلغاء...' : 'تأكيد الإلغاء والاسترجاع'}
                 </AppButton>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: FUND TILL CASH (تغذية نقدية لدرج الماكينة المنفصل) */}
+      {isFundTillModalOpen && (
+        <div onClick={handleFundTillBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-lg w-full max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden shadow-xl border border-line dark:border-line-dark" dir="rtl">
+            <div className="flex items-center justify-between border-b border-line dark:border-line-dark px-6 pt-5 pb-3 shrink-0">
+              <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-2 m-0">
+                <Banknote className="w-5 h-5 text-brand dark:text-brand-bright" />
+                تغذية نقدية لدرج / محفظة الماكينة
+              </h3>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => void requestCloseFundTill()} />
+            </div>
+
+            <MotionHeight className="px-6 py-4 flex-1 min-h-0 overflow-y-auto">
+              <div className="flex flex-col gap-4">
+                {fundTillModalError && (
+                  <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-xl p-3 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
+                    <span>{fundTillModalError}</span>
+                  </div>
+                )}
+
+                <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark flex items-center justify-between text-xs">
+                  <span className="text-ink-muted dark:text-ink-muted-dark font-bold">النقدية المتوفرة حالياً بدرج الماكينة:</span>
+                  <span className={`font-mono font-black text-sm ${availableTillCash > 0 ? 'text-brand dark:text-brand-bright' : 'text-danger dark:text-danger-bright'}`}>
+                    {formatArabicCurrency(availableTillCash)}
+                  </span>
+                </div>
+
+                <div>
+                  <label className={FIELD_LABEL_CLS}>مبلغ النقدية المطلوب إيداعها في الدرج <RequiredMark /></label>
+                  <MoneyInput
+                    valuePiasters={fundTillAmountPiasters}
+                    onChangePiasters={(val) => setFundTillAmountPiasters(val)}
+                    className="text-lg font-bold"
+                    autoFocus
+                  />
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-1">
+                    هذه النقدية توضع في درج/محفظة الماكينة لاستخدامها في صرف عمليات السحب النقدي للمواطنين.
+                  </span>
+                </div>
+
+                <div>
+                  <label className={FIELD_LABEL_CLS}>مصدر النقدية</label>
+                  <CustomSelect
+                    value={fundTillSource}
+                    onChange={(val) => setFundTillSource(val as any)}
+                    options={[
+                      { value: 'external_cash', label: 'كاش خارجي / صاحب المحل (لا يخصم من درج الكاشير)' },
+                      { value: 'cash_drawer', label: 'من درج كاشير المحل (يخصم من نقدية الكاشير)' },
+                    ]}
+                  />
+
+                  {fundTillSource === 'cash_drawer' && (
+                    <div {...fundTillPanel} className="space-y-1.5 mt-2">
+                      <div className="p-2.5 rounded-xl border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between">
+                        <span className="text-ink-muted dark:text-ink-muted-dark font-bold text-micro">كاش درج المحل المتوفر حالياً:</span>
+                        <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                          {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
+                        </span>
+                      </div>
+
+                      {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (fundTillAmountPiasters > 0 && fundTillAmountPiasters > liveDrawerCashPiasters)) && (
+                        <div className="p-2.5 rounded-xl border text-micro bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              {liveDrawerCashPiasters <= 0
+                                ? 'درج كاشير المحل فارغ (0.00 ج.م)!'
+                                : 'رصيد درج كاشير المحل غير كافٍ!'}
+                            </span>
+                          </div>
+                          <p className="text-micro leading-relaxed">
+                            {liveDrawerCashPiasters <= 0
+                              ? 'لا يمكن سحب نقدية من درج كاشير فارغ. يرجى اختيار «كاش خارجي / صاحب المحل» لتغذية الدرج من نقدية خارجية.'
+                              : `المبلغ المطلوب (${formatArabicCurrency(fundTillAmountPiasters)}) أكبر من نقدية درج المحل (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى تقليل المبلغ أو اختيار «كاش خارجي / صاحب المحل».`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className={FIELD_LABEL_CLS}>ملاحظات التغذية</label>
+                  <input
+                    type="text"
+                    value={fundTillNotes}
+                    onChange={(e) => setFundTillNotes(e.target.value)}
+                    placeholder="مثال: عهدة نقدية صباحية لدرج الماكينة / سيولة سحب..."
+                    className={FIELD_INPUT_CLS}
+                  />
+                </div>
+              </div>
+            </MotionHeight>
+
+            <div className="p-4 border-t border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 flex items-center justify-end gap-2 shrink-0">
+              <AppButton variant="secondary" size="md" onClick={() => void requestCloseFundTill()}>
+                إلغاء
+              </AppButton>
+              <AppButton
+                variant="primary"
+                size="md"
+                onClick={handleSaveFundTill}
+                disabled={
+                  isFundingTillLoading ||
+                  fundTillAmountPiasters <= 0 ||
+                  (fundTillSource === 'cash_drawer' &&
+                    liveDrawerCashPiasters !== null &&
+                    (liveDrawerCashPiasters <= 0 || fundTillAmountPiasters > liveDrawerCashPiasters))
+                }
+              >
+                {isFundingTillLoading ? 'جاري الإيداع...' : 'تأكيد تغذية النقدية'}
+              </AppButton>
             </div>
           </div>
         </div>

@@ -10,6 +10,7 @@ import {
   Clock,
   ShieldAlert,
   ChevronLeft,
+  ChevronRight,
   DollarSign,
   Info,
   CheckCircle2,
@@ -19,6 +20,7 @@ import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
+import { SearchInput } from '../../components/SearchInput';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { useToday, formatLocalDateTime } from '../../utils/dateFilter';
 import { buildReportPeriodPayload, defaultCustomReportRange } from '../../utils/reportPeriod';
@@ -33,6 +35,7 @@ import type {
   ShrinkageAnalysisReport,
   PurchaseAnalysisReport,
   LowStockReportItem,
+  LowStockReportResponse,
   BatchSummary
 } from '../../types/models';
 
@@ -53,6 +56,7 @@ type InventorySection = 'shrinkage' | 'lowstock' | 'purchases' | 'expiry' | 'dea
 
 interface InventoryAnalyticsViewProps {
   isActive?: boolean;
+  initialSection?: InventorySection;
   onNavigateToProducts?: (subView?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => void;
   onNavigateToProductEdit?: (productId: string) => void;
   onNavigateToPurchases?: () => void;
@@ -60,6 +64,7 @@ interface InventoryAnalyticsViewProps {
 
 export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   isActive = true,
+  initialSection,
   onNavigateToProducts,
   onNavigateToProductEdit,
   onNavigateToPurchases
@@ -79,29 +84,38 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   const [overview, setOverview] = useState<InventoryOverviewReport | null>(null);
   const [shrinkage, setShrinkage] = useState<ShrinkageAnalysisReport | null>(null);
   const [purchases, setPurchases] = useState<PurchaseAnalysisReport | null>(null);
-  const [lowStockItems, setLowStockItems] = useState<LowStockReportItem[]>([]);
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
 
-  const [activeSection, setActiveSection] = useState<InventorySection>('shrinkage');
+  const [activeSection, setActiveSection] = useState<InventorySection>(initialSection || 'shrinkage');
   const motionPanel = useMotionPanel(activeSection);
+
+  // حالة النواقص وأمر الشراء المقترح مع دعم الترقيم والبحث التلقائي لمنع تجميد الشاشة
+  const [lowStockItems, setLowStockItems] = useState<LowStockReportItem[]>([]);
+  const [lowStockTotalCount, setLowStockTotalCount] = useState<number>(0);
+  const [lowStockBudget, setLowStockBudget] = useState<number>(0);
+  const [lowStockZeroCount, setLowStockZeroCount] = useState<number>(0);
+  const [lowStockUnderMinCount, setLowStockUnderMinCount] = useState<number>(0);
+  const [lowStockSearch, setLowStockSearch] = useState<string>('');
+  const [lowStockFilter, setLowStockFilter] = useState<'all' | 'zero' | 'low'>('all');
+  const [lowStockPage, setLowStockPage] = useState<number>(1);
+  const [isLowStockLoading, setIsLowStockLoading] = useState<boolean>(false);
+  const LOW_STOCK_PAGE_SIZE = 50;
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const payload = buildReportPeriodPayload(period, customFrom, customTo);
 
-      const [invRes, shrinkRes, purRes, lowRes, batchRes] = await Promise.all([
+      const [invRes, shrinkRes, purRes, batchRes] = await Promise.all([
         invoke<InventoryOverviewReport>('reports:getInventoryOverview'),
         invoke<ShrinkageAnalysisReport>('reports:getShrinkageAnalysis', payload),
         invoke<PurchaseAnalysisReport>('reports:getPurchaseAnalysis', payload),
-        invoke<LowStockReportItem[]>('reports:getLowStock'),
         invoke<BatchSummary>('batch:summary').catch(() => null),
       ]);
 
       setOverview(invRes);
       setShrinkage(shrinkRes);
       setPurchases(purRes);
-      setLowStockItems(lowRes || []);
       setBatchSummary(batchRes);
     } catch (err) {
       console.error('Failed to load inventory analytics:', err);
@@ -110,21 +124,69 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
     }
   }, [period, customFrom, customTo]);
 
+  const loadLowStockData = useCallback(async () => {
+    setIsLowStockLoading(true);
+    try {
+      const raw = await invoke<LowStockReportResponse | LowStockReportItem[]>('reports:getLowStock', {
+        limit: LOW_STOCK_PAGE_SIZE,
+        offset: (lowStockPage - 1) * LOW_STOCK_PAGE_SIZE,
+        search: lowStockSearch.trim() || undefined,
+        filter: lowStockFilter,
+      });
+
+      if (raw && !Array.isArray(raw) && typeof raw === 'object' && 'items' in raw) {
+        setLowStockItems(raw.items || []);
+        setLowStockTotalCount(raw.totalCount || 0);
+        setLowStockBudget(raw.totalSuggestedBudgetPiasters || 0);
+        setLowStockZeroCount(raw.zeroStockCount || 0);
+        setLowStockUnderMinCount(raw.lowStockCount || 0);
+      } else if (Array.isArray(raw)) {
+        setLowStockItems(raw);
+        setLowStockTotalCount(raw.length);
+        const sum = raw.reduce((acc, it) => acc + (it.estimatedCostPiasters || 0), 0);
+        setLowStockBudget(sum);
+        setLowStockZeroCount(raw.filter((i) => i.stockMilli <= 0).length);
+        setLowStockUnderMinCount(raw.filter((i) => i.stockMilli > 0).length);
+      }
+    } catch (err) {
+      console.error('Failed to load low stock data:', err);
+    } finally {
+      setIsLowStockLoading(false);
+    }
+  }, [lowStockPage, lowStockSearch, lowStockFilter]);
+
   useEffect(() => {
     if (isActive) {
       void loadData();
     }
   }, [isActive, loadData, today]);
 
+  useEffect(() => {
+    if (isActive && activeSection === 'lowstock') {
+      void loadLowStockData();
+    }
+  }, [isActive, activeSection, loadLowStockData]);
+
   useDataSubscription(['products', 'purchases', 'sales', 'dashboard', 'all'], () => {
     void loadData();
+    if (activeSection === 'lowstock') {
+      void loadLowStockData();
+    }
   });
 
-  // Low stock budget estimate
-  const totalSuggestedOrderBudget = lowStockItems.reduce(
-    (sum, it) => sum + (it.estimatedCostPiasters || 0),
-    0
-  );
+  const handleSearchChange = (query: string) => {
+    setLowStockSearch(query);
+    setLowStockPage(1);
+  };
+
+  const handleFilterChange = (filter: 'all' | 'zero' | 'low') => {
+    setLowStockFilter(filter);
+    setLowStockPage(1);
+  };
+
+  const totalPages = Math.ceil(lowStockTotalCount / LOW_STOCK_PAGE_SIZE) || 1;
+  const startItemIndex = lowStockTotalCount === 0 ? 0 : (lowStockPage - 1) * LOW_STOCK_PAGE_SIZE + 1;
+  const endItemIndex = Math.min(lowStockPage * LOW_STOCK_PAGE_SIZE, lowStockTotalCount);
 
   if (showLoading && !overview) {
     return (
@@ -421,64 +483,175 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
 
         {/* SECTION B: Low Stock & Reorder Roster */}
         {activeSection === 'lowstock' && (
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-              <p className="text-sm font-bold text-ink dark:text-ink-dark">
-                حساب تلقائي لكمية الطلب المقترحة بناءً على الحد الأدنى ومخزون الأمان
-              </p>
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs space-y-4">
+            {/* Header Toolbar: Description, Budget KPI, and Quick Actions */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <h2 className="t-section-title text-ink dark:text-ink-dark flex items-center gap-2">
+                  <Package className="w-5 h-5 text-brand dark:text-brand-bright" />
+                  <span>دفتر النواقص وقائمة طلب البضاعة المقترحة</span>
+                </h2>
+                <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted">
+                  حساب تلقائي لكمية الطلب المقترحة بهامش أمان لحماية المتجر من نفاد الأصناف
+                </p>
+              </div>
 
-              <div className="flex items-center gap-2">
-                <div className="px-4 h-10 inline-flex items-center bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-sm font-mono">
-                  <span className="text-ink-muted dark:text-ink-dark-muted ml-1">ميزانية الطلب المقدرة:</span>
-                  <span className="font-bold text-brand-dark dark:text-brand-bright">{formatArabicCurrency(totalSuggestedOrderBudget)}</span>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="px-4 h-10 inline-flex items-center bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-sm font-mono shadow-2xs">
+                  <span className="text-ink-muted dark:text-ink-dark-muted ml-1.5 font-normal">ميزانية الطلب المقدرة:</span>
+                  <span className="font-bold text-brand-dark dark:text-brand-bright">
+                    {formatArabicCurrency(lowStockBudget)}
+                  </span>
                 </div>
+                {openPurchases && (
+                  <AppButton
+                    variant="primary"
+                    size="sm"
+                    icon={Truck}
+                    onClick={openPurchases}
+                    title="الانتقال إلى شاشة المشتريات لإنشاء فاتورة توريد"
+                  >
+                    إنشاء فاتورة شراء
+                  </AppButton>
+                )}
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Filter Pills & Search Input Toolbar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <div className="w-full sm:w-72">
+                <SearchInput
+                  size="sm"
+                  value={lowStockSearch}
+                  onChange={handleSearchChange}
+                  placeholder="بحث باسم الصنف أو الباركود أو القسم..."
+                  ariaLabel="بحث في النواقص وأمر الشراء"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-canvas dark:bg-canvas-dark p-1 rounded-xl border border-line dark:border-line-dark text-xs self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('all')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1.5 ${
+                    lowStockFilter === 'all'
+                      ? 'bg-surface dark:bg-surface-dark text-brand-dark dark:text-brand-bright shadow-xs font-bold'
+                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                  }`}
+                >
+                  <span>كافة النواقص</span>
+                  <span className="px-1.5 py-0.5 rounded-full text-micro font-mono bg-surface-2 dark:bg-surface-dark-2">
+                    {lowStockTotalCount}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('zero')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1.5 ${
+                    lowStockFilter === 'zero'
+                      ? 'bg-surface dark:bg-surface-dark text-danger dark:text-danger-bright shadow-xs font-bold'
+                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                  }`}
+                >
+                  <span>نافدة تماماً (رصيد 0)</span>
+                  <span className="px-1.5 py-0.5 rounded-full text-micro font-mono bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright">
+                    {lowStockZeroCount}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('low')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1.5 ${
+                    lowStockFilter === 'low'
+                      ? 'bg-surface dark:bg-surface-dark text-warn dark:text-warn-bright shadow-xs font-bold'
+                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                  }`}
+                >
+                  <span>تحت حد الطلب</span>
+                  <span className="px-1.5 py-0.5 rounded-full text-micro font-mono bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright">
+                    {lowStockUnderMinCount}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Table Area */}
+            <div className="overflow-x-auto rounded-xl border border-line dark:border-line-dark">
               <table className="w-full text-right text-sm">
                 <thead>
-                  <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                    <th className="py-3.5 px-3.5">اسم الصنف والباركود</th>
-                    <th className="py-3.5 px-3.5">القسم</th>
-                    <th className="py-3.5 px-3.5">الرصيد الحالي</th>
-                    <th className="py-3.5 px-3.5">حد الطلب الأدنى</th>
-                    <th className="py-3.5 px-3.5">الكمية المقترحة</th>
-                    <th className="py-3.5 px-3.5">سعر التكلفة</th>
-                    <th className="py-3.5 px-3.5">التكلفة الإجمالية</th>
+                  <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
+                    <th className="py-3 px-3.5">اسم الصنف والباركود</th>
+                    <th className="py-3 px-3.5">القسم</th>
+                    <th className="py-3 px-3.5">الرصيد الحالي</th>
+                    <th className="py-3 px-3.5">حد الطلب الأدنى</th>
+                    <th className="py-3 px-3.5">الكمية المقترحة</th>
+                    <th className="py-3 px-3.5">سعر التكلفة</th>
+                    <th className="py-3 px-3.5">التكلفة الإجمالية</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line dark:divide-line-dark">
-                  {lowStockItems.length === 0 ? (
+                <tbody className="divide-y divide-line dark:divide-line-dark bg-surface dark:bg-surface-dark">
+                  {isLowStockLoading ? (
                     <tr>
-                      <td colSpan={7} className="py-6 text-center text-paid dark:text-paid-bright font-medium">
-                        <div className="flex items-center justify-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright" />
-                          <span>جميع الأصناف في المخزن أعلى من الحد الأدنى للطلب!</span>
+                      <td colSpan={7} className="py-12 text-center text-ink-muted dark:text-ink-dark-muted">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="w-5 h-5 border-2 border-brand dark:border-brand-bright border-t-transparent rounded-full animate-spin" />
+                          <span className="text-xs">جاري تحديث بيانات النواقص...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : lowStockItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-paid dark:text-paid-bright font-medium">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <CheckCircle2 className="w-8 h-8 text-paid dark:text-paid-bright" />
+                          <span className="font-bold">
+                            {lowStockSearch.trim() || lowStockFilter !== 'all'
+                              ? 'لا توجد أصناف مطابقة للبحث أو التصفية الحالية'
+                              : 'جميع الأصناف في المخزن متوفرة وأعلى من حد الأمان!'}
+                          </span>
+                          {(lowStockSearch.trim() || lowStockFilter !== 'all') && (
+                            <AppButton
+                              variant="secondary"
+                              size="xs"
+                              onClick={() => {
+                                setLowStockSearch('');
+                                setLowStockFilter('all');
+                                setLowStockPage(1);
+                              }}
+                            >
+                              إعادة ضبط الفلاتر
+                            </AppButton>
+                          )}
                         </div>
                       </td>
                     </tr>
                   ) : (
                     lowStockItems.map((item) => (
                       <tr key={item.productId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
-                        <td className="py-3.5 px-3.5">
+                        <td className="py-3 px-3.5">
                           <div className="font-bold text-ink dark:text-ink-dark">{item.name}</div>
                           <div className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || '—'}</div>
                         </td>
-                        <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
-                        <td className="py-3.5 px-3.5 font-mono font-bold text-danger dark:text-danger-bright">
-                          {(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {formatUnitArabic(item.unit)}
+                        <td className="py-3 px-3.5 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
+                        <td className="py-3 px-3.5 font-mono font-bold">
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${
+                            item.stockMilli <= 0
+                              ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright font-bold'
+                              : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright'
+                          }`}>
+                            {(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {formatUnitArabic(item.unit)}
+                          </span>
                         </td>
-                        <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
+                        <td className="py-3 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {(item.minStockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {formatUnitArabic(item.unit)}
                         </td>
-                        <td className="py-3.5 px-3.5 font-mono font-bold text-paid dark:text-paid-bright">
+                        <td className="py-3 px-3.5 font-mono font-bold text-paid dark:text-paid-bright">
                           <span dir="ltr">+{((item.suggestedOrderMilli / 1000)).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(item.unit)}
                         </td>
-                        <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
+                        <td className="py-3 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {formatArabicCurrency(item.unitCostPiasters)}
                         </td>
-                        <td className="py-3.5 px-3.5 font-mono font-bold text-ink dark:text-ink-dark">
+                        <td className="py-3 px-3.5 font-mono font-bold text-ink dark:text-ink-dark">
                           {formatArabicCurrency(item.estimatedCostPiasters)}
                         </td>
                       </tr>
@@ -487,6 +660,46 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls Footer */}
+            {lowStockTotalCount > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 text-xs text-ink-muted dark:text-ink-dark-muted">
+                <div>
+                  عرض <span className="font-mono font-bold text-ink dark:text-ink-dark">{startItemIndex}</span> إلى{' '}
+                  <span className="font-mono font-bold text-ink dark:text-ink-dark">{endItemIndex}</span> من أصل{' '}
+                  <span className="font-mono font-bold text-brand-dark dark:text-brand-bright">{lowStockTotalCount}</span> صنف
+                </div>
+
+                <div className="flex items-center gap-2 self-center sm:self-auto">
+                  <AppButton
+                    variant="secondary"
+                    size="xs"
+                    icon={ChevronRight}
+                    disabled={lowStockPage <= 1 || isLowStockLoading}
+                    onClick={() => setLowStockPage((prev) => Math.max(1, prev - 1))}
+                    title="الصفحة السابقة"
+                  >
+                    السابق
+                  </AppButton>
+
+                  <span className="font-mono px-2 py-1 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark font-medium">
+                    {lowStockPage} / {totalPages}
+                  </span>
+
+                  <AppButton
+                    variant="secondary"
+                    size="xs"
+                    icon={ChevronLeft}
+                    iconPosition="end"
+                    disabled={lowStockPage >= totalPages || isLowStockLoading}
+                    onClick={() => setLowStockPage((prev) => Math.min(totalPages, prev + 1))}
+                    title="الصفحة التالية"
+                  >
+                    التالي
+                  </AppButton>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

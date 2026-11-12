@@ -404,7 +404,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'system:getInfo':
       return {
         appName: 'رفيق نقاط البيع',
-        version: '1.1.1',
+        version: '1.1.2',
         osVersion: 'Windows 10/11 (Dev Mock)',
         isWebView2: false,
         dbStatus: 'متصلة وسليمة',
@@ -421,13 +421,13 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       let flag = '';
       try { flag = localStorage.getItem('rafiq_mock_update') || ''; } catch { /* ignore */ }
       if (flag === 'offline') {
-        return { hasUpdate: false, isEligible: true, currentVersion: '1.1.1', latestVersion: '', errorMessage: 'تعذر الاتصال بخادم التحديثات (تأكد من اتصال الإنترنت).' };
+        return { hasUpdate: false, isEligible: true, currentVersion: '1.1.2', latestVersion: '', errorMessage: 'تعذر الاتصال بخادم التحديثات (تأكد من اتصال الإنترنت).' };
       }
       if (flag === '1') {
         return {
           hasUpdate: true,
           isEligible: true,
-          currentVersion: '1.1.1',
+          currentVersion: '1.1.2',
           latestVersion: '1.2.0',
           releaseDate: '2026-11-01',
           changelog: 'تحسينات في سرعة البيع\nإصلاح طباعة الإيصالات',
@@ -437,7 +437,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           isMandatory: false,
         };
       }
-      return { hasUpdate: false, isEligible: true, currentVersion: '1.1.1', latestVersion: '1.1.1' };
+      return { hasUpdate: false, isEligible: true, currentVersion: '1.1.2', latestVersion: '1.1.2' };
     }
 
     case 'db:testTransaction':
@@ -1871,7 +1871,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           printerName: 'طابعة الإيصالات الحرارية XP-80C',
           isPrinterReady: true,
           licenseStatus: 'ترخيص محلي دائم (نشط مدى الحياة)',
-          appVersion: 'رفيق لنقاط البيع v1.1.1 (أوفلاين)',
+          appVersion: 'رفيق لنقاط البيع v1.1.2 (أوفلاين)',
           databaseStatus: 'سليمة (وضع الحماية الفائق)',
           productsCount: 8,
         },
@@ -2422,7 +2422,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'reports:getLowStock': {
-      return [
+      const mockItems = [
         {
           productId: 'p_3',
           name: 'سكر أبيض نقي 1 كجم',
@@ -2460,6 +2460,35 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           categoryName: 'الألبان',
         },
       ];
+
+      const p = payload as { limit?: number; offset?: number; search?: string; filter?: string } | undefined;
+      if (p && (p.limit !== undefined || p.offset !== undefined || p.search !== undefined || p.filter !== undefined)) {
+        let filtered = [...mockItems];
+        if (p.filter === 'zero') {
+          filtered = filtered.filter(i => i.stockMilli <= 0);
+        } else if (p.filter === 'low') {
+          filtered = filtered.filter(i => i.stockMilli > 0);
+        }
+        if (p.search && p.search.trim()) {
+          const q = p.search.trim().toLowerCase();
+          filtered = filtered.filter(i => i.name.toLowerCase().includes(q) || i.barcode.includes(q) || (i.categoryName && i.categoryName.toLowerCase().includes(q)));
+        }
+        const totalBudget = filtered.reduce((sum, it) => sum + it.estimatedCostPiasters, 0);
+        const limit = p.limit && p.limit > 0 ? p.limit : 50;
+        const offset = p.offset || 0;
+        const paged = filtered.slice(offset, offset + limit);
+        return {
+          items: paged,
+          totalCount: filtered.length,
+          totalSuggestedBudgetPiasters: totalBudget,
+          zeroStockCount: filtered.filter(i => i.stockMilli <= 0).length,
+          lowStockCount: filtered.filter(i => i.stockMilli > 0).length,
+          page: Math.floor(offset / limit) + 1,
+          pageSize: limit,
+        };
+      }
+
+      return mockItems;
     }
 
     case 'reports:getDebtors': {
@@ -3980,12 +4009,52 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         previousBalancePiasters: prevBal,
         newBalancePiasters: newBal,
         notes: notes || '',
-        createdBy: createdBy || 'كاشير المحل',
+        createdBy: payload.cashierName || payload.performedBy || createdBy || 'صاحب المحل',
+        createdByName: payload.cashierName || payload.performedBy || createdBy || 'صاحب المحل',
         createdAt: new Date().toISOString(),
         amountFormatted: (Number(amountPiasters) / 100).toFixed(2) + ' ج.م',
       };
       mockEpayFundings.unshift(funding);
       return funding;
+    }
+
+    case 'epay:fundTillCash': {
+      const { amountPiasters, fundingSource, source, notes, cashierName, performedBy } = payload || {};
+      const amt = Number(amountPiasters) || 0;
+      if (amt <= 0) throw new Error('مبلغ التغذية النقدية يجب أن يكون أكبر من الصفر');
+
+      const resolvedSource = fundingSource || source || 'external_cash';
+      const sourceArabic = resolvedSource === 'cash_drawer' ? 'من درج كاشير المحل' : 'كاش خارجي / صاحب المحل';
+      const txNotes = `تغذية نقدية لدرج الماكينة (${sourceArabic})${notes ? ': ' + notes : ''}`;
+
+      const terminal = mockEpayTerminals[0] || { id: 'term_1', name: 'الماكينة الأساسية' };
+      const newTx = {
+        id: `etx_${Date.now()}`,
+        referenceNumber: `TILL-${Date.now().toString().slice(-6)}`,
+        terminalId: terminal.id,
+        terminalName: terminal.name,
+        serviceType: 'till_funding',
+        serviceName: 'تغذية نقدية لدرج الماكينة',
+        billAmountPiasters: amt,
+        customerFeePiasters: 0,
+        providerCommissionPiasters: 0,
+        machineDeductedPiasters: 0,
+        netProfitPiasters: 0,
+        totalReceivedPiasters: amt,
+        paymentChannel: 'terminal_till',
+        cashierName: cashierName || performedBy || 'صاحب المحل',
+        status: 'completed',
+        notes: txNotes,
+        createdAt: new Date().toISOString(),
+        billAmountFormatted: (amt / 100).toFixed(2) + ' ج.م',
+        customerFeeFormatted: '0.00 ج.م',
+        providerCommissionFormatted: '0.00 ج.م',
+        totalReceivedFormatted: (amt / 100).toFixed(2) + ' ج.م',
+        netProfitFormatted: '0.00 ج.م',
+        serviceTypeArabic: 'تغذية نقدية للدرج',
+      };
+      mockEpayTransactions.unshift(newTx as any);
+      return newTx;
     }
 
     case 'epay:calculatePricing': {
@@ -4103,8 +4172,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         paymentChannel: txData.paymentChannel || txData.paymentDestination || 'cash_drawer',
         status: 'completed',
         notes: txData.notes || '',
-        createdBy: txData.createdBy || 'كاشير المحل',
-        cashierName: txData.cashierName || txData.createdBy || 'كاشير المحل',
+        cashierName: txData.cashierName || txData.performedBy || 'صاحب المحل',
+        createdBy: txData.cashierName || txData.performedBy || txData.createdBy || 'صاحب المحل',
+        createdByName: txData.cashierName || txData.performedBy || txData.createdBy || 'صاحب المحل',
         createdAt: new Date().toISOString(),
         billAmountFormatted: (billAmt / 100).toFixed(2) + ' ج.م',
         customerFeeFormatted: (custFee / 100).toFixed(2) + ' ج.م',
@@ -4191,8 +4261,12 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       const totalFees = filtered.reduce((s, t) => s + (t.customerFeePiasters || 0), 0);
       const totalComms = filtered.reduce((s, t) => s + (t.providerCommissionPiasters || 0), 0);
       const totalNetProf = filtered.reduce((s, t) => s + (t.netProfitPiasters || 0), 0);
-      const totalInDrawer = filtered.filter((t) => (t.paymentChannel || t.paymentDestination) === 'cash_drawer').reduce((s, t) => s + (t.totalReceivedPiasters || 0), 0);
-      const totalInTill = filtered.filter((t) => (t.paymentChannel || t.paymentDestination) === 'terminal_till').reduce((s, t) => s + (t.totalReceivedPiasters || 0), 0);
+      const getNetTill = (t: any) =>
+        t.serviceType === 'cash_out'
+          ? ((t.customerFeePiasters || 0) - (t.billAmountPiasters || 0))
+          : (t.totalReceivedPiasters || 0);
+      const totalInDrawer = filtered.filter((t) => (t.paymentChannel || t.paymentDestination) === 'cash_drawer').reduce((s, t) => s + getNetTill(t), 0);
+      const totalInTill = filtered.filter((t) => (t.paymentChannel || t.paymentDestination) === 'terminal_till').reduce((s, t) => s + getNetTill(t), 0);
       const activeTerminals = mockEpayTerminals.filter((t) => t.isActive);
       const totalTerminalsBal = activeTerminals.reduce((s, t) => s + (t.balancePiasters || 0), 0);
 
@@ -4343,12 +4417,47 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         previousBalancePiasters: prevBal,
         newBalancePiasters: newBal,
         notes: notes || '',
-        createdBy: createdBy || 'كاشير المحل',
+        createdBy: payload.cashierName || payload.performedBy || createdBy || 'صاحب المحل',
+        createdByName: payload.cashierName || payload.performedBy || createdBy || 'صاحب المحل',
         createdAt: new Date().toISOString(),
         amountFormatted: (Number(amountPiasters) / 100).toFixed(2) + ' ج.م',
       };
       mockDigitalFundings.unshift(funding);
       return funding;
+    }
+
+    case 'wallets:fundTillCash': {
+      const { amountPiasters, fundingSource, source, notes, cashierName, performedBy } = payload || {};
+      const amt = Number(amountPiasters) || 0;
+      if (amt <= 0) throw new Error('مبلغ التغذية النقدية يجب أن يكون أكبر من الصفر');
+
+      const resolvedSource = fundingSource || source || 'external_cash';
+      const sourceArabic = resolvedSource === 'cash_drawer' ? 'من درج كاشير المحل' : 'كاش خارجي / صاحب المحل';
+      const txNotes = `تغذية نقدية لدرج المحافظ (${sourceArabic})${notes ? ': ' + notes : ''}`;
+
+      const acc = mockDigitalAccounts[0] || { id: 'acc_1', name: 'محفظة كاش الأساسية', accountType: 'wallet', provider: 'vodafone_cash' };
+      const newTx = {
+        id: `dtx_${Date.now()}`,
+        transactionNumber: `TILL-${Date.now().toString().slice(-6)}`,
+        accountId: acc.id,
+        accountName: acc.name,
+        accountType: acc.accountType,
+        provider: acc.provider,
+        txType: 'till_funding',
+        amountPiasters: amt,
+        profitPiasters: 0,
+        totalCollectedPiasters: amt,
+        paymentDestination: 'terminal_till',
+        cashierName: cashierName || performedBy || 'صاحب المحل',
+        status: 'completed',
+        notes: txNotes,
+        createdAt: new Date().toISOString(),
+        amountFormatted: (amt / 100).toFixed(2) + ' ج.م',
+        profitFormatted: '0.00 ج.م',
+        txTypeArabic: 'تغذية نقدية للدرج',
+      };
+      mockDigitalTransactions.unshift(newTx as any);
+      return newTx;
     }
 
     case 'wallets:processTransaction': {
@@ -4397,8 +4506,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         referenceNumber: txData.referenceNumber || '',
         notes: txData.notes || '',
         saleId: txData.saleId || null,
-        createdBy: txData.createdBy || 'كاشير المحل',
-        createdByName: txData.createdByName || 'كاشير المحل',
+        cashierName: txData.cashierName || txData.performedBy || 'كاشير المحل',
+        createdBy: txData.cashierName || txData.performedBy || txData.createdBy || 'كاشير المحل',
+        createdByName: txData.cashierName || txData.performedBy || txData.createdByName || 'كاشير المحل',
         createdAt: new Date().toISOString(),
         amountFormatted: (amountPiasters / 100).toFixed(2) + ' ج.م',
         profitFormatted: (profitPiasters / 100).toFixed(2) + ' ج.م',
@@ -4455,9 +4565,33 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       );
       const completedTxs = mockDigitalTransactions.filter((t) => (t.status || 'completed') === 'completed');
 
+      const calcDrawerCash = (txs: typeof mockDigitalTransactions) =>
+        txs
+          .filter((t) => (t.paymentDestination || 'cash_drawer') === 'cash_drawer' && (t.status || 'completed') === 'completed')
+          .reduce((sum, t) => {
+            if (t.txType === 'cash_out') return sum + (t.totalCollectedPiasters || (t.amountPiasters + (t.profitPiasters || 0)));
+            if (t.txType === 'cash_in') return sum + ((t.profitPiasters || 0) - t.amountPiasters);
+            return sum;
+          }, 0);
+
+      const calcTerminalTillCash = (txs: typeof mockDigitalTransactions) =>
+        txs
+          .filter((t) => (t.paymentDestination || 'cash_drawer') === 'terminal_till' && (t.status || 'completed') === 'completed')
+          .reduce((sum, t) => {
+            if (t.txType === 'cash_out') return sum + (t.totalCollectedPiasters || (t.amountPiasters + (t.profitPiasters || 0)));
+            if (t.txType === 'cash_in') return sum + ((t.profitPiasters || 0) - t.amountPiasters);
+            return sum;
+          }, 0);
+
       const todayProfit = todayTxs.reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
       const monthProfit = mockDigitalTransactions.reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
       const todayVolume = todayTxs.reduce((sum, t) => sum + (t.amountPiasters || 0), 0);
+      const periodDrawerCash = calcDrawerCash(periodTxs);
+      const todayDrawerCash = calcDrawerCash(todayTxs);
+      const totalDrawerCash = calcDrawerCash(completedTxs);
+      const periodTerminalTillCash = calcTerminalTillCash(periodTxs);
+      const todayTerminalTillCash = calcTerminalTillCash(todayTxs);
+      const totalTerminalTillCash = calcTerminalTillCash(completedTxs);
 
       return {
         walletsBalancePiasters: walletsBal,
@@ -4471,6 +4605,13 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         periodTransactionsCount: periodTxs.length,
         periodProfitPiasters: periodTxs.reduce((sum, t) => sum + (t.profitPiasters || 0), 0),
         periodVolumePiasters: periodTxs.reduce((sum, t) => sum + (t.amountPiasters || 0), 0),
+        periodDrawerCashPiasters: periodDrawerCash,
+        todayDrawerCashPiasters: todayDrawerCash,
+        totalDrawerCashPiasters: totalDrawerCash,
+        periodTerminalTillCashPiasters: periodTerminalTillCash,
+        todayTerminalTillCashPiasters: todayTerminalTillCash,
+        totalTerminalTillCashPiasters: totalTerminalTillCash,
+        periodTotalCashPiasters: periodDrawerCash + periodTerminalTillCash,
         activeAccountsCount: activeAccounts.length,
         walletsBalanceFormatted: (walletsBal / 100).toFixed(2) + ' ج.م',
         instapayBalanceFormatted: (instapayBal / 100).toFixed(2) + ' ج.م',
@@ -4478,6 +4619,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         todayProfitFormatted: (todayProfit / 100).toFixed(2) + ' ج.م',
         monthProfitFormatted: (monthProfit / 100).toFixed(2) + ' ج.م',
         todayVolumeFormatted: (todayVolume / 100).toFixed(2) + ' ج.م',
+        periodDrawerCashFormatted: (periodDrawerCash / 100).toFixed(2) + ' ج.م',
+        todayDrawerCashFormatted: (todayDrawerCash / 100).toFixed(2) + ' ج.م',
+        totalDrawerCashFormatted: (totalDrawerCash / 100).toFixed(2) + ' ج.م',
       };
     }
 
