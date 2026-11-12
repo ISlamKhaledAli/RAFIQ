@@ -192,6 +192,18 @@ test('payments: mixed cash + card with change, credit remainder, e-payment fee, 
   const walkIn = computeReceiptTotals(makeSale([item('شاي', 1000, 10000)], { paidPiasters: 15000, changePiasters: 0, customerId: 'cust_general_cash' }));
   assert.equal(walkIn.change, 5000);
   assert.equal(walkIn.deposited, 0);
+
+  const cashOverpayment = buildReceiptModel(
+    makeSale([item('شاي', 1000, 15000)], {
+      paidPiasters: 20000,
+      changePiasters: 5000,
+      payments: [{ method: 'cash', amountPiasters: 20000 }],
+    }),
+    STORE
+  );
+  assert.equal(cashOverpayment.grandTotal, '150.00');
+  assert.equal(cashOverpayment.paymentRows.some((r) => r.label === 'المدفوع (نقدي)' && r.value === '200.00'), true);
+  assert.equal(cashOverpayment.paymentRows.some((r) => r.label === 'الباقي للعميل' && r.value === '50.00'), true);
 });
 
 test('model sections: only what is needed, no zero lines, no internal ids, a real invoice barcode', () => {

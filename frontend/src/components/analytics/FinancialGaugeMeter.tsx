@@ -199,7 +199,7 @@ export const FinancialGaugeMeter: FC<FinancialGaugeMeterProps> = ({
 
       <div className="flex items-start gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted">
         <Info className="w-3.5 h-3.5 mt-0.5 text-brand dark:text-brand-bright shrink-0" />
-        <span>يُحسب بناءً على تدفق النقد بالدرج، نسبة الأرباح، وانضباط سداد الآجل.</span>
+        <span>يُحسب بناءً على التحصيل الفوري (نقد ورقمي)، نسبة الأرباح، وانضباط سداد الآجل.</span>
       </div>
     </div>
   );

@@ -344,17 +344,33 @@ export function optimizeImageForThermal(
       ? { maxWidth: optionsOrMaxWidth, maxHeight: maxHeightParam, mode: 'crisp' }
       : (optionsOrMaxWidth ?? {});
 
-  const maxWidth = options.maxWidth ?? THERMAL_LOGO_MAX_WIDTH;
-  const maxHeight = options.maxHeight ?? THERMAL_LOGO_MAX_HEIGHT;
   const mode = options.mode ?? 'crisp';
+  // Dither mode defaults to physical 203 DPI thermal dot dimensions (~280x110)
+  // so that halftone dots map 1:1 without downsampling blur or moiré
+  const defaultMaxW = mode === 'dither' ? 280 : THERMAL_LOGO_MAX_WIDTH;
+  const defaultMaxH = mode === 'dither' ? 110 : THERMAL_LOGO_MAX_HEIGHT;
+  const maxWidth = options.maxWidth ?? defaultMaxW;
+  const maxHeight = options.maxHeight ?? defaultMaxH;
   const cleanBackground = options.cleanBackground ?? true;
   const gamma = options.gamma ?? 1.2;
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    if (!dataUrlOrSrc) {
+      resolve('');
+      return;
+    }
+
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (dataUrlOrSrc.startsWith('http://') || dataUrlOrSrc.startsWith('https://')) {
+      img.crossOrigin = 'anonymous';
+    }
+
+    const timer = setTimeout(() => {
+      resolve(dataUrlOrSrc);
+    }, 6000);
 
     img.onload = () => {
+      clearTimeout(timer);
       try {
         const origW = img.naturalWidth || img.width;
         const origH = img.naturalHeight || img.height;
@@ -453,7 +469,8 @@ export function optimizeImageForThermal(
     };
 
     img.onerror = () => {
-      reject(new Error('تعذر تحميل الصورة لمعالجتها للطباعة الحرارية.'));
+      clearTimeout(timer);
+      resolve(dataUrlOrSrc);
     };
 
     img.src = dataUrlOrSrc;
@@ -470,13 +487,29 @@ export function generateThermal1BitSimulation(
   maxHeight = THERMAL_LOGO_MAX_HEIGHT,
 ): Promise<string> {
   return new Promise((resolve) => {
+    if (!dataUrlOrSrc) {
+      resolve('');
+      return;
+    }
+
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (dataUrlOrSrc.startsWith('http://') || dataUrlOrSrc.startsWith('https://')) {
+      img.crossOrigin = 'anonymous';
+    }
+
+    const timer = setTimeout(() => {
+      resolve(dataUrlOrSrc);
+    }, 4000);
 
     img.onload = () => {
+      clearTimeout(timer);
       try {
         const w = img.naturalWidth || img.width;
         const h = img.naturalHeight || img.height;
+        if (w <= 0 || h <= 0) {
+          resolve(dataUrlOrSrc);
+          return;
+        }
         const size = fitThermalLogoDimensions(w, h, maxWidth, maxHeight);
 
         const canvas = document.createElement('canvas');
@@ -488,6 +521,7 @@ export function generateThermal1BitSimulation(
           return;
         }
 
+        ctx.imageSmoothingEnabled = false;
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, size.width, size.height);
         ctx.drawImage(img, 0, 0, size.width, size.height);
@@ -496,12 +530,20 @@ export function generateThermal1BitSimulation(
         const data = imgData.data;
 
         for (let i = 0; i < data.length; i += 4) {
-          const luma = calculatePerceivedLuma(data[i], data[i + 1], data[i + 2], data[i + 3]);
-          const bit = luma < 185 ? 0 : 255;
-          data[i] = bit;
-          data[i + 1] = bit;
-          data[i + 2] = bit;
-          data[i + 3] = 255;
+          const a = data[i + 3];
+          if (a < 30) {
+            data[i] = 255;
+            data[i + 1] = 255;
+            data[i + 2] = 255;
+            data[i + 3] = 255;
+          } else {
+            const luma = calculatePerceivedLuma(data[i], data[i + 1], data[i + 2], a);
+            const bit = luma < 128 ? 0 : 255;
+            data[i] = bit;
+            data[i + 1] = bit;
+            data[i + 2] = bit;
+            data[i + 3] = 255;
+          }
         }
 
         ctx.putImageData(imgData, 0, 0);
@@ -511,7 +553,11 @@ export function generateThermal1BitSimulation(
       }
     };
 
-    img.onerror = () => resolve(dataUrlOrSrc);
+    img.onerror = () => {
+      clearTimeout(timer);
+      resolve(dataUrlOrSrc);
+    };
+
     img.src = dataUrlOrSrc;
   });
 }

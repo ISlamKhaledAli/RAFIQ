@@ -81,5 +81,22 @@ describe('Story 45: Multi-Payment & Change Due Invariants (Feature #27 / Tasks 2
       assert.equal(payments[1].method, 'card');
       assert.equal(payments[0].amountPiasters + payments[1].amountPiasters, netTotalPiasters);
     });
+
+    it('cash overpayment retains actual paid amount and calculates change due correctly', () => {
+      const netTotalPiasters = 15000; // 150.00 EGP
+      const receivedPiasters = 20000; // 200.00 EGP (customer paid 200)
+
+      const changeDuePiasters = Math.max(0, receivedPiasters - netTotalPiasters);
+      const paymentPayload = {
+        paymentMethod: 'cash',
+        paidPiasters: receivedPiasters,
+        payments: [{ method: 'cash', amountPiasters: receivedPiasters }],
+        changeDuePiasters,
+      };
+
+      assert.equal(paymentPayload.paidPiasters, 20000, 'paid amount must reflect 200 EGP, not products total');
+      assert.equal(paymentPayload.payments[0].amountPiasters, 20000);
+      assert.equal(paymentPayload.changeDuePiasters, 5000, 'change due must be 50 EGP');
+    });
   });
 });

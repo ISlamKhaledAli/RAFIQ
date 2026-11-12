@@ -85,6 +85,7 @@ const SettingsViewContent = ({
   const [savedCreditLimitEgp, setSavedCreditLimitEgp] = useState(1000);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [profileBaseline, setProfileBaseline] = useState<string | null>(null);
+  const [rawLogoSource, setRawLogoSource] = useState<string | null>(null);
   // The tax number also auto-saves from the policies screen, so it is compared to its own saved value
   const [savedTaxNumber, setSavedTaxNumber] = useState('');
   const profileSnapshot = JSON.stringify([
@@ -100,6 +101,7 @@ const SettingsViewContent = ({
     showReceiptChange,
     storeLogoUrl,
     thermalLogoMode,
+    rawLogoSource,
   ]);
   // Until the stored values are known the screen stays saveable (never blocks a save by mistake)
   const profileDirty = profileBaseline === null || profileSnapshot !== profileBaseline || taxNumber.trim() !== savedTaxNumber;
@@ -186,6 +188,16 @@ const SettingsViewContent = ({
           setShowReceiptInvoiceNumber(settings.receipt_show_invoice_number !== '0');
           setShowReceiptPaid(settings.receipt_show_paid !== '0');
           setShowReceiptChange(settings.receipt_show_change !== '0');
+          if (settings.store_logo_raw) {
+            setRawLogoSource(settings.store_logo_raw);
+          } else if (
+            settings.store_logo_url &&
+            settings.store_logo_url !== '/logo.png' &&
+            settings.store_logo_url !== '/receipt_logo.png' &&
+            settings.store_logo_url !== '/receipt_logo_square.png'
+          ) {
+            setRawLogoSource(settings.store_logo_url);
+          }
           if (settings.store_logo_url) {
             setStoreLogoUrl(
               settings.store_logo_url === '/logo.png' || settings.store_logo_url === '/receipt_logo.png'
@@ -274,6 +286,7 @@ const SettingsViewContent = ({
         receipt_show_paid: showReceiptPaid ? '1' : '0',
         receipt_show_change: showReceiptChange ? '1' : '0',
         store_logo_url: storeLogoUrl,
+        store_logo_raw: rawLogoSource || storeLogoUrl,
         thermal_logo_mode: thermalLogoMode,
       };
       await invoke('settings:save', payload);
@@ -610,6 +623,8 @@ const SettingsViewContent = ({
           setShowReceiptChange={setShowReceiptChange}
           storeLogoUrl={storeLogoUrl}
           setStoreLogoUrl={setStoreLogoUrl}
+          rawLogoSource={rawLogoSource}
+          setRawLogoSource={setRawLogoSource}
           thermalLogoMode={thermalLogoMode}
           setThermalLogoMode={setThermalLogoMode}
           developerSignature={developerSignature}

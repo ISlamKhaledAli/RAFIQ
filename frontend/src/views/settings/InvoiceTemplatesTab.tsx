@@ -385,7 +385,7 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
         {/* Header */}
         {currentConfig.showLogo && storeLogoUrl && (
           <div className="flex justify-center mb-1.5">
-            <img src={storeLogoUrl} alt="Logo" className={`object-contain max-h-[2.75rem] ${is57mm ? 'max-w-[5rem]' : 'max-w-[7.5rem]'}`} />
+            <img src={storeLogoUrl} alt="Logo" className={`object-contain max-h-[2.75rem] ${is57mm ? 'max-w-[5rem]' : 'max-w-[7.5rem]'} [image-rendering:pixelated]`} />
           </div>
         )}
         <div className={`text-center font-bold break-words ${is57mm ? 'text-xs' : 'text-sm'}`}>{storeName}</div>
@@ -543,7 +543,7 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
             )}
           </div>
           {currentConfig.showLogo && storeLogoUrl && (
-            <img src={storeLogoUrl} alt="Logo" className="max-h-12 object-contain" />
+            <img src={storeLogoUrl} alt="Logo" className="max-h-12 object-contain [image-rendering:pixelated]" />
           )}
         </div>
 
@@ -691,7 +691,7 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
         {/* Header */}
         {currentConfig.showLogo && storeLogoUrl && (
           <div className="flex justify-center mb-1.5">
-            <img src={storeLogoUrl} alt="Logo" className="max-h-11 object-contain" />
+            <img src={storeLogoUrl} alt="Logo" className="max-h-11 object-contain [image-rendering:pixelated]" />
           </div>
         )}
         <div className="text-center font-bold text-sm">{storeName}</div>
@@ -805,7 +805,7 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
       <div className={`text-black font-sans leading-relaxed select-text ${is57mm ? 'text-micro' : 'text-xs'}`} dir="rtl">
         {currentConfig.showLogo && storeLogoUrl && (
           <div className="flex justify-center mb-1.5">
-            <img src={storeLogoUrl} alt="Logo" className="max-h-11 object-contain" />
+            <img src={storeLogoUrl} alt="Logo" className="max-h-11 object-contain [image-rendering:pixelated]" />
           </div>
         )}
         <div className="text-center font-bold text-sm">{storeName}</div>
@@ -923,7 +923,7 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
       <div className={`text-black font-sans leading-relaxed select-text ${is57mm ? 'text-micro' : 'text-xs'}`} dir="rtl">
         {currentConfig.showLogo && storeLogoUrl && (
           <div className="flex justify-center mb-1.5">
-            <img src={storeLogoUrl} alt="Logo" className="max-h-11 object-contain" />
+            <img src={storeLogoUrl} alt="Logo" className="max-h-11 object-contain [image-rendering:pixelated]" />
           </div>
         )}
         <div className="text-center font-bold text-sm">{storeName}</div>
