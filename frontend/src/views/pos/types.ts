@@ -7,6 +7,8 @@ export interface CartItem extends SaleItem {
   productUnits?: ProductUnit[];
   /** Catalogue base-unit price at add time; keeps package-unit switches exact (no round-trip through a package price). */
   basePricePiasters?: number;
+  /** Catalogue unit price at add/unit-switch time; used to detect manual price deviations and allow one-click reset. */
+  catalogPricePiasters?: number;
   isDivisible?: boolean;
   isControlled?: boolean;
   controlledSchedule?: string | null;

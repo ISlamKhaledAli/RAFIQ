@@ -21,6 +21,7 @@ import { BarcodeScannerSettingsModal } from '../components/BarcodeScannerSetting
 import { QuickAddProductModal } from '../components/QuickAddProductModal';
 import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal';
 import { ItemDiscountModal } from '../components/ItemDiscountModal';
+import { ItemPriceOverrideModal } from './pos/ItemPriceOverrideModal';
 import { SupervisorPromptModal } from '../components/SupervisorPromptModal';
 import { HeldSalesModal } from '../components/HeldSalesModal';
 import { HeldSalePriceReviewModal } from './pos/HeldSalePriceReviewModal';
@@ -321,6 +322,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [selectedDiscountItemIndex, setSelectedDiscountItemIndex] = useState<number | null>(null);
   const [isItemDiscountModalOpen, setIsItemDiscountModalOpen] = useState(false);
 
+  // Item-level Price Override Modal State (pos.price_override)
+  const [selectedPriceOverrideIndex, setSelectedPriceOverrideIndex] = useState<number | null>(null);
+  const [isPriceOverrideModalOpen, setIsPriceOverrideModalOpen] = useState(false);
+
   // Supervisor PIN Prompt for Over-Limit Discounts (Feature #24 / Task 24-4)
   const [supervisorPrompt, setSupervisorPrompt] = useState<{
     isOpen: boolean;
@@ -582,6 +587,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         barcode: (unitToUse && unitToUse.barcode) || prod.barcode,
         quantityMilli: qtyMilli,
         unitPricePiasters: unitPrice,
+        catalogPricePiasters: unitPrice,
         basePricePiasters: resolveBaseSellPrice(prod, isEnabled('feature_batch_pricing')),
         unitCostPiasters: unitCost,
         discountPiasters: 0,
@@ -699,6 +705,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         conversionFactor: newFactor,
         unit: targetUnit.unitName,
         unitPricePiasters: newPrice,
+        catalogPricePiasters: newPrice,
         unitCostPiasters: newCost,
         isDivisible: targetUnit.isDivisible,
         quantityMilli: newQuantityMilli,
@@ -757,6 +764,48 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         : 'تم إلغاء خصم الصنف',
       'success'
     );
+  }, [showStatus]);
+
+  // pos.price_override: Apply manual price override on specific item in cart
+  const handleApplyItemPriceOverride = useCallback((index: number, newUnitPricePiasters: number, _supervisorApproved = false) => {
+    setCart((prev) => {
+      const updated = [...prev];
+      const it = updated[index];
+      if (!it) return prev;
+      const lineTotal = calculateLineTotal(newUnitPricePiasters, it.quantityMilli, it.discountPiasters || 0);
+      updated[index] = {
+        ...it,
+        unitPricePiasters: newUnitPricePiasters,
+        catalogPricePiasters: it.catalogPricePiasters ?? it.unitPricePiasters,
+        totalPiasters: lineTotal,
+        taxPiasters: calculateTaxPiasters(lineTotal, it.taxRatePercent || 0, true),
+      };
+      return updated;
+    });
+
+    showStatus(
+      `تم تعديل سعر بيع الصنف إلى ${formatArabicCurrency(newUnitPricePiasters)}`,
+      'success'
+    );
+  }, [showStatus]);
+
+  const handleResetToCatalogPrice = useCallback((index: number) => {
+    setCart((prev) => {
+      const updated = [...prev];
+      const it = updated[index];
+      if (!it || !it.catalogPricePiasters) return prev;
+      const originalPrice = it.catalogPricePiasters;
+      const lineTotal = calculateLineTotal(originalPrice, it.quantityMilli, it.discountPiasters || 0);
+      updated[index] = {
+        ...it,
+        unitPricePiasters: originalPrice,
+        totalPiasters: lineTotal,
+        taxPiasters: calculateTaxPiasters(lineTotal, it.taxRatePercent || 0, true),
+      };
+      return updated;
+    });
+
+    showStatus('تمت استعادة سعر الكتالوج الأصلي للصنف', 'success');
   }, [showStatus]);
 
   // Task 24-2: Apply invoice discount (F-01 & C3: No item mutation, clean single source of truth)
@@ -2775,7 +2824,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     isDdiManagerOpen ||
     isFloorModalOpen ||
     isDeliveryModalOpen ||
-    modifierModalState !== null
+    modifierModalState !== null ||
+    isPriceOverrideModalOpen
   );
 
   // Hook 2: Cashier Keyboard Shortcuts & Hardware Scanner Listener (F1 to F12)
@@ -2817,6 +2867,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     handleCartBackspace,
     onSelectNextCartItem,
     onSelectPrevCartItem,
+    onOpenPriceOverride: (index: number) => {
+      setSelectedPriceOverrideIndex(index);
+      setIsPriceOverrideModalOpen(true);
+    },
   });
 
   // Focus Management - Keep barcode/search input focused when interacting with non-input POS elements
@@ -3023,6 +3077,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             onOpenItemDiscount={(index) => {
               setSelectedDiscountItemIndex(index);
               setIsItemDiscountModalOpen(true);
+            }}
+            onOpenPriceOverride={(index) => {
+              setSelectedPriceOverrideIndex(index);
+              setIsPriceOverrideModalOpen(true);
             }}
             removeItem={removeItem}
             canSelectBatch={isEnabled('feature_batch_pricing') && (isAdmin || (hasPermission ? hasPermission('pos.select_batch') : false))}
@@ -3398,6 +3456,35 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             setSupervisorPrompt({
               isOpen: true,
               title: 'موافقة المشرف على خصم صنف',
+              description: actionTitle,
+              onApproved: () => {
+                setSupervisorPrompt((p) => ({ ...p, isOpen: false }));
+                onApproved();
+              },
+            });
+          }}
+        />
+      )}
+
+      {/* Item-level Price Override Modal (pos.price_override) */}
+      {isPriceOverrideModalOpen && selectedPriceOverrideIndex !== null && (
+        <ItemPriceOverrideModal
+          key={`price_override_item_${selectedPriceOverrideIndex}`}
+          isOpen={isPriceOverrideModalOpen}
+          item={cart[selectedPriceOverrideIndex] || null}
+          itemIndex={selectedPriceOverrideIndex}
+          canOverridePrice={canOverridePrice}
+          onClose={() => {
+            setIsPriceOverrideModalOpen(false);
+            setSelectedPriceOverrideIndex(null);
+            barcodeInputRef.current?.focus();
+          }}
+          onApply={handleApplyItemPriceOverride}
+          onResetToCatalogPrice={handleResetToCatalogPrice}
+          onRequestSupervisor={(actionTitle, onApproved) => {
+            setSupervisorPrompt({
+              isOpen: true,
+              title: 'موافقة المشرف على تعديل سعر صنف',
               description: actionTitle,
               onApproved: () => {
                 setSupervisorPrompt((p) => ({ ...p, isOpen: false }));

@@ -41,6 +41,7 @@ interface UsePosShortcutsProps {
   handleCartBackspace?: () => void;
   onSelectNextCartItem?: () => void;
   onSelectPrevCartItem?: () => void;
+  onOpenPriceOverride?: (index: number) => void;
 }
 
 export const usePosShortcuts = ({
@@ -77,6 +78,7 @@ export const usePosShortcuts = ({
   handleCartBackspace,
   onSelectNextCartItem,
   onSelectPrevCartItem,
+  onOpenPriceOverride,
 }: UsePosShortcutsProps) => {
   useEffect(() => {
     if (!isActive) return;
@@ -198,6 +200,20 @@ export const usePosShortcuts = ({
       if ((e.ctrlKey && e.key.toLowerCase() === 'q') || (e.altKey && (e.key.toLowerCase() === 'n' || e.key === 'ى'))) {
         e.preventDefault();
         onOpenQuickShortage?.();
+        return;
+      }
+
+      // Alt+P / Alt+ح: Quick Price Override for Selected Cart Item
+      if (e.altKey && (e.key.toLowerCase() === 'p' || e.key === 'ح')) {
+        e.preventDefault();
+        if (cart.length === 0) {
+          showStatus('السلة فارغة. يرجى إضافة صنف أولاً لتعديل سعره', 'warning');
+          return;
+        }
+        const targetIdx = selectedCartIndex !== null && selectedCartIndex >= 0 && selectedCartIndex < cart.length
+          ? selectedCartIndex
+          : cart.length - 1;
+        onOpenPriceOverride?.(targetIdx);
         return;
       }
 

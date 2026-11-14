@@ -161,6 +161,13 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
             category: 'pos',
           },
           {
+            key: 'Alt + P',
+            label: 'تعديل سعر بيع الصنف المحدد',
+            desc: 'يفتح نافذة تعديل سعر بيع الصنف المحدد في السلة مباشرة (أو اضغط على السعر بالفأرة).',
+            category: 'pos',
+            badge: 'جديد',
+          },
+          {
             key: '/',
             label: 'تغيير وحدة البيع لآخر صنف',
             desc: 'يبدّل آخر صنف بين قطعة / علبة / كرتونة. يعمل والخانة فاضية، وكذلك بزر / في لوحة الأرقام.',
