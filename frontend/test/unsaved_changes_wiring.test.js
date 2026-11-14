@@ -130,7 +130,8 @@ describe('App routes every user-initiated move through the guard', () => {
 
   it('help, shortcuts and other modals open over the page and are not guarded', () => {
     assert.ok(app.includes("onSelect: () => setIsShortcutsModalOpen(true)"));
-    assert.ok(app.includes("onSelect: () => openHelpCenterModal()"));
+    assert.ok(app.includes("onClick={() => openHelpCenterModal()}"));
+    assert.ok(app.includes("onSelect: () => setIsUserProfileModalOpen(true)"));
     assert.ok(app.includes("onSelect: () => setIsUserManagerOpen(true)"));
   });
 

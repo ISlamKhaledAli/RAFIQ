@@ -18,6 +18,8 @@ export interface HeaderVisibility {
   showUpdates: boolean;
   showShift: boolean;
   showEmployees: boolean;
+  /** Profile & credentials edit: reserved for owner/manager/root, hidden from cashiers. */
+  showProfile: boolean;
 }
 
 export function getHeaderVisibility(input: HeaderAccessInput): HeaderVisibility {
@@ -28,6 +30,7 @@ export function getHeaderVisibility(input: HeaderAccessInput): HeaderVisibility 
     showUpdates: isAdminTier && input.canUpdateApp,
     showShift: input.canOpenShiftPanel,
     showEmployees: isAdminTier || input.canManageUsers,
+    showProfile: isAdminTier,
   };
 }
 
