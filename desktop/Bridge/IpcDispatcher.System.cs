@@ -503,7 +503,33 @@ namespace RafiqPOS.Bridge
                     }
                     // Backups are mandatory and are never wiped by a reset (Decision D1 & DATA-01)
                     var resetResult = DatabaseService.FactoryReset();
+                    if (!resetResult.Success)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "RESET_BLOCKED", resetResult.Message);
+                        return true;
+                    }
                     response = BridgeResponse.Ok(request.Id, resetResult);
+                    return true;
+
+                case "system:trialDataPurge":
+                    string purgeConfirmWord = "";
+                    JObject purgePayload = request.Payload as JObject;
+                    if (purgePayload != null && purgePayload["confirmWord"] != null)
+                    {
+                        purgeConfirmWord = purgePayload["confirmWord"].ToString().Trim();
+                    }
+                    if (purgeConfirmWord != "تصفير")
+                    {
+                        response = BridgeResponse.Fail(request.Id, "CONFIRMATION_REQUIRED", "لم يتم تأكيد تصفير العمليات: اكتب كلمة التأكيد \"تصفير\" كما هي في النافذة.");
+                        return true;
+                    }
+                    var purgeResult = DatabaseService.TrialDataPurge();
+                    if (!purgeResult.Success)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "PURGE_BLOCKED", purgeResult.Message);
+                        return true;
+                    }
+                    response = BridgeResponse.Ok(request.Id, purgeResult);
                     return true;
 
                 case "support:getSystemInfo":

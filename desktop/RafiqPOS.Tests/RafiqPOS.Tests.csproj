@@ -145,6 +145,7 @@
     <Compile Include="Scenarios\S97_CommandRegistryCompletenessTest.cs" />
     <Compile Include="Scenarios\S100_ExactBarcodeLookupTest.cs" />
     <Compile Include="Scenarios\S101_BoundedSmartCatalogTest.cs" />
+    <Compile Include="Scenarios\S102_TrialDataPurgeTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

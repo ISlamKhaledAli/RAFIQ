@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Compass, FileSpreadsheet, FlaskConical, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, Compass, FileSpreadsheet, FlaskConical, ShieldCheck, Trash2, Eraser } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { DemoDataModal } from '../../components/DemoDataModal';
 import { FactoryResetModal } from '../../components/FactoryResetModal';
+import { TrialDataPurgeModal } from '../../components/TrialDataPurgeModal';
 import { FullStoreExportModal } from '../../components/FullStoreExportModal';
 import { GuidedTourModal } from '../../components/GuidedTourModal';
 import { AppButton } from '../../components/AppButton';
@@ -43,6 +44,7 @@ export const RootDataPage = () => {
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
+  const [isPurgeOpen, setIsPurgeOpen] = useState(false);
 
   const loadDemoStatus = useCallback(async () => {
     try {
@@ -134,6 +136,24 @@ export const RootDataPage = () => {
         </p>
       </SettingsCard>
 
+      {/* Operational Data Purge Section */}
+      <section className="bg-warn-soft/60 dark:bg-warn-dark-soft/50 rounded-2xl border border-warn/30 dark:border-warn-bright/30 shadow-xs p-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+        <div className="flex items-start gap-3 flex-1 min-w-64">
+          <div className="w-10 h-10 rounded-xl bg-surface dark:bg-surface-dark border border-warn/30 dark:border-warn-bright/30 text-warn dark:text-warn-bright flex items-center justify-center shrink-0">
+            <Eraser className="w-5 h-5" />
+          </div>
+          <div className="flex flex-col gap-1 min-w-0">
+            <h3 className="t-card-title text-warn dark:text-warn-bright m-0">تصفير العمليات التشغيلية وبدء دورة جديدة</h3>
+            <p className="text-sm text-ink dark:text-ink-dark m-0 leading-relaxed">
+              يمسح كافة عمليات وفواتير البيع والمشتريات وحركات المخزن والديون والورديات للبدء بدورة عمل وحسابات جديدة من الصفر، مع الحفاظ الكامل على اسم المحل ونشاطه وكل حسابات الموظفين وكلمات مرورهم وصلاحياتهم وإعدادات الطابعات والترخيص.
+            </p>
+          </div>
+        </div>
+        <AppButton variant="danger" size="lg" icon={Eraser} onClick={() => setIsPurgeOpen(true)}>
+          تصفير العمليات والبدء من جديد
+        </AppButton>
+      </section>
+
       <section className="bg-danger-soft/60 dark:bg-danger-dark-soft/50 rounded-2xl border border-danger/30 dark:border-danger-bright/30 shadow-xs p-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
         <div className="flex items-start gap-3 flex-1 min-w-64">
           <div className="w-10 h-10 rounded-xl bg-surface dark:bg-surface-dark border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright flex items-center justify-center shrink-0">
@@ -164,6 +184,7 @@ export const RootDataPage = () => {
         hasDemoData={hasDemo}
       />
       <FullStoreExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
+      <TrialDataPurgeModal isOpen={isPurgeOpen} onClose={() => setIsPurgeOpen(false)} />
       <FactoryResetModal isOpen={isResetOpen} onClose={() => setIsResetOpen(false)} />
     </div>
   );
