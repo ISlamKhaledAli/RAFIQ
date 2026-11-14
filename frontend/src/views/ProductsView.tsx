@@ -1300,10 +1300,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     try {
       setLoading(true);
       setFormError('');
-      const cleanPrimary = barcode.trim();
+      const cleanPrimary = sanitizeScannedBarcode(barcode.trim());
       const extraBarcodes = Array.from(new Set(
         additionalBarcodes
-          .map(b => b.trim())
+          .map(b => sanitizeScannedBarcode(b.trim()))
           .filter(b => b && b !== cleanPrimary)
       ));
       const primaryBarcode = cleanPrimary || (extraBarcodes.length > 0 ? extraBarcodes[0] : null);

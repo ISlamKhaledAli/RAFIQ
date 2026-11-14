@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   BadgePercent,
   Printer,
+  Pencil,
 } from 'lucide-react';
 import type { CartItem } from './types';
 import { AppButton } from '../../components/AppButton';
@@ -48,6 +49,7 @@ interface PosCartTableProps {
   onOpenControlledDispense?: (index: number) => void;
   onPrintDosageLabel?: (index: number) => void;
   onOpenItemModifiers?: (index: number) => void;
+  onOpenPriceOverride?: (index: number) => void;
 }
 
 const unitLabel = (item: CartItem & { unitName: string }): string =>
@@ -84,6 +86,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
   onOpenControlledDispense,
   onPrintDosageLabel,
   onOpenItemModifiers,
+  onOpenPriceOverride,
 }) => {
   const listRef = useRef<HTMLDivElement>(null);
   const prevSignaturesRef = useRef<string[]>(cart.map(lineSignature));
@@ -195,6 +198,8 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
               const isFlashing = flashIndex === index;
               const isSelected = selectedCartIndex === index;
               const grossLinePiasters = Math.round((item.unitPricePiasters * item.quantityMilli) / 1000);
+              const isPriceOverridden = Boolean(item.catalogPricePiasters && item.catalogPricePiasters !== item.unitPricePiasters);
+              const catalogPrice = item.catalogPricePiasters ?? item.unitPricePiasters;
               return (
               <div
                 key={item.productId || index}
@@ -313,11 +318,46 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                       </div>
                     )}
 
-                    {/* Unit price (read-only from inventory) */}
-                    <span className="flex-1 min-w-fit whitespace-nowrap tabular-nums font-mono text-ink dark:text-ink-dark text-base font-semibold" title="سعر الوحدة">
-                      × {formatArabicCurrency(item.unitPricePiasters, false)}
-                      <span className="text-xs font-medium ms-1 text-ink-muted dark:text-ink-dark-muted max-xl:hidden">{isWeighed ? '/ كجم' : '/ وحدة'}</span>
-                    </span>
+                    {/* Unit price: interactive price override when onOpenPriceOverride is provided, read-only fallback */}
+                    {onOpenPriceOverride ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenPriceOverride(index);
+                        }}
+                        className={`group inline-flex items-center gap-1.5 px-2 py-1 -my-1 rounded-lg transition-all cursor-pointer text-start ${
+                          isPriceOverridden
+                            ? 'bg-warn-soft/80 dark:bg-warn-dark-soft/80 text-warn dark:text-warn-bright border border-warn/30 ring-1 ring-warn/20 shadow-2xs'
+                            : 'hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark border border-transparent hover:border-line dark:hover:border-line-dark'
+                        }`}
+                        title={
+                          isPriceOverridden
+                            ? `سعر بيع معدل (سعر الكتالوج: ${formatArabicCurrency(catalogPrice, false)} ج.م) — اضغط للتعديل أو الاسترجاع`
+                            : 'اضغط لتعديل سعر بيع الصنف مباشرة'
+                        }
+                        aria-label="تعديل سعر بيع الصنف"
+                      >
+                        <span className="tabular-nums font-mono text-base font-semibold">
+                          × {formatArabicCurrency(item.unitPricePiasters, false)}
+                        </span>
+                        {isPriceOverridden ? (
+                          <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-warn/20 text-warn dark:text-warn-bright whitespace-nowrap">
+                            معدل
+                          </span>
+                        ) : (
+                          <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-70 transition-opacity text-ink-muted dark:text-ink-dark-muted shrink-0" />
+                        )}
+                        <span className="text-xs font-medium ms-0.5 text-ink-muted dark:text-ink-dark-muted max-xl:hidden">
+                          {isWeighed ? '/ كجم' : '/ وحدة'}
+                        </span>
+                      </button>
+                    ) : (
+                      <span className="flex-1 min-w-fit whitespace-nowrap tabular-nums font-mono text-ink dark:text-ink-dark text-base font-semibold" title="سعر الوحدة">
+                        × {formatArabicCurrency(item.unitPricePiasters, false)}
+                        <span className="text-xs font-medium ms-1 text-ink-muted dark:text-ink-dark-muted max-xl:hidden">{isWeighed ? '/ كجم' : '/ وحدة'}</span>
+                      </span>
+                    )}
 
                     {/* Line total: the pill under the delete button; when discounted, the original amount is struck through right under it */}
                     <div className="shrink-0 min-w-[7.5rem] flex flex-col items-end gap-0.5 tabular-nums font-mono">

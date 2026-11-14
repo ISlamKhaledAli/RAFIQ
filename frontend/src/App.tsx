@@ -45,6 +45,7 @@ import {
   DownloadCloud,
   Ellipsis,
   LogOut,
+  UserCheck,
 } from 'lucide-react';
 import { HeaderMenu, type HeaderMenuItem } from './components/HeaderMenu';
 import { TextScaleControl } from './components/TextScaleControl';
@@ -78,6 +79,7 @@ import { RafiqDialogContainer } from './components/RafiqDialog';
 import { RafiqGlobalTooltip } from './components/RafiqGlobalTooltip';
 import { rafiqConfirm, rafiqAlert } from './utils/dialogService';
 import { UserManagerModal } from './components/UserManagerModal';
+import { UserProfileModal } from './components/UserProfileModal';
 import { ShiftModal } from './components/ShiftModal';
 import { ShiftLogoutModal } from './components/ShiftLogoutModal';
 import { ShiftLoginModal } from './components/ShiftLoginModal';
@@ -396,6 +398,7 @@ export default function App() {
   const [storeName, setStoreName] = useState(APP_TITLE);
   // Idle auto-lock: after the idle timeout the session is really closed (log out), so the next person must log in again
   const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [isShiftLogoutWarningOpen, setIsShiftLogoutWarningOpen] = useState(false);
@@ -1382,8 +1385,10 @@ export default function App() {
 
   // Top bar menus. Every capability removed from the bar has a home here (the F1/F5/F11 shortcuts are unchanged).
   const userMenuItems: HeaderMenuItem[] = [
+    ...(headerAccess.showProfile
+      ? [{ id: 'profile', label: 'الملف الشخصي والأمان', icon: UserCheck, onSelect: () => setIsUserProfileModalOpen(true) } satisfies HeaderMenuItem]
+      : []),
     { id: 'shortcuts', label: 'اختصارات الكيبورد', icon: Keyboard, hint: 'F1', onSelect: () => setIsShortcutsModalOpen(true) },
-    { id: 'help', label: 'مركز المساعدة والدعم', icon: HelpCircle, onSelect: () => openHelpCenterModal() },
     { id: 'logout', label: 'تسجيل الخروج', icon: LogOut, tone: 'danger', separatorBefore: true, onSelect: handleLogoutClick },
   ];
   const moreMenuItems: HeaderMenuItem[] = [
@@ -2347,6 +2352,16 @@ export default function App() {
         onClose={() => setIsUserManagerOpen(false)}
         onUsersChanged={async () => {
           void refreshUser();
+        }}
+      />
+
+      {/* User Profile & Security Settings Modal */}
+      <UserProfileModal
+        isOpen={isUserProfileModalOpen}
+        onClose={() => setIsUserProfileModalOpen(false)}
+        onSuccessToast={(msg) => {
+          setRefreshToastMsg(msg);
+          setTimeout(() => setRefreshToastMsg(null), 2500);
         }}
       />
 

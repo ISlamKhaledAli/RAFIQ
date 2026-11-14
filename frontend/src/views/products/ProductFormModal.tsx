@@ -60,6 +60,7 @@ import { useDirtyTracker } from './productFormDirty';
 import { getStoreTerminology, getCurrentStoreType } from '../../utils/storeTerminology';
 import { formatCompoundStock } from '../../utils/packaging';
 import { formatUnitArabic } from '../../utils/units';
+import { sanitizeScannedBarcode } from '../../utils/barcodeReader';
 
 export interface BelowCostWarningData {
   pricePiasters: number;
@@ -982,6 +983,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   const formBodyRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const priceInputRef = useRef<HTMLInputElement>(null);
+  const costInputRef = useRef<HTMLInputElement>(null);
   const pricingCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1071,6 +1075,22 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         {/* Modal Form */}
         <form
           onSubmit={(e) => onSave(e)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              onSave(e);
+              return;
+            }
+            if (e.key === 'Enter') {
+              const target = e.target as HTMLElement | null;
+              if (target && target.tagName === 'INPUT') {
+                const input = target as HTMLInputElement;
+                if (input.type !== 'submit' && input.type !== 'button') {
+                  e.preventDefault();
+                }
+              }
+            }
+          }}
           onInputCapture={handleFormInteraction}
           onChangeCapture={handleFormInteraction}
           onClickCapture={handleFormInteraction}
@@ -1145,6 +1165,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     placeholder={namePlaceholder}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        barcodeInputRef.current?.focus();
+                        barcodeInputRef.current?.select();
+                      }
+                    }}
                     className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-[2.25rem] px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-sans"
                     autoFocus
                   />
@@ -1177,10 +1205,25 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </div>
                   <div className="relative">
                     <input
+                      ref={barcodeInputRef}
                       type="text"
                       placeholder={isProduceOrButchery ? 'اضرب كود الميزان أو اضغط كود وزني تلقائي' : 'اضرب الباركود بالقارئ أو اضغط كود تلقائي'}
                       value={barcode}
-                      onChange={(e) => setBarcode(normalizeArabicNumerals(e.target.value))}
+                      onChange={(e) => {
+                        const clean = sanitizeScannedBarcode(normalizeArabicNumerals(e.target.value));
+                        setBarcode(clean);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const raw = (e.target as HTMLInputElement).value;
+                          const clean = sanitizeScannedBarcode(normalizeArabicNumerals(raw));
+                          setBarcode(clean);
+                          priceInputRef.current?.focus();
+                          priceInputRef.current?.select();
+                        }
+                      }}
                       className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-[2.25rem] px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
                     />
                     {isLookingUpDrugRef && (
@@ -1250,10 +1293,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       type="text"
                       placeholder="اضرب الباركود واضغط Enter..."
                       value={newBarcodeInput}
-                      onChange={(e) => setNewBarcodeInput(normalizeArabicNumerals(e.target.value))}
+                      onChange={(e) => setNewBarcodeInput(sanitizeScannedBarcode(normalizeArabicNumerals(e.target.value)))}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
+                          e.stopPropagation();
                           onAddBarcode();
                         }
                       }}
@@ -1702,8 +1746,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <RequiredMark />
                       </label>
                       <MoneyInput
+                        ref={priceInputRef}
                         valuePiasters={pricePiasters}
                         onChangePiasters={setPricePiasters}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            costInputRef.current?.focus();
+                            costInputRef.current?.select();
+                          }
+                        }}
                         className="h-[2.375rem] text-sm font-bold text-brand dark:text-brand-bright"
                       />
                       {hasPackTier && baseUnitObj && pricePiasters > 0 && (
@@ -1721,8 +1774,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                          isClothing ? 'تكلفة شراء القطعة من المصنع' : 'تكلفة الشراء من الشركات والموردين'}
                       </label>
                       <MoneyInput
+                        ref={costInputRef}
                         valuePiasters={costPiasters}
                         onChangePiasters={setCostPiasters}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
                         className="h-[2.375rem] text-sm"
                       />
                       {hasPackTier && baseUnitObj && costPiasters > 0 && (

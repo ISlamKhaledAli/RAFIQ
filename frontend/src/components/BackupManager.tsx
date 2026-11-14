@@ -16,7 +16,8 @@ import {
   KeyRound,
   FolderOpen,
   Lock,
-  X
+  X,
+  Eraser
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
@@ -24,6 +25,7 @@ import { DatabaseRecoveryModal } from './DatabaseRecoveryModal';
 import { AppButton } from './AppButton';
 import { MigrationWizardModal } from './MigrationWizardModal';
 import { RecoveryCodeModal } from './RecoveryCodeModal';
+import { TrialDataPurgeModal } from './TrialDataPurgeModal';
 import { rafiqAlert } from '../utils/dialogService';
 import { useAuth } from '../context/useAuth';
 import { useUnsavedChangesGuard } from '../context/useUnsavedChanges';
@@ -122,6 +124,7 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
   const { hasPermission, isRoot } = useAuth();
   const canRestore = hasPermission('settings.restore');
   const canManageLicense = hasPermission('settings.license');
+  const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<BackupStatusInfo | null>(null);
   const [drives, setDrives] = useState<DriveItem[]>([]);
@@ -965,6 +968,37 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
         )}
       </div>
 
+      {/* 4. Operational Data Purge & Reset Card */}
+      {canRestore && (
+        <div className="bg-warn-soft/60 dark:bg-warn-dark-soft/50 border border-warn/30 dark:border-warn-bright/30 rounded-xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-2xs">
+          <div className="flex items-start gap-3.5 flex-1 min-w-64">
+            <div className="w-10 h-10 rounded-xl bg-surface dark:bg-surface-dark border border-warn/30 dark:border-warn-bright/30 text-warn dark:text-warn-bright flex items-center justify-center shrink-0">
+              <Eraser className="w-5 h-5" />
+            </div>
+            <div className="flex flex-col gap-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="t-card-title text-warn dark:text-warn-bright m-0">تصفير العمليات التشغيلية وبدء دورة جديدة</h3>
+                <span className="text-micro px-2 py-0.5 rounded-full bg-warn/15 text-warn dark:text-warn-bright font-bold">
+                  صاحب المحل
+                </span>
+              </div>
+              <p className="text-xs text-ink dark:text-ink-dark m-0 leading-relaxed">
+                يمسح كافة عمليات وفواتير البيع والمشتريات، وحركات المخزون والأصناف، وحسابات وديون العملاء والموردين، والورديات والخزينة، للبدء من جديد بحسابات دقيقة من الصفر (سواء بعد تجربة أو لتصحيح تراكمات سابقة)، مع الحفاظ التام على نشاط المتجر واسمه، وحسابات الموظفين وصلاحياتهم، وإعدادات الطابعات والترخيص.
+              </p>
+            </div>
+          </div>
+          <AppButton
+            variant="danger"
+            size="lg"
+            icon={Eraser}
+            onClick={() => setIsPurgeModalOpen(true)}
+            className="w-full sm:w-auto shrink-0"
+          >
+            تصفير العمليات والبدء من جديد
+          </AppButton>
+        </div>
+      )}
+
       {/* Database Recovery Modal Dialog (Feature #124 / Task 124-2) */}
       {restoreTarget && (
         <DatabaseRecoveryModal
@@ -1004,6 +1038,11 @@ export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupMan
           onClose={() => setIsRecoveryModalOpen(false)}
         />
       )}
+
+      <TrialDataPurgeModal
+        isOpen={isPurgeModalOpen}
+        onClose={() => setIsPurgeModalOpen(false)}
+      />
     </div>
   );
 };

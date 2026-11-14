@@ -27,6 +27,14 @@ describe('top bar visibility by role', () => {
     assert.equal(getHeaderVisibility({ ...base, user: manager }).showEmployees, true);
   });
 
+  it('profile and security settings are visible to owner/manager/root, but hidden from cashiers', () => {
+    assert.equal(getHeaderVisibility({ ...base, user: owner }).showProfile, true);
+    assert.equal(getHeaderVisibility({ ...base, user: manager }).showProfile, true);
+    assert.equal(getHeaderVisibility({ ...base, user: root }).showProfile, true);
+    assert.equal(getHeaderVisibility({ ...base, user: cashier }).showProfile, false);
+    assert.equal(getHeaderVisibility({ ...base, user: null }).showProfile, false);
+  });
+
   it('the shift button follows the shift permissions; the readiness check is no longer a top bar item (root console owns it)', () => {
     assert.equal('showReadiness' in getHeaderVisibility({ ...base, user: root }), false);
     assert.equal(getHeaderVisibility({ ...base, user: cashier, canOpenShiftPanel: false }).showShift, false);
@@ -145,7 +153,7 @@ describe('top bar source rules', () => {
   });
 
   it('every capability removed from the bar has a menu entry, and root-only ones are not in the menus', () => {
-    for (const id of ["'shortcuts'", "'help'", "'logout'", "'minimize'", "'employees'", "'updates'"]) {
+    for (const id of ["'shortcuts'", "'profile'", "'logout'", "'minimize'", "'employees'", "'updates'"]) {
       assert.ok(app.includes(`id: ${id}`), `${id} menu item`);
     }
     assert.ok(!app.includes("id: 'readiness'"), 'the readiness check moved to the root console');

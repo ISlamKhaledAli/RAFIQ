@@ -1488,6 +1488,301 @@ namespace RafiqPOS.Services
             return result;
         }
 
+        public static FactoryResetResult TrialDataPurge()
+        {
+            var result = new FactoryResetResult();
+            if (string.IsNullOrEmpty(_connectionString))
+            {
+                result.Success = false;
+                result.Message = "قاعدة البيانات غير مهيأة.";
+                return result;
+            }
+
+            RafiqPOS.Models.UserDto resetActor = SecurityService.CurrentUser;
+            string preResetBackupName = "";
+
+            lock (SaleService.FinancialWriteLock)
+            {
+                using (var conn = new System.Data.SQLite.SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+
+                    // 1. Shifts check: active open shift must be closed first
+                    if (TableExists(conn, null, "shifts"))
+                    {
+                        long openShifts;
+                        using (var shiftCmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM shifts WHERE status = 'open';", conn))
+                        {
+                            openShifts = Convert.ToInt64(shiftCmd.ExecuteScalar());
+                        }
+                        if (openShifts > 0)
+                        {
+                            result.Success = false;
+                            result.Message = "تم إيقاف التصفير: توجد وردية مفتوحة. أغلق الوردية واعتمد إقفال اليوم أولاً ثم أعد المحاولة.";
+                            return result;
+                        }
+                    }
+
+                    // 2. Mandatory verified safety backup before wiping
+                    BackupResult preResetBackup = null;
+                    if (Backup != null)
+                    {
+                        try
+                        {
+                            preResetBackup = Backup.CreateBackup(null);
+                        }
+                        catch (Exception bEx)
+                        {
+                            Logger.Error("فشل أخذ نسخة احتياطية قبل تصفير العمليات التشغيلية", bEx);
+                        }
+                    }
+                    if (preResetBackup == null || !preResetBackup.Success || !preResetBackup.IsVerified)
+                    {
+                        result.Success = false;
+                        result.Message = "تم إيقاف التصفير: تعذر أخذ نسخة احتياطية موثقة من البيانات الحالية أولاً، ولم يُحذف شيء.";
+                        return result;
+                    }
+                    preResetBackupName = Path.GetFileName(preResetBackup.BackupFilePath != null ? preResetBackup.BackupFilePath : "");
+
+                    // 3. Clear in-memory idempotency caches
+                    SaleService.ClearIdempotencyCache();
+
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            result.DeletedSalesCount = (int)CountRowsIfTableExists(conn, trans, "sales");
+                            result.DeletedCustomersCount = (int)CountRowsIfTableExists(conn, trans, "customers");
+                            result.DeletedProductsCount = (int)CountRowsIfTableExists(conn, trans, "products");
+
+                            // Temporarily drop delete prevention triggers
+                            using (var dropTrgCmd = new System.Data.SQLite.SQLiteCommand(@"
+                                DROP TRIGGER IF EXISTS trg_prevent_daily_closing_delete;
+                                DROP TRIGGER IF EXISTS trg_prevent_shift_delete;
+                                DROP TRIGGER IF EXISTS trg_prevent_drawer_tx_delete;
+                            ", conn, trans))
+                            {
+                                dropTrgCmd.ExecuteNonQuery();
+                            }
+
+                            // 55 tables in child-first delete order (drug_reference and pharma dictionary tables excluded to preserve catalog)
+                            string[] tablesInDeleteOrder = new string[]
+                            {
+                                // Layer 1: Lowest children
+                                "sale_item_modifiers",
+                                "delivery_orders",
+                                "sale_item_batch_allocations",
+                                "debt_allocations",
+                                "sale_prescriptions",
+                                "controlled_dispenses",
+                                "insurance_claim_lines",
+
+                                // Layer 2: Intermediate insurance, patient & pharma records
+                                "insurance_claim_batches",
+                                "insurance_exclusions",
+                                "insurance_members",
+                                "insurance_contracts",
+                                "insurance_companies",
+                                "chronic_medications",
+                                "customer_patient_info",
+                                "prescriptions",
+
+                                // Layer 3: Restaurant / Cafe operational tables & recipes
+                                "restaurant_tables",
+                                "product_modifier_groups",
+                                "modifier_options",
+                                "modifier_groups",
+                                "delivery_riders",
+                                "delivery_zones",
+                                "production_batches",
+                                "recipe_ingredients",
+                                "recipes",
+
+                                // Layer 4: Purchases returns children & headers
+                                "purchase_return_items",
+                                "purchase_returns",
+
+                                // Layer 5: Purchase items & headers
+                                "purchase_items",
+                                "purchases",
+                                "supplier_transactions",
+                                "suppliers",
+
+                                // Layer 6: Sales items, payments, returns, held sales
+                                "return_items",
+                                "returns",
+                                "payments",
+                                "sale_items",
+                                "held_sales",
+                                "sales",
+
+                                // Layer 7: Customer ledger & customers
+                                "customer_ledger",
+                                "customers",
+
+                                // Layer 8: Expenses
+                                "expenses",
+                                "expense_categories",
+
+                                // Layer 9: Cash drawer & shifts
+                                "cash_drawer_transactions",
+                                "shifts",
+
+                                // Layer 10: E-pay & Digital accounts
+                                "digital_account_fundings",
+                                "digital_transactions",
+                                "digital_accounts",
+                                "epay_terminal_fundings",
+                                "epay_transactions",
+                                "epay_terminals",
+
+                                // Layer 11: Inventory & Product details
+                                "shortage_entries",
+                                "expired_write_offs",
+                                "product_pharma_info",
+                                "product_ingredients",
+                                "product_batches",
+                                "product_variants",
+                                "stock_movements",
+                                "product_price_history",
+                                "product_barcodes",
+                                "product_units",
+                                "quick_items",
+                                "products",
+                                "categories",
+                                "storage_locations",
+
+                                // Layer 12: Daily closings
+                                "daily_closings"
+                            };
+
+                            for (int tIdx = 0; tIdx < tablesInDeleteOrder.Length; tIdx++)
+                            {
+                                DeleteAllIfTableExists(conn, trans, tablesInDeleteOrder[tIdx]);
+                            }
+
+                            // Recreate immutability triggers for daily closings, shifts, and cash drawer
+                            using (var recTrgCmd = new System.Data.SQLite.SQLiteCommand(@"
+                                CREATE TRIGGER IF NOT EXISTS trg_prevent_daily_closing_delete
+                                BEFORE DELETE ON daily_closings
+                                BEGIN
+                                    SELECT RAISE(ABORT, 'لا يمكن حذف سجل قفل اليومية بعد اعتماده');
+                                END;
+
+                                CREATE TRIGGER IF NOT EXISTS trg_prevent_shift_delete
+                                BEFORE DELETE ON shifts
+                                BEGIN
+                                    SELECT RAISE(ABORT, 'لا يمكن حذف سجلات الورديات نهائياً');
+                                END;
+
+                                CREATE TRIGGER IF NOT EXISTS trg_prevent_drawer_tx_delete
+                                BEFORE DELETE ON cash_drawer_transactions
+                                BEGIN
+                                    SELECT RAISE(ABORT, 'لا يمكن حذف حركة نقدية من الدرج');
+                                END;
+                            ", conn, trans))
+                            {
+                                recTrgCmd.ExecuteNonQuery();
+                            }
+
+                            // Reset sequence counters so invoice/doc numbers start from #1
+                            using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            if (TableExists(conn, trans, "sqlite_sequence"))
+                            {
+                                using (var seqCmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM sqlite_sequence WHERE name IN ('sales', 'customers', 'products', 'held_sales', 'returns', 'purchases');", conn, trans))
+                                {
+                                    seqCmd.ExecuteNonQuery();
+                                }
+                            }
+
+                            // Reset audit logs with genesis reset entry (temporarily authorized to bypass tamper trigger)
+                            using (var authCmd = new System.Data.SQLite.SQLiteCommand("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('allow_audit_reset', 'CONFIRM_PURGE_AUTHORIZED', datetime('now'));", conn, trans))
+                            {
+                                authCmd.ExecuteNonQuery();
+                            }
+
+                            using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM audit_logs;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            using (var cleanCmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM app_settings WHERE key = 'allow_audit_reset';", conn, trans))
+                            {
+                                cleanCmd.ExecuteNonQuery();
+                            }
+
+                            string genesisHash = "GENESIS_RAFIQ_AUDIT_V1";
+                            string resetLogId = "aud_" + Guid.NewGuid().ToString("N");
+                            string nowIso = DateTime.UtcNow.ToString("o");
+                            string detailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                            {
+                                action = "trial_data_purge",
+                                message = "تم تصفير العمليات التشغيلية وبدء دورة جديدة بنجاح مع الحفاظ على هوية المتجر والمستخدمين",
+                                performedBy = resetActor != null ? resetActor.Username : "صاحب المحل",
+                                safetyBackup = preResetBackupName,
+                                preservedUsers = true,
+                                preservedSettings = true
+                            });
+                            string actorId = resetActor != null && !string.IsNullOrEmpty(resetActor.Id) ? resetActor.Id : "usr_admin_default";
+                            string recordHash = MigrationRunner.ComputeAuditHash(
+                                genesisHash, resetLogId, actorId, "trial_data_purge", "system", "all", detailsJson, nowIso
+                            );
+
+                            using (var cmd = new System.Data.SQLite.SQLiteCommand(@"
+                                INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at, prev_hash, record_hash)
+                                VALUES (@id, @user_id, 'trial_data_purge', 'system', 'all', @details, @now, @prev, @rec);
+                            ", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", resetLogId);
+                                cmd.Parameters.AddWithValue("@user_id", actorId);
+                                cmd.Parameters.AddWithValue("@details", detailsJson);
+                                cmd.Parameters.AddWithValue("@now", nowIso);
+                                cmd.Parameters.AddWithValue("@prev", genesisHash);
+                                cmd.Parameters.AddWithValue("@rec", recordHash);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            using (var cmd = new System.Data.SQLite.SQLiteCommand(@"
+                                DELETE FROM customer_ledger WHERE customer_id = 'cust_general_cash';
+                                DELETE FROM customers WHERE id = 'cust_general_cash';
+                            ", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            trans.Commit();
+                            result.Success = true;
+                            result.SafetyBackupFile = preResetBackupName;
+                            result.Message = "تم تصفير العمليات التشغيلية وبدء دورة جديدة بنجاح. النظام الآن جاهز بحسابات تبدأ من الصفر، مع الحفاظ الكامل على اسم المحل ونشاطه وحسابات الموظفين والترخيص.";
+                        }
+                        catch (Exception ex)
+                        {
+                            trans.Rollback();
+                            result.Success = false;
+                            result.Message = "فشل تصفير العمليات التشغيلية: " + ex.Message;
+                            return result;
+                        }
+                    }
+
+                    // Vacuum database to reclaim disk space
+                    try
+                    {
+                        using (var vacCmd = new System.Data.SQLite.SQLiteCommand("VACUUM;", conn))
+                        {
+                            vacCmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            return result;
+        }
+
         private static bool TableExists(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans, string tableName)
         {
             using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @name;", conn, trans))

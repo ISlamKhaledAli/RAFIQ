@@ -1406,15 +1406,15 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       const { id, displayName, role, isActive } = payload || {};
       const target = mockUsers.find(x => x.id === id);
       if (!target) throw new Error('الموظف غير موجود');
-      if (target.role === 'admin' && (role !== 'admin' || !isActive)) {
+      if (target.role === 'admin' && ((role && role !== 'admin') || (typeof isActive === 'boolean' && !isActive))) {
         const activeAdmins = mockUsers.filter(x => x.role === 'admin' && x.isActive).length;
         if (activeAdmins <= 1) {
           throw new Error('لا يمكن تعطيل أو تغيير دور آخر مدير نظام نشط.');
         }
       }
-      target.displayName = displayName;
-      target.role = role;
-      target.isActive = isActive;
+      if (displayName) target.displayName = displayName;
+      if (role !== undefined) target.role = role;
+      if (typeof isActive === 'boolean') target.isActive = isActive;
       return { success: true };
     }
 
@@ -3391,6 +3391,17 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         deletedSalesCount: 1,
         deletedProductsCount: 1,
         deletedCustomersCount: 1,
+      };
+
+    case 'system:trialDataPurge':
+      mockCustomers = [];
+      return {
+        success: true,
+        message: 'تم تصفير العمليات التشغيلية وبدء دورة جديدة بنجاح. النظام الآن جاهز بحسابات تبدأ من الصفر، مع الحفاظ الكامل على اسم المحل ونشاطه وحسابات الموظفين والترخيص.',
+        deletedSalesCount: 1,
+        deletedProductsCount: 1,
+        deletedCustomersCount: 1,
+        safetyBackupFile: 'rafiq_backup_pre_purge_mock.db'
       };
 
     case 'auditLogs:create':

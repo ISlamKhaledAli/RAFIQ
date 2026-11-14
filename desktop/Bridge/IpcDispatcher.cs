@@ -70,6 +70,7 @@ namespace RafiqPOS.Bridge
                 request.Action == "wallets:cancelTransaction" ||
                 request.Action == "closing:save" ||
                 request.Action == "system:factoryReset" ||
+                request.Action == "system:trialDataPurge" ||
                 request.Action == "settings:save" ||
                 request.Action == "settings:updateBatch" ||
                 request.Action == "inventory:recordPurchase" ||
@@ -137,6 +138,7 @@ namespace RafiqPOS.Bridge
                 request.Action == "database:restore" ||
                 request.Action == "migration:restore" ||
                 request.Action == "system:factoryReset" ||
+                request.Action == "system:trialDataPurge" ||
                 request.Action == "audit:resealChain";
             bool lockTaken = false;
             try
@@ -684,6 +686,7 @@ namespace RafiqPOS.Bridge
 
             // Admin system & Test tools
             { "system:factoryReset", REQUIRE_OWNER },
+            { "system:trialDataPurge", REQUIRE_OWNER },
             { "support:createBundle", REQUIRE_ADMIN },
             { "templates:apply", REQUIRE_ADMIN },
             { "templates:seedProducts", REQUIRE_ADMIN },
