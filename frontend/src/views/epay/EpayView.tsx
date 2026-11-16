@@ -9,6 +9,7 @@ import {
   PlusCircle, 
   TrendingUp, 
   AlertTriangle, 
+  AlertCircle,
   CheckCircle2, 
   Printer, 
   Layers, 
@@ -174,6 +175,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [periodAnalytics, setPeriodAnalytics] = useState<EpayPeriodAnalytics | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [paymentDestination, setPaymentDestination] = useState<EpayPaymentDestination | null>(null);
+  const [destinationError, setDestinationError] = useState<boolean>(false);
+  const destinationSectionRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const scrollToTop = useCallback(() => {
@@ -193,10 +197,10 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
   // Scroll to top immediately when an error appears so the cashier sees the alert banner
   useEffect(() => {
-    if (errorMsg) {
+    if (errorMsg && !destinationError) {
       scrollToTop();
     }
-  }, [errorMsg, scrollToTop]);
+  }, [errorMsg, destinationError, scrollToTop]);
 
   // Auto-dismiss success notification after 4 seconds
   useEffect(() => {
@@ -220,6 +224,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   useEffect(() => {
     setSuccessMsg(null);
     setErrorMsg(null);
+    setDestinationError(false);
   }, [activeTab]);
 
   // Form State: New Transaction
@@ -233,7 +238,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [machineCommissionPiasters, setMachineCommissionPiasters] = useState<number>(0);
   const [shopProfitPiasters, setShopProfitPiasters] = useState<number>(0);
   const [isProfitEntered, setIsProfitEntered] = useState<boolean>(false);
-  const [paymentDestination, setPaymentDestination] = useState<EpayPaymentDestination>('terminal_till');
   const [notes, setNotes] = useState<string>('');
   const [isSubmittingTx, setIsSubmittingTx] = useState<boolean>(false);
   const [autoPrintReceipt, setAutoPrintReceipt] = useState<boolean>(true);
@@ -556,7 +560,11 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const availableTillCash = analytics?.totalInTerminalTillPiasters ?? 0;
   const hasInsufficientCashTill = serviceType === 'cash_out' && cashGivenToCustomer > 0 && cashGivenToCustomer > availableTillCash;
   const hasInsufficientCashDrawer = serviceType === 'cash_out' && cashGivenToCustomer > 0 && liveDrawerCashPiasters !== null && cashGivenToCustomer > liveDrawerCashPiasters;
-  const hasInsufficientCash = paymentDestination === 'terminal_till' ? hasInsufficientCashTill : hasInsufficientCashDrawer;
+  const hasInsufficientCash = paymentDestination === 'terminal_till'
+    ? hasInsufficientCashTill
+    : paymentDestination === 'cash_drawer'
+      ? hasInsufficientCashDrawer
+      : false;
 
   // Handle Select Service Preset (keeps amounts empty for cashier entry)
   const handleSelectServicePreset = (opt: ServiceQuickOption) => {
@@ -573,6 +581,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
     setCustomerName('');
     setReferenceNumber('');
     setNotes('');
+    setPaymentDestination(null);
+    setDestinationError(false);
   };
 
   const transactionDraftDirty =
@@ -606,6 +616,25 @@ export const EpayView: React.FC<EpayViewProps> = ({
     if (isBalanceInsufficient) {
       setErrorMsg(`رصيد الماكينة (${formatArabicCurrency(currentTerminal.balancePiasters)}) غير كافٍ لتنفيذ هذه العملية (${formatArabicCurrency(deductedBalancePiasters)}). يرجى تغذية رصيد الماكينة أولاً.`);
       scrollToTop();
+      return false;
+    }
+
+    if (!paymentDestination) {
+      setDestinationError(true);
+      setErrorMsg(
+        serviceType === 'cash_out'
+          ? 'يجب اختيار من أين يتم صرف النقدية للزبون (درج كاشير المحل أو درج الماكينة المنفصل) للمتابعة.'
+          : 'يجب اختيار أين يتم توريد المبلغ المستلم من الزبون (درج كاشير المحل أو درج الماكينة المنفصل) للمتابعة.'
+      );
+      setTimeout(() => {
+        if (destinationSectionRef.current) {
+          try {
+            destinationSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } catch {
+            destinationSectionRef.current.scrollIntoView();
+          }
+        }
+      }, 50);
       return false;
     }
 
@@ -1318,35 +1347,64 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
 
               {/* Step 5: Cash Destination */}
-              <div className="border-t border-line dark:border-line-dark pt-5">
-                <StepHeading 
-                  step={5} 
-                  title={serviceType === 'cash_out' ? 'من أين يتم صرف النقدية للزبون؟' : 'أين يتم توريد المبلغ المستلم من الزبون؟'} 
-                />
+              <div 
+                ref={destinationSectionRef}
+                tabIndex={-1}
+                className={`border-t border-line dark:border-line-dark pt-5 transition-all rounded-2xl p-3.5 -mx-3.5 outline-none ${
+                  destinationError
+                    ? 'bg-danger-soft/30 dark:bg-danger-dark-soft/30 ring-2 ring-danger dark:ring-danger-bright'
+                    : ''
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <StepHeading 
+                    step={5} 
+                    title={serviceType === 'cash_out' ? 'من أين يتم صرف النقدية للزبون؟' : 'أين يتم توريد المبلغ المستلم من الزبون؟'} 
+                  />
+                  {destinationError && (
+                    <span className="text-xs font-bold text-danger dark:text-danger-bright flex items-center gap-1.5 animate-pulse">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      يجب اختيار جهة النقدية
+                    </span>
+                  )}
+                </div>
+
+                {destinationError && (
+                  <div className="mb-3 p-3 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 text-danger dark:text-danger-bright text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span className="font-semibold">
+                      {serviceType === 'cash_out'
+                        ? 'تنبيه: يجب اختيار من أين يتم صرف النقدية للزبون (درج كاشير المحل أو درج الماكينة المنفصل) لإتمام المعاملة.'
+                        : 'تنبيه: يجب اختيار أين يتم توريد المبلغ المستلم من الزبون (درج كاشير المحل أو درج الماكينة المنفصل) لإتمام المعاملة.'}
+                    </span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setPaymentDestination('terminal_till')}
+                    onClick={() => {
+                      setPaymentDestination('terminal_till');
+                      setDestinationError(false);
+                      if (errorMsg && errorMsg.includes('جهة')) setErrorMsg(null);
+                    }}
                     className={`cursor-pointer p-3.5 rounded-xl border flex items-center gap-3 text-right transition-all ${
                       paymentDestination === 'terminal_till'
                         ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-bright/15 ring-1 ring-brand dark:ring-brand-bright text-brand-dark dark:text-brand-bright'
-                        : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
+                        : destinationError
+                          ? 'border-danger/40 dark:border-danger-bright/40 bg-surface dark:bg-surface-dark-2 hover:border-danger text-ink dark:text-ink-dark'
+                          : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
                     }`}
                   >
                     <Wallet className="w-5 h-5 text-brand dark:text-brand-bright shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center justify-between gap-1.5">
                         <span className="text-xs font-bold">درج/محفظة الماكينة المنفصلة</span>
-                        <div className="flex items-center gap-1">
-                          {hasInsufficientCashTill && (
-                            <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30">
-                              عجز نقدية
-                            </span>
-                          )}
-                          <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/30">
-                            الافتراضي
+                        {hasInsufficientCashTill && (
+                          <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30">
+                            عجز نقدية
                           </span>
-                        </div>
+                        )}
                       </div>
                       <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">
                         الرصيد المتاح: <span className="font-mono font-bold text-ink dark:text-ink-dark">{formatArabicCurrency(availableTillCash)}</span>
@@ -1356,11 +1414,17 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => setPaymentDestination('cash_drawer')}
+                    onClick={() => {
+                      setPaymentDestination('cash_drawer');
+                      setDestinationError(false);
+                      if (errorMsg && errorMsg.includes('جهة')) setErrorMsg(null);
+                    }}
                     className={`cursor-pointer p-3.5 rounded-xl border flex items-center gap-3 text-right transition-all ${
                       paymentDestination === 'cash_drawer'
                         ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-bright/15 ring-1 ring-brand dark:ring-brand-bright text-brand-dark dark:text-brand-bright'
-                        : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
+                        : destinationError
+                          ? 'border-danger/40 dark:border-danger-bright/40 bg-surface dark:bg-surface-dark-2 hover:border-danger text-ink dark:text-ink-dark'
+                          : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
                     }`}
                   >
                     <Banknote className="w-5 h-5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
