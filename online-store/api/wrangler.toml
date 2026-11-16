@@ -1,0 +1,22 @@
+name = "rafiq-store-api"
+main = "src/index.ts"
+compatibility_date = "2024-05-01"
+
+[vars]
+ENVIRONMENT = "production"
+
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "rafiq-stores-db"
+database_id = "rafiq-stores-db-prod-id"
+
+# R2 Bucket Binding (Product Images)
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "rafiq-product-images"
+
+# KV Namespace Binding (Themes & Presets)
+[[kv_namespaces]]
+binding = "THEMES"
+id = "rafiq-store-themes-prod-id"
