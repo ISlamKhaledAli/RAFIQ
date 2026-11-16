@@ -10,6 +10,7 @@ import {
   Receipt,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   X,
   Pencil,
   Trash2,
@@ -445,6 +446,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   // Notification Banner
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [paymentDestination, setPaymentDestination] = useState<'cash_drawer' | 'terminal_till' | null>(null);
+  const [destinationError, setDestinationError] = useState<boolean>(false);
+  const destinationSectionRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const scrollToTop = useCallback(() => {
@@ -464,10 +468,10 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
   // Scroll to top immediately when an error appears so the cashier sees the alert banner
   useEffect(() => {
-    if (errorMsg) {
+    if (errorMsg && !destinationError) {
       scrollToTop();
     }
-  }, [errorMsg, scrollToTop]);
+  }, [errorMsg, destinationError, scrollToTop]);
 
   // Auto-dismiss success notification after 4 seconds
   useEffect(() => {
@@ -491,6 +495,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   useEffect(() => {
     setSuccessMsg(null);
     setErrorMsg(null);
+    setDestinationError(false);
   }, [currentTab]);
 
   // Form State: 2 Direct Inputs (Amount & Profit)
@@ -502,7 +507,6 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('');
   const [referenceNumber, setReferenceNumber] = useState<string>('');
-  const [paymentDestination, setPaymentDestination] = useState<'cash_drawer' | 'terminal_till'>('terminal_till');
   const [notes, setNotes] = useState<string>('');
   const [lastProcessedTx, setLastProcessedTx] = useState<DigitalTransaction | null>(null);
 
@@ -805,7 +809,11 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const availableTillCash = analytics?.totalTerminalTillCashPiasters ?? 0;
   const hasInsufficientCashTill = !isCashOut && cashGivenToCustomer > 0 && cashGivenToCustomer > availableTillCash;
   const hasInsufficientCashDrawer = !isCashOut && cashGivenToCustomer > 0 && liveDrawerCashPiasters !== null && cashGivenToCustomer > liveDrawerCashPiasters;
-  const hasInsufficientCash = paymentDestination === 'terminal_till' ? hasInsufficientCashTill : hasInsufficientCashDrawer;
+  const hasInsufficientCash = paymentDestination === 'terminal_till'
+    ? hasInsufficientCashTill
+    : paymentDestination === 'cash_drawer'
+      ? hasInsufficientCashDrawer
+      : false;
 
   // Submit Transaction. Resolves true only after the transaction was recorded.
   const resetTransactionForm = () => {
@@ -816,6 +824,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     setCustomerName('');
     setReferenceNumber('');
     setNotes('');
+    setPaymentDestination(null);
+    setDestinationError(false);
   };
 
   const transactionDraftDirty =
@@ -851,6 +861,25 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         `رصيد المحفظة الحالي (${formatArabicCurrency(selectedAccount.balancePiasters)}) غير كافٍ لتنفيذ عملية تحويل بمبلغ (${formatArabicCurrency(amountPiasters)}).`
       );
       scrollToTop();
+      return false;
+    }
+
+    if (!paymentDestination) {
+      setDestinationError(true);
+      setErrorMsg(
+        isCashOut
+          ? 'يجب اختيار أين يتم توريد واستلام نقدية الزبون (درج كاشير المحل أو درج المحفظة المنفصل) للمتابعة.'
+          : 'يجب اختيار من أين يتم صرف نقدية السحب للزبون (درج كاشير المحل أو درج المحفظة المنفصل) للمتابعة.'
+      );
+      setTimeout(() => {
+        if (destinationSectionRef.current) {
+          try {
+            destinationSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } catch {
+            destinationSectionRef.current.scrollIntoView();
+          }
+        }
+      }, 50);
       return false;
     }
 
@@ -1635,25 +1664,56 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               </div>
 
               {/* Step 5: Cash Destination */}
-              <div className="border-t border-line dark:border-line-dark pt-5">
-                <StepHeading step={5} title={isCashOut ? 'أين يتم توريد واستلام نقدية الزبون؟' : 'من أين يتم صرف نقدية السحب للزبون؟'} />
+              <div
+                ref={destinationSectionRef}
+                tabIndex={-1}
+                className={`border-t border-line dark:border-line-dark pt-5 transition-all rounded-2xl p-3.5 -mx-3.5 outline-none ${
+                  destinationError
+                    ? 'bg-danger-soft/30 dark:bg-danger-dark-soft/30 ring-2 ring-danger dark:ring-danger-bright'
+                    : ''
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <StepHeading step={5} title={isCashOut ? 'أين يتم توريد واستلام نقدية الزبون؟' : 'من أين يتم صرف نقدية السحب للزبون؟'} />
+                  {destinationError && (
+                    <span className="text-xs font-bold text-danger dark:text-danger-bright flex items-center gap-1.5 animate-pulse">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      يجب اختيار جهة النقدية
+                    </span>
+                  )}
+                </div>
+
+                {destinationError && (
+                  <div className="mb-3 p-3 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 text-danger dark:text-danger-bright text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span className="font-semibold">
+                      {isCashOut
+                        ? 'تنبيه: يجب اختيار أين يتم توريد واستلام نقدية الزبون (درج كاشير المحل أو درج المحفظة المنفصل) لإتمام المعاملة.'
+                        : 'تنبيه: يجب اختيار من أين يتم صرف نقدية السحب للزبون (درج كاشير المحل أو درج المحفظة المنفصل) لإتمام المعاملة.'}
+                    </span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setPaymentDestination('terminal_till')}
+                    onClick={() => {
+                      setPaymentDestination('terminal_till');
+                      setDestinationError(false);
+                      if (errorMsg && errorMsg.includes('جهة')) setErrorMsg(null);
+                    }}
                     className={`cursor-pointer p-3.5 rounded-xl border flex items-center gap-3 text-right transition-all ${
                       paymentDestination === 'terminal_till'
                         ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-bright/15 ring-1 ring-brand dark:ring-brand-bright text-brand-dark dark:text-brand-bright'
-                        : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
+                        : destinationError
+                          ? 'border-danger/40 dark:border-danger-bright/40 bg-surface dark:bg-surface-dark-2 hover:border-danger text-ink dark:text-ink-dark'
+                          : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
                     }`}
                   >
                     <Wallet className="w-5 h-5 text-brand dark:text-brand-bright shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-xs font-bold">درج/محفظة الكاش المنفصلة</span>
-                        <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/30">
-                          الافتراضي
-                        </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className="text-micro text-ink-muted dark:text-ink-muted-dark">نقدية الدرج المتاحة:</span>
@@ -1671,11 +1731,17 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => setPaymentDestination('cash_drawer')}
+                    onClick={() => {
+                      setPaymentDestination('cash_drawer');
+                      setDestinationError(false);
+                      if (errorMsg && errorMsg.includes('جهة')) setErrorMsg(null);
+                    }}
                     className={`cursor-pointer p-3.5 rounded-xl border flex items-center gap-3 text-right transition-all ${
                       paymentDestination === 'cash_drawer'
                         ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-bright/15 ring-1 ring-brand dark:ring-brand-bright text-brand-dark dark:text-brand-bright'
-                        : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
+                        : destinationError
+                          ? 'border-danger/40 dark:border-danger-bright/40 bg-surface dark:bg-surface-dark-2 hover:border-danger text-ink dark:text-ink-dark'
+                          : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
                     }`}
                   >
                     <Banknote className="w-5 h-5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
