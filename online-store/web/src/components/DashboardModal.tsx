@@ -206,7 +206,8 @@ export const DashboardModal: React.FC<Props> = ({
     return baseOrders;
   });
 
-  const [selectedPreset, setSelectedPreset] = useState(store.theme_preset || 'classic-green');
+  const [selectedPreset, setSelectedPreset] = useState(store.theme_preset || 'duo-forest-cream');
+  const [themeFilter, setThemeFilter] = useState<'all' | 'duotone' | 'material'>('all');
 
   if (!mounted) return null;
 
@@ -280,13 +281,12 @@ export const DashboardModal: React.FC<Props> = ({
     setTimeout(() => setSaveSuccessMsg(null), 3500);
   };
 
-  // Convert theme presets config into array of 10 presets
-  const themePresets = Object.entries(THEME_PRESETS_CONFIG).map(([key, config]) => ({
-    key,
-    name: config.name,
-    category: config.category,
-    color: config.primary,
-  }));
+  // Convert theme presets config into array of presets
+  const themePresets = Object.values(THEME_PRESETS_CONFIG);
+  const filteredThemePresets = themePresets.filter(t => {
+    if (themeFilter === 'all') return true;
+    return t.styleType === themeFilter;
+  });
 
   // Filtered orders
   const filteredOrders = mockOrders.filter(o => {
@@ -297,37 +297,39 @@ export const DashboardModal: React.FC<Props> = ({
   return (
     <div
       onClick={onClose}
-      className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/70 transition-all duration-300 ease-in-out ${
+      className={`fixed inset-0 z-50 flex items-center justify-center sm:p-4 md:p-6 bg-slate-950/70 transition-all duration-300 ease-in-out ${
         visible ? 'opacity-100 backdrop-blur-md' : 'opacity-0 backdrop-blur-none pointer-events-none'
       }`}
     >
       <div
         onClick={e => e.stopPropagation()}
-        className={`relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col h-[90vh] max-h-[860px] transition-all duration-300 ease-in-out ${
+        className={`relative w-full h-full sm:h-[90vh] sm:max-h-[860px] max-w-5xl bg-white sm:rounded-3xl shadow-2xl border-0 sm:border border-slate-100 overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
           visible ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-6'
         }`}
       >
         {/* Dynamic Theme-Adaptive Header (Changes with active store theme!) */}
-        <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-store-primary via-store-primary-hover to-store-primary text-white border-b border-white/10 flex items-center justify-between flex-shrink-0 shadow-sm transition-colors duration-300">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/20 text-white flex items-center justify-center shadow-md backdrop-blur-sm border border-white/20 p-2">
-              <img src="/logo_white.png" alt="رفيق" className="w-full h-full object-contain" />
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-gradient-to-r from-store-primary via-store-primary-hover to-store-primary text-white border-b border-white/10 flex items-center justify-between flex-shrink-0 shadow-sm transition-colors duration-300">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-white/20 text-white flex items-center justify-center shadow-md backdrop-blur-sm border border-white/20 p-1.5 flex-shrink-0">
+              <img src="/rafiq_logo.png" alt="رفيق" className="w-full h-full object-contain" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-black tracking-tight">لوحة تحكم صاحب المتجر</h2>
-                <span className="text-[11px] bg-white/20 text-white border border-white/30 px-2.5 py-0.5 rounded-full font-black">
+                <h2 className="text-sm sm:text-base font-black tracking-tight truncate">لوحة تحكم المتجر</h2>
+                <span className="text-[10px] sm:text-[11px] bg-white/20 text-white border border-white/30 px-2 py-0.5 rounded-full font-black flex-shrink-0">
                   إدارة سحابية
                 </span>
               </div>
-              <div className="text-xs text-white/80 mt-0.5 font-medium">{storeName} • نظام رفيق الذكي</div>
+              <div className="text-[11px] sm:text-xs text-white/80 mt-0.5 font-medium truncate">{storeName} • برنامج كاشير رفيق</div>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors btn-spring"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white transition-colors btn-spring text-xs font-bold flex-shrink-0"
           >
-            <X className="w-5 h-5" />
+            <span className="sm:hidden">رجوع للمتجر</span>
+            <span className="hidden sm:inline">إغلاق</span>
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -336,11 +338,11 @@ export const DashboardModal: React.FC<Props> = ({
           // Login Form
           <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 max-w-md mx-auto w-full text-center">
             <div className="w-16 h-16 rounded-3xl bg-white p-3 border border-slate-200 text-store-primary flex items-center justify-center mb-4 shadow-md">
-              <img src="/logo.png" alt="رفيق POS" className="w-full h-full object-contain" />
+              <img src="/rafiq_logo.png" alt="برنامج رفيق" className="w-full h-full object-contain" />
             </div>
             <h3 className="text-xl font-black text-slate-900">تسجيل دخول المشرف</h3>
             <p className="text-xs text-slate-500 mt-1 mb-6 leading-relaxed">
-              أدخل كود الترخيص والرمز السري الخاص بصاحب المحل لإدارة الطلبات والمتجر
+              أدخل كود الترخيص والرمز السري الخاص بصاحب المحل لإدارة الأوردرات والمتجر
             </p>
 
             <form onSubmit={handleLogin} className="w-full space-y-4 text-right">
@@ -391,10 +393,10 @@ export const DashboardModal: React.FC<Props> = ({
           // Dashboard Management Area
           <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
             {/* Desktop Tabs Sidebar / Mobile Tabs Top Bar */}
-            <div className="sm:w-60 bg-slate-50/90 border-b sm:border-b-0 sm:border-l border-slate-200 p-2 sm:p-4 flex sm:flex-col gap-1.5 overflow-x-auto sm:overflow-visible flex-shrink-0">
+            <div className="sm:w-60 bg-slate-50/90 border-b sm:border-b-0 sm:border-l border-slate-200 p-2 sm:p-4 flex sm:flex-col gap-1.5 overflow-x-auto sm:overflow-visible flex-shrink-0 scrollbar-none">
               <button
                 onClick={() => setActiveTab('orders')}
-                className={`flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring ${
+                className={`flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring flex-shrink-0 whitespace-nowrap ${
                   activeTab === 'orders'
                     ? 'bg-store-primary text-white shadow-md font-black'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -413,7 +415,7 @@ export const DashboardModal: React.FC<Props> = ({
 
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring flex-shrink-0 whitespace-nowrap ${
                   activeTab === 'overview'
                     ? 'bg-store-primary text-white shadow-md font-black'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -425,7 +427,7 @@ export const DashboardModal: React.FC<Props> = ({
 
               <button
                 onClick={() => setActiveTab('settings')}
-                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring flex-shrink-0 whitespace-nowrap ${
                   activeTab === 'settings'
                     ? 'bg-store-primary text-white shadow-md font-black'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -437,7 +439,7 @@ export const DashboardModal: React.FC<Props> = ({
 
               <button
                 onClick={() => setActiveTab('products')}
-                className={`flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring ${
+                className={`flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring flex-shrink-0 whitespace-nowrap ${
                   activeTab === 'products'
                     ? 'bg-store-primary text-white shadow-md font-black'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -456,14 +458,14 @@ export const DashboardModal: React.FC<Props> = ({
 
               <button
                 onClick={() => setActiveTab('theme')}
-                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all btn-spring flex-shrink-0 whitespace-nowrap ${
                   activeTab === 'theme'
                     ? 'bg-store-primary text-white shadow-md font-black'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
                 <Palette className="w-4 h-4 flex-shrink-0" />
-                <span>ألوان وهوية المتجر (10)</span>
+                <span>ألوان وهوية المتجر ({themePresets.length})</span>
               </button>
 
               <div className="hidden sm:block mt-auto pt-4 border-t border-slate-200">
@@ -495,7 +497,7 @@ export const DashboardModal: React.FC<Props> = ({
                       className="flex items-center gap-1.5 text-xs font-bold text-store-primary hover:underline self-start sm:self-auto"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      تحديث الطلبات
+                      تحديث الأوردرات
                     </button>
                   </div>
 
@@ -509,7 +511,7 @@ export const DashboardModal: React.FC<Props> = ({
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
-                      كافة الطلبات ({mockOrders.length})
+                      كافة الأوردرات ({mockOrders.length})
                     </button>
                     <button
                       onClick={() => setOrdersFilter('new')}
@@ -665,12 +667,12 @@ export const DashboardModal: React.FC<Props> = ({
                           </div>
 
                           {/* Structured Delivery Address Box */}
-                          <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-2">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-start gap-2 text-xs">
+                          <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-2.5">
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                              <div className="flex items-start gap-2.5 text-xs flex-1 min-w-0">
                                 <MapPin className="w-4 h-4 text-store-primary flex-shrink-0 mt-0.5" />
-                                <div className="space-y-0.5">
-                                  <div className="font-bold text-slate-900 leading-relaxed">
+                                <div className="space-y-1 min-w-0 leading-relaxed">
+                                  <div className="font-bold text-slate-900">
                                     المنطقة: <strong className="text-store-primary">{ord.address_zone}</strong> • الشارع: {ord.address_street} • {ord.address_building}
                                   </div>
                                   <div className="text-slate-600 font-medium">
@@ -685,7 +687,7 @@ export const DashboardModal: React.FC<Props> = ({
                                   href={ord.maps_url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-xl text-xs font-black btn-spring flex-shrink-0"
+                                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-3.5 py-2 rounded-xl text-xs font-black btn-spring flex-shrink-0 shadow-2xs"
                                 >
                                   <Navigation className="w-3.5 h-3.5 text-blue-600" />
                                   <span>عرض موقع العميل على الخريطة</span>
@@ -830,7 +832,7 @@ export const DashboardModal: React.FC<Props> = ({
                 <div className="space-y-5">
                   <div>
                     <h3 className="text-base font-black text-slate-900">ملخص نشاط ومبيعات اليوم</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">متابعة فورية للمبيعات والطلبات الواردة لحظياً</p>
+                    <p className="text-xs text-slate-500 mt-0.5">متابعة فورية للمبيعات والأوردرات الواردة لحظياً</p>
                   </div>
 
                   {/* KPI Cards */}
@@ -842,11 +844,11 @@ export const DashboardModal: React.FC<Props> = ({
                     </div>
 
                     <div className="p-4 rounded-3xl bg-amber-50 border border-amber-200/70">
-                      <div className="text-xs font-bold text-amber-800">طلبات جديدة معلقة</div>
+                      <div className="text-xs font-bold text-amber-800">أوردرات جديدة معلقة</div>
                       <div className="text-xl sm:text-2xl font-black text-amber-950 mt-1">
                         {mockOrders.filter(o => o.status === 'new').length}
                       </div>
-                      <div className="text-[10px] text-amber-700 mt-1">تحتاج مراجعة وقبول</div>
+                      <div className="text-[10px] text-amber-700 mt-1">محتاجة مراجعة وقبول</div>
                     </div>
 
                     <div className="p-4 rounded-3xl bg-blue-50 border border-blue-200/70">
@@ -868,9 +870,9 @@ export const DashboardModal: React.FC<Props> = ({
                   {/* Pause / Resume Control */}
                   <div className="p-4 sm:p-5 rounded-3xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h4 className="text-sm font-black text-slate-900">إيقاف أو فتح قبول الطلبات</h4>
+                      <h4 className="text-sm font-black text-slate-900">إيقاف أو فتح قبول الأوردرات</h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        يمكنك إيقاف استقبال الطلبات في الإجازات أو ضغط العمل في المحل بضغطة زر
+                        تقدر توقف استقبال الأوردرات في الإجازات أو أوقات الضغط في المحل بنقرة زرار
                       </p>
                     </div>
                     <button
@@ -1021,15 +1023,15 @@ export const DashboardModal: React.FC<Props> = ({
                   <div className="p-4 rounded-3xl bg-slate-50 border border-slate-200 space-y-3">
                     <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
                       <Truck className="w-3.5 h-3.5 text-store-primary" />
-                      طرق استلام الطلبات المتاحة للزبائن
+                      طرق استلام الأوردرات المتاحة للزبائن
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <label className="flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-200 cursor-pointer hover:border-slate-300">
                         <div className="flex items-center gap-2">
                           <Truck className="w-4 h-4 text-store-primary" />
                           <div>
-                            <span className="text-xs font-black text-slate-900 block">توصيل دليفري للمنزل</span>
-                            <span className="text-[10px] text-slate-500 font-medium">إتاحة خيار توصيل الطلبات للعنوان</span>
+                            <span className="text-xs font-black text-slate-900 block">دليفري لحد البيت</span>
+                            <span className="text-[10px] text-slate-500 font-medium">إتاحة خيار توصيل الأوردرات للعنوان</span>
                           </div>
                         </div>
                         <input
@@ -1242,53 +1244,134 @@ export const DashboardModal: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Theme Tab - 10 Distinct Store Identities */}
+              {/* Theme Tab - Dynamic Color Presets from 2colors and Material */}
               {activeTab === 'theme' && (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-base font-black text-slate-900">ألوان وهوية المتجر (10 هويات تجارية معتمدة)</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      اختر الهوية والباليت اللونية لتتناسب تماماً مع نشاطك التجاري ويتغير مظهر الموقع فورياً
-                    </p>
+                <div className="space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                        <span>ألوان وهوية المتجر (هويات بصرية منسقة)</span>
+                        <span className="text-xs bg-store-primary-light text-store-primary font-bold px-2 py-0.5 rounded-full">
+                          {themePresets.length} هوية
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        لوحات ألوان احترافية مستوحاة من Colorion (ثنائية الألوان 2-Colors ومتعددة الألوان Material) تُغير الواجهة بالكامل
+                      </p>
+                    </div>
+
+                    {/* Filter Tabs */}
+                    <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl flex-shrink-0 self-start sm:self-auto">
+                      <button
+                        onClick={() => setThemeFilter('all')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          themeFilter === 'all'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        الكل ({themePresets.length})
+                      </button>
+                      <button
+                        onClick={() => setThemeFilter('duotone')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          themeFilter === 'duotone'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        ثنائية الألوان ({themePresets.filter(t => t.styleType === 'duotone').length})
+                      </button>
+                      <button
+                        onClick={() => setThemeFilter('material')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          themeFilter === 'material'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        متعددة الألوان ({themePresets.filter(t => t.styleType === 'material').length})
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {themePresets.map(t => {
-                      const isSel = selectedPreset === t.key;
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {filteredThemePresets.map(t => {
+                      const isSel = selectedPreset === t.id;
                       return (
                         <div
-                          key={t.key}
+                          key={t.id}
                           onClick={() => {
-                            setSelectedPreset(t.key);
-                            onThemeChange(t.key);
-                            onUpdateStore({ ...store, theme_preset: t.key });
+                            setSelectedPreset(t.id);
+                            onThemeChange(t.id);
+                            onUpdateStore({ ...store, theme_preset: t.id });
                             try {
-                              localStorage.setItem('rafiq_active_theme_preset', t.key);
-                            } catch {
-                              // Ignore storage error
-                            }
+                              localStorage.setItem('rafiq_active_theme_preset', t.id);
+                            } catch {}
                           }}
-                          className={`p-4 rounded-3xl border cursor-pointer flex items-center justify-between transition-all btn-spring ${
+                          className={`p-4 rounded-3xl border cursor-pointer flex flex-col justify-between transition-all btn-spring space-y-3.5 ${
                             isSel
-                              ? 'border-store-primary ring-2 ring-store-primary/20 bg-store-primary-light/40 shadow-sm'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                              ? 'border-2 border-store-primary bg-store-primary-light/40 shadow-sm'
+                              : 'border border-slate-200 hover:border-slate-300 bg-white hover:shadow-2xs'
                           }`}
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span
-                              className="w-10 h-10 rounded-2xl shadow-sm flex-shrink-0 border border-black/10"
-                              style={{ backgroundColor: t.color }}
-                            ></span>
+                          <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-xs sm:text-sm font-black text-slate-900 truncate">{t.name}</div>
-                              <div className="text-[11px] text-slate-500 font-medium truncate">{t.category}</div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-black text-slate-900">{t.name}</span>
+                                <span
+                                  className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                    t.styleType === 'duotone'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-indigo-100 text-indigo-800'
+                                  }`}
+                                >
+                                  {t.styleType === 'duotone' ? 'لونين (2-Colors)' : 'متعدد (4-Colors Material)'}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-500 font-medium mt-0.5">{t.category}</div>
+                            </div>
+
+                            {isSel ? (
+                              <span className="p-1 rounded-full bg-store-primary text-white shadow-xs flex-shrink-0">
+                                <CheckCircle className="w-4 h-4" />
+                              </span>
+                            ) : (
+                              <span className="w-4 h-4 rounded-full border border-slate-300 flex-shrink-0 mt-0.5" />
+                            )}
+                          </div>
+
+                          {/* Swatches strip */}
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                            <div className="flex items-center gap-1.5">
+                              {t.swatches.map((hex, idx) => (
+                                <div key={idx} className="flex flex-col items-center gap-0.5">
+                                  <span
+                                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl shadow-xs border border-black/10 flex-shrink-0"
+                                    style={{ backgroundColor: hex }}
+                                    title={hex}
+                                  />
+                                  <span className="text-[9px] font-mono text-slate-400 font-bold">{hex}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Mini UI Preview Element */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span
+                                className="text-[10px] text-white font-black px-2.5 py-1 rounded-xl shadow-2xs"
+                                style={{ background: t.gradient }}
+                              >
+                                تجربة الزر
+                              </span>
+                              <span
+                                className="text-[10px] font-black px-2 py-1 rounded-xl shadow-2xs text-white"
+                                style={{ backgroundColor: t.secondary }}
+                              >
+                                شارة
+                              </span>
                             </div>
                           </div>
-                          {isSel && (
-                            <span className="p-1 rounded-full bg-store-primary text-white shadow-xs">
-                              <CheckCircle className="w-4 h-4" />
-                            </span>
-                          )}
                         </div>
                       );
                     })}

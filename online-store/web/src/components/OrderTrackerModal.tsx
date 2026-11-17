@@ -23,7 +23,7 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderNumber || !phone) {
-      setError('يرجى إدخال رقم الطلب ورقم الهاتف');
+      setError('يرجى إدخال رقم الأوردر ورقم الموبايل');
       return;
     }
     setError(null);
@@ -32,7 +32,7 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
       const res = await trackOrderApi(orderNumber.trim(), phone.trim());
       setOrder(res);
     } catch (err: any) {
-      setError(err.message || 'لم يتم العثور على الطلب');
+      setError(err.message || 'لم يتم العثور على الأوردر، تأكد من البيانات');
       setOrder(null);
     } finally {
       setIsLoading(false);
@@ -40,11 +40,11 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
   };
 
   const steps = [
-    { key: 'new', label: 'تم الاستلام' },
-    { key: 'accepted', label: 'تم القبول' },
-    { key: 'preparing', label: 'جاري التجهيز' },
-    { key: 'ready', label: 'جاهز / في الطريق' },
-    { key: 'delivered', label: 'تم التسليم' },
+    { key: 'new', label: 'استلمنا الأوردر' },
+    { key: 'accepted', label: 'المحل وافق عليه' },
+    { key: 'preparing', label: 'بيتجهز في المحل' },
+    { key: 'ready', label: 'خرج مع الدليفري' },
+    { key: 'delivered', label: 'اتسلم لحضرتك' },
   ];
 
   const getStepIndex = (status: string) => {
@@ -70,24 +70,24 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
     >
       <div
         onClick={e => e.stopPropagation()}
-        className={`relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-store-line overflow-hidden flex flex-col max-h-[92vh] transition-all duration-300 ease-in-out ${
+        className={`relative w-full max-w-lg bg-store-card rounded-t-3xl sm:rounded-3xl shadow-2xl border border-store-line overflow-hidden flex flex-col max-h-[92vh] transition-all duration-300 ease-in-out ${
           visible
             ? 'translate-y-0 sm:scale-100 opacity-100'
             : 'translate-y-full sm:translate-y-6 sm:scale-95 opacity-0'
         }`}
       >
         {/* Mobile Swipe Handle */}
-        <div className="sm:hidden w-12 h-1.5 bg-slate-200 rounded-full mx-auto my-2.5 flex-shrink-0"></div>
+        <div className="sm:hidden w-12 h-1.5 bg-store-line rounded-full mx-auto my-2.5 flex-shrink-0"></div>
 
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-store-line flex items-center justify-between bg-slate-50 flex-shrink-0">
+        <div className="p-4 sm:p-5 border-b border-store-line flex items-center justify-between bg-store-drawer-header flex-shrink-0">
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-store-primary" />
-            <h2 className="text-base sm:text-lg font-black text-store-text">تتبع حالة طلبك</h2>
+            <h2 className="text-base sm:text-lg font-black text-store-text">تتبع حالة الأوردر</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors btn-spring"
+            className="p-1.5 rounded-xl hover:bg-store-primary-light/40 text-store-muted hover:text-store-text transition-colors btn-spring"
           >
             <X className="w-5 h-5" />
           </button>
@@ -99,24 +99,24 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
           <form onSubmit={handleTrack} className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">رقم الطلب</label>
+                <label className="block text-xs font-bold text-store-muted mb-1">رقم الأوردر</label>
                 <input
                   type="text"
                   placeholder="مثال: 101"
                   value={orderNumber}
                   onChange={e => setOrderNumber(e.target.value)}
-                  className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-slate-50 focus:outline-none focus:ring-2 focus:ring-store-primary font-bold text-center"
+                  className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-store-card-subtle text-store-text focus:outline-none focus:ring-2 focus:ring-store-primary font-bold text-center"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">رقم الهاتف</label>
+                <label className="block text-xs font-bold text-store-muted mb-1">رقم الموبايل</label>
                 <input
                   type="tel"
                   dir="ltr"
                   placeholder="01x xxxx xxxx"
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
-                  className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-slate-50 text-right focus:outline-none focus:ring-2 focus:ring-store-primary font-bold"
+                  className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-store-card-subtle text-store-text text-right focus:outline-none focus:ring-2 focus:ring-store-primary font-bold"
                 />
               </div>
             </div>
@@ -124,14 +124,14 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 bg-store-primary hover:bg-store-primary-hover disabled:bg-slate-300 text-white py-3 rounded-2xl font-black text-xs sm:text-sm shadow-md transition-all btn-spring"
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-store-primary to-store-secondary hover:brightness-105 disabled:bg-slate-300 text-store-primary-contrast py-3 rounded-2xl font-black text-xs sm:text-sm shadow-md transition-all btn-spring"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
                   <Search className="w-4 h-4" />
-                  <span>بحث عن الطلب</span>
+                  <span>متابعة حالة الأوردر</span>
                 </>
               )}
             </button>
@@ -145,15 +145,15 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
 
           {/* Order Details */}
           {order && (
-            <div className="space-y-4 pt-3 border-t border-slate-100">
-              <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="space-y-4 pt-3 border-t border-store-line">
+              <div className="flex items-center justify-between p-3.5 bg-store-card-subtle rounded-2xl border border-store-line">
                 <div>
                   <h3 className="text-base font-black text-store-text">طلب رقم #{order.order_number}</h3>
-                  <div className="text-xs text-slate-500 font-medium">{order.customer_name}</div>
+                  <div className="text-xs text-store-muted font-medium">{order.customer_name}</div>
                 </div>
                 <div className="text-left">
                   <div className="text-base font-black text-store-primary">{(order.total / 100).toFixed(2)} ج.م</div>
-                  <div className="text-[11px] font-bold text-slate-500">
+                  <div className="text-[11px] font-bold text-store-muted">
                     {order.delivery_method === 'delivery' ? 'توصيل للمنزل' : 'استلام من المحل'}
                   </div>
                 </div>
@@ -171,9 +171,9 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
                   </div>
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl bg-slate-50 border border-store-line">
+                <div className="p-4 rounded-2xl bg-store-card-subtle border border-store-line">
                   <div className="flex items-center justify-between relative">
-                    <div className="absolute top-3.5 left-2 right-2 h-1 bg-slate-200 z-0"></div>
+                    <div className="absolute top-3.5 left-2 right-2 h-1 bg-store-line z-0"></div>
                     <div
                       className="absolute top-3.5 right-2 h-1 bg-store-primary z-0 transition-all duration-500"
                       style={{ width: `${(currentIdx / (steps.length - 1)) * 95}%` }}
@@ -186,13 +186,13 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
                           <div
                             className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                               isDone
-                                ? 'bg-store-primary text-white shadow-xs ring-4 ring-white'
-                                : 'bg-white text-slate-400 border border-slate-300'
+                                ? 'bg-store-primary text-store-primary-contrast shadow-xs ring-4 ring-store-card'
+                                : 'bg-store-card text-store-muted border border-store-line'
                             }`}
                           >
                             {isDone ? <Check className="w-3.5 h-3.5" /> : i + 1}
                           </div>
-                          <span className={`text-[9px] sm:text-[10px] mt-1.5 font-bold ${isDone ? 'text-store-primary' : 'text-slate-400'}`}>
+                          <span className={`text-[9px] sm:text-[10px] mt-1.5 font-bold ${isDone ? 'text-store-primary' : 'text-store-muted'}`}>
                             {st.label}
                           </span>
                         </div>
@@ -204,13 +204,13 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
 
               {/* Items Summary */}
               {order.items && order.items.length > 0 && (
-                <div className="bg-slate-50 rounded-2xl p-3.5 border border-store-line space-y-2">
-                  <div className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                <div className="bg-store-card-subtle rounded-2xl p-3.5 border border-store-line space-y-2">
+                  <div className="text-xs font-bold text-store-muted flex items-center gap-1">
                     <Package className="w-3.5 h-3.5" /> الأصناف المطلوبة:
                   </div>
                   {order.items.map((it, idx) => (
-                    <div key={idx} className="flex justify-between text-xs py-1 border-b border-slate-100 last:border-none">
-                      <span className="font-bold text-slate-800">{it.product_name} × {it.quantity / 1000}</span>
+                    <div key={idx} className="flex justify-between text-xs py-1 border-b border-store-line last:border-none">
+                      <span className="font-bold text-store-text">{it.product_name} × {it.quantity / 1000}</span>
                       <span className="font-black text-store-primary">{(it.line_total / 100).toFixed(2)} ج.م</span>
                     </div>
                   ))}

@@ -40,8 +40,8 @@ export const OrderSuccessModal: React.FC<Props> = ({
 
   const whatsappMsg = encodeURIComponent(
     isOnlinePayment
-      ? `مرحباً ${storeName}، قمت بطلب أوردر جديد رقم (#${orderNumber}) بقيمة ${totalPounds} ج.م وتم سداده عبر (${paymentTitle}). ومرفق إشعار/إيصال التحويل للتأكيد الفوري.`
-      : `مرحباً ${storeName}، قمت بطلب أوردر جديد رقم (#${orderNumber}) بقيمة ${totalPounds} ج.م من المتجر الإلكتروني.`
+      ? `مرحباً ${storeName}، عملت أوردر جديد رقم (#${orderNumber}) بقيمة ${totalPounds} ج.م وحولت الحساب عن طريق (${paymentTitle}). ومرفق صورة التحويل للتأكيد الفوري.`
+      : `مرحباً ${storeName}، عملت أوردر جديد رقم (#${orderNumber}) بقيمة ${totalPounds} ج.م من المتجر.`
   );
 
   return (
@@ -53,17 +53,17 @@ export const OrderSuccessModal: React.FC<Props> = ({
     >
       <div
         onClick={e => e.stopPropagation()}
-        className={`relative w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 text-center space-y-4 bottom-safe transition-all duration-300 ease-in-out ${
+        className={`relative w-full max-w-md bg-store-card rounded-t-3xl sm:rounded-3xl shadow-2xl border border-store-line p-5 sm:p-6 text-center space-y-4 bottom-safe transition-all duration-300 ease-in-out ${
           visible ? 'translate-y-0 sm:scale-100 opacity-100' : 'translate-y-full sm:translate-y-6 sm:scale-95 opacity-0'
         }`}
       >
         {/* Mobile Swipe Handle */}
-        <div className="sm:hidden w-12 h-1.5 bg-slate-200 rounded-full mx-auto my-1 flex-shrink-0"></div>
+        <div className="sm:hidden w-12 h-1.5 bg-store-line rounded-full mx-auto my-1 flex-shrink-0"></div>
 
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 left-4 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors btn-spring"
+          className="absolute top-4 left-4 p-2 rounded-full hover:bg-store-primary-light/40 text-store-muted hover:text-store-text transition-colors btn-spring"
         >
           <X className="w-4 h-4" />
         </button>
@@ -73,28 +73,28 @@ export const OrderSuccessModal: React.FC<Props> = ({
         </div>
 
         <div>
-          <h2 className="text-lg sm:text-xl font-black text-slate-900">تم استلام طلبك بنجاح!</h2>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
-            سيقوم فريق العمل بمراجعة وتجهيز طلبك على الفور
+          <h2 className="text-lg sm:text-xl font-black text-store-text">تم استلام أوردرك بنجاح!</h2>
+          <p className="text-xs text-store-muted mt-1 font-medium">
+            المحل بيراجع الأوردر دلوقتي وهيجهزه لحضرتك فوراً
           </p>
         </div>
 
         {/* Order Receipt Badge */}
         <div className="p-4 rounded-2xl bg-store-primary-light/50 border border-store-primary/20 space-y-1">
-          <div className="text-[11px] font-bold text-slate-600">رقم الطلب الخاص بك</div>
+          <div className="text-[11px] font-bold text-store-muted">رقم الأوردر بتاعك</div>
           <div className="text-3xl font-black text-store-primary tracking-wider">
             #{orderNumber}
           </div>
-          <div className="text-xs font-bold text-slate-800 pt-1 border-t border-store-primary/10 flex items-center justify-between">
-            <span>إجمالي الطلب:</span>
+          <div className="text-xs font-bold text-store-text pt-1 border-t border-store-primary/10 flex items-center justify-between">
+            <span>إجمالي الأوردر:</span>
             <span className="text-store-primary font-black">{totalPounds} ج.م</span>
           </div>
         </div>
 
         {/* Payment Method Badge */}
-        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs flex items-center justify-between">
-          <span className="text-slate-500 font-medium">طريقة السداد:</span>
-          <span className="font-black text-slate-900">{paymentTitle}</span>
+        <div className="p-3 bg-store-card-subtle rounded-2xl border border-store-line text-xs flex items-center justify-between">
+          <span className="text-store-muted font-medium">طريقة السداد:</span>
+          <span className="font-black text-store-text">{paymentTitle}</span>
         </div>
 
         {/* Online Payment Proof Notice */}
@@ -118,7 +118,7 @@ export const OrderSuccessModal: React.FC<Props> = ({
             href={`https://wa.me/2${storePhone.replace(/^0+/, '')}?text=${whatsappMsg}`}
             target="_blank"
             rel="noreferrer"
-            className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 px-4 rounded-2xl text-xs font-black shadow-md shadow-emerald-600/20 transition-all btn-spring"
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-store-primary to-store-secondary hover:brightness-105 text-store-primary-contrast py-3.5 px-4 rounded-2xl text-xs font-black shadow-md shadow-store-primary/20 transition-all btn-spring"
           >
             <MessageSquare className="w-4 h-4" />
             <span>
@@ -131,14 +131,14 @@ export const OrderSuccessModal: React.FC<Props> = ({
         <div className="grid grid-cols-2 gap-2 pt-2">
           <button
             onClick={onTrackOrder}
-            className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 py-3 rounded-2xl text-xs font-bold transition-colors btn-spring"
+            className="flex items-center justify-center gap-1.5 bg-store-card-subtle hover:bg-store-line border border-store-line text-store-text py-3 rounded-2xl text-xs font-bold transition-colors btn-spring"
           >
-            <Clock className="w-4 h-4 text-slate-600" />
+            <Clock className="w-4 h-4 text-store-muted" />
             <span>متابعة حالة الطلب</span>
           </button>
           <button
             onClick={onClose}
-            className="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-2xl text-xs font-bold transition-colors btn-spring"
+            className="flex items-center justify-center gap-1.5 bg-store-primary hover:bg-store-primary-hover text-store-primary-contrast py-3 rounded-2xl text-xs font-bold transition-colors btn-spring shadow-xs"
           >
             <ShoppingBag className="w-4 h-4" />
             <span>متابعة التسوق</span>

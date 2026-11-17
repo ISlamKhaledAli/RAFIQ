@@ -15,7 +15,7 @@ export const CategoryPills: React.FC<Props> = ({
 }) => {
   // Helper to pick contextual icons
   const getCategoryIcon = (name: string, isSelected: boolean) => {
-    const iconClass = `w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-store-primary'}`;
+    const iconClass = `w-3.5 h-3.5 ${isSelected ? '!text-white' : 'text-slate-600'}`;
     if (name.includes('الكل')) return <Sparkles className={iconClass} />;
     if (name.includes('ألبان') || name.includes('جبن')) return <Milk className={iconClass} />;
     if (name.includes('مشروبات') || name.includes('عصائر')) return <Coffee className={iconClass} />;
@@ -35,18 +35,18 @@ export const CategoryPills: React.FC<Props> = ({
               onClick={() => onSelectCategory(cat.id)}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all active:scale-95 shadow-xs ${
                 isSelected
-                  ? 'bg-store-primary text-white shadow-md shadow-store-primary/20 scale-102 ring-2 ring-store-primary/20'
-                  : 'bg-white text-slate-700 hover:bg-slate-50 border border-store-line'
+                  ? 'bg-store-primary !text-white shadow-md scale-102 border-2 border-store-primary font-black'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 hover:text-store-primary border border-slate-200'
               }`}
             >
               <div
                 className={`w-5 h-5 rounded-lg flex items-center justify-center ${
-                  isSelected ? 'bg-white/20' : 'bg-slate-100'
+                  isSelected ? 'bg-white/20 !text-white' : 'bg-slate-100'
                 }`}
               >
                 {getCategoryIcon(cat.name, isSelected)}
               </div>
-              <span>{cat.name}</span>
+              <span className={isSelected ? '!text-white' : ''}>{cat.name}</span>
             </button>
           );
         })}
