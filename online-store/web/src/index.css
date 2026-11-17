@@ -3,16 +3,40 @@
 @tailwind utilities;
 
 :root {
-  /* Default preset: classic-green */
+  /* Default preset: duo-forest-cream / classic-green */
   --store-primary: #004D3F;
+  --store-primary-rgb: 0 77 63;
   --store-primary-hover: #00372D;
   --store-primary-light: #E6F2ED;
-  --store-accent: #006D41;
+  --store-primary-contrast: #FFFFFF;
+  --store-secondary: #006D41;
+  --store-secondary-rgb: 0 109 65;
+  --store-secondary-hover: #004D3F;
+  --store-secondary-light: #E6F2ED;
+  --store-secondary-contrast: #FFFFFF;
+  --store-accent: #CED46A;
+  --store-accent-rgb: 206 212 106;
+  --store-accent-hover: #B7BE4F;
+  --store-accent-light: #F7F8E8;
+  --store-accent-contrast: #0F172A;
   --store-bg: #F8FAFC;
+  --store-bg-rgb: 248 250 252;
   --store-card-bg: #FFFFFF;
+  --store-card-bg-rgb: 255 255 255;
+  --store-card-subtle: #F1F5F4;
+  --store-header-bg: #FFFFFF;
+  --store-footer-bg: #031F17;
+  --store-footer-card: #0A2E24;
+  --store-footer-text: #F8FAFC;
+  --store-footer-muted: #8FB2A6;
+  --store-footer-line: #144436;
+  --store-drawer-bg: #FFFFFF;
+  --store-drawer-header: #F1F5F4;
   --store-text: #0F172A;
   --store-muted: #64748B;
   --store-line: #E2E8F0;
+  --store-line-rgb: 226 232 240;
+  --store-gradient: linear-gradient(135deg, #004D3F 0%, #006D41 100%);
 }
 
 * {
@@ -126,3 +150,25 @@ html, body {
     background: #94a3b8;
   }
 }
+
+/* Print Thermal Receipt Isolation */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #rafiq-printable-receipt,
+  #rafiq-printable-receipt * {
+    visibility: visible;
+  }
+  #rafiq-printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm !important;
+    margin: 0 auto;
+    padding: 8px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+

@@ -14,10 +14,10 @@ export const MOCK_STORE: Store = {
     'السبت - الخميس': '9:00 ص - 11:30 م',
     الجمعة: '1:00 م - 12:00 م',
   },
-  welcome_message: 'عروض حصرية وخصومات تصل إلى 30% على المنتجات التموينية والمنظفات!',
+  welcome_message: null,
   logo_url: null,
   banner_url: null,
-  theme_preset: 'classic-green',
+  theme_preset: 'duo-forest-cream',
   theme_custom: null,
   min_order_amount: 0, // No minimum order restriction
   delivery_zones: [

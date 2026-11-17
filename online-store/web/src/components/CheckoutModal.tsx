@@ -207,10 +207,11 @@ export const CheckoutModal: React.FC<Props> = ({
   const grandTotal = subtotal + deliveryFee;
 
   const quickDeliveryPills = [
-    'اتصل قبل الوصول بخمس دقائق',
+    'اتصل قبل الوصول بـ 5 دقائق',
     'رن الجرس بهدوء',
-    'اترك الطلب عند البواب / الأمن',
-    'معايا فكة كبيرة (محتاج فكة)',
+    'سيب الأوردر عند البواب / الأمن',
+    'معايا فكة 200 (محتاج فكة)',
+    'معايا فكة 100',
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -363,22 +364,23 @@ export const CheckoutModal: React.FC<Props> = ({
             ? 'translate-y-0 sm:scale-100 opacity-100'
             : 'translate-y-full sm:translate-y-6 sm:scale-95 opacity-0'
         }`}
+        style={{ backgroundColor: 'var(--store-card-bg, #FFFFFF)' }}
       >
         {/* Mobile Swipe Handle Pill */}
-        <div className="sm:hidden w-12 h-1.5 bg-slate-200 rounded-full mx-auto my-2.5 flex-shrink-0"></div>
+        <div className="sm:hidden w-12 h-1.5 bg-store-line rounded-full mx-auto my-2.5 flex-shrink-0"></div>
 
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-store-line flex items-center justify-between bg-slate-50 flex-shrink-0">
+        <div className="p-4 sm:p-5 border-b border-store-line flex items-center justify-between bg-store-drawer-header flex-shrink-0">
           <div className="flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-store-primary" />
             <div>
-              <h2 className="text-base sm:text-lg font-black text-store-text">تأكيد بيانات العميل وعنوان التوصيل</h2>
-              <p className="text-[11px] text-slate-500 font-medium">بياناتك محفوظة تلقائياً لسرعة تأكيد طلباتك دائماً</p>
+              <h2 className="text-base sm:text-lg font-black text-store-text">تأكيد الأوردر وبيانات التوصيل</h2>
+              <p className="text-[11px] text-store-muted font-medium">بياناتك وعنوانك محفوظين لسرعة تأكيد أي أوردر</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors btn-spring"
+            className="p-1.5 rounded-xl hover:bg-store-primary-light/40 text-store-muted hover:text-store-text transition-colors btn-spring"
           >
             <X className="w-5 h-5" />
           </button>
@@ -397,7 +399,7 @@ export const CheckoutModal: React.FC<Props> = ({
             <div className="p-3 bg-store-primary-light/70 rounded-2xl border border-store-primary/20 flex items-center justify-between text-xs animate-in fade-in">
               <div className="flex items-center gap-2 text-store-primary font-bold">
                 <CheckCircle className="w-4 h-4 text-store-primary flex-shrink-0" />
-                <span>تم استرجاع وحفظ بياناتك وعنوانك تلقائياً لراحتك</span>
+                <span>بياناتك وعنوانك جاهزين ومحفوظين لراحتك</span>
               </div>
               <button
                 type="button"
@@ -412,15 +414,15 @@ export const CheckoutModal: React.FC<Props> = ({
 
           {/* Section 1: Customer Contact Info */}
           <div className="space-y-3">
-            <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
+            <h3 className="text-xs font-black text-store-text flex items-center gap-1.5 border-b border-store-line pb-1.5">
               <User className="w-3.5 h-3.5 text-store-primary" />
-              <span>بيانات المستلم والتواصل</span>
+              <span>بياناتك للتواصل وتوصيل الأوردر</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Name Field */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-[11px] font-bold text-store-text mb-1">
                   اسم المستلم بالكامل <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -429,13 +431,13 @@ export const CheckoutModal: React.FC<Props> = ({
                   placeholder="مثال: أحمد محمد علي"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-slate-50 focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-white transition-all font-semibold"
+                  className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-store-card-subtle text-store-text focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all font-semibold"
                 />
               </div>
 
               {/* Primary Phone */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                <label className="block text-[11px] font-bold text-store-text mb-1 flex items-center gap-1">
                   <Phone className="w-3 h-3 text-store-primary" /> رقم الموبايل الأساسي <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -445,14 +447,14 @@ export const CheckoutModal: React.FC<Props> = ({
                   placeholder="01012345678"
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
-                  className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-slate-50 text-right focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-white transition-all font-semibold"
+                  className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-store-card-subtle text-store-text text-right focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all font-semibold"
                 />
               </div>
             </div>
 
             {/* Alternative Phone / WhatsApp */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center justify-between">
+              <label className="block text-[11px] font-bold text-store-muted mb-1 flex items-center justify-between">
                 <span>رقم بديل أو واتساب (اختياري - في حال تعذر الوصول للأول)</span>
               </label>
               <input
@@ -461,7 +463,7 @@ export const CheckoutModal: React.FC<Props> = ({
                 placeholder="01x xxxx xxxx"
                 value={altPhone}
                 onChange={e => setAltPhone(e.target.value)}
-                className="w-full text-xs sm:text-sm p-2.5 rounded-2xl border border-store-line bg-slate-50 text-right focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-white transition-all font-semibold"
+                className="w-full text-xs sm:text-sm p-2.5 rounded-2xl border border-store-line bg-store-card-subtle text-store-text text-right focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all font-semibold"
               />
             </div>
           </div>
@@ -469,25 +471,25 @@ export const CheckoutModal: React.FC<Props> = ({
           {/* Section 2: Detailed Delivery Address (Only if Delivery) */}
           {deliveryMethod === 'delivery' ? (
             <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+              <div className="flex items-center justify-between border-b border-store-line pb-1.5">
+                <h3 className="text-xs font-black text-store-text flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-store-primary" />
-                  <span>عنوان التوصيل الدقيق للكابتن</span>
+                  <span>عنوان التوصيل لدليفري المحل</span>
                 </h3>
                 {selectedDeliveryZone && (
-                  <span className="text-[11px] font-bold bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-lg">
+                  <span className="text-[11px] font-bold bg-store-primary-light text-store-primary px-2.5 py-0.5 rounded-lg">
                     المنطقة: {selectedDeliveryZone}
                   </span>
                 )}
               </div>
 
               {/* GPS Location Button */}
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-2">
+              <div className="p-3 bg-store-card-subtle rounded-2xl border border-store-line flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Compass className="w-4 h-4 text-store-primary flex-shrink-0" />
                   <div className="text-xs">
-                    <span className="font-bold text-slate-800">تحديد موقعك الدقيق على الخريطة:</span>
-                    <span className="block text-[10px] text-slate-500">يسهل على الكابتن الوصول لك بدون أسئلة</span>
+                    <span className="font-bold text-store-text">لوكيشن بيتك على الخريطة:</span>
+                    <span className="block text-[10px] text-store-muted">يسهل على مندوب الدليفري يوصلك فوراً</span>
                   </div>
                 </div>
 
@@ -497,8 +499,8 @@ export const CheckoutModal: React.FC<Props> = ({
                   disabled={isLocating}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all btn-spring ${
                     locationSuccess
-                      ? 'bg-store-primary text-white shadow-2xs'
-                      : 'bg-white text-slate-800 border border-slate-300 hover:bg-slate-100'
+                      ? 'bg-store-primary text-store-primary-contrast shadow-2xs'
+                      : 'bg-store-card text-store-text border border-store-line hover:bg-store-card-subtle'
                   }`}
                 >
                   {isLocating ? (
@@ -509,12 +511,12 @@ export const CheckoutModal: React.FC<Props> = ({
                   ) : locationSuccess ? (
                     <>
                       <Check className="w-3.5 h-3.5" />
-                      <span>تم حفظ موقعك</span>
+                      <span>اللوكيشن متحدد</span>
                     </>
                   ) : (
                     <>
                       <Navigation className="w-3.5 h-3.5 text-store-primary" />
-                      <span>تحديد موقعي</span>
+                      <span>تحديد اللوكيشن</span>
                     </>
                   )}
                 </button>
@@ -523,7 +525,7 @@ export const CheckoutModal: React.FC<Props> = ({
               {/* Street & Building */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-[11px] font-bold text-store-text mb-1">
                     اسم الشارع <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -532,13 +534,13 @@ export const CheckoutModal: React.FC<Props> = ({
                     placeholder="مثال: شارع التحرير، متفرع من..."
                     value={street}
                     onChange={e => setStreet(e.target.value)}
-                    className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-slate-50 focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-white transition-all font-semibold"
+                    className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-store-card-subtle text-store-text focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all font-semibold"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                    <Building className="w-3 h-3 text-slate-500" />
+                  <label className="block text-[11px] font-bold text-store-text mb-1 flex items-center gap-1">
+                    <Building className="w-3 h-3 text-store-muted" />
                     رقم أو اسم العمارة <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -547,7 +549,7 @@ export const CheckoutModal: React.FC<Props> = ({
                     placeholder="مثال: عمارة 15، أو برج النور"
                     value={building}
                     onChange={e => setBuilding(e.target.value)}
-                    className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-slate-50 focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-white transition-all font-semibold"
+                    className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-store-card-subtle text-store-text focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all font-semibold"
                   />
                 </div>
               </div>
@@ -555,8 +557,8 @@ export const CheckoutModal: React.FC<Props> = ({
               {/* Floor & Apartment and Landmark */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                    <Home className="w-3 h-3 text-slate-500" />
+                  <label className="block text-[11px] font-bold text-store-text mb-1 flex items-center gap-1">
+                    <Home className="w-3 h-3 text-store-muted" />
                     رقم الدور والشقة
                   </label>
                   <input
@@ -564,12 +566,12 @@ export const CheckoutModal: React.FC<Props> = ({
                     placeholder="مثال: الدور الرابع - شقة 12"
                     value={floorApt}
                     onChange={e => setFloorApt(e.target.value)}
-                    className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-slate-50 focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-white transition-all font-semibold"
+                    className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-store-card-subtle text-store-text focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all font-semibold"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <label className="block text-[11px] font-bold text-store-text mb-1 flex items-center gap-1">
                     <Compass className="w-3 h-3 text-store-primary" />
                     علامة مميزة قريبة
                   </label>
@@ -578,23 +580,23 @@ export const CheckoutModal: React.FC<Props> = ({
                     placeholder="مثال: بجوار صيدلية كذا، أمام مدرسة..."
                     value={landmark}
                     onChange={e => setLandmark(e.target.value)}
-                    className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-slate-50 focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-white transition-all font-semibold"
+                    className="w-full text-xs sm:text-sm p-3 rounded-2xl border border-store-line bg-store-card-subtle text-store-text focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all font-semibold"
                   />
                 </div>
               </div>
             </div>
           ) : (
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700">
-              <span className="font-bold text-slate-900 block mb-0.5">الاستلام من الفرع:</span>
-              سيتم تجهيز طلبك في المحل وتستلمه فور وصولك بالاسم ورقم الطلب.
+            <div className="p-3.5 bg-store-card-subtle rounded-2xl border border-store-line text-xs text-store-text">
+              <span className="font-bold text-store-text block mb-0.5">الاستلام من الفرع:</span>
+              هنجهزلك الأوردر في المحل وتستلمه أول ما توصل برقم الأوردر.
             </div>
           )}
 
           {/* Section 3: Delivery Instructions & Quick Tags */}
           <div className="space-y-2 pt-2">
-            <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
-              <FileText className="w-3 h-3 text-slate-500" />
-              تعليمات خاصة بالتسليم (اختر ما يناسبك):
+            <label className="block text-[11px] font-bold text-store-text flex items-center gap-1">
+              <FileText className="w-3 h-3 text-store-muted" />
+              ملاحظات للدليفري (اختار اللي يناسبك):
             </label>
 
             <div className="flex flex-wrap gap-1.5">
@@ -607,8 +609,8 @@ export const CheckoutModal: React.FC<Props> = ({
                     onClick={() => toggleQuickNote(pill)}
                     className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all btn-spring ${
                       isSelected
-                        ? 'bg-store-primary text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        ? 'bg-store-primary text-store-primary-contrast shadow-xs'
+                        : 'bg-store-card-subtle text-store-text hover:bg-store-line border border-store-line'
                     }`}
                   >
                     {pill}
@@ -619,20 +621,20 @@ export const CheckoutModal: React.FC<Props> = ({
 
             <input
               type="text"
-              placeholder="ملاحظة إضافية للطلب أو الكابتن إن وجدت..."
+              placeholder="أي ملاحظة إضافية للدليفري (معايا فكة، رن الجرس...)..."
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              className="w-full text-xs p-2.5 rounded-2xl border border-store-line bg-slate-50 focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-white transition-all font-medium mt-1"
+              className="w-full text-xs p-2.5 rounded-2xl border border-store-line bg-store-card-subtle text-store-text focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all font-medium mt-1"
             />
           </div>
 
           {/* Section 4: Payment Method Selection */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
+          <div className="space-y-3 pt-2 border-t border-store-line">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-black text-slate-800">
-                طريقة الدفع المفضلة:
+              <label className="block text-xs font-black text-store-text">
+                طريقة دفع الأوردر:
               </label>
-              <span className="text-[10px] text-slate-500 font-medium">اختر طريقة السداد المناسبة لك</span>
+              <span className="text-[10px] text-store-muted font-medium">اختار طريقة السداد المناسبة ليك</span>
             </div>
 
             {/* Dynamic Payment Options: Cash, InstaPay, Vodafone Cash */}
@@ -644,16 +646,16 @@ export const CheckoutModal: React.FC<Props> = ({
                   onClick={() => setPaymentMethod('cash')}
                   className={`p-2.5 sm:p-3 rounded-2xl border text-center sm:text-right transition-all flex flex-col sm:flex-row items-center sm:items-start gap-2 btn-spring ${
                     paymentMethod === 'cash'
-                      ? 'border-store-primary bg-store-primary-light/70 ring-2 ring-store-primary/20 shadow-2xs'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                      ? 'border-2 border-store-primary bg-store-primary-light/70 shadow-2xs'
+                      : 'border-store-line bg-store-card-subtle hover:bg-store-card'
                   }`}
                 >
-                  <div className={`p-2 rounded-xl flex-shrink-0 ${paymentMethod === 'cash' ? 'bg-store-primary text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  <div className={`p-2 rounded-xl flex-shrink-0 ${paymentMethod === 'cash' ? 'bg-store-primary text-store-primary-contrast' : 'bg-store-line text-store-muted'}`}>
                     <Banknote className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-black text-slate-900 truncate">كاش عند الاستلام</div>
-                    <div className="text-[10px] text-slate-500 hidden sm:block">تدفع بعد فحص طلبك</div>
+                    <div className="text-xs font-black text-store-text truncate">كاش مع الدليفري</div>
+                    <div className="text-[10px] text-store-muted hidden sm:block">تدفع براحتك لما تستلم أوردرك</div>
                   </div>
                 </button>
               )}
@@ -665,16 +667,16 @@ export const CheckoutModal: React.FC<Props> = ({
                   onClick={() => setPaymentMethod('instapay')}
                   className={`p-2.5 sm:p-3 rounded-2xl border text-center sm:text-right transition-all flex flex-col sm:flex-row items-center sm:items-start gap-2 btn-spring ${
                     paymentMethod === 'instapay'
-                      ? 'border-purple-600 bg-purple-50/70 ring-2 ring-purple-500/20 shadow-2xs'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                      ? 'border-2 border-purple-600 bg-purple-50/70 shadow-2xs'
+                      : 'border-store-line bg-store-card-subtle hover:bg-store-card'
                   }`}
                 >
-                  <div className={`p-2 rounded-xl flex-shrink-0 ${paymentMethod === 'instapay' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  <div className={`p-2 rounded-xl flex-shrink-0 ${paymentMethod === 'instapay' ? 'bg-purple-600 text-white' : 'bg-store-line text-store-muted'}`}>
                     <CreditCard className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-black text-slate-900 truncate">إنستاباي (InstaPay)</div>
-                    <div className="text-[10px] text-slate-500 hidden sm:block">تحويل بنكي لحظي</div>
+                    <div className="text-xs font-black text-store-text truncate">إنستاباي (InstaPay)</div>
+                    <div className="text-[10px] text-store-muted hidden sm:block">تحويل بنكي لحظي</div>
                   </div>
                 </button>
               )}
@@ -686,16 +688,16 @@ export const CheckoutModal: React.FC<Props> = ({
                   onClick={() => setPaymentMethod('vodafone_cash')}
                   className={`p-2.5 sm:p-3 rounded-2xl border text-center sm:text-right transition-all flex flex-col sm:flex-row items-center sm:items-start gap-2 btn-spring ${
                     paymentMethod === 'vodafone_cash'
-                      ? 'border-rose-600 bg-rose-50/70 ring-2 ring-rose-500/20 shadow-2xs'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                      ? 'border-2 border-rose-600 bg-rose-50/70 shadow-2xs'
+                      : 'border-store-line bg-store-card-subtle hover:bg-store-card'
                   }`}
                 >
-                  <div className={`p-2 rounded-xl flex-shrink-0 ${paymentMethod === 'vodafone_cash' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  <div className={`p-2 rounded-xl flex-shrink-0 ${paymentMethod === 'vodafone_cash' ? 'bg-rose-600 text-white' : 'bg-store-line text-store-muted'}`}>
                     <Smartphone className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-black text-slate-900 truncate">فودافون كاش</div>
-                    <div className="text-[10px] text-slate-500 hidden sm:block">محافظ المحمول الذكية</div>
+                    <div className="text-xs font-black text-store-text truncate">فودافون كاش</div>
+                    <div className="text-[10px] text-store-muted hidden sm:block">محافظ المحمول الذكية</div>
                   </div>
                 </button>
               )}
@@ -717,14 +719,14 @@ export const CheckoutModal: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => handleCopyText(instapayHandle, 'instapay')}
-                    className="flex items-center gap-1 text-[11px] font-black bg-white hover:bg-purple-100 text-purple-800 px-3 py-1.5 rounded-xl border border-purple-200 shadow-2xs btn-spring"
+                    className="flex items-center gap-1 text-[11px] font-black bg-store-card hover:bg-purple-100 text-purple-800 px-3 py-1.5 rounded-xl border border-purple-200 shadow-2xs btn-spring"
                   >
                     {copiedType === 'instapay' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedType === 'instapay' ? 'تم النسخ!' : 'نسخ الحساب'}</span>
                   </button>
                 </div>
 
-                <div className="p-3 bg-white rounded-2xl border border-purple-200 flex items-center justify-between shadow-2xs">
+                <div className="p-3 bg-store-card rounded-2xl border border-purple-200 flex items-center justify-between shadow-2xs">
                   <span className="text-sm sm:text-base font-black text-purple-950 tracking-wider font-mono" dir="ltr">
                     {instapayHandle}
                   </span>
@@ -736,11 +738,11 @@ export const CheckoutModal: React.FC<Props> = ({
                 {/* Proof of Payment Upload & Verification */}
                 <div className="pt-2 border-t border-purple-200/80 space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <label className="font-black text-slate-800 flex items-center gap-1.5 text-xs">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <label className="font-black text-store-text flex items-center gap-1.5 text-xs">
+                      <ShieldCheck className="w-4 h-4 text-paid flex-shrink-0" />
                       <span>توثيق وتأكيد التحويل (موصى به لتجهيز أسرع):</span>
                     </label>
-                    <span className="text-[10px] text-slate-500 font-medium">رفع إيصال أو إرساله واتساب</span>
+                    <span className="text-[10px] text-store-muted font-medium">رفع إيصال أو إرساله واتساب</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -749,33 +751,33 @@ export const CheckoutModal: React.FC<Props> = ({
                       placeholder="رقم الهاتف أو عنوان IPA المحوّل منه"
                       value={senderPhone}
                       onChange={e => setSenderPhone(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none"
+                      className="w-full text-xs p-2.5 rounded-xl border border-store-line bg-store-card text-store-text font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none"
                     />
                     <input
                       type="text"
                       placeholder="الرقم المرجعي للتحويل (اختياري)"
                       value={paymentRef}
                       onChange={e => setPaymentRef(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none"
+                      className="w-full text-xs p-2.5 rounded-xl border border-store-line bg-store-card text-store-text font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none"
                     />
                   </div>
 
                   {/* Receipt Image Upload */}
                   <div>
                     {receiptImage ? (
-                      <div className="p-3 bg-white rounded-2xl border-2 border-store-primary/40 flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="p-3 bg-store-card rounded-2xl border-2 border-store-primary/40 flex items-center justify-between gap-3 shadow-2xs">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <img
                             src={receiptImage}
                             alt="إيصال التحويل"
-                            className="w-12 h-12 object-cover rounded-xl border border-slate-200 flex-shrink-0 shadow-2xs"
+                            className="w-12 h-12 object-cover rounded-xl border border-store-line flex-shrink-0 shadow-2xs"
                           />
                           <div className="min-w-0">
                             <span className="text-xs font-black text-store-primary flex items-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5 text-store-primary flex-shrink-0" />
                               تم إرفاق إيصال التحويل بنجاح!
                             </span>
-                            <span className="text-[10px] text-slate-500 truncate block">
+                            <span className="text-[10px] text-store-muted truncate block">
                               سيظهر الإيصال مباشرة لصاحب المحل والكاشير للتأكيد الفوري
                             </span>
                           </div>
@@ -790,7 +792,7 @@ export const CheckoutModal: React.FC<Props> = ({
                         </button>
                       </div>
                     ) : (
-                      <label className="flex flex-col items-center justify-center p-3.5 border-2 border-dashed border-purple-300 hover:border-purple-600 rounded-2xl bg-white/90 hover:bg-white cursor-pointer transition-colors group">
+                      <label className="flex flex-col items-center justify-center p-3.5 border-2 border-dashed border-purple-300 hover:border-purple-600 rounded-2xl bg-store-card/90 hover:bg-store-card cursor-pointer transition-colors group">
                         <input
                           type="file"
                           accept="image/*"
@@ -801,7 +803,7 @@ export const CheckoutModal: React.FC<Props> = ({
                           <Upload className="w-4 h-4 text-purple-600 flex-shrink-0 group-hover:scale-110 transition-transform" />
                           <span>انقر لإرفاق لقطة شاشة التحويل أو إيصال السداد</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 mt-0.5">
+                        <span className="text-[10px] text-store-muted mt-0.5">
                           يقبل لقطات الشاشة والصور من المعرض أو الكاميرا (PNG, JPG)
                         </span>
                       </label>
@@ -827,14 +829,14 @@ export const CheckoutModal: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => handleCopyText(vodafoneNumber, 'vodafone')}
-                    className="flex items-center gap-1 text-[11px] font-black bg-white hover:bg-rose-100 text-rose-800 px-3 py-1.5 rounded-xl border border-rose-200 shadow-2xs btn-spring"
+                    className="flex items-center gap-1 text-[11px] font-black bg-store-card hover:bg-rose-100 text-rose-800 px-3 py-1.5 rounded-xl border border-rose-200 shadow-2xs btn-spring"
                   >
-                    {copiedType === 'vodafone' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedType === 'vodafone' ? <Check className="w-3.5 h-3.5 text-paid" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedType === 'vodafone' ? 'تم النسخ!' : 'نسخ الرقم'}</span>
                   </button>
                 </div>
 
-                <div className="p-3 bg-white rounded-2xl border border-rose-200 flex items-center justify-between shadow-2xs flex-wrap gap-2">
+                <div className="p-3 bg-store-card rounded-2xl border border-rose-200 flex items-center justify-between shadow-2xs flex-wrap gap-2">
                   <span className="text-sm sm:text-base font-black text-rose-950 tracking-wider font-mono" dir="ltr">
                     {vodafoneNumber}
                   </span>
@@ -852,11 +854,11 @@ export const CheckoutModal: React.FC<Props> = ({
                 {/* Proof of Payment Upload & Verification */}
                 <div className="pt-2 border-t border-rose-200/80 space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <label className="font-black text-slate-800 flex items-center gap-1.5 text-xs">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <label className="font-black text-store-text flex items-center gap-1.5 text-xs">
+                      <ShieldCheck className="w-4 h-4 text-paid flex-shrink-0" />
                       <span>توثيق وتأكيد التحويل (موصى به لتجهيز أسرع):</span>
                     </label>
-                    <span className="text-[10px] text-slate-500 font-medium">رفع إيصال أو إرساله واتساب</span>
+                    <span className="text-[10px] text-store-muted font-medium">رفع إيصال أو إرساله واتساب</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -865,33 +867,33 @@ export const CheckoutModal: React.FC<Props> = ({
                       placeholder="رقم المحفظة التي قمت بالتحويل منها"
                       value={senderPhone}
                       onChange={e => setSenderPhone(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-rose-600 focus:outline-none"
+                      className="w-full text-xs p-2.5 rounded-xl border border-store-line bg-store-card text-store-text font-medium focus:ring-2 focus:ring-rose-600 focus:outline-none"
                     />
                     <input
                       type="text"
                       placeholder="كود رسالة تأكيد فودافون كاش (اختياري)"
                       value={paymentRef}
                       onChange={e => setPaymentRef(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-rose-600 focus:outline-none"
+                      className="w-full text-xs p-2.5 rounded-xl border border-store-line bg-store-card text-store-text font-medium focus:ring-2 focus:ring-rose-600 focus:outline-none"
                     />
                   </div>
 
                   {/* Receipt Image Upload */}
                   <div>
                     {receiptImage ? (
-                      <div className="p-3 bg-white rounded-2xl border-2 border-store-primary/40 flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="p-3 bg-store-card rounded-2xl border-2 border-store-primary/40 flex items-center justify-between gap-3 shadow-2xs">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <img
                             src={receiptImage}
                             alt="إيصال التحويل"
-                            className="w-12 h-12 object-cover rounded-xl border border-slate-200 flex-shrink-0 shadow-2xs"
+                            className="w-12 h-12 object-cover rounded-xl border border-store-line flex-shrink-0 shadow-2xs"
                           />
                           <div className="min-w-0">
                             <span className="text-xs font-black text-store-primary flex items-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5 text-store-primary flex-shrink-0" />
                               تم إرفاق إيصال التحويل بنجاح!
                             </span>
-                            <span className="text-[10px] text-slate-500 truncate block">
+                            <span className="text-[10px] text-store-muted truncate block">
                               سيظهر الإيصال مباشرة لصاحب المحل والكاشير للتأكيد الفوري
                             </span>
                           </div>
@@ -906,7 +908,7 @@ export const CheckoutModal: React.FC<Props> = ({
                         </button>
                       </div>
                     ) : (
-                      <label className="flex flex-col items-center justify-center p-3.5 border-2 border-dashed border-rose-300 hover:border-rose-600 rounded-2xl bg-white/90 hover:bg-white cursor-pointer transition-colors group">
+                      <label className="flex flex-col items-center justify-center p-3.5 border-2 border-dashed border-rose-300 hover:border-rose-600 rounded-2xl bg-store-card/90 hover:bg-store-card cursor-pointer transition-colors group">
                         <input
                           type="file"
                           accept="image/*"
@@ -917,7 +919,7 @@ export const CheckoutModal: React.FC<Props> = ({
                           <Upload className="w-4 h-4 text-rose-600 flex-shrink-0 group-hover:scale-110 transition-transform" />
                           <span>انقر لإرفاق لقطة شاشة التحويل أو إيصال السداد</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 mt-0.5">
+                        <span className="text-[10px] text-store-muted mt-0.5">
                           يقبل لقطات الشاشة والصور من المعرض أو الكاميرا (PNG, JPG)
                         </span>
                       </label>
@@ -929,19 +931,19 @@ export const CheckoutModal: React.FC<Props> = ({
           </div>
 
           {/* Financial Recap Card */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-store-line space-y-1.5 text-xs">
-            <div className="flex justify-between text-slate-600">
-              <span>قيمة الأصناف ({cartItems.length}):</span>
-              <span className="font-bold text-slate-900">{(subtotal / 100).toFixed(2)} ج.م</span>
+          <div className="p-3.5 rounded-2xl bg-store-card-subtle border border-store-line space-y-1.5 text-xs">
+            <div className="flex justify-between text-store-muted">
+              <span>حساب الأصناف ({cartItems.length}):</span>
+              <span className="font-bold text-store-text">{(subtotal / 100).toFixed(2)} ج.م</span>
             </div>
             {deliveryMethod === 'delivery' && (
-              <div className="flex justify-between text-slate-600">
-                <span>رسوم التوصيل ({selectedDeliveryZone || 'عادي'}):</span>
-                <span className="font-bold text-slate-900">{(deliveryFee / 100).toFixed(2)} ج.م</span>
+              <div className="flex justify-between text-store-muted">
+                <span>مصاريف الدليفري ({selectedDeliveryZone || 'عادي'}):</span>
+                <span className="font-bold text-store-text">{(deliveryFee / 100).toFixed(2)} ج.م</span>
               </div>
             )}
-            <div className="flex justify-between text-sm font-black text-store-primary pt-1.5 border-t border-slate-200">
-              <span>الإجمالي النهائي للدفع:</span>
+            <div className="flex justify-between text-sm font-black text-store-primary pt-1.5 border-t border-store-line">
+              <span>إجمالي الأوردر المطلوب:</span>
               <span className="text-base">{(grandTotal / 100).toFixed(2)} ج.م</span>
             </div>
           </div>
@@ -951,17 +953,17 @@ export const CheckoutModal: React.FC<Props> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 bg-store-primary hover:bg-store-primary-hover disabled:bg-slate-300 text-white py-3.5 rounded-2xl font-black text-sm shadow-lg shadow-store-primary/20 transition-all btn-spring"
+              className="w-full flex items-center justify-center gap-2 bg-store-primary hover:opacity-90 disabled:bg-slate-300 !text-white py-3.5 rounded-2xl font-black text-sm shadow-lg shadow-store-primary/20 transition-all btn-spring"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>جاري تأكيد وإرسال طلبك...</span>
+                  <Loader2 className="w-4 h-4 animate-spin !text-white" />
+                  <span className="!text-white">ثواني.. بنبعت الأوردر للمحل...</span>
                 </>
               ) : (
                 <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>تأكيد إرسال الطلب الآن</span>
+                  <ShieldCheck className="w-4 h-4 !text-white" />
+                  <span className="!text-white">تأكيد وإرسال الأوردر الآن</span>
                 </>
               )}
             </button>

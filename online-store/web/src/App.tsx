@@ -12,7 +12,7 @@ import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { OrderSuccessModal } from './components/OrderSuccessModal';
 import { OrderTrackerModal } from './components/OrderTrackerModal';
-import { DashboardModal } from './components/DashboardModal';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { FloatingCartBar } from './components/FloatingCartBar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Toast } from './components/Toast';
@@ -25,17 +25,25 @@ export const App: React.FC = () => {
     return path || 'souq-el-khair';
   }, []);
 
-  const [store, setStore] = useState<Store>(MOCK_STORE);
+  const [store, setStore] = useState<Store>(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('rafiq_active_theme_preset') : null;
+    return saved ? { ...MOCK_STORE, theme_preset: saved } : MOCK_STORE;
+  });
   const [categories, setCategories] = useState<Category[]>(MOCK_CATEGORIES);
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('cat-1');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [themePreset, setThemePreset] = useState<string>(() => {
-    return localStorage.getItem('rafiq_active_theme_preset') || MOCK_STORE.theme_preset || 'classic-green';
+    return (
+      (typeof window !== 'undefined' && localStorage.getItem('rafiq_active_theme_preset')) ||
+      MOCK_STORE.theme_preset ||
+      'duo-forest-cream'
+    );
   });
 
   const handleThemeChange = (newPreset: string) => {
     setThemePreset(newPreset);
+    setStore(prev => ({ ...prev, theme_preset: newPreset }));
     try {
       localStorage.setItem('rafiq_active_theme_preset', newPreset);
     } catch {}
@@ -45,13 +53,66 @@ export const App: React.FC = () => {
   const [featuredOnly, setFeaturedOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
 
+  // Full-page view routing: 'store' | 'admin'
+  const [currentView, setCurrentView] = useState<'store' | 'admin'>(() => {
+    try {
+      const search = new URLSearchParams(window.location.search);
+      const path = window.location.pathname.toLowerCase();
+      if (
+        search.get('admin') === '1' ||
+        search.get('view') === 'admin' ||
+        path.endsWith('/admin') ||
+        path.endsWith('/dashboard')
+      ) {
+        return 'admin';
+      }
+    } catch {}
+    return 'store';
+  });
+
+  const navigateToView = (view: 'store' | 'admin') => {
+    setCurrentView(view);
+    try {
+      if (view === 'admin') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('admin', '1');
+        window.history.pushState({}, '', url.toString());
+      } else {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('admin');
+        url.searchParams.delete('view');
+        window.history.pushState({}, '', url.pathname + (url.search ? url.search : ''));
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const search = new URLSearchParams(window.location.search);
+        const path = window.location.pathname.toLowerCase();
+        if (
+          search.get('admin') === '1' ||
+          search.get('view') === 'admin' ||
+          path.endsWith('/admin') ||
+          path.endsWith('/dashboard')
+        ) {
+          setCurrentView('admin');
+        } else {
+          setCurrentView('store');
+        }
+      } catch {}
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // Cart & Modals
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [isTrackerOpen, setIsTrackerOpen] = useState(false);
-  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Toast Notification
@@ -78,15 +139,22 @@ export const App: React.FC = () => {
   // Load Data
   useEffect(() => {
     async function loadData() {
-      const storeData = await apiClient.getStore(storeSlug);
-      setStore(storeData);
-      setThemePreset(storeData.theme_preset || 'classic-green');
+      try {
+        const storeData = await apiClient.getStore(storeSlug);
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('rafiq_active_theme_preset') : null;
+        const effectiveTheme = saved || storeData.theme_preset || 'duo-forest-cream';
+        const mergedStore = { ...storeData, theme_preset: effectiveTheme };
+        setStore(mergedStore);
+        setThemePreset(effectiveTheme);
 
-      const cats = await apiClient.getCategories(storeSlug);
-      setCategories(cats);
+        const cats = await apiClient.getCategories(storeSlug);
+        setCategories(cats);
 
-      const prods = await apiClient.getProducts(storeSlug);
-      setProducts(prods);
+        const prods = await apiClient.getProducts(storeSlug);
+        setProducts(prods);
+      } catch (e) {
+        console.error('Failed to load store data:', e);
+      }
     }
     loadData();
   }, [storeSlug]);
@@ -178,6 +246,23 @@ export const App: React.FC = () => {
     }
   };
 
+  // Full-Page Shopify Polaris Merchant Admin Portal
+  if (currentView === 'admin') {
+    return (
+      <div className="min-h-screen bg-[#F6F6F7]">
+        <ThemeInjector preset={themePreset} custom={store.theme_custom} />
+        <AdminDashboardPage
+          store={store}
+          products={products}
+          currentThemePreset={themePreset}
+          onThemeChange={handleThemeChange}
+          onUpdateStore={updated => setStore(updated)}
+          onBackToStore={() => navigateToView('store')}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-store-bg text-store-text pb-28 sm:pb-0">
       {/* Dynamic Theme Injector */}
@@ -202,7 +287,7 @@ export const App: React.FC = () => {
         onSearchChange={setSearchQuery}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenTracker={() => setIsTrackerOpen(true)}
-        onOpenDashboard={() => setIsDashboardOpen(true)}
+        onOpenDashboard={() => navigateToView('admin')}
         onSelectZoneClick={() => setIsCartOpen(true)}
       />
 
@@ -232,11 +317,11 @@ export const App: React.FC = () => {
             onClick={() => setFeaturedOnly(!featuredOnly)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all flex-shrink-0 ${
               featuredOnly
-                ? 'bg-amber-500 text-white shadow-xs'
-                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+                ? 'bg-store-accent text-store-accent-contrast shadow-xs'
+                : 'bg-store-card text-store-text border border-store-line hover:border-store-primary/40'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <Sparkles className="w-3.5 h-3.5" />
             <span>عروض وتخفيضات</span>
           </button>
 
@@ -244,11 +329,11 @@ export const App: React.FC = () => {
             onClick={() => setInStockOnly(!inStockOnly)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all flex-shrink-0 ${
               inStockOnly
-                ? 'bg-store-primary text-white shadow-xs'
-                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+                ? 'bg-store-primary text-store-primary-contrast shadow-xs'
+                : 'bg-store-card text-store-text border border-store-line hover:border-store-primary/40'
             }`}
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-store-primary" />
+            <CheckCircle2 className="w-3.5 h-3.5" />
             <span>المتوفر بالمخزن فقط</span>
           </button>
 
@@ -258,7 +343,7 @@ export const App: React.FC = () => {
                 setFeaturedOnly(false);
                 setInStockOnly(false);
               }}
-              className="text-[11px] font-bold text-slate-400 hover:text-slate-600 px-2 py-1 flex-shrink-0"
+              className="text-[11px] font-bold text-store-muted hover:text-store-text px-2 py-1 flex-shrink-0"
             >
               إلغاء التصفية
             </button>
@@ -320,9 +405,9 @@ export const App: React.FC = () => {
           {/* Main Product Catalog */}
           <main className="flex-1 w-full min-w-0">
             {/* Desktop Toolbar */}
-            <div className="hidden sm:flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs mb-6">
+            <div className="hidden sm:flex items-center justify-between bg-store-card p-4 rounded-3xl border border-store-line shadow-2xs mb-6 transition-colors">
               <div className="flex items-center gap-3">
-                <h3 className="text-base font-black text-slate-900">
+                <h3 className="text-base font-black text-store-text">
                   {searchQuery
                     ? `نتائج البحث عن: "${searchQuery}"`
                     : featuredOnly
@@ -331,7 +416,7 @@ export const App: React.FC = () => {
                     ? 'كافة المنتجات المتاحة'
                     : categories.find(c => c.id === selectedCategoryId)?.name || 'الأصناف'}
                 </h3>
-                <span className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-bold">
+                <span className="text-xs bg-store-card-subtle text-store-muted border border-store-line px-3 py-1 rounded-full font-bold">
                   {filteredProducts.length} صنف متاح
                 </span>
               </div>
@@ -339,8 +424,8 @@ export const App: React.FC = () => {
               {/* Active Filter Badges */}
               <div className="flex items-center gap-2">
                 {featuredOnly && (
-                  <span className="flex items-center gap-1 text-xs bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-xl font-bold animate-pop">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="flex items-center gap-1 text-xs bg-store-accent text-store-accent-contrast px-3 py-1 rounded-xl font-bold animate-pop shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5" />
                     عروض مميزة
                   </span>
                 )}
@@ -377,19 +462,19 @@ export const App: React.FC = () => {
                   ? 'كافة الأصناف والمنتجات'
                   : categories.find(c => c.id === selectedCategoryId)?.name || 'الأصناف'}
               </h3>
-              <span className="text-[11px] font-bold text-slate-500">
+              <span className="text-[11px] font-bold text-store-muted">
                 {filteredProducts.length} صنف
               </span>
             </div>
 
             {/* Products Grid */}
             {filteredProducts.length === 0 ? (
-              <div className="py-16 text-center text-slate-500 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs">
-                <div className="w-16 h-16 rounded-full bg-slate-100 mx-auto flex items-center justify-center mb-3 text-slate-300">
+              <div className="py-16 text-center text-store-muted bg-store-card rounded-3xl border border-store-line p-8 shadow-2xs transition-colors">
+                <div className="w-16 h-16 rounded-3xl bg-store-primary-light text-store-primary mx-auto flex items-center justify-center mb-3 shadow-inner border border-store-primary/20">
                   <Sparkles className="w-8 h-8" />
                 </div>
-                <h4 className="text-base font-black text-slate-900">لا توجد أصناف مطابقة</h4>
-                <p className="text-xs text-slate-500 mt-1">جرب إزالة بعض الفلاتر أو البحث بكلمة أخرى</p>
+                <h4 className="text-base font-black text-store-text">لا توجد أصناف مطابقة</h4>
+                <p className="text-xs text-store-muted mt-1">جرب إزالة بعض الفلاتر أو البحث بكلمة أخرى</p>
                 <button
                   onClick={() => {
                     setSearchQuery('');
@@ -397,7 +482,7 @@ export const App: React.FC = () => {
                     setInStockOnly(false);
                     setSelectedCategoryId('cat-1');
                   }}
-                  className="mt-4 px-5 py-2.5 rounded-2xl bg-store-primary text-white text-xs font-black shadow-md btn-spring"
+                  className="mt-4 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-store-primary to-store-secondary text-store-primary-contrast text-xs font-black shadow-md btn-spring"
                 >
                   عرض كافة المنتجات
                 </button>
@@ -426,14 +511,21 @@ export const App: React.FC = () => {
       {/* Mobile Platform Signature & Promotional Card */}
       <RafiqBrandingCard variant="mobile-feed" />
 
-      {/* Desktop Footer */}
-      <footer className="hidden sm:block bg-slate-900 text-white mt-auto border-t border-slate-800">
+      {/* Desktop Footer - Guaranteed Deep Rich Surface & High Contrast */}
+      <footer
+        className="hidden sm:block mt-auto border-t shadow-2xl transition-colors duration-500"
+        style={{
+          backgroundColor: 'var(--store-footer-bg, #0B131F)',
+          color: '#FFFFFF',
+          borderColor: 'var(--store-footer-line, #1E293B)',
+        }}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-right">
             {/* Store Information */}
             <div className="md:col-span-2 space-y-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-store-primary flex items-center justify-center font-black text-white text-base shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-store-primary to-store-secondary text-white flex items-center justify-center font-black text-base shadow-sm border border-white/20">
                   {store.name.charAt(0)}
                 </div>
                 <div>
@@ -441,12 +533,12 @@ export const App: React.FC = () => {
                   <div className="text-[11px] text-emerald-400 font-bold">متجر إلكتروني رسمي ومضمون</div>
                 </div>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed max-w-md">
+              <p className="text-xs text-slate-300 leading-relaxed max-w-md font-medium">
                 {store.welcome_message || 'متجر إلكتروني رسمي متصل لحظياً بنظام كاشير رفيق لإدارة المبيعات والمخزون بأسعار رسمية وجودة مضمونة لجميع احتياجات منزلك.'}
               </p>
               {store.address && (
-                <div className="flex items-center gap-2 text-xs text-slate-300">
-                  <MapPin className="w-4 h-4 text-store-primary flex-shrink-0" />
+                <div className="flex items-center gap-2 text-xs text-slate-200">
+                  <MapPin className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                   <span>{store.address}</span>
                 </div>
               )}
@@ -455,15 +547,15 @@ export const App: React.FC = () => {
             {/* Working Hours */}
             <div>
               <h5 className="text-xs font-black text-white mb-3 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-store-primary" />
+                <Clock className="w-4 h-4 text-emerald-400" />
                 مواعيد العمل والتوصيل
               </h5>
               {store.working_hours ? (
-                <div className="space-y-1.5 text-xs text-slate-400">
+                <div className="space-y-1.5 text-xs text-slate-300">
                   {Object.entries(store.working_hours).map(([day, hrs]) => (
-                    <div key={day} className="flex justify-between border-b border-slate-800 pb-1">
-                      <span>{day}:</span>
-                      <span className="font-semibold text-slate-200">{hrs}</span>
+                    <div key={day} className="flex justify-between border-b border-white/10 pb-1">
+                      <span className="text-slate-400">{day}:</span>
+                      <span className="font-bold text-white">{hrs}</span>
                     </div>
                   ))}
                 </div>
@@ -472,18 +564,49 @@ export const App: React.FC = () => {
               )}
             </div>
 
-            {/* Rafiq POS Platform Branding */}
+            {/* Customer Support & Quick Access */}
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <img src="/logo_white.png" alt="رفيق" className="w-6 h-6 object-contain flex-shrink-0" />
-                <h5 className="text-xs font-black text-white">منظومة رفيق لإدارة المتاجر ونقاط البيع</h5>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                حلول رقمية متكاملة لربط نقاط البيع بالمتاجر الإلكترونية أوفلاين وأونلاين بدون تعقيدات.
-              </p>
-              <div className="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-                <img src="/logo_full_white.png" alt="Rafiq POS" className="h-5 object-contain" />
-                <span>نظام رفيق المعتمد © 2026</span>
+              <h5 className="text-xs font-black text-white mb-3 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                خدمة العملاء والطلب
+              </h5>
+              <div className="space-y-2.5 text-xs text-slate-300">
+                <button
+                  type="button"
+                  onClick={() => setIsTrackerOpen(true)}
+                  className="w-full text-right hover:text-white transition-colors flex items-center justify-between pb-1.5 border-b border-white/10 text-xs"
+                >
+                  <span>تتبع حالة الأوردر</span>
+                  <span className="text-[10px] text-emerald-400 font-bold">لحظة بلحظة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCartOpen(true)}
+                  className="w-full text-right hover:text-white transition-colors flex items-center justify-between pb-1.5 border-b border-white/10 text-xs"
+                >
+                  <span>سلة المشتريات</span>
+                  <span className="text-[10px] text-slate-400 font-mono">({cartCount} صنف)</span>
+                </button>
+                {store.whatsapp && (
+                  <a
+                    href={`https://wa.me/2${store.whatsapp.replace(/^0+/, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-emerald-400 transition-colors flex items-center justify-between pb-1.5 border-b border-white/10 text-xs"
+                  >
+                    <span>مراسلة واتساب المحل</span>
+                    <span className="text-[10px] text-emerald-400 font-bold">دعم فوري</span>
+                  </a>
+                )}
+                {store.phone && (
+                  <a
+                    href={`tel:${store.phone}`}
+                    className="hover:text-white transition-colors flex items-center justify-between text-xs"
+                  >
+                    <span>اتصال هاتفي مباشر</span>
+                    <span className="text-[10px] text-slate-300 font-mono" dir="ltr">{store.phone}</span>
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -492,15 +615,16 @@ export const App: React.FC = () => {
           <RafiqBrandingCard variant="footer-banner" />
 
           {/* Desktop Platform Signature Bar */}
-          <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-            <div className="flex items-center gap-2.5">
-              <img src="/logo_white.png" alt="رفيق POS" className="w-5 h-5 object-contain" />
-              <span className="font-bold text-slate-300">
-                منظومة رفيق لإدارة نقاط البيع والمتاجر السحابية • Rafiq POS
-              </span>
+          <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+            <div className="text-[11px] text-slate-400 font-medium">
+              جميع الحقوق محفوظة لـ <strong className="text-white">{store.name}</strong> © 2026
             </div>
-            <div className="text-[11px] text-slate-500 font-medium">
-              تم التطوير والتشغيل السحابي عبر نظام رفيق المعتمد • جميع الحقوق محفوظة © 2026
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400 font-medium">مشغّل بواسطة</span>
+              <div className="flex items-center gap-1.5 text-white font-bold text-xs bg-white/10 px-2.5 py-1 rounded-xl border border-white/10">
+                <img src="/rafiq_logo.png" alt="رفيق POS" className="w-4 h-4 object-contain rounded-md" />
+                <span>نظام كاشير رفيق الذكي • Rafiq POS</span>
+              </div>
             </div>
           </div>
         </div>
@@ -588,15 +712,6 @@ export const App: React.FC = () => {
         isOpen={isTrackerOpen}
         onClose={() => setIsTrackerOpen(false)}
         trackOrderApi={(num, ph) => apiClient.trackOrder(storeSlug, num, ph)}
-      />
-
-      <DashboardModal
-        isOpen={isDashboardOpen}
-        onClose={() => setIsDashboardOpen(false)}
-        store={store}
-        products={products}
-        onThemeChange={handleThemeChange}
-        onUpdateStore={updated => setStore(updated)}
       />
     </div>
   );
