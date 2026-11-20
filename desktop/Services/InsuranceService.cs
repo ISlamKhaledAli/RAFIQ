@@ -123,9 +123,14 @@ namespace RafiqPOS.Services
             return _insuranceRepo.GetBatchById(batchId);
         }
 
+        public InsuranceClaimLine GetClaimLineBySaleId(string saleId)
+        {
+            return _insuranceRepo.GetClaimLineBySaleId(saleId);
+        }
+
         public InsuranceClaimBatch CreateBatch(string companyId, string batchNumber, string periodMonth, string notes = null, List<string> claimLineIds = null, string createdBy = null)
         {
-            var batch = _insuranceRepo.CreateClaimBatch(companyId, periodMonth, claimLineIds, createdBy, notes);
+            var batch = _insuranceRepo.CreateClaimBatch(companyId, periodMonth, claimLineIds, createdBy, notes, batchNumber);
             if (batch != null && !string.IsNullOrEmpty(batchNumber))
             {
                 batch.BatchNumber = batchNumber;
@@ -153,7 +158,9 @@ namespace RafiqPOS.Services
             string rejectionReason,
             string settlementDeductionTarget,
             string settledBy,
-            string notes = null)
+            string notes = null,
+            string receiptTarget = "none",
+            string receiptAccountId = null)
         {
             var batch = _insuranceRepo.SettleBatch(
                 batchId,
@@ -162,7 +169,9 @@ namespace RafiqPOS.Services
                 rejectionReason,
                 settlementDeductionTarget,
                 settledBy,
-                notes
+                notes,
+                receiptTarget,
+                receiptAccountId
             );
 
             if (_auditRepo != null && batch != null)
@@ -173,8 +182,8 @@ namespace RafiqPOS.Services
                     Action = "INSURANCE_CLAIM_BATCH_SETTLED",
                     EntityType = "INSURANCE_BATCH",
                     EntityId = batch.Id,
-                    DetailsJson = string.Format("{{\"batchNumber\":\"{0}\",\"status\":\"{1}\",\"settledPiasters\":{2},\"rejectedPiasters\":{3},\"deductionTarget\":\"{4}\"}}",
-                        batch.BatchNumber, batch.Status, settledAmountPiasters, rejectedAmountPiasters, settlementDeductionTarget ?? "")
+                    DetailsJson = string.Format("{{\"batchNumber\":\"{0}\",\"status\":\"{1}\",\"settledPiasters\":{2},\"rejectedPiasters\":{3},\"deductionTarget\":\"{4}\",\"receiptTarget\":\"{5}\",\"receiptAccountId\":\"{6}\"}}",
+                        batch.BatchNumber, batch.Status, settledAmountPiasters, rejectedAmountPiasters, settlementDeductionTarget ?? "", receiptTarget ?? "none", receiptAccountId ?? "")
                 });
             }
             return batch;
@@ -187,12 +196,23 @@ namespace RafiqPOS.Services
             byte[] bytes = ExportBatchToExcelBytes(batchId);
             if (string.IsNullOrEmpty(targetFilePath))
             {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RafiqPOS", "exports");
+                string docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                string dir = string.IsNullOrEmpty(docs)
+                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RafiqPOS", "exports")
+                    : Path.Combine(docs, "RafiqPOS", "Exports");
                 if (!Directory.Exists(dir))
                 {
                     Directory.CreateDirectory(dir);
                 }
                 targetFilePath = Path.Combine(dir, string.Format("Insurance_Claim_{0}_{1}.xlsx", batchId, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")));
+            }
+            else
+            {
+                string targetDir = Path.GetDirectoryName(targetFilePath);
+                if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                {
+                    Directory.CreateDirectory(targetDir);
+                }
             }
             File.WriteAllBytes(targetFilePath, bytes);
             return targetFilePath;

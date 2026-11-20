@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Building2,
   FileText,
@@ -12,7 +12,14 @@ import {
   Mail,
   MapPin,
   Hash,
-  Pencil
+  Pencil,
+  FileSpreadsheet,
+  FolderOpen,
+  Landmark,
+  Smartphone,
+  FolderTree,
+  Package,
+  Trash2
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useAuth } from '../../context/useAuth';
@@ -33,6 +40,7 @@ import {
   parseDateToLocalDateStr,
   toLocalDateString,
 } from '../../utils/dateFilter';
+import { formatArabicCurrency } from '../../utils/money';
 import { RequiredMark } from '../../components/RequiredMark';
 import { formatPhoneDisplay } from '../../utils/phoneFormat';
 import { useMotionPanel } from '../../hooks/useMotionPanel';
@@ -41,8 +49,10 @@ import type {
   InsuranceContract,
   InsuranceMember,
   InsuranceClaimBatch,
-  InsuranceClaimLine
+  InsuranceClaimLine,
+  InsuranceExclusion
 } from '../../types/insurance';
+import type { DigitalAccount, Category } from '../../types/models';
 
 interface CompanyIdentityRow {
   key: string;
@@ -92,7 +102,9 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   const motionPanel = useMotionPanel(activeTab);
   const [_loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [exportedFilePath, setExportedFilePath] = useState<string | null>(null);
 
   // Data states
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
@@ -124,6 +136,23 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   const [showContractModal, setShowContractModal] = useState<boolean>(false);
   const [editingContract, setEditingContract] = useState<Partial<InsuranceContract> | null>(null);
 
+  // Contract Exclusions Editor State
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
+  const [exclusionSubTab, setExclusionSubTab] = useState<'categories' | 'products'>('categories');
+  const [selectedCategoryIdToAdd, setSelectedCategoryIdToAdd] = useState<string>('');
+  const [productSearchTerm, setProductSearchTerm] = useState<string>('');
+  const [productSearchResults, setProductSearchResults] = useState<Array<{ id: string; name: string; barcode?: string; pricePiasters?: number }>>([]);
+  const [isSearchingProduct, setIsSearchingProduct] = useState<boolean>(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const [showMemberModal, setShowMemberModal] = useState<boolean>(false);
   const [editingMember, setEditingMember] = useState<Partial<InsuranceMember> | null>(null);
 
@@ -140,16 +169,41 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   const [rejectedAmountEgp, setRejectedAmountEgp] = useState<string>('0');
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [deductionTarget, setDeductionTarget] = useState<'expense' | 'patient_debt'>('expense');
+  const [receiptTarget, setReceiptTarget] = useState<'none' | 'drawer' | 'digital_account'>('drawer');
+  const [receiptAccountId, setReceiptAccountId] = useState<string>('');
+  const [digitalAccounts, setDigitalAccounts] = useState<DigitalAccount[]>([]);
+  const [showQuickAccountModal, setShowQuickAccountModal] = useState<boolean>(false);
+  const [newAccountName, setNewAccountName] = useState<string>('');
+  const [newAccountProvider, setNewAccountProvider] = useState<string>('vodafone_cash');
+  const [newAccountNumber, setNewAccountNumber] = useState<string>('');
+  const [newAccountHolder, setNewAccountHolder] = useState<string>('');
+  const [savingNewAccount, setSavingNewAccount] = useState<boolean>(false);
+  const [quickAccountError, setQuickAccountError] = useState<string | null>(null);
+
+  const fetchDigitalAccounts = useCallback(async () => {
+    try {
+      const accs = await invoke<DigitalAccount[]>('wallets:getAccounts', { includeInactive: false });
+      if (Array.isArray(accs)) {
+        setDigitalAccounts(accs);
+        return accs;
+      }
+    } catch {
+      // Non-blocking
+    }
+    return [];
+  }, []);
 
   // Load Data
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [compsRes, cntsRes, batchesRes] = await Promise.all([
+      const [compsRes, cntsRes, batchesRes, catsRes] = await Promise.all([
         invoke<InsuranceCompany[]>('insurance:getCompanies', { includeInactive: false }),
         invoke<InsuranceContract[]>('insurance:getContracts', { includeInactive: false }),
         invoke<InsuranceClaimBatch[]>('insurance:getBatches', {}),
+        invoke<Category[]>('categories:getAll', { includeArchived: false }).catch(() => []),
+        fetchDigitalAccounts(),
       ]);
 
       if (Array.isArray(compsRes)) {
@@ -160,6 +214,9 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       }
       if (Array.isArray(batchesRes)) {
         setBatches(batchesRes);
+      }
+      if (Array.isArray(catsRes)) {
+        setAvailableCategories(catsRes);
       }
 
       if (activeTab === 'members') {
@@ -186,7 +243,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [activeTab, selectedContractId, memberSearchQuery, newBatchCompanyId, showBatchModal]);
+  }, [activeTab, selectedContractId, memberSearchQuery, newBatchCompanyId, showBatchModal, fetchDigitalAccounts]);
 
   useEffect(() => {
     loadData();
@@ -238,10 +295,11 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   // Company save
   const handleSaveCompany = async () => {
     if (!editingCompany || !editingCompany.name?.trim()) {
-      setError('يرجى إدخال اسم شركة التأمين');
+      setModalError('يرجى إدخال اسم شركة التأمين');
       return;
     }
     setLoading(true);
+    setModalError(null);
     try {
       await invoke('insurance:saveCompany', editingCompany);
       setSuccessMsg('تم حفظ شركة التأمين');
@@ -249,7 +307,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       setEditingCompany(null);
       await loadData();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'حدث خطأ أثناء الحفظ');
+      setModalError(err instanceof Error ? err.message : 'حدث خطأ أثناء الحفظ');
     } finally {
       setLoading(false);
     }
@@ -258,30 +316,159 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   // Contract save
   const handleSaveContract = async () => {
     if (!editingContract || !editingContract.name?.trim() || !editingContract.companyId) {
-      setError('يرجى اختيار شركة التأمين وإدخال اسم العقد');
+      setModalError('يرجى اختيار شركة التأمين وإدخال اسم العقد');
       return;
     }
     setLoading(true);
+    setModalError(null);
     try {
-      await invoke('insurance:saveContract', editingContract);
-      setSuccessMsg('تم حفظ عقد التأمين');
-      setShowContractModal(false);
-      setEditingContract(null);
+      const exclusions = editingContract.exclusions || [];
+      const hasCosmeticsExcluded = exclusions.some((e) => {
+        if (!e.categoryId) return false;
+        const cat = availableCategories.find((c) => c.id === e.categoryId);
+        return cat && (cat.name.includes('تجميل') || cat.name.toLowerCase().includes('cosmetic'));
+      });
+      const contractToSave = {
+        ...editingContract,
+        exclusions,
+        excludesCosmetics: Boolean(editingContract.excludesCosmetics || hasCosmeticsExcluded),
+      };
+      await invoke('insurance:saveContract', contractToSave);
+      setSuccessMsg('تم حفظ عقد التأمين بنجاح');
+      closeContractModal();
       await loadData();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'حدث خطأ أثناء الحفظ');
+      setModalError(err instanceof Error ? err.message : 'حدث خطأ أثناء الحفظ');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleProductSearchChange = (val: string) => {
+    setProductSearchTerm(val);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setProductSearchResults([]);
+      setIsSearchingProduct(false);
+      return;
+    }
+    setIsSearchingProduct(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await invoke<{ products?: Array<{ id: string; name: string; barcode?: string; pricePiasters?: number }> } | Array<{ id: string; name: string; barcode?: string; pricePiasters?: number }>>('products:search', {
+          query: trimmed,
+          limit: 8,
+        });
+        const prods = Array.isArray(res) ? res : res?.products || [];
+        setProductSearchResults(prods);
+      } catch {
+        setProductSearchResults([]);
+      } finally {
+        setIsSearchingProduct(false);
+      }
+    }, 250);
+  };
+
+  const handleAddCategoryExclusion = (catId: string) => {
+    if (!editingContract || !catId) return;
+    const current = editingContract.exclusions || [];
+    if (current.some((e) => e.categoryId === catId)) return;
+    const targetCat = availableCategories.find((c) => c.id === catId);
+    const newExcl: InsuranceExclusion = {
+      categoryId: catId,
+      categoryName: targetCat?.name || 'تصنيف',
+      productId: null,
+      productName: null,
+    };
+    setEditingContract({
+      ...editingContract,
+      exclusions: [...current, newExcl],
+    });
+    setSelectedCategoryIdToAdd('');
+  };
+
+  const handleAddProductExclusion = (prod: { id: string; name: string; barcode?: string; pricePiasters?: number }) => {
+    if (!editingContract || !prod) return;
+    const current = editingContract.exclusions || [];
+    if (current.some((e) => e.productId === prod.id)) return;
+    const newExcl: InsuranceExclusion = {
+      productId: prod.id,
+      productName: prod.name,
+      productBarcode: prod.barcode || null,
+      productPricePiasters: prod.pricePiasters || null,
+      categoryId: null,
+      categoryName: null,
+    };
+    setEditingContract({
+      ...editingContract,
+      exclusions: [...current, newExcl],
+    });
+    setProductSearchTerm('');
+    setProductSearchResults([]);
+  };
+
+  const handleRemoveExclusion = (index: number) => {
+    if (!editingContract) return;
+    const current = editingContract.exclusions || [];
+    setEditingContract({
+      ...editingContract,
+      exclusions: current.filter((_, idx) => idx !== index),
+    });
+  };
+
+  const openNewContractModal = (companyId: string) => {
+    setEditingContract({
+      companyId,
+      patientShareBps: 2000,
+      excludesCosmetics: false,
+      isActive: true,
+      exclusions: [],
+    });
+    setSelectedCategoryIdToAdd('');
+    setProductSearchTerm('');
+    setProductSearchResults([]);
+    setExclusionSubTab('categories');
+    setModalError(null);
+    setShowContractModal(true);
+  };
+
+  const openEditContractModal = (cnt: InsuranceContract) => {
+    setEditingContract({
+      ...cnt,
+      exclusions: Array.isArray(cnt.exclusions) ? [...cnt.exclusions] : [],
+    });
+    setSelectedCategoryIdToAdd('');
+    setProductSearchTerm('');
+    setProductSearchResults([]);
+    setExclusionSubTab('categories');
+    setModalError(null);
+    setShowContractModal(true);
+  };
+
+  const closeContractModal = () => {
+    setShowContractModal(false);
+    setEditingContract(null);
+    setModalError(null);
+    setSelectedCategoryIdToAdd('');
+    setProductSearchTerm('');
+    setProductSearchResults([]);
+    setExclusionSubTab('categories');
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
     }
   };
 
   // Member save
   const handleSaveMember = async () => {
     if (!editingMember || !editingMember.memberName?.trim() || !editingMember.memberNo?.trim() || !editingMember.contractId) {
-      setError('يرجى استيفاء اسم المشترك، رقم الكارنيه، واختيار العقد');
+      setModalError('يرجى استيفاء اسم المشترك، رقم الكارنيه، واختيار العقد');
       return;
     }
     setLoading(true);
+    setModalError(null);
     try {
       await invoke('insurance:saveMember', editingMember);
       setSuccessMsg('تم تسجيل المشترك');
@@ -289,7 +476,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       setEditingMember(null);
       await loadData();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'حدث خطأ أثناء الحفظ');
+      setModalError(err instanceof Error ? err.message : 'حدث خطأ أثناء الحفظ');
     } finally {
       setLoading(false);
     }
@@ -298,14 +485,15 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   // Create Batch
   const handleCreateBatch = async () => {
     if (!newBatchCompanyId || !newBatchNumber.trim() || !newBatchPeriod) {
-      setError('يرجى اختيار الشركة وإدخال رقم المطالبة والشهر');
+      setModalError('يرجى اختيار الشركة وإدخال رقم المطالبة والشهر');
       return;
     }
     if (selectedPendingClaimIds.length === 0) {
-      setError('يرجى تحديد فاتورة واحدة على الأقل لإدراجها في المطالبة');
+      setModalError('يرجى تحديد فاتورة واحدة على الأقل لإدراجها في المطالبة');
       return;
     }
     setLoading(true);
+    setModalError(null);
     try {
       await invoke('insurance:createBatch', {
         companyId: newBatchCompanyId,
@@ -320,9 +508,33 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       setNewBatchNumber('');
       await loadData();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'حدث خطأ أثناء إصدار المطالبة');
+      setModalError(err instanceof Error ? err.message : 'حدث خطأ أثناء إصدار المطالبة');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Open Settle Modal with Pre-fill
+  const handleOpenSettleModal = async (batch: InsuranceClaimBatch) => {
+    setSettlingBatch(batch);
+    const isAlreadySettled = (batch.settledAmountPiasters > 0 || batch.rejectedAmountPiasters > 0 || batch.status === 'settled' || batch.status === 'partially_settled');
+    setApprovedAmountEgp(isAlreadySettled ? (batch.settledAmountPiasters / 100).toString() : (batch.totalAmountPiasters / 100).toString());
+    setRejectedAmountEgp(isAlreadySettled ? (batch.rejectedAmountPiasters / 100).toString() : '0');
+    setRejectionReason(batch.rejectionReason || '');
+    if (batch.settlementDeductionTarget) {
+      setDeductionTarget(batch.settlementDeductionTarget);
+    } else {
+      setDeductionTarget('expense');
+    }
+    setReceiptTarget(batch.settlementReceiptTarget || 'drawer');
+    setReceiptAccountId(batch.settlementReceiptAccountId || '');
+    setModalError(null);
+    setShowSettleModal(true);
+
+    const accs = await fetchDigitalAccounts();
+    if ((!batch.settlementReceiptAccountId || batch.settlementReceiptAccountId === '') && accs && accs.length > 0) {
+      const def = accs.find(a => a.isDefault) || accs[0];
+      setReceiptAccountId(def.id);
     }
   };
 
@@ -333,15 +545,22 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
     const rejAmt = Math.round(parseFloat(rejectedAmountEgp || '0') * 100);
 
     if (appAmt < 0 || rejAmt < 0) {
-      setError('المبالغ المدخلة لا يمكن أن تكون سالبة');
+      setModalError('المبالغ المدخلة لا يمكن أن تكون سالبة');
       return;
     }
     if (appAmt + rejAmt !== settlingBatch.totalAmountPiasters) {
-      setError(`مجموع المعتمد والمرفوض (${((appAmt + rejAmt) / 100).toFixed(2)} ج.م) يجب أن يطابق إجمالي المطالبة (${(settlingBatch.totalAmountPiasters / 100).toFixed(2)} ج.م)`);
+      setModalError(`مجموع المعتمد والمرفوض (${((appAmt + rejAmt) / 100).toFixed(2)} ج.م) يجب أن يطابق إجمالي المطالبة (${(settlingBatch.totalAmountPiasters / 100).toFixed(2)} ج.م)`);
       return;
     }
 
+    if (appAmt > 0 && receiptTarget === 'digital_account' && !receiptAccountId) {
+      setModalError('يرجى اختيار الحساب الرقمي أو المحفظة التي تم استلام المبلغ عليها.');
+      return;
+    }
+
+    const isEdit = settlingBatch.status === 'settled' || settlingBatch.status === 'partially_settled';
     setLoading(true);
+    setModalError(null);
     try {
       await invoke('insurance:settleBatch', {
         batchId: settlingBatch.id,
@@ -349,31 +568,72 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         rejectedAmountPiasters: rejAmt,
         rejectionReason: rejAmt > 0 ? rejectionReason : undefined,
         deductionTarget: deductionTarget,
+        receiptTarget: receiptTarget,
+        receiptAccountId: receiptTarget === 'digital_account' ? receiptAccountId : null,
       });
-      setSuccessMsg('تمت تسوية المطالبة');
+      setSuccessMsg(isEdit ? 'تم تحديث تسوية المطالبة وتوريد المبالغ بنجاح' : 'تمت تسوية المطالبة وتوريد المبالغ بنجاح');
       setShowSettleModal(false);
       setSettlingBatch(null);
       await loadData();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'حدث خطأ أثناء التسوية');
+      setModalError(err instanceof Error ? err.message : 'حدث خطأ أثناء التسوية');
     } finally {
       setLoading(false);
     }
   };
 
   // Export Excel
-  const handleExportExcel = async (batchId: string) => {
-    setLoading(true);
+  const handleExportExcel = async (batch: InsuranceClaimBatch) => {
     try {
-      const res = await invoke<{ path: string }>('insurance:exportBatchExcel', { batchId });
+      const sanitizedBatchNum = (batch.batchNumber || batch.id).replace(/[/\\?%*:|"<>]/g, '-');
+      const defaultFileName = `مطالبة_تأمين_${sanitizedBatchNum}_${batch.period || ''}.xlsx`;
+
+      const dialogRes = await invoke<{ filePath?: string; cancelled: boolean }>('system:showSaveFileDialog', {
+        title: `تحديد مكان حفظ ملف مطالبة التأمين (${batch.batchNumber})`,
+        defaultFileName,
+        filter: 'ملفات إكسل (*.xlsx)|*.xlsx|جميع الملفات (*.*)|*.*',
+        defaultExt: 'xlsx'
+      });
+
+      if (dialogRes?.cancelled || !dialogRes?.filePath) {
+        return; // إلغاء صريح من المستخدم
+      }
+
+      setLoading(true);
+      const res = await invoke<{ path: string }>('insurance:exportBatchExcel', {
+        batchId: batch.id,
+        filePath: dialogRes.filePath
+      });
+
       if (res && res.path) {
-        setSuccessMsg(`تم تصدير ملف الإكسل في: ${res.path}`);
+        setExportedFilePath(res.path);
+        setSuccessMsg(`تم تصدير ملف الإكسل بنجاح إلى: ${res.path}`);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'حدث خطأ أثناء تصدير الإكسل');
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderModalError = () => {
+    if (!modalError) return null;
+    return (
+      <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs rounded-xl flex items-center justify-between shadow-2xs">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 shrink-0" />
+          <span className="font-semibold">{modalError}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setModalError(null)}
+          className="text-danger dark:text-danger-bright hover:opacity-75 transition-opacity"
+          aria-label="إغلاق التنبيه"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -444,12 +704,55 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       )}
 
       {successMsg && (
-        <div className="mx-6 mt-2 p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 text-paid dark:text-paid-bright text-sm rounded-lg flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{successMsg}</span>
+        <div className="mx-6 mt-2 p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 text-paid dark:text-paid-bright text-sm rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
+            <span className="truncate">{successMsg}</span>
           </div>
-          <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={() => setSuccessMsg(null)} />
+          <div className="flex items-center gap-2 shrink-0">
+            {exportedFilePath && (
+              <>
+                <AppButton
+                  variant="secondary"
+                  size="xs"
+                  icon={FileSpreadsheet}
+                  onClick={async () => {
+                    try {
+                      await invoke('system:openPath', { path: exportedFilePath });
+                    } catch {
+                      // Handled quietly
+                    }
+                  }}
+                >
+                  فتح الملف
+                </AppButton>
+                <AppButton
+                  variant="secondary"
+                  size="xs"
+                  icon={FolderOpen}
+                  onClick={async () => {
+                    try {
+                      await invoke('system:showInFolder', { path: exportedFilePath });
+                    } catch {
+                      // Handled quietly
+                    }
+                  }}
+                >
+                  عرض في المجلد
+                </AppButton>
+              </>
+            )}
+            <AppButton
+              variant="subtle"
+              size="xs"
+              icon={X}
+              aria-label="إغلاق"
+              onClick={() => {
+                setSuccessMsg(null);
+                setExportedFilePath(null);
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -529,10 +832,26 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                             <div key={cnt.id} className="p-2 bg-surface-2 dark:bg-surface-dark-2 rounded-lg text-xs flex items-center justify-between gap-2">
                               <div>
                                 <span className="font-medium text-ink dark:text-ink-dark">{cnt.name}</span>
-                                <div className="text-micro text-ink-muted dark:text-ink-dark-muted">
-                                  تحمل المريض: {(cnt.patientShareBps / 100).toFixed(0)}%
-                                  {cnt.capPerInvoicePiasters ? ` | سقف: ${(cnt.capPerInvoicePiasters / 100).toFixed(0)} ج.م` : ''}
-                                  {cnt.excludesCosmetics ? ' | يستثني التجميل' : ''}
+                                <div className="text-micro text-ink-muted dark:text-ink-dark-muted flex flex-wrap items-center gap-1.5 mt-0.5">
+                                  <span>تحمل المريض: {(cnt.patientShareBps / 100).toFixed(0)}%</span>
+                                  {cnt.capPerInvoicePiasters ? <span>| سقف: {(cnt.capPerInvoicePiasters / 100).toFixed(0)} ج.م</span> : null}
+                                  {cnt.exclusions && cnt.exclusions.length > 0 ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-warn-soft/80 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-bold">
+                                      <ShieldAlert className="w-3 h-3" />
+                                      <span>
+                                        استثناءات: {cnt.exclusions.filter((e) => e.categoryId).length > 0 ? `${cnt.exclusions.filter((e) => e.categoryId).length} فئة` : ''}
+                                        {cnt.exclusions.filter((e) => e.categoryId).length > 0 && cnt.exclusions.filter((e) => e.productId).length > 0 ? ' و ' : ''}
+                                        {cnt.exclusions.filter((e) => e.productId).length > 0 ? `${cnt.exclusions.filter((e) => e.productId).length} صنف` : ''}
+                                      </span>
+                                    </span>
+                                  ) : cnt.excludesCosmetics ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-warn-soft/80 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-bold">
+                                      <ShieldAlert className="w-3 h-3" />
+                                      <span>يستثني التجميل</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-paid dark:text-paid-bright font-medium">| تغطية شاملة</span>
+                                  )}
                                 </div>
                               </div>
                               {canManageContracts && (
@@ -541,10 +860,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                                   size="xs"
                                   icon={Pencil}
                                   className="shrink-0"
-                                  onClick={() => {
-                                    setEditingContract(cnt);
-                                    setShowContractModal(true);
-                                  }}
+                                  onClick={() => openEditContractModal(cnt)}
                                 >
                                   تعديل
                                 </AppButton>
@@ -562,10 +878,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                         variant="soft"
                         size="sm"
                         icon={Plus}
-                        onClick={() => {
-                          setEditingContract({ companyId: comp.id, patientShareBps: 2000, excludesCosmetics: true, isActive: true });
-                          setShowContractModal(true);
-                        }}
+                        onClick={() => openNewContractModal(comp.id)}
                       >
                         إضافة عقد فئة جديدة
                       </AppButton>
@@ -702,6 +1015,8 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 size="md"
                 icon={Plus}
                 onClick={() => {
+                  setError(null);
+                  setModalError(null);
                   setNewBatchCompanyId(companies[0]?.id || '');
                   setNewBatchNumber(`CLM-${toLocalDateString(new Date()).substring(0, 7)}-${Math.floor(Math.random() * 900 + 100)}`);
                   resetClaimsDateFilter();
@@ -802,21 +1117,18 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                             size="xs"
                             icon={Download}
                             aria-label="تصدير كشف إكسل رسمي"
-                            onClick={() => handleExportExcel(batch.id)}
+                            title="تصدير كشف إكسل وتحديد مكان الحفظ"
+                            onClick={() => handleExportExcel(batch)}
                           />
-                          {canSettleClaims && batch.status !== 'settled' && (
+                          {canSettleClaims && (
                             <AppButton
-                              variant="soft"
+                              variant={batch.status === 'settled' || batch.status === 'partially_settled' ? 'secondary' : 'primary'}
                               size="xs"
-                              onClick={() => {
-                                setSettlingBatch(batch);
-                                setApprovedAmountEgp((batch.totalAmountPiasters / 100).toString());
-                                setRejectedAmountEgp('0');
-                                setRejectionReason('');
-                                setShowSettleModal(true);
-                              }}
+                              icon={batch.status === 'settled' || batch.status === 'partially_settled' ? Pencil : undefined}
+                              title={batch.status === 'settled' || batch.status === 'partially_settled' ? 'تعديل بيانات التسوية' : 'تسجيل تسوية المطالبة'}
+                              onClick={() => handleOpenSettleModal(batch)}
                             >
-                              تسوية
+                              {batch.status === 'settled' || batch.status === 'partially_settled' ? 'تعديل التسوية' : 'تسوية'}
                             </AppButton>
                           )}
                         </div>
@@ -878,13 +1190,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                     <AppButton
                       variant="primary"
                       size="md"
-                      onClick={() => {
-                        setSettlingBatch(b);
-                        setApprovedAmountEgp((b.totalAmountPiasters / 100).toString());
-                        setRejectedAmountEgp('0');
-                        setRejectionReason('');
-                        setShowSettleModal(true);
-                      }}
+                      onClick={() => handleOpenSettleModal(b)}
                     >
                       تسجيل إشعار التسوية
                     </AppButton>
@@ -906,6 +1212,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowCompanyModal(false)} />
             </div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
+              {renderModalError()}
               <div>
                 <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم شركة التأمين <RequiredMark /></label>
                 <input
@@ -952,7 +1259,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               </div>
             </div>
             <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
-              <AppButton variant="secondary" size="md" onClick={() => setShowCompanyModal(false)}>
+              <AppButton variant="secondary" size="md" onClick={() => { setShowCompanyModal(false); setModalError(null); }}>
                 إلغاء
               </AppButton>
               <AppButton variant="primary" size="md" onClick={handleSaveCompany}>
@@ -971,9 +1278,10 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               <h3 className="t-card-title text-ink dark:text-ink-dark">
                 {editingContract.id ? 'تعديل عقد وفئة التأمين' : 'إضافة عقد فئة جديد'}
               </h3>
-              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowContractModal(false)} />
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={closeContractModal} />
             </div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
+              {renderModalError()}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">شركة التأمين</label>
@@ -1034,20 +1342,282 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark">
-                <input
-                  type="checkbox"
-                  id="chkCosmetics"
-                  checked={editingContract.excludesCosmetics ?? true}
-                  onChange={(e) => setEditingContract({ ...editingContract, excludesCosmetics: e.target.checked })}
-                />
-                <label htmlFor="chkCosmetics" className="text-xs font-bold text-ink dark:text-ink-dark cursor-pointer">
-                  استثناء مستحضرات التجميل تلقائياً (تحمل المريض 100%)
-                </label>
+              {/* Exclusions Management Section */}
+              <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark space-y-3.5">
+                {/* Header */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-line dark:border-line-dark">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark">
+                      <ShieldAlert className="w-4 h-4 text-warn" />
+                      <span>استثناءات التغطية التأمينية (تحمل المريض 100%)</span>
+                    </div>
+                    <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                      حدد الفئات أو الأصناف الفردية التي لا يشملها هذا العقد ويدفعها العميل بالكامل
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark">
+                      {(editingContract.exclusions || []).filter((e) => e.categoryId).length} فئة
+                    </span>
+                    <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark">
+                      {(editingContract.exclusions || []).filter((e) => e.productId).length} صنف
+                    </span>
+                  </div>
+                </div>
+
+                {/* Sub-tabs / Switcher */}
+                <div className="flex items-center gap-1 p-1 bg-surface dark:bg-surface-dark-3 rounded-lg border border-line dark:border-line-dark">
+                  <button
+                    type="button"
+                    onClick={() => setExclusionSubTab('categories')}
+                    className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      exclusionSubTab === 'categories'
+                        ? 'bg-brand text-white dark:bg-brand-bright dark:text-surface-dark shadow-2xs'
+                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                    }`}
+                  >
+                    <FolderTree className="w-3.5 h-3.5" />
+                    <span>استثناء فئات كاملة ({(editingContract.exclusions || []).filter((e) => e.categoryId).length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExclusionSubTab('products')}
+                    className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      exclusionSubTab === 'products'
+                        ? 'bg-brand text-white dark:bg-brand-bright dark:text-surface-dark shadow-2xs'
+                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                    }`}
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                    <span>استثناء أصناف محددة ({(editingContract.exclusions || []).filter((e) => e.productId).length})</span>
+                  </button>
+                </div>
+
+                {/* Sub-tab 1: Categories */}
+                {exclusionSubTab === 'categories' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <CustomSelect
+                          value={selectedCategoryIdToAdd}
+                          onChange={setSelectedCategoryIdToAdd}
+                          placeholder="اختر فئة لإضافتها لقائمة الاستثناءات..."
+                          options={availableCategories
+                            .filter((c) => !(editingContract.exclusions || []).some((e) => e.categoryId === c.id))
+                            .map((c) => ({ value: c.id, label: c.name }))}
+                        />
+                      </div>
+                      <AppButton
+                        variant="secondary"
+                        size="sm"
+                        icon={Plus}
+                        disabled={!selectedCategoryIdToAdd}
+                        onClick={() => handleAddCategoryExclusion(selectedCategoryIdToAdd)}
+                      >
+                        استثناء الفئة
+                      </AppButton>
+                    </div>
+
+                    {/* Cosmetic Category Quick-add Shortcut */}
+                    {(() => {
+                      const cosmeticCat = availableCategories.find(
+                        (c) => c.name.includes('تجميل') || c.name.toLowerCase().includes('cosmetic')
+                      );
+                      const isCosmeticAlreadyExcluded = cosmeticCat && (editingContract.exclusions || []).some((e) => e.categoryId === cosmeticCat.id);
+                      if (!cosmeticCat || isCosmeticAlreadyExcluded) return null;
+                      return (
+                        <div className="flex items-center justify-between p-2 bg-warn-soft/40 dark:bg-warn-dark-soft/30 rounded-lg border border-warn/20">
+                          <span className="text-micro text-ink dark:text-ink-dark font-medium">
+                            تلميح سريع: استثناء فئة مستحضرات التجميل تلقائياً
+                          </span>
+                          <AppButton
+                            variant="secondary"
+                            size="xs"
+                            icon={Plus}
+                            onClick={() => handleAddCategoryExclusion(cosmeticCat.id)}
+                          >
+                            استثناء التجميل
+                          </AppButton>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Excluded Categories Chips */}
+                    {(() => {
+                      const catExclusions = (editingContract.exclusions || []).filter((e) => e.categoryId);
+                      if (catExclusions.length === 0) {
+                        return (
+                          <div className="py-3 text-center text-xs text-ink-muted dark:text-ink-dark-muted border border-dashed border-line dark:border-line-dark rounded-lg">
+                            لا توجد فئات مستثناة — كافة فئات المنتجات مشمولة بنسبة التغطية
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+                          {catExclusions.map((ex) => {
+                            const originalIdx = (editingContract.exclusions || []).indexOf(ex);
+                            const catName = ex.categoryName || availableCategories.find((c) => c.id === ex.categoryId)?.name || 'فئة مستثناة';
+                            return (
+                              <span
+                                key={ex.categoryId}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-xs font-bold text-ink dark:text-ink-dark shadow-2xs"
+                              >
+                                <FolderTree className="w-3.5 h-3.5 text-warn shrink-0" />
+                                <span>{catName}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveExclusion(originalIdx)}
+                                  className="hover:text-danger text-ink-muted dark:text-ink-dark-muted transition-colors cursor-pointer"
+                                  title="إلغاء استثناء الفئة"
+                                  aria-label="إلغاء استثناء الفئة"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Sub-tab 2: Products */}
+                {exclusionSubTab === 'products' && (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={productSearchTerm}
+                        onChange={(e) => handleProductSearchChange(e.target.value)}
+                        placeholder="ابحث بالاسم أو الباركود لإضافة صنف فردي للاستثناء..."
+                        className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright placeholder:text-ink-muted/50"
+                      />
+                      {productSearchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProductSearchTerm('');
+                            setProductSearchResults([]);
+                          }}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark p-0.5 cursor-pointer"
+                          title="مسح البحث"
+                          aria-label="مسح البحث"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {/* Dropdown Results */}
+                      {productSearchResults.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-line dark:divide-line-dark">
+                          {productSearchResults.map((prod) => {
+                            const isAlreadyExcluded = (editingContract.exclusions || []).some((e) => e.productId === prod.id);
+                            return (
+                              <button
+                                key={prod.id}
+                                type="button"
+                                disabled={isAlreadyExcluded}
+                                onClick={() => handleAddProductExclusion(prod)}
+                                className={`w-full p-2.5 text-right flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                                  isAlreadyExcluded
+                                    ? 'opacity-50 cursor-not-allowed bg-surface-2 dark:bg-surface-dark-2'
+                                    : 'hover:bg-brand-soft dark:hover:bg-brand-dark-soft'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Package className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                                  <div className="truncate">
+                                    <span className="font-bold text-ink dark:text-ink-dark block truncate">{prod.name}</span>
+                                    {prod.barcode && (
+                                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">{prod.barcode}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {prod.pricePiasters != null && prod.pricePiasters > 0 && (
+                                    <span className="font-mono text-micro text-paid dark:text-paid-bright font-bold">
+                                      {formatArabicCurrency(prod.pricePiasters)}
+                                    </span>
+                                  )}
+                                  {isAlreadyExcluded ? (
+                                    <span className="text-micro text-warn dark:text-warn-bright font-bold">مستثنى بالفعل</span>
+                                  ) : (
+                                    <span className="text-micro text-brand dark:text-brand-bright font-bold flex items-center gap-0.5">
+                                      <Plus className="w-3 h-3" /> إضافة
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {isSearchingProduct && (
+                        <div className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 px-1">
+                          جاري البحث في قاعدة الأصناف...
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Excluded Products List */}
+                    {(() => {
+                      const prodExclusions = (editingContract.exclusions || []).filter((e) => e.productId);
+                      if (prodExclusions.length === 0) {
+                        return (
+                          <div className="py-3 text-center text-xs text-ink-muted dark:text-ink-dark-muted border border-dashed border-line dark:border-line-dark rounded-lg">
+                            لا توجد أصناف فردية مستثناة — استخدم حقل البحث أعلاه لإدراج أصناف بالاسم أو الباركود
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                          {prodExclusions.map((ex) => {
+                            const originalIdx = (editingContract.exclusions || []).indexOf(ex);
+                            return (
+                              <div
+                                key={ex.productId}
+                                className="p-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg flex items-center justify-between gap-2 text-xs shadow-2xs"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Package className="w-3.5 h-3.5 text-warn shrink-0" />
+                                  <span className="font-medium text-ink dark:text-ink-dark truncate">{ex.productName}</span>
+                                  {ex.productBarcode && (
+                                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded">
+                                      {ex.productBarcode}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {ex.productPricePiasters != null && ex.productPricePiasters > 0 && (
+                                    <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
+                                      {formatArabicCurrency(ex.productPricePiasters)}
+                                    </span>
+                                  )}
+                                  <AppButton
+                                    variant="subtle"
+                                    size="xs"
+                                    icon={Trash2}
+                                    onClick={() => handleRemoveExclusion(originalIdx)}
+                                    title="إلغاء استثناء الصنف"
+                                    aria-label="إلغاء استثناء الصنف"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
             <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
-              <AppButton variant="secondary" size="md" onClick={() => setShowContractModal(false)}>
+              <AppButton variant="secondary" size="md" onClick={closeContractModal}>
                 إلغاء
               </AppButton>
               <AppButton variant="primary" size="md" onClick={handleSaveContract}>
@@ -1067,6 +1637,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowMemberModal(false)} />
             </div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
+              {renderModalError()}
               <div>
                 <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">العقد التأميني</label>
                 <CustomSelect
@@ -1123,7 +1694,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               </div>
             </div>
             <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
-              <AppButton variant="secondary" size="md" onClick={() => setShowMemberModal(false)}>
+              <AppButton variant="secondary" size="md" onClick={() => { setShowMemberModal(false); setModalError(null); }}>
                 إلغاء
               </AppButton>
               <AppButton variant="primary" size="md" onClick={handleSaveMember}>
@@ -1140,9 +1711,10 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
           <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh] text-ink dark:text-ink-dark">
             <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
               <h3 className="t-card-title text-ink dark:text-ink-dark">إصدار دفعة مطالبة مجمعة لشركة التأمين</h3>
-              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowBatchModal(false)} />
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => { setShowBatchModal(false); setModalError(null); }} />
             </div>
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {renderModalError()}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">شركة التأمين</label>
@@ -1151,6 +1723,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                     onChange={(val) => {
                       setNewBatchCompanyId(val);
                       setSelectedPendingClaimIds([]);
+                      setModalError(null);
                     }}
                     options={companies.map((c) => ({ value: c.id, label: c.name }))}
                   />
@@ -1282,7 +1855,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 المحدد: <strong className="text-ink dark:text-ink-dark">{selectedPendingClaimIds.length}</strong> فاتورة
               </div>
               <div className="flex items-center gap-2">
-                <AppButton variant="secondary" size="md" onClick={() => setShowBatchModal(false)}>
+                <AppButton variant="secondary" size="md" onClick={() => { setShowBatchModal(false); setModalError(null); }}>
                   إلغاء
                 </AppButton>
                 <AppButton variant="primary" size="md" onClick={handleCreateBatch}>
@@ -1299,15 +1872,26 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
             <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
-              <h3 className="t-card-title text-ink dark:text-ink-dark">تسوية مطالبة شركة التأمين</h3>
+              <h3 className="t-card-title text-ink dark:text-ink-dark">
+                {settlingBatch.status === 'settled' || settlingBatch.status === 'partially_settled'
+                  ? 'تعديل تسوية مطالبة التأمين'
+                  : 'تسوية مطالبة شركة التأمين'}
+              </h3>
               <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowSettleModal(false)} />
             </div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
+              {renderModalError()}
               <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-xs space-y-1 text-ink dark:text-ink-dark">
                 <div>الشركة: <strong>{settlingBatch.companyName}</strong></div>
                 <div>رقم الدفعة: <strong>{settlingBatch.batchNumber}</strong></div>
                 <div>إجمالي المطالبة: <strong className="text-brand font-mono">{(settlingBatch.totalAmountPiasters / 100).toFixed(2)} ج.م</strong></div>
               </div>
+
+              {(settlingBatch.status === 'settled' || settlingBatch.status === 'partially_settled') && (
+                <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900/50 text-xs text-blue-800 dark:text-blue-300">
+                  تعديل تسوية معتمدة مسبقاً (المعتمد الحالي: {(settlingBatch.settledAmountPiasters / 100).toFixed(2)} ج.م | المرفوض الحالي: {(settlingBatch.rejectedAmountPiasters / 100).toFixed(2)} ج.م). سيتم تحديث قيود الرفوضات والأرباح تلقائياً دون تكرار.
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1367,13 +1951,298 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                   </div>
                 </>
               )}
+
+              {/* وجهة توريد المبلغ المعتمد */}
+              {parseFloat(approvedAmountEgp || '0') > 0 && (
+                <div className="space-y-3 pt-3 border-t border-line dark:border-line-dark">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-ink dark:text-ink-dark">
+                      أين تم استلام وتوريد المبلغ المعتمد؟
+                    </label>
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
+                      وجهة النقدية في الخزينة
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* 1. درج الكاشير */}
+                    <button
+                      type="button"
+                      onClick={() => setReceiptTarget('drawer')}
+                      className={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between ${
+                        receiptTarget === 'drawer'
+                          ? 'border-paid bg-paid-soft/50 dark:bg-paid-dark-soft ring-1 ring-paid text-ink dark:text-ink-dark'
+                          : 'border-line dark:border-line-dark hover:border-line-hover bg-surface dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-xs font-bold flex items-center gap-1.5 text-ink dark:text-ink-dark">
+                          <Landmark className="w-4 h-4 text-paid" />
+                          درج الكاشير
+                        </span>
+                        {receiptTarget === 'drawer' && (
+                          <CheckCircle2 className="w-4 h-4 text-paid shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-micro leading-relaxed text-ink-muted dark:text-ink-dark-muted">
+                        إيداع نقدي فوري بالدرج في الوردية المفتوحة حالياً.
+                      </p>
+                    </button>
+
+                    {/* 2. محفظة أو إنستاباي */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReceiptTarget('digital_account');
+                        if (!receiptAccountId && digitalAccounts.length > 0) {
+                          const def = digitalAccounts.find(a => a.isDefault) || digitalAccounts[0];
+                          setReceiptAccountId(def.id);
+                        }
+                      }}
+                      className={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between ${
+                        receiptTarget === 'digital_account'
+                          ? 'border-brand bg-brand-soft/50 dark:bg-brand-dark ring-1 ring-brand text-ink dark:text-ink-dark'
+                          : 'border-line dark:border-line-dark hover:border-line-hover bg-surface dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-xs font-bold flex items-center gap-1.5 text-ink dark:text-ink-dark">
+                          <Smartphone className="w-4 h-4 text-brand" />
+                          محفظة / إنستاباي
+                        </span>
+                        {receiptTarget === 'digital_account' && (
+                          <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-micro leading-relaxed text-ink-muted dark:text-ink-dark-muted">
+                        إيداع بحساب رقمي (فودافون كاش، إنستاباي...).
+                      </p>
+                    </button>
+
+                    {/* 3. بدون توريد بالبرنامج */}
+                    <button
+                      type="button"
+                      onClick={() => setReceiptTarget('none')}
+                      className={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between ${
+                        receiptTarget === 'none'
+                          ? 'border-line-hover bg-surface-2 dark:bg-surface-dark-3 ring-1 ring-line-hover text-ink dark:text-ink-dark'
+                          : 'border-line dark:border-line-dark hover:border-line-hover bg-surface dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-xs font-bold flex items-center gap-1.5 text-ink dark:text-ink-dark">
+                          <Building2 className="w-4 h-4 text-ink-muted" />
+                          خارجي / بنكي
+                        </span>
+                        {receiptTarget === 'none' && (
+                          <CheckCircle2 className="w-4 h-4 text-ink-muted shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-micro leading-relaxed text-ink-muted dark:text-ink-dark-muted">
+                        استلام بنكي/شيك خارجي لا يؤثر على نقدية البرنامج.
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* تفاصيل الحساب الرقمي إن تم اختياره */}
+                  {receiptTarget === 'digital_account' && (
+                    <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-ink dark:text-ink-dark">
+                          اختر الحساب أو المحفظة الرقمية المستلم عليها:
+                        </label>
+                        <AppButton
+                          variant="secondary"
+                          size="xs"
+                          icon={Plus}
+                          onClick={() => {
+                            setNewAccountName('');
+                            setNewAccountNumber('');
+                            setNewAccountHolder('');
+                            setNewAccountProvider('vodafone_cash');
+                            setQuickAccountError(null);
+                            setShowQuickAccountModal(true);
+                          }}
+                        >
+                          إضافة حساب جديد
+                        </AppButton>
+                      </div>
+
+                      {digitalAccounts.length === 0 ? (
+                        <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-lg text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                          <span>لا توجد محافظ أو حسابات إنستاباي مسجلة بعد.</span>
+                          <AppButton
+                            variant="primary"
+                            size="xs"
+                            icon={Plus}
+                            onClick={() => {
+                              setNewAccountName('');
+                              setNewAccountNumber('');
+                              setNewAccountHolder('');
+                              setNewAccountProvider('vodafone_cash');
+                              setQuickAccountError(null);
+                              setShowQuickAccountModal(true);
+                            }}
+                          >
+                            إضافة حساب الآن
+                          </AppButton>
+                        </div>
+                      ) : (
+                        <CustomSelect
+                          value={receiptAccountId}
+                          onChange={(val) => setReceiptAccountId(val)}
+                          options={digitalAccounts.map((acc) => {
+                            const phoneOrId = acc.phoneNumber || acc.identifier || '';
+                            const typeLabel = acc.accountType === 'instapay' ? 'إنستاباي' : 'محفظة';
+                            return {
+                              value: acc.id,
+                              label: `${acc.name} (${typeLabel}${phoneOrId ? ' - ' + phoneOrId : ''}) — الرصيد: ${(acc.balancePiasters / 100).toFixed(2)} ج.م`,
+                            };
+                          })}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* ملاحظة أمان التعديل المالي */}
+                  {(settlingBatch.status === 'settled' || settlingBatch.status === 'partially_settled') && (
+                    <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-3 rounded-lg border border-line dark:border-line-dark text-micro text-ink-muted dark:text-ink-dark-muted flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-brand shrink-0" />
+                      <span>
+                        حماية الحسابات: عند حفظ التعديل، يقوم النظام تلقائياً وبأمان مالي تام بإلغاء التوريد السابق (من الدرج أو المحفظة السابقة) وتطبيق التوريد الجديد دون أي عجز أو تلاعب.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
-              <AppButton variant="secondary" size="md" onClick={() => setShowSettleModal(false)}>
+              <AppButton variant="secondary" size="md" onClick={() => { setShowSettleModal(false); setModalError(null); }}>
                 إلغاء
               </AppButton>
               <AppButton variant="primary" size="md" onClick={handleSettleBatch}>
-                اعتماد التسوية
+                {settlingBatch.status === 'settled' || settlingBatch.status === 'partially_settled' ? 'حفظ تعديل التسوية' : 'اعتماد التسوية'}
+              </AppButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Digital Account Modal */}
+      {showQuickAccountModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
+            <div className="px-5 py-3.5 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
+              <h4 className="text-sm font-bold flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-brand" />
+                إضافة حساب أو محفظة إلكترونية
+              </h4>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowQuickAccountModal(false)} />
+            </div>
+            <div className="p-5 space-y-3">
+              {quickAccountError && (
+                <div className="p-2.5 bg-danger-soft text-danger dark:text-danger-bright rounded-lg text-xs">
+                  {quickAccountError}
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                  اسم الحساب أو المحفظة <RequiredMark />
+                </label>
+                <input
+                  type="text"
+                  value={newAccountName}
+                  onChange={(e) => setNewAccountName(e.target.value)}
+                  placeholder="مثال: فودافون كاش الصيدلية أو إنستاباي الكاشير"
+                  className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                  نوع ومزوّد الخدمة
+                </label>
+                <CustomSelect
+                  value={newAccountProvider}
+                  onChange={(val) => setNewAccountProvider(val)}
+                  options={[
+                    { value: 'vodafone_cash', label: 'فودافون كاش' },
+                    { value: 'instapay', label: 'إنستاباي' },
+                    { value: 'orange_cash', label: 'أورنج كاش' },
+                    { value: 'etisalat_cash', label: 'اتصالات كاش' },
+                    { value: 'we_pay', label: 'وي باي' },
+                    { value: 'bank_account', label: 'حساب بنكي' },
+                    { value: 'other', label: 'أخرى' },
+                  ]}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                  رقم الهاتف أو الحساب
+                </label>
+                <input
+                  type="text"
+                  value={newAccountNumber}
+                  onChange={(e) => setNewAccountNumber(e.target.value)}
+                  placeholder="مثال: 01012345678 أو username@instapay"
+                  dir="ltr"
+                  className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand text-right"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
+                  اسم صاحب الحساب
+                </label>
+                <input
+                  type="text"
+                  value={newAccountHolder}
+                  onChange={(e) => setNewAccountHolder(e.target.value)}
+                  placeholder="الاسم المسجل على المحفظة أو الحساب"
+                  className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                />
+              </div>
+            </div>
+            <div className="px-5 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2">
+              <AppButton variant="secondary" size="sm" onClick={() => setShowQuickAccountModal(false)}>
+                إلغاء
+              </AppButton>
+              <AppButton
+                variant="primary"
+                size="sm"
+                disabled={savingNewAccount || !newAccountName.trim()}
+                onClick={async () => {
+                  if (!newAccountName.trim()) {
+                    setQuickAccountError('اسم الحساب أو المحفظة مطلوب.');
+                    return;
+                  }
+                  setSavingNewAccount(true);
+                  setQuickAccountError(null);
+                  try {
+                    const accType = newAccountProvider === 'instapay' ? 'instapay' : 'wallet';
+                    const createdAcc = await invoke<DigitalAccount>('wallets:saveAccount', {
+                      name: newAccountName.trim(),
+                      holderName: newAccountHolder.trim(),
+                      type: accType,
+                      provider: newAccountProvider,
+                      accountNumber: newAccountNumber.trim(),
+                      phoneNumber: newAccountNumber.trim(),
+                      isDefault: digitalAccounts.length === 0,
+                      isActive: true,
+                    });
+                    const updatedList = await fetchDigitalAccounts();
+                    if (createdAcc && createdAcc.id) {
+                      setReceiptAccountId(createdAcc.id);
+                    } else if (updatedList.length > 0) {
+                      setReceiptAccountId(updatedList[updatedList.length - 1].id);
+                    }
+                    setShowQuickAccountModal(false);
+                  } catch (err: unknown) {
+                    setQuickAccountError(err instanceof Error ? err.message : 'فشل في حفظ الحساب.');
+                  } finally {
+                    setSavingNewAccount(false);
+                  }
+                }}
+              >
+                {savingNewAccount ? 'جاري الحفظ...' : 'حفظ الحساب'}
               </AppButton>
             </div>
           </div>

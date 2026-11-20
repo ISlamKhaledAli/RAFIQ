@@ -174,9 +174,14 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
       const itemsPayload = cart.map((i) => ({
         productId: i.productId,
         productName: i.productName,
+        barcode: i.barcode || null,
         categoryId: null,
+        unitPricePiasters: i.unitPricePiasters,
         pricePiasters: i.unitPricePiasters,
+        totalPiasters: i.totalPiasters,
+        discountPiasters: i.discountPiasters || 0,
         quantityMilli: i.quantityMilli,
+        unit: i.unit || 'piece',
       }));
 
       const res = await invoke<InsuranceCalculationResult>('insurance:calculateSplit', {

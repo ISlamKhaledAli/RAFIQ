@@ -19,11 +19,12 @@ import { SearchInput } from '../../components/SearchInput';
 import { invoke } from '../../bridge/ipc';
 import { useAuth } from '../../context/useAuth';
 import { CustomSelect, type SelectOption } from '../../components/CustomSelect';
+import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { formatPhoneDisplay } from '../../utils/phoneFormat';
 import type { CustomerPatientInfo, ChronicMedication } from '../../types/patient';
-import type { Product } from '../../types/models';
+import { extractProducts, type Product } from '../../types/models';
 import { RequiredMark } from '../../components/RequiredMark';
 
 import { AppButton } from '../../components/AppButton';
@@ -93,12 +94,36 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
   const [productSearch, setProductSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearchingProduct, setIsSearchingProduct] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [newDailyQty, setNewDailyQty] = useState<string>('1');
   const [newSupplyDays, setNewSupplyDays] = useState<string>('30');
-  const [newFirstDueDate, setNewFirstDueDate] = useState<string>('');
+  const [newFirstDueDate, setNewFirstDueDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
   const [newMedNotes, setNewMedNotes] = useState<string>('');
   const [deletingMedId, setDeletingMedId] = useState<string | null>(null);
+  const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchResults([]);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
 
   // Load Data
   const loadData = useCallback(async () => {
@@ -131,26 +156,42 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       void loadData();
-      // Set default next due date to today + 30 days
       const d = new Date();
       d.setDate(d.getDate() + 30);
-      setNewFirstDueDate(d.toISOString().split('T')[0]);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      setNewFirstDueDate(`${y}-${m}-${day}`);
     }
   }, [isOpen, loadData]);
 
-  // Product Search for Adding Chronic Med
-  const handleProductSearch = async (val: string) => {
-    const q = normalizeArabicNumerals(val);
-    setProductSearch(q);
-    if (!q.trim() || q.trim().length < 2) {
+  const handleSelectProduct = (p: Product) => {
+    setSelectedProduct(p);
+    setProductSearch(p.name);
+    setSearchResults([]);
+    setHasSearched(false);
+  };
+
+  // Immediate Product Search (on Enter or search button click)
+  const executeProductSearch = async (val: string) => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    const q = normalizeArabicNumerals(val).trim();
+    if (!q) {
       setSearchResults([]);
+      setHasSearched(false);
+      setIsSearchingProduct(false);
       return;
     }
 
     setIsSearchingProduct(true);
+    setHasSearched(true);
     try {
-      const results = await invoke<Product[]>('products:search', { query: q });
-      setSearchResults(results || []);
+      const results = await invoke<unknown>('products:search', { query: q, limit: 10, includeCounts: false });
+      const prods = extractProducts(results);
+      setSearchResults(prods);
+      if (prods.length === 1 && !selectedProduct) {
+        handleSelectProduct(prods[0]);
+      }
     } catch {
       setSearchResults([]);
     } finally {
@@ -158,10 +199,53 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
     }
   };
 
-  const handleSelectProduct = (p: Product) => {
-    setSelectedProduct(p);
-    setProductSearch(p.name);
+  // Debounced Product Search while typing
+  const handleProductSearchChange = (val: string) => {
+    setProductSearch(val);
+    const q = normalizeArabicNumerals(val);
+    if (selectedProduct && selectedProduct.name !== q) {
+      setSelectedProduct(null);
+    }
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (!q.trim()) {
+      setSearchResults([]);
+      setHasSearched(false);
+      setIsSearchingProduct(false);
+      return;
+    }
+
+    setIsSearchingProduct(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const results = await invoke<unknown>('products:search', { query: q.trim(), limit: 10, includeCounts: false });
+        const prods = extractProducts(results);
+        setSearchResults(prods);
+        setHasSearched(true);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearchingProduct(false);
+      }
+    }, 250);
+  };
+
+  const resetMedForm = () => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    setIsAddingMed(false);
+    setSelectedProduct(null);
+    setProductSearch('');
     setSearchResults([]);
+    setHasSearched(false);
+    setNewMedNotes('');
+    setNewDailyQty('1');
+    setNewSupplyDays('30');
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    setNewFirstDueDate(`${y}-${m}-${day}`);
   };
 
   // Add Chronic Medication
@@ -172,9 +256,24 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
       return;
     }
 
-    const dailyQtyPieces = parseFloat(newDailyQty) || 1;
-    const dailyMilli = Math.round(dailyQtyPieces * 1000);
-    const supplyDays = parseInt(newSupplyDays, 10) || 30;
+    const parsedQty = parseFloat(normalizeArabicNumerals(newDailyQty));
+    if (!newDailyQty.trim() || isNaN(parsedQty) || parsedQty <= 0) {
+      setStatusMessage({ text: 'يرجى إدخال جرعة يومية صحيحة أكبر من الصفر (مثال: 1 أو 2 أو 0.5)', type: 'error' });
+      return;
+    }
+
+    const supplyDays = parseInt(normalizeArabicNumerals(newSupplyDays), 10);
+    if (!newSupplyDays.trim() || isNaN(supplyDays) || supplyDays <= 0) {
+      setStatusMessage({ text: 'يرجى إدخال دورة صرف صحيحة بالأيام (مثال: 30)', type: 'error' });
+      return;
+    }
+
+    if (!newFirstDueDate) {
+      setStatusMessage({ text: 'يرجى تحديد تاريخ أول استحقاق لصرف الدواء', type: 'error' });
+      return;
+    }
+
+    const dailyMilli = Math.round(parsedQty * 1000);
 
     setIsSaving(true);
     setStatusMessage(null);
@@ -191,11 +290,8 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
       const saved = await invoke<ChronicMedication>('patients:saveChronicMed', newMed);
       if (saved) {
         setChronicMeds((prev) => [...prev, saved]);
-        setSelectedProduct(null);
-        setProductSearch('');
-        setNewMedNotes('');
-        setIsAddingMed(false);
-        setStatusMessage({ text: `تم تسجيل دواء "${saved.productName}" ضمن قائمة الأدوية المزمنة للمريض`, type: 'success' });
+        resetMedForm();
+        setStatusMessage({ text: `تم تسجيل دواء "${saved.productName || selectedProduct.name}" ضمن قائمة الأدوية المزمنة للمريض`, type: 'success' });
         if (onProfileUpdated) onProfileUpdated();
       }
     } catch (err: unknown) {
@@ -476,13 +572,13 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                         type="button"
                         onClick={() => toggleAllergyPill(item)}
                         disabled={!canEdit}
-                        className={`px-2 py-0.5 rounded-lg text-micro font-bold transition-all cursor-pointer ${
+                        className={`inline-flex items-center px-2 py-0.5 rounded-lg text-micro font-bold transition-all cursor-pointer ${
                           isSelected
                             ? 'bg-danger text-white dark:bg-danger-dark-soft dark:text-danger-bright dark:ring-1 dark:ring-inset dark:ring-danger-bright/40 border border-danger'
                             : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-danger/40'
                         }`}
                       >
-                        {isSelected ? '✓ ' : '+ '}
+                        {isSelected ? <Check className="w-3 h-3 inline me-1 shrink-0" /> : <Plus className="w-3 h-3 inline me-1 shrink-0" />}
                         {item}
                       </button>
                     );
@@ -521,13 +617,13 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                         type="button"
                         onClick={() => toggleConditionPill(item)}
                         disabled={!canEdit}
-                        className={`px-2 py-0.5 rounded-lg text-micro font-bold transition-all cursor-pointer ${
+                        className={`inline-flex items-center px-2 py-0.5 rounded-lg text-micro font-bold transition-all cursor-pointer ${
                           isSelected
                             ? 'bg-warn-bright text-ink dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border border-warn-bright'
                             : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-warn/40'
                         }`}
                       >
-                        {isSelected ? '✓ ' : '+ '}
+                        {isSelected ? <Check className="w-3 h-3 inline me-1 shrink-0" /> : <Plus className="w-3 h-3 inline me-1 shrink-0" />}
                         {item}
                       </button>
                     );
@@ -583,6 +679,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
               {isAddingMed && (
                 <form
                   onSubmit={handleAddChronicMed}
+                  noValidate
                   className="p-4 bg-surface-2 dark:bg-surface-dark-2 border border-brand/20 dark:border-brand-bright/30 rounded-xl space-y-3 animate-in fade-in"
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-line dark:border-line-dark">
@@ -594,24 +691,28 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                       variant="subtle"
                       size="xs"
                       icon={X}
-                      onClick={() => {
-                        setIsAddingMed(false);
-                        setSelectedProduct(null);
-                        setProductSearch('');
-                      }}
+                      onClick={resetMedForm}
                       aria-label="إغلاق"
                     />
                   </div>
 
                   {/* Product Search */}
-                  <div className="relative">
+                  <div ref={searchContainerRef} className="relative">
                     <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                       الصنف الدوائي <RequiredMark />
                     </label>
                     <SearchInput
                       size="sm"
                       value={productSearch}
-                      onChange={(value) => void handleProductSearch(value)}
+                      onChange={handleProductSearchChange}
+                      onSubmit={(val) => void executeProductSearch(val)}
+                      onClear={() => {
+                        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                        setProductSearch('');
+                        setSelectedProduct(null);
+                        setSearchResults([]);
+                        setHasSearched(false);
+                      }}
                       placeholder="ابحث باسم الدواء أو الباركود..."
                       ariaLabel="بحث عن دواء"
                       trailing={isSearchingProduct ? <Loader2 className="w-3.5 h-3.5 animate-spin text-brand dark:text-brand-bright shrink-0" /> : undefined}
@@ -619,19 +720,72 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
 
                     {/* Search Results Dropdown */}
                     {searchResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-lg z-20">
+                      <div className="absolute top-full left-0 right-0 mt-1 max-h-52 overflow-y-auto bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-lg z-30 divide-y divide-line/40 dark:divide-line-dark/40">
                         {searchResults.map((p) => (
                           <div
                             key={p.id}
                             onClick={() => handleSelectProduct(p)}
-                            className="p-2.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer text-xs flex items-center justify-between border-b border-line/40 dark:border-line-dark/40 last:border-b-0"
+                            className="p-2.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer text-xs flex items-center justify-between transition-colors"
                           >
-                            <span className="font-bold text-ink dark:text-ink-dark">{p.name}</span>
-                            <span className="font-mono text-paid dark:text-paid-bright font-bold">
-                              {formatArabicCurrency(p.pricePiasters)}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <Package className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                              <div>
+                                <span className="font-bold text-ink dark:text-ink-dark block">{p.name}</span>
+                                {p.barcode && (
+                                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono block">
+                                    باركود: {p.barcode}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-left font-mono shrink-0">
+                              <span className="text-paid dark:text-paid-bright font-bold block">
+                                {formatArabicCurrency(p.pricePiasters)}
+                              </span>
+                              <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">
+                                الرصيد: {((p.stockQuantityMilli || 0) / 1000).toFixed(0)} علبة
+                              </span>
+                            </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* No Results Feedback */}
+                    {hasSearched && !isSearchingProduct && searchResults.length === 0 && productSearch.trim().length > 0 && !selectedProduct && (
+                      <div className="absolute top-full left-0 right-0 mt-1 p-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-lg z-30 text-center text-xs text-ink-muted dark:text-ink-dark-muted">
+                        لم يتم العثور على أدوية مطابقة لبحثك
+                      </div>
+                    )}
+
+                    {/* Selected Product Banner */}
+                    {selectedProduct && (
+                      <div className="mt-2 p-2.5 rounded-xl bg-paid-soft/50 dark:bg-paid-dark-soft/50 border border-paid/20 dark:border-paid/30 flex items-center justify-between animate-in fade-in">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-paid text-white flex items-center justify-center shrink-0">
+                            <Check className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-ink dark:text-ink-dark">
+                              تم اختيار الصنف: {selectedProduct.name}
+                            </div>
+                            <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono flex items-center gap-2.5 mt-0.5">
+                              {selectedProduct.barcode && <span>باركود: {selectedProduct.barcode}</span>}
+                              <span>السعر: {formatArabicCurrency(selectedProduct.pricePiasters)}</span>
+                              <span>الرصيد: {((selectedProduct.stockQuantityMilli || 0) / 1000).toFixed(0)} علبة</span>
+                            </div>
+                          </div>
+                        </div>
+                        <AppButton
+                          variant="subtle"
+                          size="xs"
+                          icon={X}
+                          onClick={() => {
+                            setSelectedProduct(null);
+                            setProductSearch('');
+                          }}
+                          aria-label="إلغاء اختيار الدواء"
+                        />
                       </div>
                     )}
                   </div>
@@ -644,11 +798,11 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                       </label>
                       <input
                         type="number"
-                        step="0.5"
-                        min="0.25"
+                        step="any"
+                        min="0.01"
                         value={newDailyQty}
                         onChange={(e) => setNewDailyQty(e.target.value)}
-                        className="w-full h-9 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold"
+                        className="w-full h-9 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                         placeholder="مثال: 1 أو 2"
                       />
                     </div>
@@ -663,7 +817,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                         max="365"
                         value={newSupplyDays}
                         onChange={(e) => setNewSupplyDays(e.target.value)}
-                        className="w-full h-9 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold"
+                        className="w-full h-9 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                         placeholder="30 يوم"
                       />
                     </div>
@@ -672,11 +826,12 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                       <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                         تاريخ الاستحقاق الأول
                       </label>
-                      <input
-                        type="date"
+                      <CustomDatePicker
                         value={newFirstDueDate}
-                        onChange={(e) => setNewFirstDueDate(e.target.value)}
-                        className="w-full h-9 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold"
+                        onChange={(val) => setNewFirstDueDate(val)}
+                        placeholder="اختر تاريخ الاستحقاق"
+                        size="md"
+                        className="w-full"
                       />
                     </div>
                   </div>
@@ -700,11 +855,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                     <AppButton
                       variant="secondary"
                       size="sm"
-                      onClick={() => {
-                        setIsAddingMed(false);
-                        setSelectedProduct(null);
-                        setProductSearch('');
-                      }}
+                      onClick={resetMedForm}
                     >
                       إلغاء
                     </AppButton>

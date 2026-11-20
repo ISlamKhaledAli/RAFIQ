@@ -320,9 +320,16 @@ namespace RafiqPOS.Bridge
                         if (settleObj["rejectedAmountPiasters"] != null) long.TryParse(settleObj["rejectedAmountPiasters"].ToString(), out rejectedAmt);
                         string rejReason = settleObj["rejectionReason"] != null ? settleObj["rejectionReason"].ToString() : null;
                         string dedTarget = settleObj["deductionTarget"] != null ? settleObj["deductionTarget"].ToString() : "expense";
+                        string sNotes = settleObj["notes"] != null ? settleObj["notes"].ToString() : null;
+                        string receiptTarget = settleObj["receiptTarget"] != null ? settleObj["receiptTarget"].ToString() : "none";
+                        string receiptAccountId = null;
+                        if (settleObj["receiptAccountId"] != null && !string.IsNullOrWhiteSpace(settleObj["receiptAccountId"].ToString()))
+                        {
+                            receiptAccountId = settleObj["receiptAccountId"].ToString().Trim();
+                        }
 
                         string settleUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
-                        var settledBatch = DatabaseService.Insurance.SettleBatch(sBatchId, approvedAmt, rejectedAmt, rejReason, dedTarget, settleUserId);
+                        var settledBatch = DatabaseService.Insurance.SettleBatch(sBatchId, approvedAmt, rejectedAmt, rejReason, dedTarget, settleUserId, sNotes, receiptTarget, receiptAccountId);
                         response = BridgeResponse.Ok(request.Id, settledBatch);
                         return true;
 
@@ -339,6 +346,7 @@ namespace RafiqPOS.Bridge
                         {
                             if (expObj["batchId"] != null) expBatchId = expObj["batchId"].ToString();
                             if (expObj["filePath"] != null) expPath = expObj["filePath"].ToString();
+                            else if (expObj["targetPath"] != null) expPath = expObj["targetPath"].ToString();
                         }
                         else
                         {
