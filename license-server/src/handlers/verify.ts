@@ -185,6 +185,10 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
     env.LICENSE_PRIVATE_KEY
   );
 
+  const onlineStoreEnabledRaw = license.online_store_enabled === 1;
+  const onlineStoreNotExpired = !license.online_store_expires_at || new Date(license.online_store_expires_at) > new Date();
+  const isOnlineStoreActive = onlineStoreEnabledRaw && onlineStoreNotExpired;
+
   return new Response(
     JSON.stringify({
       success: true,
@@ -197,6 +201,12 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
         status: license.status,
         license_type: license.license_type,
         expires_at: license.expires_at,
+        online_store_enabled: isOnlineStoreActive,
+        online_store_plan: license.online_store_plan || 'none',
+        online_store_expires_at: license.online_store_expires_at || null,
+        online_store_slug: license.online_store_slug || null,
+        online_store_cloud_id: isOnlineStoreActive ? license.id : null,
+        online_store_sync_key: isOnlineStoreActive ? (license.online_store_sync_key || null) : null,
       },
     }),
     { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }

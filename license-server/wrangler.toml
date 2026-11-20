@@ -5,11 +5,12 @@ compatibility_date = "2024-05-01"
 # Environment Variables
 [vars]
 ENVIRONMENT = "production"
+ONLINE_STORE_WEBHOOK_URL = "https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1/internal/governance/store-license"
 
 # SECRETS (Audit F-05): never commit secret values to this file.
 # 1. Generate keys locally (git-ignored output):   node scripts/setup-secrets.mjs
 # 2. Upload them to Cloudflare once:                npx wrangler secret bulk .secrets/production.secrets.json
-#    -> APP_API_KEY, ADMIN_SECRET, LICENSE_PRIVATE_KEY (RSA private key used to sign licenses)
+#    -> APP_API_KEY, ADMIN_SECRET, LICENSE_PRIVATE_KEY, GOVERNANCE_WEBHOOK_SECRET
 # Local `wrangler dev` reads the same values from the git-ignored .dev.vars file.
 # The old values that were committed here are compromised and must not be reused.
 

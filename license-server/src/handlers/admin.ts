@@ -278,6 +278,10 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     await env.DB.prepare("UPDATE licenses SET status = 'disabled', updated_at = datetime('now') WHERE id = ?")
       .bind(licenseId)
       .run();
+    const updatedLic = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?').bind(licenseId).first<LicenseRecord>();
+    if (updatedLic) {
+      await syncStoreLicenseToKv(env, updatedLic);
+    }
 
     return new Response(
       JSON.stringify({ success: true, message: 'تم إيقاف الترخيص بنجاح' }),
@@ -292,6 +296,10 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     await env.DB.prepare("UPDATE licenses SET status = 'active', updated_at = datetime('now') WHERE id = ?")
       .bind(licenseId)
       .run();
+    const updatedLic = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?').bind(licenseId).first<LicenseRecord>();
+    if (updatedLic) {
+      await syncStoreLicenseToKv(env, updatedLic);
+    }
 
     return new Response(
       JSON.stringify({ success: true, message: 'تم تفعيل الترخيص بنجاح' }),
@@ -987,10 +995,236 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     );
   }
 
+  // 18. POST /api/admin/licenses/:id/online-store - Central Online Store Governance (Design Doc Section 8.1)
+  const onlineStoreMatch = url.pathname.match(/^\/api\/admin\/licenses\/([^/]+)\/online-store$/);
+  if (request.method === 'POST' && onlineStoreMatch) {
+    const licId = onlineStoreMatch[1];
+    const body = await request.json<{
+      enabled?: boolean;
+      plan?: string;
+      slug?: string | null;
+      days?: number;
+      expires_at?: string | null;
+    }>();
+
+    const lic = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?').bind(licId).first<LicenseRecord>();
+    if (!lic) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'الترخيص غير موجود' }),
+        { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    const allowedPlans = new Set(['none', 'trial', 'basic', 'pro', 'premium']);
+    const nextEnabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : (lic.online_store_enabled === 1 ? 0 : 1);
+    const nextPlan = body.plan && allowedPlans.has(body.plan)
+      ? body.plan
+      : (nextEnabled === 1 && (!lic.online_store_plan || lic.online_store_plan === 'none') ? 'basic' : (lic.online_store_plan || 'none'));
+
+    let nextSlug = lic.online_store_slug || null;
+    if (body.slug !== undefined) {
+      const cleanedSlug = (body.slug || '').trim().toLowerCase();
+      if (cleanedSlug.length > 0) {
+        if (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(cleanedSlug)) {
+          return new Response(
+            JSON.stringify({ success: false, message: 'الاسم المختصر للمتجر يجب أن يحتوي على حروف إنجليزية صغيرة وأرقام وشرطة فقط (3-50 حرفاً)' }),
+            { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+          );
+        }
+        nextSlug = cleanedSlug;
+      }
+    }
+
+    // Auto-generate a unique, URL-safe slug when enabling online store without specifying one
+    if (nextEnabled === 1 && !nextSlug) {
+      const randBytes = new Uint8Array(4);
+      crypto.getRandomValues(randBytes);
+      const suffix = Array.from(randBytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+      nextSlug = `shop-${suffix}`;
+    }
+
+    // Auto-generate per-store sync API key once on first activation (zero manual copy-paste on POS)
+    let nextSyncKey = lic.online_store_sync_key || null;
+    if (nextEnabled === 1 && !nextSyncKey) {
+      const keyBytes = new Uint8Array(24);
+      crypto.getRandomValues(keyBytes);
+      nextSyncKey = 'rfq_sync_' + Array.from(keyBytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    let nextExpiresAt = lic.online_store_expires_at || null;
+    if (body.expires_at !== undefined) {
+      nextExpiresAt = body.expires_at;
+    } else if (body.days !== undefined && Number(body.days) > 0) {
+      let base = new Date();
+      if (lic.online_store_expires_at) {
+        const cur = new Date(lic.online_store_expires_at);
+        if (cur > base) base = cur;
+      }
+      base.setDate(base.getDate() + Number(body.days));
+      nextExpiresAt = base.toISOString();
+    }
+
+    await env.DB.prepare(`
+      UPDATE licenses
+      SET online_store_enabled = ?,
+          online_store_plan = ?,
+          online_store_expires_at = ?,
+          online_store_slug = ?,
+          online_store_sync_key = ?,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `)
+      .bind(nextEnabled, nextPlan, nextExpiresAt, nextSlug, nextSyncKey, licId)
+      .run();
+
+    // Remove stale KV entry if slug was renamed
+    if (env.STORE_LICENSES && lic.online_store_slug && lic.online_store_slug !== nextSlug) {
+      try {
+        await env.STORE_LICENSES.delete(`store-license:${lic.online_store_slug}`);
+      } catch {
+        // non-fatal
+      }
+    }
+
+    const updatedLic: LicenseRecord = {
+      ...lic,
+      online_store_enabled: nextEnabled,
+      online_store_plan: nextPlan,
+      online_store_expires_at: nextExpiresAt,
+      online_store_slug: nextSlug,
+      online_store_sync_key: nextSyncKey,
+    };
+    const syncOutcome = await syncStoreLicenseToKv(env, updatedLic, lic.online_store_slug || null);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: nextEnabled === 1
+          ? `تم تفعيل المتجر الإلكتروني السحابي لمتجر (${lic.shop_name}) بالرابط (${nextSlug})`
+          : `تم إيقاف المتجر الإلكتروني السحابي لمتجر (${lic.shop_name})`,
+        online_store_enabled: nextEnabled,
+        online_store_plan: nextPlan,
+        online_store_expires_at: nextExpiresAt,
+        online_store_slug: nextSlug,
+        online_store_url: nextSlug ? `https://rafiq-store-web.rafiq-store-api.workers.dev/${nextSlug}` : null,
+        kv_synced: syncOutcome.kvSynced,
+        webhook_synced: syncOutcome.webhookSynced,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
   return new Response(
     JSON.stringify({ success: false, message: 'المسار غير موجود' }),
     { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
   );
+}
+
+const DEFAULT_ONLINE_STORE_WEBHOOK_URL =
+  'https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1/internal/governance/store-license';
+
+async function sha256HexLocal(message: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(message));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function hmacSha256Hex(message: string, secret: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Mirrors online-store entitlement status into Shared Cloudflare KV (same-account)
+ * AND/OR pushes an HMAC-SHA256 signed governance + auto-provisioning webhook to rafiq-store-api.
+ */
+async function syncStoreLicenseToKv(
+  env: Env,
+  lic: LicenseRecord,
+  previousSlug: string | null = null
+): Promise<{ kvSynced: boolean; webhookSynced: boolean }> {
+  let kvSynced = false;
+  let webhookSynced = false;
+
+  const effectiveEnabled = lic.status !== 'disabled' && lic.online_store_enabled === 1;
+  const slug = (lic.online_store_slug || '').trim().toLowerCase();
+  if (!slug) {
+    return { kvSynced, webhookSynced };
+  }
+
+  // 1. Same-account Shared KV write (when bound)
+  if (env.STORE_LICENSES) {
+    try {
+      await env.STORE_LICENSES.put(
+        `store-license:${slug}`,
+        JSON.stringify({
+          enabled: effectiveEnabled,
+          plan: lic.online_store_plan || 'none',
+          expires_at: lic.online_store_expires_at || null,
+          license_key: lic.license_key,
+          shop_name: lic.shop_name,
+          updated_at: new Date().toISOString(),
+        })
+      );
+      kvSynced = true;
+    } catch {
+      // Non-fatal: D1 remains authoritative
+    }
+  }
+
+  // 2. Cross-account Signed Governance & Auto-Provisioning Webhook (HMAC-SHA256)
+  const webhookSecret = (env.GOVERNANCE_WEBHOOK_SECRET || '').trim();
+  const webhookUrl = (env.ONLINE_STORE_WEBHOOK_URL || DEFAULT_ONLINE_STORE_WEBHOOK_URL).trim();
+  if (webhookSecret.length >= 32 && webhookUrl) {
+    try {
+      const apiKeyHash = lic.online_store_sync_key ? await sha256HexLocal(lic.online_store_sync_key) : null;
+      const ts = Math.floor(Date.now() / 1000).toString();
+      const rawBody = JSON.stringify({
+        action: 'upsert',
+        store_id: lic.id,
+        slug,
+        previous_slug: previousSlug && previousSlug !== slug ? previousSlug : null,
+        enabled: effectiveEnabled,
+        plan: lic.online_store_plan || 'none',
+        expires_at: lic.online_store_expires_at || null,
+        license_key: lic.license_key,
+        shop_name: lic.shop_name,
+        owner_phone: lic.owner_phone || null,
+        api_key_hash: apiKeyHash,
+      });
+      const signature = await hmacSha256Hex(`${ts}.${rawBody}`, webhookSecret);
+
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Rafiq-Timestamp': ts,
+          'X-Rafiq-Signature': signature,
+        },
+        body: rawBody,
+      });
+      webhookSynced = res.ok;
+    } catch {
+      // Non-fatal: admin action in D1 still succeeds
+    }
+  }
+
+  return { kvSynced, webhookSynced };
 }
 
 /**

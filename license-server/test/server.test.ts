@@ -1256,5 +1256,216 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
         }
       });
     });
+
+    describe('Online Store Central Governance (Design Doc Section 8.1)', () => {
+      it('enables, syncs to Shared KV, reports in /api/verify, and instantaneously cuts off on revoke', async () => {
+        const kvMap = new Map<string, string>();
+        const mockKv: any = {
+          get: async (k: string) => kvMap.get(k) ?? null,
+          put: async (k: string, v: string) => { kvMap.set(k, v); },
+          delete: async (k: string) => { kvMap.delete(k); },
+        };
+        const envWithKv: any = { ...env, STORE_LICENSES: mockKv };
+
+        // Create and activate a license
+        const createRes = await server.fetch(
+          new Request('https://license.rafiq.local/api/admin/licenses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': ADMIN_SECRET },
+            body: JSON.stringify({ shop_name: 'سوق الخير', license_type: 'lifetime' }),
+          }),
+          envWithKv
+        );
+        assert.equal(createRes.status, 201);
+        const created = (await createRes.json()) as any;
+        const licId = created.license.id;
+        const licKey = created.license.license_key;
+
+        // Activate on a device
+        const actRes = await server.fetch(
+          new Request('https://license.rafiq.local/api/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Rafiq-Api-Key': env.APP_API_KEY },
+            body: JSON.stringify({ license_key: licKey, machine_fingerprint: 'FP-STORE-01' }),
+          }),
+          envWithKv
+        );
+        assert.equal(actRes.status, 200);
+        const actData = (await actRes.json()) as any;
+
+        // Invalid slug rejected with 400
+        const badSlugRes = await server.fetch(
+          new Request(`https://license.rafiq.local/api/admin/licenses/${licId}/online-store`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': ADMIN_SECRET },
+            body: JSON.stringify({ enabled: true, slug: 'BAD SLUG!!' }),
+          }),
+          envWithKv
+        );
+        assert.equal(badSlugRes.status, 400);
+
+        // Enable online store with valid slug & plan -> writes immediately to Shared KV
+        const enableRes = await server.fetch(
+          new Request(`https://license.rafiq.local/api/admin/licenses/${licId}/online-store`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': ADMIN_SECRET },
+            body: JSON.stringify({ enabled: true, plan: 'pro', slug: 'souq-el-khair', days: 30 }),
+          }),
+          envWithKv
+        );
+        assert.equal(enableRes.status, 200);
+        const kvRaw = kvMap.get('store-license:souq-el-khair');
+        assert.ok(kvRaw, 'KV entry must be written immediately on enable');
+        const kvObj = JSON.parse(kvRaw!);
+        assert.equal(kvObj.enabled, true);
+        assert.equal(kvObj.plan, 'pro');
+
+        // /api/verify reflects online_store_enabled: true
+        const verifyRes = await server.fetch(
+          new Request('https://license.rafiq.local/api/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Rafiq-Api-Key': env.APP_API_KEY },
+            body: JSON.stringify({ token: actData.token, machine_fingerprint: 'FP-STORE-01' }),
+          }),
+          envWithKv
+        );
+        assert.equal(verifyRes.status, 200);
+        const verifyData = (await verifyRes.json()) as any;
+        assert.equal(verifyData.details.online_store_enabled, true);
+        assert.equal(verifyData.details.online_store_slug, 'souq-el-khair');
+
+        // Revoking the main license immediately cuts off KV online store entry
+        const revokeRes = await server.fetch(
+          new Request(`https://license.rafiq.local/api/admin/licenses/${licId}/revoke`, {
+            method: 'POST',
+            headers: { 'X-Admin-Secret': ADMIN_SECRET },
+          }),
+          envWithKv
+        );
+        assert.equal(revokeRes.status, 200);
+        const kvAfterRevoke = JSON.parse(kvMap.get('store-license:souq-el-khair')!);
+        assert.equal(kvAfterRevoke.enabled, false);
+      });
+
+      it('dispatches HMAC-SHA256 signed cross-account governance webhook when configured', async () => {
+        const webhookSecret = 'rafiq_cross_account_governance_secret_key_2026_32bytes!!';
+        const captured: Array<{ url: string; headers: Record<string, string>; body: string }> = [];
+        const origFetch = globalThis.fetch;
+        globalThis.fetch = (async (input: any, init?: any) => {
+          captured.push({
+            url: String(input),
+            headers: (init?.headers || {}) as Record<string, string>,
+            body: String(init?.body || ''),
+          });
+          return new Response(JSON.stringify({ success: true }), { status: 200 });
+        }) as any;
+
+        try {
+          const envWebhook: any = {
+            ...env,
+            ONLINE_STORE_WEBHOOK_URL: 'https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1/internal/governance/store-license',
+            GOVERNANCE_WEBHOOK_SECRET: webhookSecret,
+          };
+
+          const createRes = await server.fetch(
+            new Request('https://license.rafiq.local/api/admin/licenses', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': ADMIN_SECRET },
+              body: JSON.stringify({ shop_name: 'متجر الويب هوك', license_type: 'lifetime' }),
+            }),
+            envWebhook
+          );
+          const created = (await createRes.json()) as any;
+
+          const enableRes = await server.fetch(
+            new Request(`https://license.rafiq.local/api/admin/licenses/${created.license.id}/online-store`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': ADMIN_SECRET },
+              body: JSON.stringify({ enabled: true, plan: 'pro', slug: 'webhook-shop' }),
+            }),
+            envWebhook
+          );
+          assert.equal(enableRes.status, 200);
+          const enableData = (await enableRes.json()) as any;
+          assert.equal(enableData.webhook_synced, true);
+          assert.equal(captured.length, 1);
+          assert.equal(captured[0].url, envWebhook.ONLINE_STORE_WEBHOOK_URL);
+          assert.match(captured[0].headers['X-Rafiq-Timestamp'], /^\d+$/);
+          assert.match(captured[0].headers['X-Rafiq-Signature'], /^[0-9a-f]{64}$/);
+
+          const parsedBody = JSON.parse(captured[0].body);
+          assert.equal(parsedBody.slug, 'webhook-shop');
+          assert.equal(parsedBody.enabled, true);
+          assert.equal(parsedBody.plan, 'pro');
+          assert.equal(parsedBody.store_id, created.license.id);
+          assert.match(parsedBody.api_key_hash, /^[0-9a-f]{64}$/);
+        } finally {
+          globalThis.fetch = origFetch;
+        }
+      });
+
+      it('auto-generates unique slug and sync key when enabled with blank slug', async () => {
+        const createRes = await server.fetch(
+          new Request('https://license.rafiq.local/api/admin/licenses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': ADMIN_SECRET },
+            body: JSON.stringify({ shop_name: 'محل التوليد التلقائي', license_type: 'lifetime' }),
+          }),
+          env
+        );
+        const created = (await createRes.json()) as any;
+        const licId = created.license.id;
+        const licKey = created.license.license_key;
+
+        await server.fetch(
+          new Request('https://license.rafiq.local/api/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Rafiq-Api-Key': env.APP_API_KEY },
+            body: JSON.stringify({ license_key: licKey, machine_fingerprint: 'FP-AUTOSLUG-01' }),
+          }),
+          env
+        );
+
+        const enableRes = await server.fetch(
+          new Request(`https://license.rafiq.local/api/admin/licenses/${licId}/online-store`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': ADMIN_SECRET },
+            body: JSON.stringify({ enabled: true, plan: 'basic', slug: '' }),
+          }),
+          env
+        );
+        assert.equal(enableRes.status, 200);
+        const enableData = (await enableRes.json()) as any;
+        assert.match(enableData.online_store_slug, /^shop-[0-9a-f]{8}$/);
+
+        const verifyRes = await server.fetch(
+          new Request('https://license.rafiq.local/api/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Rafiq-Api-Key': env.APP_API_KEY },
+            body: JSON.stringify({ license_key: licKey, machine_fingerprint: 'FP-AUTOSLUG-01' }),
+          }),
+          env
+        );
+        const verifyData = (await verifyRes.json()) as any;
+        assert.equal(verifyData.details.online_store_slug, enableData.online_store_slug);
+        assert.equal(verifyData.details.online_store_cloud_id, licId);
+        assert.ok(String(verifyData.details.online_store_sync_key).startsWith('rfq_sync_'));
+      });
+
+      it('serves syntactically valid browser JavaScript at /admin/assets/app.js without native prompt dialogs', async () => {
+        const res = await server.fetch(new Request('https://license.rafiq.local/admin/assets/app.js'), env);
+        assert.equal(res.status, 200);
+        const js = await res.text();
+        // Throws SyntaxError immediately if any template-literal quote escaping breaks client JS
+        assert.doesNotThrow(() => new Function(js));
+        assert.equal(js.includes('window.prompt'), false, 'Admin UI must not use native window.prompt dialogs');
+        assert.equal(js.includes('openOnlineStoreModal'), true, 'Admin UI must wire the branded Online Store modal');
+
+        const htmlRes = await server.fetch(new Request('https://license.rafiq.local/admin'), env);
+        assert.equal(htmlRes.status, 200);
+        const html = await htmlRes.text();
+        assert.equal(html.includes('id="onlineStoreModal"'), true, 'Admin HTML must include the branded onlineStoreModal');
+      });
+    });
   });
 });

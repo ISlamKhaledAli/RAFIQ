@@ -1,7 +1,6 @@
 import { adminStyles } from './styles.ts';
 import { tailwindCompiledCss } from './tailwindCss.ts';
 import { adminTemplate } from './template.ts';
-import { adminScripts } from './scripts.ts';
 
 /**
  * Assemble and serve the Admin HTML Dashboard

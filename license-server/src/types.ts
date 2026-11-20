@@ -11,10 +11,17 @@ export interface Env {
   LICENSE_PRIVATE_KEY: string;
   /** Optional comma-separated hosts allowed for release download_url (default: GitHub release hosts). */
   RELEASE_DOWNLOAD_HOSTS?: string;
+  /** Optional shared Cloudflare KV namespace for instant online-store edge gating (Design Doc Section 8.1.1). */
+  STORE_LICENSES?: KVNamespace;
+  /** Cross-account governance webhook endpoint on rafiq-store-api. */
+  ONLINE_STORE_WEBHOOK_URL?: string;
+  /** Shared HMAC-SHA256 secret (>= 32 chars) stored as Worker secret on both license-server and online-store/api. */
+  GOVERNANCE_WEBHOOK_SECRET?: string;
 }
 
 export type LicenseStatus = 'pending' | 'active' | 'disabled' | 'expired';
 export type LicenseType = 'lifetime' | 'annual' | 'monthly' | 'trial';
+export type OnlineStorePlan = 'none' | 'trial' | 'basic' | 'pro' | 'premium';
 export type TokenKind = 'activation' | 'support' | 'root_session' | 'pin_reset' | 'clock_reset';
 
 export interface LicenseRecord {
@@ -31,6 +38,11 @@ export interface LicenseRecord {
   can_receive_updates: number; // 1 = eligible, 0 = blocked
   updates_until: string | null; // ISO datetime or null for lifetime
   max_allowed_version: string | null;
+  online_store_enabled?: number; // 1 = enabled, 0 = disabled
+  online_store_plan?: OnlineStorePlan | string;
+  online_store_expires_at?: string | null;
+  online_store_slug?: string | null;
+  online_store_sync_key?: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

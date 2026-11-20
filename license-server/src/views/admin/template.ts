@@ -1224,6 +1224,179 @@ export const adminTemplate = `
     </div>
   </div>
 
+  <!-- Modal 9: Online Store Cloud Governance Modal -->
+  <div id="onlineStoreModal" style="display:none !important;" class="modal-backdrop hidden">
+    <div class="modal-card p-5 sm:p-7 max-w-xl w-full space-y-4 text-right">
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-[#006d41] border border-emerald-200/80 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <div>
+            <h3 class="text-base sm:text-lg font-black text-slate-900 leading-tight">إدارة المتجر الإلكتروني السحابي</h3>
+            <p class="text-[11.5px] text-slate-500 font-medium mt-0.5">التحكم المركزي في التفعيل، الرابط المختصر، وصلاحية الاشتراك السحابي</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('onlineStoreModal')" class="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- License Context Banner -->
+      <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+        <div class="space-y-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[11px] font-bold text-slate-400">المنشأة:</span>
+            <strong id="osModalShopName" class="text-sm font-black text-slate-900 truncate">-</strong>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[11px] font-bold text-slate-400">الترخيص:</span>
+            <span id="osModalLicenseKey" class="font-mono font-bold text-xs text-[#00372d] bg-white px-2 py-0.5 rounded-md border border-slate-200 select-all" dir="ltr">-</span>
+          </div>
+        </div>
+        <div class="flex flex-col items-start sm:items-end gap-1 shrink-0">
+          <span id="osCurrentStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold border"></span>
+          <span id="osCurrentExpiryText" class="text-[11px] text-slate-500 font-semibold"></span>
+        </div>
+      </div>
+
+      <form novalidate onsubmit="handleOnlineStoreSubmit(event)" class="space-y-4">
+        <input type="hidden" id="osLicenseId">
+        <input type="hidden" id="osEnabledValue" value="1">
+
+        <!-- Status Toggle Switcher -->
+        <div class="space-y-1.5">
+          <label class="block text-xs font-bold text-slate-700">حالة التشغيل السحابي للمتجر:</label>
+          <div class="os-mode-switcher">
+            <button type="button" id="btnOsModeEnable" onclick="setOnlineStoreMode(true)" class="os-mode-btn active-enable">
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <span>تفعيل وتشغيل المتجر</span>
+            </button>
+            <button type="button" id="btnOsModeDisable" onclick="setOnlineStoreMode(false)" class="os-mode-btn">
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              <span>إيقاف المتجر لحظياً</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Disable Warning Banner (shown only when Kill-Switch is selected) -->
+        <div id="osDisableWarningBox" style="display:none;" class="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 leading-relaxed flex items-start gap-2.5 font-medium">
+          <svg class="w-4 h-4 text-rose-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>سيتم إيقاف المتجر الإلكتروني السحابي ومنع استقبال الطلبات والمزامنة لحظياً عبر السحابة، مع الاحتفاظ ببيانات الرابط لإمكانية إعادة التشغيل لاحقاً.</span>
+        </div>
+
+        <!-- Store Configuration Fields (shown when Enable mode is selected) -->
+        <div id="osConfigFields" class="space-y-4">
+          <!-- Slug Input + Auto-Suggest + Live Preview -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <label for="osSlugInput" class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <span>الاسم المختصر لرابط المتجر (Store Slug):</span>
+                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">اختياري</span>
+              </label>
+              <button type="button" onclick="suggestOnlineStoreSlug()" class="text-[11.5px] font-bold text-[#006d41] hover:text-[#00372d] hover:underline flex items-center gap-1 cursor-pointer transition">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                <span>اقتراح تلقائي</span>
+              </button>
+            </div>
+
+            <div id="osSlugWrap" class="os-slug-input-wrap" dir="ltr">
+              <span class="os-slug-prefix" title="https://rafiq-store-web.rafiq-store-api.workers.dev/">...workers.dev/</span>
+              <input type="text" id="osSlugInput" maxlength="50" autocomplete="off" spellcheck="false" placeholder="al-nour-market" oninput="onOnlineStoreSlugInput()" dir="ltr">
+            </div>
+
+            <div id="osSlugFeedback" class="text-[11.5px] text-slate-500 font-medium flex items-center gap-1.5 min-h-[18px]">
+              <span>حروف إنجليزية صغيرة وأرقام وشرطة (-) فقط من 3 إلى 50 حرفاً.</span>
+            </div>
+
+            <!-- Live Storefront URL Preview -->
+            <div id="osUrlPreviewBox" style="display:none;" class="os-url-preview">
+              <div class="min-w-0 flex-1 text-left" dir="ltr">
+                <div class="text-[10px] font-bold text-[#006d41] text-right mb-0.5" dir="rtl">معاينة رابط المتجر المباشر:</div>
+                <div id="osUrlPreviewText" class="font-mono text-xs font-bold text-[#00372d] truncate select-all"></div>
+              </div>
+              <button type="button" onclick="copyOnlineStoreUrl()" class="px-3 py-1.5 rounded-lg bg-[#00372d] hover:bg-[#00261f] text-white font-bold text-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>نسخ الرابط</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Subscription Duration (Preset + Custom Days) -->
+          <div class="space-y-2.5">
+            <div>
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <label class="block text-xs font-bold text-slate-700">صلاحية اشتراك المتجر الإلكتروني:</label>
+                <span class="text-[10.5px] font-bold text-[#006d41] bg-[#eaf5ee] border border-[#c4e3d0] px-2 py-0.5 rounded-md">مستقلة عن اشتراك الديسكتوب</span>
+              </div>
+              <div class="custom-select-container" id="wrapper-osDurationSelect">
+                <input type="hidden" id="osDurationSelect" value="keep">
+                <button type="button" class="custom-select-trigger" onclick="toggleCustomSelect('osDurationSelect', event)">
+                  <span class="custom-select-label">الإبقاء على الصلاحية الحالية</span>
+                  <svg class="custom-select-chevron w-4 h-4 text-[#006D41] transition-transform duration-200 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div id="options-osDurationSelect" class="custom-select-options hidden">
+                  <div class="custom-option selected" data-value="keep" onclick="selectCustomOption('osDurationSelect', 'keep', 'الإبقاء على الصلاحية الحالية', event)">
+                    <span>الإبقاء على الصلاحية الحالية</span>
+                    <svg class="custom-option-check w-4 h-4 text-[#006D41]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-option" data-value="unlimited" onclick="selectCustomOption('osDurationSelect', 'unlimited', 'مفتوح بدون تاريخ انتهاء', event)">
+                    <span>مفتوح بدون تاريخ انتهاء</span>
+                    <svg class="custom-option-check w-4 h-4 text-[#006D41] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-option" data-value="add_30" onclick="selectCustomOption('osDurationSelect', 'add_30', 'إضافة شهر (+30 يوم)', event)">
+                    <span>إضافة شهر (+30 يوم)</span>
+                    <svg class="custom-option-check w-4 h-4 text-[#006D41] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-option" data-value="add_90" onclick="selectCustomOption('osDurationSelect', 'add_90', 'إضافة 3 أشهر (+90 يوم)', event)">
+                    <span>إضافة 3 أشهر (+90 يوم)</span>
+                    <svg class="custom-option-check w-4 h-4 text-[#006D41] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-option" data-value="add_180" onclick="selectCustomOption('osDurationSelect', 'add_180', 'إضافة 6 أشهر (+180 يوم)', event)">
+                    <span>إضافة 6 أشهر (+180 يوم)</span>
+                    <svg class="custom-option-check w-4 h-4 text-[#006D41] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-option" data-value="add_365" onclick="selectCustomOption('osDurationSelect', 'add_365', 'إضافة سنة كاملة (+365 يوم)', event)">
+                    <span>إضافة سنة كاملة (+365 يوم)</span>
+                    <svg class="custom-option-check w-4 h-4 text-[#006D41] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-option" data-value="add_custom" onclick="selectCustomOption('osDurationSelect', 'add_custom', 'إضافة عدد أيام مخصص (+X يوم)...', event)">
+                    <span>إضافة عدد أيام مخصص (+X يوم)...</span>
+                    <svg class="custom-option-check w-4 h-4 text-[#006D41] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-option text-amber-900" data-value="set_exact" onclick="selectCustomOption('osDurationSelect', 'set_exact', 'إعادة تعيين المدة من اليوم (عدد أيام محدد)...', event)">
+                    <span>إعادة تعيين المدة من اليوم (عدد أيام محدد)...</span>
+                    <svg class="custom-option-check w-4 h-4 text-amber-700 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Custom Days Input (shown when add_custom or set_exact is selected) -->
+            <div id="osCustomDaysWrapper" style="display:none;" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <label id="osCustomDaysLabel" for="osCustomDaysInput" class="block text-xs font-bold text-slate-700">عدد الأيام المخصصة:</label>
+                <span class="text-[11px] font-semibold text-slate-400">من 1 إلى 3650 يوم</span>
+              </div>
+              <input type="number" id="osCustomDaysInput" min="1" max="3650" placeholder="مثلاً: 14 أو 45 أو 60" class="w-full font-mono text-sm font-bold" oninput="updateOnlineStoreCustomDaysPreview()">
+              <p id="osCustomDaysHint" class="text-[11.5px] text-[#006d41] font-bold"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-3.5 border-t border-slate-100">
+          <button type="button" onclick="closeModal('onlineStoreModal')" class="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs sm:text-sm hover:bg-slate-50 transition cursor-pointer text-center">إلغاء</button>
+          <button type="submit" id="btnOsSubmit" class="w-full sm:w-auto px-6 py-2.5 bg-[#006d41] hover:bg-[#005634] text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polyline points="20 6 9 17 4 12"/></svg>
+            <span id="btnOsSubmitText">تفعيل المتجر وحفظ الإعدادات</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast" style="display:none !important;"></div>
   <!-- ========================================================================= -->

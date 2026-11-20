@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS licenses (
     can_receive_updates INTEGER NOT NULL DEFAULT 1,
     updates_until TEXT,
     max_allowed_version TEXT DEFAULT 'latest',
+    online_store_enabled INTEGER NOT NULL DEFAULT 0,
+    online_store_plan TEXT NOT NULL DEFAULT 'none',
+    online_store_expires_at TEXT,
+    online_store_slug TEXT,
+    online_store_sync_key TEXT,
     notes TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -27,6 +32,7 @@ CREATE TABLE IF NOT EXISTS licenses (
 CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses(license_key);
 CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(status);
 CREATE INDEX IF NOT EXISTS idx_licenses_fingerprint ON licenses(machine_fingerprint);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_licenses_online_store_slug ON licenses(online_store_slug) WHERE online_store_slug IS NOT NULL;
 
 -- سجل حركات وتدقيق التفعيل والمحاولات (Audit Log)
 CREATE TABLE IF NOT EXISTS activation_logs (
