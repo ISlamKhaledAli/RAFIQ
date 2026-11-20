@@ -1,16 +1,17 @@
 import React from 'react';
 import type { Category, Store } from '../types';
+import { ToggleSwitch } from './admin/ToggleSwitch';
 import {
   Layers,
   Sparkles,
   CheckCircle2,
   Clock,
   MapPin,
-  Phone,
   Truck,
   Utensils,
   Milk,
   Coffee,
+  Croissant,
   SprayCan as Spray,
 } from 'lucide-react';
 
@@ -39,6 +40,7 @@ export const DesktopSidebar: React.FC<Props> = ({
     const iconClass = `w-4 h-4 ${isSelected ? '!text-white' : 'text-slate-500 group-hover:text-store-primary'}`;
     if (name.includes('الكل')) return <Sparkles className={iconClass} />;
     if (name.includes('ألبان') || name.includes('جبن')) return <Milk className={iconClass} />;
+    if (name.includes('مخبوزات') || name.includes('فطار')) return <Croissant className={iconClass} />;
     if (name.includes('مشروبات') || name.includes('عصائر')) return <Coffee className={iconClass} />;
     if (name.includes('منظفات')) return <Spray className={iconClass} />;
     if (name.includes('بقالة')) return <Utensils className={iconClass} />;
@@ -86,44 +88,74 @@ export const DesktopSidebar: React.FC<Props> = ({
       </div>
 
       {/* Quick Filters Card */}
-      <div className="bg-store-card rounded-3xl border border-store-line p-5 shadow-2xs space-y-3 transition-colors">
+      <div className="bg-store-card rounded-3xl border border-store-line p-5 shadow-sm space-y-3 transition-colors">
         <h4 className="text-xs font-black text-store-text pb-2 border-b border-store-line/60">
           تصفية سريعة
         </h4>
 
         <div className="space-y-2">
           {/* Featured Filter */}
-          <label className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-store-primary-light/30 cursor-pointer transition-colors border border-transparent hover:border-store-line/60">
-            <div className="flex items-center gap-2 text-xs font-bold text-store-text">
-              <Sparkles className="w-4 h-4 text-store-accent" />
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={onToggleFeatured}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onToggleFeatured();
+              }
+            }}
+            className={`flex items-center justify-between p-2.5 rounded-2xl cursor-pointer transition-all border ${
+              featuredOnly
+                ? 'bg-store-primary-light/50 border-store-primary/30'
+                : 'border-transparent hover:bg-store-primary-light/30 hover:border-store-line/60'
+            }`}
+          >
+            <div className="flex items-center gap-2 text-xs font-bold text-store-text select-none">
+              <Sparkles className="w-4 h-4 text-store-accent shrink-0" />
               <span>عروض وتخفيضات فقط</span>
             </div>
-            <input
-              type="checkbox"
+            <ToggleSwitch
               checked={featuredOnly}
-              onChange={onToggleFeatured}
-              className="w-4 h-4 rounded text-store-primary focus:ring-store-primary cursor-pointer accent-store-primary"
+              onChange={() => onToggleFeatured()}
+              size="sm"
+              activeClassName="bg-store-primary hover:bg-store-primary-hover"
             />
-          </label>
+          </div>
 
           {/* In Stock Filter */}
-          <label className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-store-primary-light/30 cursor-pointer transition-colors border border-transparent hover:border-store-line/60">
-            <div className="flex items-center gap-2 text-xs font-bold text-store-text">
-              <CheckCircle2 className="w-4 h-4 text-store-primary" />
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={onToggleInStock}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onToggleInStock();
+              }
+            }}
+            className={`flex items-center justify-between p-2.5 rounded-2xl cursor-pointer transition-all border ${
+              inStockOnly
+                ? 'bg-store-primary-light/50 border-store-primary/30'
+                : 'border-transparent hover:bg-store-primary-light/30 hover:border-store-line/60'
+            }`}
+          >
+            <div className="flex items-center gap-2 text-xs font-bold text-store-text select-none">
+              <CheckCircle2 className="w-4 h-4 text-store-primary shrink-0" />
               <span>المتوفر بالمخزن فقط</span>
             </div>
-            <input
-              type="checkbox"
+            <ToggleSwitch
               checked={inStockOnly}
-              onChange={onToggleInStock}
-              className="w-4 h-4 rounded text-store-primary focus:ring-store-primary cursor-pointer accent-store-primary"
+              onChange={() => onToggleInStock()}
+              size="sm"
+              activeClassName="bg-store-primary hover:bg-store-primary-hover"
             />
-          </label>
+          </div>
         </div>
       </div>
 
       {/* Store Info Widget */}
-      <div className="bg-store-card rounded-3xl border border-store-line p-5 shadow-2xs space-y-3.5 transition-colors">
+      <div className="bg-store-card rounded-3xl border border-store-line p-5 shadow-sm space-y-3.5 transition-colors">
         <h4 className="text-xs font-black text-store-text pb-2 border-b border-store-line/60 flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5 text-store-primary" />
           <span>مواعيد العمل والتوصيل</span>

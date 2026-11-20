@@ -1,59 +1,43 @@
-import React, { useEffect } from 'react';
-import { Check, ShoppingBag, ArrowLeft } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { Check } from 'lucide-react';
 
 interface Props {
   message: string;
-  subMessage?: string;
+  toastKey?: number;
   isVisible: boolean;
   onClose: () => void;
-  onOpenCart?: () => void;
 }
 
 export const Toast: React.FC<Props> = ({
   message,
-  subMessage,
+  toastKey,
   isVisible,
   onClose,
-  onOpenCart,
 }) => {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (isVisible) {
       const timer = setTimeout(() => {
-        onClose();
-      }, 2400);
+        onCloseRef.current();
+      }, 1200);
       return () => clearTimeout(timer);
     }
-  }, [isVisible, onClose]);
+  }, [isVisible, toastKey]);
 
   if (!isVisible) return null;
 
   return (
-    <div className="fixed top-20 sm:top-24 left-4 right-4 sm:left-auto sm:right-8 z-50 sm:max-w-md animate-toast-in pointer-events-auto">
-      <div className="flex items-center justify-between gap-3 bg-slate-900/95 backdrop-blur-xl text-white p-3.5 sm:p-4 rounded-2xl shadow-2xl border border-white/10">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0 border border-emerald-500/30 animate-pop">
-            <Check className="w-4 h-4 stroke-[3]" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs sm:text-sm font-black truncate">{message}</div>
-            {subMessage && (
-              <div className="text-[11px] text-slate-400 truncate">{subMessage}</div>
-            )}
-          </div>
-        </div>
-
-        {onOpenCart && (
-          <button
-            onClick={() => {
-              onClose();
-              onOpenCart();
-            }}
-            className="flex items-center gap-1 bg-white/15 hover:bg-white/25 active:scale-95 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0"
-          >
-            <span>عرض السلة</span>
-            <ArrowLeft className="w-3.5 h-3.5" />
-          </button>
-        )}
+    <div className="fixed bottom-[110px] inset-x-3 sm:bottom-6 sm:left-6 sm:right-auto z-50 flex justify-center sm:justify-start pointer-events-none">
+      <div
+        key={toastKey}
+        className="inline-flex items-center gap-2 max-w-[90vw] sm:max-w-xs bg-[#00372D] text-white px-3.5 py-1.5 rounded-full shadow-lg border border-[#006D41]/50 motion-toast"
+      >
+        <span className="w-4 h-4 rounded-full bg-[#006D41] text-white flex items-center justify-center shrink-0">
+          <Check className="w-2.5 h-2.5 stroke-[3]" />
+        </span>
+        <span className="text-xs font-bold truncate leading-none py-0.5">{message}</span>
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ interface Props {
 }
 
 export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrderApi }) => {
-  const { mounted, visible } = useModalAnimation(isOpen, 300);
+  const { mounted, visible } = useModalAnimation(isOpen, 280);
 
   const [orderNumber, setOrderNumber] = useState('');
   const [phone, setPhone] = useState('');
@@ -49,28 +49,35 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
 
   const getStepIndex = (status: string) => {
     switch (status) {
-      case 'new': return 0;
-      case 'accepted': return 1;
-      case 'preparing': return 2;
-      case 'ready': return 3;
-      case 'delivered': return 4;
-      default: return 0;
+      case 'new':
+      case 'viewed':
+        return 0;
+      case 'accepted':
+        return 1;
+      case 'preparing':
+        return 2;
+      case 'ready':
+        return 3;
+      case 'delivered':
+        return 4;
+      default:
+        return 0;
     }
   };
 
   const currentIdx = order ? getStepIndex(order.status) : 0;
-  const isRejected = order?.status === 'rejected';
+  const isRejected = order?.status === 'rejected' || (order?.status as string) === 'cancelled';
 
   return (
     <div
       onClick={onClose}
-      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/70 transition-all duration-300 ease-in-out ${
-        visible ? 'opacity-100 backdrop-blur-md' : 'opacity-0 backdrop-blur-none pointer-events-none'
+      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 transition-opacity duration-200 ease-out ${
+        visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
     >
       <div
         onClick={e => e.stopPropagation()}
-        className={`relative w-full max-w-lg bg-store-card rounded-t-3xl sm:rounded-3xl shadow-2xl border border-store-line overflow-hidden flex flex-col max-h-[92vh] transition-all duration-300 ease-in-out ${
+        className={`relative w-full max-w-lg bg-store-card rounded-t-3xl sm:rounded-3xl shadow-2xl border border-store-line overflow-hidden flex flex-col max-h-[92vh] transition-[transform,opacity] duration-[280ms] ease-out ${
           visible
             ? 'translate-y-0 sm:scale-100 opacity-100'
             : 'translate-y-full sm:translate-y-6 sm:scale-95 opacity-0'
@@ -208,12 +215,15 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
                   <div className="text-xs font-bold text-store-muted flex items-center gap-1">
                     <Package className="w-3.5 h-3.5" /> الأصناف المطلوبة:
                   </div>
-                  {order.items.map((it, idx) => (
-                    <div key={idx} className="flex justify-between text-xs py-1 border-b border-store-line last:border-none">
-                      <span className="font-bold text-store-text">{it.product_name} × {it.quantity / 1000}</span>
-                      <span className="font-black text-store-primary">{(it.line_total / 100).toFixed(2)} ج.م</span>
-                    </div>
-                  ))}
+                  {order.items.map((it, idx) => {
+                    const displayQty = it.quantity >= 100 ? Number((it.quantity / 1000).toFixed(3)) : it.quantity;
+                    return (
+                      <div key={idx} className="flex justify-between text-xs py-1 border-b border-store-line last:border-none">
+                        <span className="font-bold text-store-text">{it.product_name} × {displayQty}</span>
+                        <span className="font-black text-store-primary">{(it.line_total / 100).toFixed(2)} ج.م</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

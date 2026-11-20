@@ -32,7 +32,7 @@ export const CartDrawer: React.FC<Props> = ({
   onClearItem,
   onProceedToCheckout,
 }) => {
-  const { mounted, visible } = useModalAnimation(isOpen, 300);
+  const { mounted, visible } = useModalAnimation(isOpen, 280);
   const [isZoneDropdownOpen, setIsZoneDropdownOpen] = useState(false);
 
   if (!mounted) return null;
@@ -56,14 +56,14 @@ export const CartDrawer: React.FC<Props> = ({
       {/* Backdrop */}
       <div
         onClick={onClose}
-        className={`fixed inset-0 bg-slate-950/60 transition-opacity duration-300 ease-in-out ${
-          visible ? 'opacity-100 backdrop-blur-sm' : 'opacity-0 backdrop-blur-none pointer-events-none'
+        className={`fixed inset-0 bg-slate-950/55 transition-opacity duration-200 ease-out ${
+          visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       />
 
       {/* Drawer Panel - Fully opaque solid white base with theme tint fallback */}
       <aside
-        className={`fixed inset-x-0 bottom-0 sm:inset-y-0 sm:right-0 sm:left-auto w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-none h-[92vh] sm:h-full shadow-2xl flex flex-col justify-between border-t sm:border-l sm:border-t-0 border-store-line overflow-hidden transition-transform duration-300 ease-in-out z-50 ${
+        className={`fixed inset-x-0 bottom-0 sm:inset-y-0 sm:right-0 sm:left-auto w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-none h-[92vh] sm:h-full shadow-2xl flex flex-col justify-between border-t sm:border-l sm:border-t-0 border-store-line overflow-hidden transition-transform duration-[280ms] ease-out z-50 ${
           visible
             ? 'translate-y-0 sm:translate-x-0'
             : 'translate-y-full sm:translate-x-full'
@@ -245,7 +245,7 @@ export const CartDrawer: React.FC<Props> = ({
                       </span>
                     )}
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${isZoneDropdownOpen ? 'rotate-180 text-store-primary' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-slate-500 motion-chevron ${isZoneDropdownOpen ? 'rotate-180 text-store-primary' : ''}`} />
                 </button>
 
                 {/* Dropdown Custom Options Menu */}
@@ -255,7 +255,7 @@ export const CartDrawer: React.FC<Props> = ({
                       className="fixed inset-0 z-30"
                       onClick={() => setIsZoneDropdownOpen(false)}
                     ></div>
-                    <div className="absolute bottom-full left-0 right-0 mb-1.5 z-40 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden divide-y divide-slate-100 max-h-56 overflow-y-auto animate-in fade-in">
+                    <div className="absolute bottom-full left-0 right-0 mb-1.5 z-40 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden divide-y divide-slate-100 max-h-56 overflow-y-auto motion-popup">
                       {store.delivery_zones.map(z => {
                         const isSelected = selectedDeliveryZone === z.name;
                         return (

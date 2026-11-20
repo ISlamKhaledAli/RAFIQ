@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles, MessageSquare, ArrowLeft, Monitor, Smartphone, CheckCircle2 } from 'lucide-react';
+import { buildWhatsAppUrl } from '../utils/whatsapp';
 
 interface Props {
   variant?: 'mobile-feed' | 'sidebar' | 'footer-banner';
@@ -10,11 +11,10 @@ export const RafiqBrandingCard: React.FC<Props> = ({
   variant = 'mobile-feed',
   supportPhone = '01097782965',
 }) => {
-  const cleanPhone = (supportPhone || '01097782965').replace(/^0+/, '');
-  const promoWhatsappMsg = encodeURIComponent(
+  const whatsappUrl = buildWhatsAppUrl(
+    supportPhone || '01097782965',
     'السلام عليكم م. إسلام، أرغب في الاستفسار وتجربة برنامج كاشير رفيق والمتجر الإلكتروني لمحلي التجاري.'
   );
-  const whatsappUrl = `https://wa.me/2${cleanPhone}?text=${promoWhatsappMsg}`;
 
   // 1. Sidebar Variant (Clean, modern card on desktop sidebar)
   if (variant === 'sidebar') {

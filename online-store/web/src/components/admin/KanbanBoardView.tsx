@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AdminOrder } from './OrderPrintReceipt';
+import { buildWhatsAppUrl } from '../../utils/whatsapp';
 import {
   Clock,
   Phone,
@@ -9,6 +10,7 @@ import {
   Truck,
   CheckCircle2,
   ChevronLeft,
+  Printer,
 } from 'lucide-react';
 
 interface Props {
@@ -18,7 +20,7 @@ interface Props {
   storeName: string;
 }
 
-export const KanbanBoardView: React.FC<Props> = ({
+const KanbanBoardViewComponent: React.FC<Props> = ({
   orders,
   onSelectOrder,
   onUpdateStatus,
@@ -42,8 +44,8 @@ export const KanbanBoardView: React.FC<Props> = ({
       theme: 'border-blue-200 bg-blue-50/40 text-blue-900',
       badge: 'bg-blue-100 text-blue-800',
       icon: PackageCheck,
-      nextStatus: 'ready',
-      nextLabel: 'تسليم للدليفري',
+      nextStatus: null,
+      nextLabel: null,
     },
     {
       id: 'ready',
@@ -70,7 +72,11 @@ export const KanbanBoardView: React.FC<Props> = ({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto pb-4">
       {columns.map(col => {
-        const colOrders = orders.filter(o => o.status === col.id);
+        const colOrders = orders.filter(o => {
+          if (col.id === 'new') return o.status === 'new' || o.status === 'viewed';
+          if (col.id === 'accepted') return o.status === 'accepted' || o.status === 'preparing';
+          return o.status === col.id;
+        });
         const ColIcon = col.icon;
 
         return (
@@ -103,7 +109,7 @@ export const KanbanBoardView: React.FC<Props> = ({
                   <div
                     key={ord.id}
                     onClick={() => onSelectOrder(ord)}
-                    className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all cursor-pointer space-y-2.5 text-right btn-spring"
+                    className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:border-[#004D3F]/40 transition-colors cursor-pointer space-y-2.5 text-right"
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-xs font-black text-slate-900">
@@ -151,11 +157,11 @@ export const KanbanBoardView: React.FC<Props> = ({
                           type="button"
                           onClick={e => {
                             e.stopPropagation();
-                            const cleanPhone = ord.customer_phone.replace(/^0+/, '');
-                            const msg = encodeURIComponent(
+                            const url = buildWhatsAppUrl(
+                              ord.customer_phone,
                               `مرحباً أستاذ ${ord.customer_name}، نتواصل معك من ${storeName} بخصوص طلبك رقم #ORD-${ord.order_number}`
                             );
-                            window.open(`https://wa.me/20${cleanPhone}?text=${msg}`, '_blank');
+                            window.open(url, '_blank');
                           }}
                           className="p-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors"
                           title="واتساب"
@@ -164,7 +170,15 @@ export const KanbanBoardView: React.FC<Props> = ({
                         </button>
                       </div>
 
-                      {col.nextStatus && (
+                      {col.id === 'accepted' ? (
+                        <span
+                          className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200/60 flex items-center gap-1"
+                          title="يتم تسليم الطلب للدليفري وطباعة البون من برنامج الكاشير"
+                        >
+                          <Printer className="w-3 h-3 text-amber-600" />
+                          <span>بانتظار فوترة الكاشير</span>
+                        </span>
+                      ) : col.nextStatus ? (
                         <button
                           type="button"
                           onClick={e => {
@@ -176,7 +190,7 @@ export const KanbanBoardView: React.FC<Props> = ({
                           <span>{col.nextLabel}</span>
                           <ChevronLeft className="w-3 h-3" />
                         </button>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 ))
@@ -188,3 +202,5 @@ export const KanbanBoardView: React.FC<Props> = ({
     </div>
   );
 };
+
+export const KanbanBoardView = React.memo(KanbanBoardViewComponent);
