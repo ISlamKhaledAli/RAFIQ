@@ -581,6 +581,150 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, benchRes);
                     return true;
 
+                case "system:showSaveFileDialog":
+                case "dialog:saveFile":
+                    string chosenSavePath = null;
+                    string sfdTitle = "تحديد مكان حفظ الملف";
+                    string sfdFilter = "ملفات إكسل (*.xlsx)|*.xlsx|جميع الملفات (*.*)|*.*";
+                    string sfdDefaultExt = "xlsx";
+                    string sfdInitialDir = null;
+                    string sfdDefaultFileName = null;
+
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null)
+                        {
+                            if (pObj["title"] != null) sfdTitle = pObj["title"].ToString();
+                            if (pObj["filter"] != null) sfdFilter = pObj["filter"].ToString();
+                            if (pObj["defaultExt"] != null) sfdDefaultExt = pObj["defaultExt"].ToString();
+                            if (pObj["initialFolder"] != null) sfdInitialDir = pObj["initialFolder"].ToString();
+                            if (pObj["defaultFileName"] != null) sfdDefaultFileName = pObj["defaultFileName"].ToString();
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(sfdInitialDir) || !System.IO.Directory.Exists(sfdInitialDir))
+                    {
+                        sfdInitialDir = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                        if (string.IsNullOrEmpty(sfdInitialDir) || !System.IO.Directory.Exists(sfdInitialDir))
+                        {
+                            sfdInitialDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                        }
+                    }
+
+                    var saveFileThread = new System.Threading.Thread(delegate()
+                    {
+                        using (var sfd = new System.Windows.Forms.SaveFileDialog())
+                        {
+                            sfd.Title = sfdTitle;
+                            sfd.Filter = sfdFilter;
+                            sfd.DefaultExt = sfdDefaultExt;
+                            sfd.AddExtension = true;
+                            sfd.OverwritePrompt = true;
+                            sfd.RestoreDirectory = true;
+                            if (!string.IsNullOrEmpty(sfdDefaultFileName))
+                            {
+                                sfd.FileName = sfdDefaultFileName;
+                            }
+                            if (!string.IsNullOrEmpty(sfdInitialDir) && System.IO.Directory.Exists(sfdInitialDir))
+                            {
+                                sfd.InitialDirectory = sfdInitialDir;
+                            }
+
+                            IntPtr ownerHwnd = IntPtr.Zero;
+                            if (System.Windows.Forms.Application.OpenForms.Count > 0 && System.Windows.Forms.Application.OpenForms[0] != null)
+                            {
+                                try { ownerHwnd = System.Windows.Forms.Application.OpenForms[0].Handle; } catch { ownerHwnd = IntPtr.Zero; }
+                            }
+
+                            System.Windows.Forms.DialogResult dr = (ownerHwnd != IntPtr.Zero)
+                                ? sfd.ShowDialog(new FolderSelectDialog.WindowWrapper(ownerHwnd))
+                                : sfd.ShowDialog();
+
+                            if (dr == System.Windows.Forms.DialogResult.OK)
+                            {
+                                chosenSavePath = sfd.FileName;
+                            }
+                        }
+                    });
+                    saveFileThread.SetApartmentState(System.Threading.ApartmentState.STA);
+                    saveFileThread.Start();
+                    saveFileThread.Join();
+
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        filePath = chosenSavePath,
+                        cancelled = string.IsNullOrEmpty(chosenSavePath)
+                    });
+                    return true;
+
+                case "system:openPath":
+                    string targetOpenPath = null;
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null && pObj["path"] != null) targetOpenPath = pObj["path"].ToString();
+                        else if (request.Payload is string) targetOpenPath = request.Payload.ToString();
+                    }
+                    if (!string.IsNullOrEmpty(targetOpenPath) && (System.IO.File.Exists(targetOpenPath) || System.IO.Directory.Exists(targetOpenPath)))
+                    {
+                        try
+                        {
+                            var psi = new System.Diagnostics.ProcessStartInfo();
+                            psi.FileName = targetOpenPath;
+                            psi.UseShellExecute = true;
+                            System.Diagnostics.Process.Start(psi);
+                            response = BridgeResponse.Ok(request.Id, new { success = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "OPEN_FAILED", "تعذر فتح الملف أو المجلد: " + ex.Message);
+                        }
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Fail(request.Id, "FILE_NOT_FOUND", "الملف أو المجلد المطلوب غير موجود.");
+                    }
+                    return true;
+
+                case "system:showInFolder":
+                    string itemShowPath = null;
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null && pObj["path"] != null) itemShowPath = pObj["path"].ToString();
+                        else if (request.Payload is string) itemShowPath = request.Payload.ToString();
+                    }
+                    if (!string.IsNullOrEmpty(itemShowPath) && System.IO.File.Exists(itemShowPath))
+                    {
+                        try
+                        {
+                            System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + itemShowPath + "\"");
+                            response = BridgeResponse.Ok(request.Id, new { success = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "EXPLORER_FAILED", "تعذر فتح مستكشف الملفات: " + ex.Message);
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(itemShowPath) && System.IO.Directory.Exists(itemShowPath))
+                    {
+                        try
+                        {
+                            System.Diagnostics.Process.Start("explorer.exe", "\"" + itemShowPath + "\"");
+                            response = BridgeResponse.Ok(request.Id, new { success = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "EXPLORER_FAILED", "تعذر فتح المجلد: " + ex.Message);
+                        }
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Fail(request.Id, "PATH_NOT_FOUND", "المسار المحدد غير موجود.");
+                    }
+                    return true;
+
                 default:
                     return false;
             }

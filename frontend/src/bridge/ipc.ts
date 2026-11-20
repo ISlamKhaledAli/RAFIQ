@@ -68,6 +68,27 @@ export interface AppUpdateInfo {
   isEligible?: boolean;
 }
 
+export type AppUpdateDownloadPhase = 'idle' | 'downloading' | 'verifying' | 'ready' | 'error' | 'cancelled';
+
+export interface AppUpdateDownloadState {
+  state: AppUpdateDownloadPhase;
+  targetVersion?: string;
+  bytesDownloaded?: number;
+  totalBytes?: number;
+  percent?: number;
+  fileName?: string;
+  message?: string;
+  errorMessage?: string;
+  isVerified?: boolean;
+}
+
+export interface AppUpdateLaunchResult {
+  success: boolean;
+  launched: boolean;
+  cancelled?: boolean;
+  message: string;
+}
+
 export interface FullStoreExportResult {
   success: boolean;
   message: string;
@@ -111,6 +132,36 @@ const pendingRequests = new Map<string, {
   timer: any;
 }>();
 
+type BridgeEventListener = (payload: any) => void;
+const bridgeEventListeners = new Map<string, Set<BridgeEventListener>>();
+
+/**
+ * Subscribe to real-time push events sent from the C# desktop host via PostWebMessageAsJson.
+ * Returns an unsubscribe cleanup function.
+ */
+export function onBridgeEvent<T = unknown>(
+  eventName: string,
+  listener: (payload: T) => void
+): () => void {
+  ensureListenerAttached();
+  let set = bridgeEventListeners.get(eventName);
+  if (!set) {
+    set = new Set<BridgeEventListener>();
+    bridgeEventListeners.set(eventName, set);
+  }
+  const wrapped: BridgeEventListener = (payload) => listener(payload as T);
+  set.add(wrapped);
+  return () => {
+    const existing = bridgeEventListeners.get(eventName);
+    if (existing) {
+      existing.delete(wrapped);
+      if (existing.size === 0) {
+        bridgeEventListeners.delete(eventName);
+      }
+    }
+  };
+}
+
 /** Data-changed topics a successful action invalidates; read-only actions must map to none. */
 export function getAutoTopicsForAction(action: string): RafiqDataTopic[] {
   // CRITICAL SENIOR SAFEGUARD:
@@ -135,9 +186,12 @@ export function getAutoTopicsForAction(action: string): RafiqDataTopic[] {
     action.startsWith('sales:create') || 
     action.startsWith('sales:cancel') || 
     action.startsWith('returns:create') || 
-    action.startsWith('sales:return')
+    action.startsWith('sales:return') ||
+    action === 'onlineStore:processOrderToSale' ||
+    action === 'onlineStore:convertToSale' ||
+    action === 'onlineStore.convertToSale'
   ) {
-    return ['sales', 'products', 'customers', 'dashboard'];
+    return ['sales', 'products', 'customers', 'wallets', 'dashboard'];
   } else if (
     // Changes which products exist or in which section they sit; an import also creates sections on the fly
     action.startsWith('products:save') || 
@@ -268,13 +322,31 @@ function ensureListenerAttached() {
   if (isListenerAttached) return;
   if (window.chrome?.webview) {
     window.chrome.webview.addEventListener('message', (event: any) => {
-      let response: BridgeResponse;
+      let parsed: any;
       try {
-        response = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        parsed = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
       } catch {
         return;
       }
-      if (!response || !response.id) return;
+      if (!parsed) return;
+
+      // Real-time host push events (e.g., onlineStore:ordersSynced, onlineStore:openOrders)
+      if (parsed.type === 'event' && typeof parsed.event === 'string') {
+        const listeners = bridgeEventListeners.get(parsed.event);
+        if (listeners && listeners.size > 0) {
+          listeners.forEach((cb) => {
+            try {
+              cb(parsed.data);
+            } catch {
+              // Isolate listener errors
+            }
+          });
+        }
+        return;
+      }
+
+      const response = parsed as BridgeResponse;
+      if (!response.id) return;
 
       const pending = pendingRequests.get(response.id);
       if (pending) {
@@ -315,9 +387,11 @@ function getDefaultTimeout(action: string): number {
     action.startsWith('inventory:recalculate') ||
     action.startsWith('backup:') ||
     action.startsWith('pharma:') ||
-    action.startsWith('pharma.')
+    action.startsWith('pharma.') ||
+    action === 'onlineStore:triggerSync' ||
+    action === 'onlineStore.triggerSync'
   ) {
-    return 180000; // 3 minutes for heavy file/batch operations
+    return 180000; // 3 minutes for heavy file/batch/cloud-sync operations
   }
   if (action === 'sales:create') {
     return 30000; // 30 seconds for sales:create (Audit F-45)
@@ -433,12 +507,51 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           changelog: 'تحسينات في سرعة البيع\nإصلاح طباعة الإيصالات',
           downloadUrl: 'https://example.com/RafiqPOS_Setup_v1.2.0.exe',
           sha256: 'a'.repeat(64),
-          fileSizeBytes: 98765432,
+          fileSizeBytes: 33400000,
           isMandatory: false,
         };
       }
       return { hasUpdate: false, isEligible: true, currentVersion: '1.1.2', latestVersion: '1.1.2' };
     }
+
+    case 'updates:startDownload':
+      return {
+        state: 'ready',
+        targetVersion: '1.2.0',
+        bytesDownloaded: 33400000,
+        totalBytes: 33400000,
+        percent: 100,
+        fileName: 'RafiqPOS_Setup_v1.2.0.exe',
+        message: 'تم تنزيل التحديث والتحقق من سلامته بنجاح وجاهز للتثبيت (محاكاة).',
+        isVerified: true,
+      };
+
+    case 'updates:getDownloadState':
+      return {
+        state: 'idle',
+        bytesDownloaded: 0,
+        totalBytes: 0,
+        percent: 0,
+        isVerified: false,
+      };
+
+    case 'updates:cancelDownload':
+      return {
+        state: 'cancelled',
+        bytesDownloaded: 0,
+        totalBytes: 0,
+        percent: 0,
+        message: 'تم إلغاء تنزيل التحديث.',
+        isVerified: false,
+      };
+
+    case 'updates:launchInstaller':
+      return {
+        success: true,
+        launched: true,
+        cancelled: false,
+        message: 'تم تشغيل مثبت التحديث الرسمي بنجاح (محاكاة المتصفح).',
+      };
 
     case 'db:testTransaction':
       return {
@@ -1956,6 +2069,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         cardSalesPiasters: cardSales,
         instapaySalesPiasters: Math.round(totalSales * 0.08),
         vodafoneCashSalesPiasters: Math.round(totalSales * 0.05),
+        insuranceSalesPiasters: 0,
+        insuranceSettledPiasters: 0,
+        insurancePendingPiasters: 0,
         returnsTotalPiasters: returns,
         cancelledTotalPiasters: cancelled,
         netSalesPiasters: netSales,
@@ -3147,6 +3263,220 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           'تصفير حساب العميل بعد السداد الكامل',
         ],
       };
+
+    case 'patients:getProfile': {
+      const cId = typeof payload === 'string' ? payload : payload?.customerId;
+      return mockPatientProfiles.find((p) => p.customerId === cId) || null;
+    }
+
+    case 'patients:saveProfile': {
+      const info = payload || {};
+      const idx = mockPatientProfiles.findIndex((p) => p.customerId === info.customerId);
+      const updated = {
+        ...info,
+        updatedAt: new Date().toISOString(),
+      };
+      if (idx >= 0) {
+        mockPatientProfiles[idx] = updated;
+      } else {
+        mockPatientProfiles.push(updated);
+      }
+      return updated;
+    }
+
+    case 'patients:getChronicMeds': {
+      const cId = typeof payload === 'string' ? payload : payload?.customerId;
+      return mockChronicMeds.filter((m) => m.customerId === cId);
+    }
+
+    case 'patients:saveChronicMed': {
+      const med = payload || {};
+      const savedMed = {
+        id: med.id || `cmed_${Date.now()}`,
+        customerId: med.customerId || '',
+        productId: med.productId || '',
+        productName: med.productName || 'دواء مسجل للمريض',
+        barcode: med.barcode || '',
+        dailyQtyMilli: med.dailyQtyMilli || 1000,
+        daysSupply: med.daysSupply || 30,
+        nextDueDate: med.nextDueDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        notes: med.notes || null,
+        pricePiasters: med.pricePiasters || 5000,
+        stockQuantityMilli: med.stockQuantityMilli || 20000,
+        createdAt: new Date().toISOString(),
+      };
+      const idx = mockChronicMeds.findIndex((m) => m.id === savedMed.id);
+      if (idx >= 0) {
+        mockChronicMeds[idx] = savedMed;
+      } else {
+        mockChronicMeds.push(savedMed);
+      }
+      return savedMed;
+    }
+
+    case 'patients:deleteChronicMed': {
+      const mId = typeof payload === 'string' ? payload : payload?.id;
+      const initialLen = mockChronicMeds.length;
+      mockChronicMeds = mockChronicMeds.filter((m) => m.id !== mId);
+      return mockChronicMeds.length < initialLen;
+    }
+
+    case 'patients:getDueAlerts': {
+      return [];
+    }
+
+    case 'patients:checkAllergies': {
+      return { hasConflict: false, conflicts: [] };
+    }
+
+    case 'insurance:getCompanies': {
+      return [
+        {
+          id: 'comp_1',
+          name: 'شركة مصر للتأمين الطبي',
+          phone: '01012345678',
+          taxNumber: '123-456-789',
+          isActive: true,
+          contractsCount: 1,
+          pendingClaimsCount: 0,
+          pendingClaimsPiasters: 0,
+        },
+        {
+          id: 'comp_2',
+          name: 'أكسا للتأمين الرعائي (AXA)',
+          phone: '01098765432',
+          taxNumber: '987-654-321',
+          isActive: true,
+          contractsCount: 1,
+          pendingClaimsCount: 0,
+          pendingClaimsPiasters: 0,
+        },
+      ];
+    }
+
+    case 'insurance:getContracts': {
+      return [...mockInsuranceContracts];
+    }
+
+    case 'insurance:saveContract': {
+      const c = payload as any;
+      if (!c) return { success: false, error: 'بيانات العقد مطلوبة' };
+      const contractId = c.id || `cnt_${Date.now()}`;
+      const existingIdx = mockInsuranceContracts.findIndex((x) => x.id === contractId);
+      const saved = {
+        ...c,
+        id: contractId,
+        exclusions: c.exclusions || [],
+      };
+      if (existingIdx >= 0) {
+        mockInsuranceContracts[existingIdx] = saved;
+      } else {
+        mockInsuranceContracts.push(saved);
+      }
+      return saved;
+    }
+
+    case 'insurance:getMembersByContract': {
+      return [
+        {
+          id: 'mem_1',
+          contractId: payload?.contractId || 'cnt_1',
+          memberName: 'أحمد محمود علي',
+          memberNo: '1001',
+          nationalId: '29001011234567',
+          validTo: '2028-12-31',
+          isActive: true,
+        },
+      ];
+    }
+
+    case 'insurance:calculateSplit': {
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      const contract = mockInsuranceContracts.find((c) => c.id === payload?.contractId) || mockInsuranceContracts[0];
+      const patientShareBps = contract?.patientShareBps ?? 2000;
+      const excludedCatIds = new Set((contract?.exclusions || []).map((e: any) => e.categoryId).filter(Boolean));
+      const excludedProdIds = new Set((contract?.exclusions || []).map((e: any) => e.productId).filter(Boolean));
+
+      let totalInvoice = 0;
+      let coveredTotal = 0;
+      let excludedTotal = 0;
+
+      const itemCoverages = items.map((it: any) => {
+        let lineTotal = it.totalPiasters || 0;
+        if (lineTotal <= 0) {
+          const unitPrice = it.unitPricePiasters || it.pricePiasters || 0;
+          const qty = it.quantityMilli || 1000;
+          const disc = it.discountPiasters || 0;
+          lineTotal = Math.max(0, Math.round((unitPrice * qty) / 1000) - disc);
+        }
+        totalInvoice += lineTotal;
+
+        let isCovered = true;
+        let exclusionReason: string | null = null;
+
+        if (it.productId && excludedProdIds.has(it.productId)) {
+          isCovered = false;
+          exclusionReason = 'الصنف مستثنى صراحة من تغطية العقد';
+        } else if (it.categoryId && excludedCatIds.has(it.categoryId)) {
+          isCovered = false;
+          exclusionReason = 'تصنيف الصنف مستثنى من تغطية العقد';
+        } else if (contract?.excludesCosmetics && (it.productName?.includes('تجميل') || it.productName?.includes('لاروش') || it.productName?.includes('صن بلوك'))) {
+          isCovered = false;
+          exclusionReason = 'مستحضرات تجميل غير مغطاة بالعقد';
+        }
+
+        let linePatient = 0;
+        let lineCompany = 0;
+
+        if (isCovered) {
+          coveredTotal += lineTotal;
+          linePatient = Math.round((lineTotal * patientShareBps) / 10000);
+          lineCompany = lineTotal - linePatient;
+        } else {
+          excludedTotal += lineTotal;
+          linePatient = lineTotal;
+          lineCompany = 0;
+        }
+
+        return {
+          productId: it.productId,
+          productName: it.productName || 'صنف دوائي',
+          lineTotalPiasters: lineTotal,
+          patientPiasters: linePatient,
+          companyPiasters: lineCompany,
+          isCovered,
+          exclusionReason,
+        };
+      });
+
+      const patientOnCovered = Math.round((coveredTotal * patientShareBps) / 10000);
+      let companyPiasters = coveredTotal - patientOnCovered;
+      let patientPiasters = excludedTotal + patientOnCovered;
+
+      let capApplied = false;
+      let capExcess = 0;
+      if (contract?.capPerInvoicePiasters && contract.capPerInvoicePiasters > 0 && companyPiasters > contract.capPerInvoicePiasters) {
+        capExcess = companyPiasters - contract.capPerInvoicePiasters;
+        companyPiasters = contract.capPerInvoicePiasters;
+        patientPiasters += capExcess;
+        capApplied = true;
+      }
+
+      return {
+        contractId: contract?.id || payload?.contractId || 'cnt_1',
+        contractName: contract?.name || 'عقد تأمين طبي',
+        companyId: contract?.companyId || 'comp_1',
+        patientShareBps,
+        totalInvoicePiasters: totalInvoice,
+        coveredPiasters: coveredTotal,
+        excludedPiasters: excludedTotal,
+        patientPiasters,
+        companyPiasters,
+        capApplied,
+        capExcessPiasters: capExcess,
+        itemCoverages,
+      };
+    }
 
     case 'excel:getCustomerTemplate':
       return {
@@ -4689,6 +5019,21 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'excel:browseExportFolder':
       return { selectedFolder: 'D:\\RafiqMigration', cancelled: false };
 
+    case 'system:showSaveFileDialog':
+    case 'dialog:saveFile': {
+      const defaultName = payload?.defaultFileName || 'Insurance_Claim.xlsx';
+      return { filePath: `C:\\Users\\MockUser\\Desktop\\${defaultName}`, cancelled: false };
+    }
+
+    case 'system:openPath':
+    case 'system:showInFolder':
+      return { success: true };
+
+    case 'insurance:exportBatchExcel': {
+      const targetPath = payload?.filePath || 'C:\\Users\\MockUser\\Desktop\\Insurance_Claim.xlsx';
+      return { path: targetPath, cancelled: false };
+    }
+
     case 'migration:browseFile':
       return { selectedPath: 'D:\\RafiqMigration\\rafiq_migration_test.rafiqpkg', cancelled: false };
 
@@ -5107,6 +5452,34 @@ let mockDemoProductsCount = 0;
 let mockDemoSalesCount = 0;
 let mockDemoCustomersCount = 0;
 let mockCustomers: any[] = [];
+let mockPatientProfiles: any[] = [];
+let mockChronicMeds: any[] = [];
+let mockInsuranceContracts: any[] = [
+  {
+    id: 'cnt_1',
+    companyId: 'comp_1',
+    companyName: 'شركة مصر للتأمين الطبي',
+    name: 'الفئة الذهبية (تحمل 20%)',
+    patientShareBps: 2000,
+    capPerInvoicePiasters: 0,
+    excludesCosmetics: false,
+    isActive: true,
+    exclusions: [
+      { id: 'ex_1', contractId: 'cnt_1', categoryId: 'cat_cosmetics', categoryName: 'مستحضرات تجميل' }
+    ],
+  },
+  {
+    id: 'cnt_2',
+    companyId: 'comp_2',
+    companyName: 'أكسا للتأمين الرعائي (AXA)',
+    name: 'الفئة الفضية (تحمل 25%)',
+    patientShareBps: 2500,
+    capPerInvoicePiasters: 0,
+    excludesCosmetics: false,
+    isActive: true,
+    exclusions: [],
+  },
+];
 
 let mockLedgerEntries: any[] = [];
 

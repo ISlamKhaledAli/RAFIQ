@@ -2,45 +2,65 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { deriveUpdateStatus, isSafeDownloadUrl, isValidSha256, formatFileSize } from '../src/utils/appUpdateView.ts';
+import {
+  deriveUpdateStatus,
+  isSafeDownloadUrl,
+  isSupportedInstallerUrl,
+  isValidSha256,
+  formatFileSize,
+} from '../src/utils/appUpdateView.ts';
 
-describe('App Update System: informational check only (no in-app apply)', () => {
+describe('App Update System: secure in-app Setup download + SHA-256 verification + official installer launch', () => {
   const servicePath = path.resolve('..', 'desktop', 'Services', 'AppUpdateService.cs');
   const ipcBackupPath = path.resolve('..', 'desktop', 'Bridge', 'IpcDispatcher.Backup.cs');
   const ipcCorePath = path.resolve('..', 'desktop', 'Bridge', 'IpcDispatcher.cs');
   const modalPath = path.resolve('src', 'components', 'AppUpdateModal.tsx');
   const installerPath = path.resolve('..', 'installer', 'RafiqPOS_Setup.iss');
 
-  it('keeps version comparison and the online check', () => {
+  it('keeps version comparison, online check, and secure verified Setup download/launch', () => {
     const service = fs.readFileSync(servicePath, 'utf8');
     assert.ok(service.includes('public static int CompareVersions(string v1, string v2)'));
     assert.ok(!service.includes('CURRENT_VERSION = "1.0.0"'), 'the running version must not be hard-coded in the service');
     assert.ok(service.includes('GetName().Version'), 'current version comes from the assembly');
     assert.ok(service.includes('public AppUpdateInfo CheckForUpdates('));
+    assert.ok(service.includes('public AppUpdateDownloadState StartDownload()'));
+    assert.ok(service.includes('public AppUpdateDownloadState GetDownloadState()'));
+    assert.ok(service.includes('public AppUpdateDownloadState CancelDownload()'));
+    assert.ok(service.includes('public AppUpdateLaunchResult LaunchVerifiedInstaller()'));
+    assert.ok(service.includes('Path.GetTempPath()'), 'downloads must stay in user %TEMP%, never {app}');
+    assert.ok(service.includes('HasValidPeHeader('), 'downloaded Setup must pass PE header verification');
+    assert.ok(service.includes('ComputeFileSha256('), 'downloaded Setup must pass SHA-256 verification');
   });
 
-  it('has no elevated apply path, staging folder, or updater script', () => {
+  it('has no unsafe ZIP extraction, staging folder, batch updater script, or runas elevation hack', () => {
     const service = fs.readFileSync(servicePath, 'utf8');
-    for (const forbidden of ['ApplyUpdate', 'LaunchRestartUpdater', 'rafiq_updater', 'runas', 'GetStagingDirectory', 'DownloadUpdate']) {
+    for (const forbidden of ['ApplyUpdate', 'LaunchRestartUpdater', 'rafiq_updater', 'runas', 'GetStagingDirectory', 'ZipArchive']) {
       assert.ok(!service.includes(forbidden), `AppUpdateService must not contain ${forbidden}`);
     }
     const ipc = fs.readFileSync(ipcBackupPath, 'utf8') + fs.readFileSync(ipcCorePath, 'utf8');
-    for (const action of ['updates:apply', 'updates:download', 'updates:restart', 'updates:browsePackage', 'updates:inspectPackage', 'updates:runTests']) {
-      assert.ok(!ipc.includes(`"${action}"`), `${action} must be removed from the IPC surface and RBAC map`);
+    for (const action of ['updates:apply', 'updates:restart', 'updates:browsePackage', 'updates:inspectPackage', 'updates:runTests']) {
+      assert.ok(!ipc.includes(`"${action}"`), `${action} must stay removed from the IPC surface and RBAC map`);
     }
-    assert.ok(ipc.includes('"updates:check"'), 'updates:check stays available to admins');
+    for (const action of ['updates:check', 'updates:startDownload', 'updates:getDownloadState', 'updates:cancelDownload', 'updates:launchInstaller']) {
+      assert.ok(ipc.includes(`"${action}"`), `${action} must be registered in IPC and RBAC`);
+    }
   });
 
-  it('modal only checks and tells the owner to install the official Setup', () => {
+  it('modal provides one-click download/install without exposing raw links or SHA-256 dumps, and guards active sales', () => {
     const modal = fs.readFileSync(modalPath, 'utf8');
     assert.ok(modal.includes("'updates:check'"));
-    assert.ok(!/updates:(apply|download|restart|browsePackage|inspectPackage|runTests)/.test(modal));
-    assert.ok(modal.includes('Setup'), 'must explain installing through the official Setup');
+    assert.ok(modal.includes("'updates:startDownload'"));
+    assert.ok(modal.includes("'updates:getDownloadState'"));
+    assert.ok(modal.includes("'updates:cancelDownload'"));
+    assert.ok(modal.includes("'updates:launchInstaller'"));
+    assert.ok(modal.includes('hasActiveSale'), 'modal must enforce Active Transaction Guard before launching Setup');
+    assert.ok(!modal.includes('نسخ رابط التحميل'), 'modal must not require manual URL copying');
+    assert.ok(!/updates:(apply|restart|browsePackage|inspectPackage|runTests)/.test(modal));
     const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
     assert.ok(!emojiRegex.test(modal), 'AppUpdateModal must not contain any emojis');
   });
 
-  it('installer no longer grants users write access to an updates folder or the app folder', () => {
+  it('installer never grants users write access to an updates folder or the app folder', () => {
     const iss = fs.readFileSync(installerPath, 'utf8');
     assert.ok(!/RafiqPOS\\updates"; Permissions/.test(iss), 'updates folder must not be user-writable');
     assert.ok(!/Name: "\{app\}"; Permissions/.test(iss), '{app} must not be user-writable');
@@ -102,7 +122,6 @@ describe('App Update modal helpers', () => {
     const newer = deriveUpdateStatus({ hasUpdate: true, isEligible: true, latestVersion: '1.1.0' });
     assert.equal(newer.kind, 'info');
     assert.match(newer.text, /1\.1\.0/);
-    assert.match(newer.text, /لن يتم تثبيته تلقائياً/);
     const denied = deriveUpdateStatus({ hasUpdate: false, isEligible: false, errorMessage: 'انتهت فترة الدعم' });
     assert.equal(denied.kind, 'warn');
     assert.equal(denied.text, 'انتهت فترة الدعم');
@@ -114,10 +133,13 @@ describe('App Update modal helpers', () => {
     assert.match(thrown.text, /timeout/);
   });
 
-  it('only https download links and well-formed SHA-256 values are surfaced', () => {
+  it('only https download links, .exe installers, and well-formed SHA-256 values are accepted', () => {
     assert.equal(isSafeDownloadUrl('https://example.com/RafiqPOS_Setup_v1.1.0.exe'), true);
+    assert.equal(isSupportedInstallerUrl('https://example.com/RafiqPOS_Setup_v1.1.0.exe'), true);
+    assert.equal(isSupportedInstallerUrl('https://example.com/RafiqPOS_Update_v1.1.0.zip'), false);
     for (const bad of ['http://example.com/a.exe', 'javascript:alert(1)', 'file:///C:/a.exe', 'https://', '', null, undefined, 'https://a b/c']) {
       assert.equal(isSafeDownloadUrl(bad), false, String(bad));
+      assert.equal(isSupportedInstallerUrl(bad), false, String(bad));
     }
     assert.equal(isValidSha256('a'.repeat(64)), true);
     assert.equal(isValidSha256('A'.repeat(64)), true);

@@ -117,13 +117,23 @@ namespace RafiqPOS.Services
                     SELECT COALESCE(SUM(
                         CASE 
                             -- Task 189-5: Corporate insurance claims are corporate receivables; only the patient's cash co-payment from payments table enters the drawer
-                            WHEN s.payment_method = 'insurance' THEN MAX(0, (
+                            WHEN s.payment_method = 'insurance' 
+                                 OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                 OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN MAX(0, (
                                 SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                 FROM payments p 
                                 WHERE p.sale_id = s.id AND p.method = 'cash'
                             ) - COALESCE(s.change_piasters, 0))
                             WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
-                            WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
+                            WHEN s.payment_method = 'credit' THEN 
+                                CASE 
+                                    WHEN EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id) THEN MAX(0, (
+                                        SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                        FROM payments p 
+                                        WHERE p.sale_id = s.id AND p.method = 'cash'
+                                    ) - COALESCE(s.change_piasters, 0))
+                                    ELSE MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
+                                END
                             WHEN s.payment_method = 'multi' THEN MAX(0, (
                                 SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                 FROM payments p 
@@ -237,15 +247,18 @@ namespace RafiqPOS.Services
                 using (var cmd = conn.CreateCommand())
                 {
                     cmd.Transaction = trans;
-                    cmd.CommandText = @"
+                    bool hasCancelCol = ColumnExists(conn, trans, "cash_drawer_transactions", "is_cancelled");
+                    cmd.CommandText = string.Format(@"
                         SELECT 
                             COALESCE(SUM(CASE WHEN type = 'cash_in' THEN amount_piasters ELSE 0 END), 0) AS total_cash_in,
                             COALESCE(SUM(CASE WHEN type = 'cash_out' THEN amount_piasters ELSE 0 END), 0) AS total_cash_out
                         FROM cash_drawer_transactions
                         WHERE (
                             (@shiftId IS NOT NULL AND shift_id = @shiftId)
-                            OR (@shiftId IS NULL AND " + Window("created_at", halfOpen) + @")
-                        );";
+                            OR (@shiftId IS NULL AND {0})
+                        ) {1};",
+                        Window("created_at", halfOpen),
+                        hasCancelCol ? "AND (is_cancelled = 0 OR is_cancelled IS NULL)" : "");
                     cmd.Parameters.AddWithValue("@shiftId", (object)shiftId ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);

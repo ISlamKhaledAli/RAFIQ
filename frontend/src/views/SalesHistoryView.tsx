@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronUp,
   HelpCircle,
+  Building2,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
@@ -61,9 +62,10 @@ const formatCashierName = (cashierName?: string | null, cashierId?: string | nul
 
 const DETAILS_PAYMENT_LABEL: Record<string, string> = {
   cash: 'كاش',
-  credit: 'شكك (على النوتة)',
+  credit: 'آجل',
   instapay: 'إنستاباي',
   vodafone_cash: 'محفظة إلكترونية',
+  insurance: 'تأمين طبي (تعاقد)',
 };
 
 const DetailRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
@@ -352,12 +354,13 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
       if (statusFilter === 'completed' && sStatus !== 'completed') return false;
       if (statusFilter === 'cancelled' && sStatus !== 'cancelled') return false;
       if (statusFilter === 'refunded' && sStatus !== 'refunded' && sStatus !== 'partially_refunded') return false;
+      if (statusFilter === 'insurance' && !s.insuranceClaim && s.paymentMethod !== 'insurance') return false;
     }
 
     // 2. Date Filter
     if (!filterDate(s.createdAt)) return false;
 
-    // 3. Search Query (Invoice #, customer name/phone, notes, amount)
+    // 3. Search Query (Invoice #, customer name/phone, notes, amount, insurance details)
     if (searchQuery.trim()) {
       const q = normalizeInvoiceSearchText(searchQuery).toLowerCase();
       const invMatch = String(s.invoiceNumber || '').includes(q);
@@ -366,8 +369,11 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
       const paymentMatch = (s.paymentMethod || '').toLowerCase().includes(q);
       const amountPounds = ((s.totalPiasters || 0) / 100).toFixed(0);
       const amountMatch = amountPounds.includes(q);
+      const insCompanyMatch = (s.insuranceClaim?.companyName || '').toLowerCase().includes(q);
+      const insPatientMatch = (s.insuranceClaim?.patientName || '').toLowerCase().includes(q);
+      const insMemberMatch = (s.insuranceClaim?.memberNo || '').toLowerCase().includes(q);
 
-      if (!invMatch && !notesMatch && !custMatch && !paymentMatch && !amountMatch) {
+      if (!invMatch && !notesMatch && !custMatch && !paymentMatch && !amountMatch && !insCompanyMatch && !insPatientMatch && !insMemberMatch) {
         return false;
       }
     }
@@ -540,6 +546,17 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
           >
             فيها مرتجع
           </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('insurance')}
+            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              statusFilter === 'insurance' 
+                ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs' 
+                : 'text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
+            }`}
+          >
+            فواتير تأمين
+          </button>
         </div>
 
         <ClearFiltersButton
@@ -625,19 +642,29 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   </span>
 
                   {/* Customer */}
-                  <span className="col-span-2 text-ink dark:text-ink-dark text-xs truncate" title={sale.customerName || 'زبون عادي كاش'}>
+                  <span className="col-span-2 text-ink dark:text-ink-dark text-xs truncate" title={sale.customerName || (sale.insuranceClaim?.patientName ? `المريض: ${sale.insuranceClaim.patientName}` : 'زبون عادي كاش')}>
                     {sale.customerName ? (
-                      <span className="flex items-center gap-1 font-bold text-ink dark:text-ink-dark">
+                      <span className="flex items-center gap-1 font-bold text-ink dark:text-ink-dark truncate">
                         <User className="w-3.5 h-3.5 text-paid dark:text-brand-bright shrink-0" />
                         <span className="truncate">{sale.customerName}</span>
+                      </span>
+                    ) : sale.insuranceClaim?.patientName ? (
+                      <span className="flex items-center gap-1 font-bold text-ink dark:text-ink-dark truncate">
+                        <User className="w-3.5 h-3.5 text-paid dark:text-brand-bright shrink-0" />
+                        <span className="truncate">{sale.insuranceClaim.patientName}</span>
                       </span>
                     ) : (
                       <span className="text-ink-muted/70 dark:text-ink-dark-muted/70">زبون عادي (كاش)</span>
                     )}
+                    {sale.insuranceClaim?.companyName && (
+                      <span className="block text-micro text-brand dark:text-brand-bright font-semibold truncate leading-none mt-0.5">
+                        {sale.insuranceClaim.companyName}
+                      </span>
+                    )}
                   </span>
 
                   {/* Status & Payment Method Badges */}
-                  <div className="col-span-2 flex items-center justify-center gap-1.5">
+                  <div className="col-span-2 flex items-center justify-center gap-1.5 flex-wrap">
                     {isCancelled ? (
                       <span className="px-2.5 py-0.5 rounded-full text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30 flex items-center gap-1">
                         <Ban className="w-3 h-3" />
@@ -647,9 +674,21 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       <span className="px-2.5 py-0.5 rounded-full text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
                         {sale.status === 'partially_refunded' ? 'مرتجع جزئي' : 'مستردة بالكامل'}
                       </span>
+                    ) : sale.insuranceClaim || sale.paymentMethod === 'insurance' ? (
+                      <div className="flex items-center gap-1 flex-wrap justify-center">
+                        <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 flex items-center gap-1">
+                          <Building2 className="w-3 h-3" />
+                          <span>تأمين طبي</span>
+                        </span>
+                        {sale.paymentMethod === 'credit' && (
+                          <span className="px-1.5 py-0.5 rounded text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20">
+                            تحمل آجل
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright border border-paid/20 dark:border-paid/30">
-                        {sale.paymentMethod === 'cash' ? 'كاش' : sale.paymentMethod === 'credit' ? 'شكك' : sale.paymentMethod === 'instapay' ? 'انستاباي' : sale.paymentMethod === 'vodafone_cash' ? 'محفظة' : 'إلكتروني'}
+                        {sale.paymentMethod === 'cash' ? 'كاش' : sale.paymentMethod === 'credit' ? 'آجل' : sale.paymentMethod === 'instapay' ? 'انستاباي' : sale.paymentMethod === 'vodafone_cash' ? 'محفظة' : 'إلكتروني'}
                       </span>
                     )}
                   </div>
@@ -689,9 +728,16 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                     }
 
                     return (
-                      <span className="col-span-2 text-left pl-2 font-mono font-bold text-xs tabular-nums text-paid dark:text-paid-bright">
-                        {formatArabicCurrency(sale.totalPiasters, false)}
-                      </span>
+                      <div className="col-span-2 text-left pl-2 font-mono tabular-nums leading-tight">
+                        <span className="block font-bold text-xs text-paid dark:text-paid-bright">
+                          {formatArabicCurrency(sale.totalPiasters, false)}
+                        </span>
+                        {sale.insuranceClaim && (
+                          <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-sans font-medium mt-0.5">
+                            تأمين: {formatArabicCurrency(sale.insuranceClaim.companyPiasters, false)} | مريض: {formatArabicCurrency(sale.insuranceClaim.patientPiasters, false)}
+                          </span>
+                        )}
+                      </div>
                     );
                   })()}
 
@@ -833,7 +879,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   </span>
                 </DetailRow>
                 <DetailRow label="الزبون">
-                  <span>{selectedSale.customerName || 'زبون عادي (كاش)'}</span>
+                  <span>{selectedSale.customerName || (selectedSale.insuranceClaim?.patientName ? `المريض: ${selectedSale.insuranceClaim.patientName}` : 'زبون عادي (كاش)')}</span>
                   {selectedSale.customerPhone && (
                     <span dir="ltr" className="text-ink-muted dark:text-ink-dark-muted text-xs font-mono">{formatPhoneDisplay(selectedSale.customerPhone)}</span>
                   )}
@@ -845,6 +891,51 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   </span>
                 </DetailRow>
               </div>
+
+              {/* Insurance Details Card if applicable */}
+              {selectedSale.insuranceClaim && (
+                <div className="bg-brand-soft/40 dark:bg-surface-dark-2 border border-brand/20 dark:border-brand-bright/20 rounded-xl p-4 flex flex-col gap-2.5 shrink-0 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 border-b border-brand/15 dark:border-brand-bright/20 pb-2.5">
+                    <div className="flex items-center gap-2 font-bold text-sm text-brand-dark dark:text-brand-bright">
+                      <Building2 className="w-4 h-4 text-paid dark:text-brand-bright" />
+                      <span>بيانات التعاقد والتأمين الطبي</span>
+                    </div>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright font-bold">
+                      {selectedSale.insuranceClaim.companyName || 'تأمين طبي'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                    <div className="flex justify-between items-center text-ink dark:text-ink-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted">اسم المريض / المنتفع:</span>
+                      <strong className="font-semibold">{selectedSale.insuranceClaim.patientName || '—'}</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-ink dark:text-ink-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted">رقم الكارنيه:</span>
+                      <strong className="font-mono">{selectedSale.insuranceClaim.memberNo || '—'}</strong>
+                    </div>
+                    {selectedSale.insuranceClaim.contractName && (
+                      <div className="flex justify-between items-center text-ink dark:text-ink-dark">
+                        <span className="text-ink-muted dark:text-ink-dark-muted">فئة / خطة التعاقد:</span>
+                        <strong className="font-semibold">{selectedSale.insuranceClaim.contractName}</strong>
+                      </div>
+                    )}
+                    {selectedSale.insuranceClaim.approvalNo && (
+                      <div className="flex justify-between items-center text-ink dark:text-ink-dark">
+                        <span className="text-ink-muted dark:text-ink-dark-muted">رقم الموافقة الطبية:</span>
+                        <strong className="font-mono text-paid dark:text-brand-bright">{selectedSale.insuranceClaim.approvalNo}</strong>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-ink dark:text-ink-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted">حالة المطالبة:</span>
+                      <strong className="font-semibold">
+                        {selectedSale.insuranceClaim.status === 'batched' ? 'مدرجة بمطالبة شهرية' :
+                         selectedSale.insuranceClaim.status === 'settled' ? 'تمت التسوية والتحصيل' :
+                         selectedSale.insuranceClaim.status === 'rejected' ? 'مرفوضة من التأمين' : 'معلقة في الانتظار'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Items Breakdown Table */}
               <div className="border border-line dark:border-line-dark rounded-xl overflow-clip bg-surface dark:bg-surface-dark shadow-2xs shrink-0">
@@ -1031,6 +1122,19 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   </div>
                 )}
 
+                {selectedSale.insuranceClaim && (
+                  <>
+                    <div className="flex items-center justify-between min-h-10 px-4 bg-brand-soft/30 dark:bg-surface-dark-3 text-brand-dark dark:text-brand-bright font-semibold">
+                      <span>تغطية شركة التأمين (مطالبة معتمدة):</span>
+                      <span className="font-mono tabular-nums font-bold">−{formatArabicCurrency(selectedSale.insuranceClaim.companyPiasters)}</span>
+                    </div>
+                    <div className="flex items-center justify-between min-h-10 px-4 text-ink dark:text-ink-dark font-bold">
+                      <span>حصة تحمل المريض المطلوبة:</span>
+                      <span className="font-mono tabular-nums text-paid dark:text-brand-bright font-black">{formatArabicCurrency(selectedSale.insuranceClaim.patientPiasters)}</span>
+                    </div>
+                  </>
+                )}
+
                 <div className="flex items-center justify-between min-h-14 px-4 py-2 text-brand dark:text-brand-bright bg-brand-soft dark:bg-surface-dark-3">
                   <span className="font-black text-base">{totalRefundedPiasters > 0 ? 'الصافي بعد المرتجع:' : 'المطلوب دفعه:'}</span>
                   <span className="t-kpi font-mono">{formatArabicCurrency(netSalePiasters)}</span>
@@ -1038,7 +1142,11 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
                 <div className="flex items-center justify-between min-h-10 px-4 text-ink-muted dark:text-ink-dark-muted">
                   <span>الفلوس اللي دفعها الزبون:</span>
-                  <span className="text-ink dark:text-ink-dark font-semibold font-mono tabular-nums">{formatArabicCurrency(selectedSale.paidPiasters)}</span>
+                  <span className="text-ink dark:text-ink-dark font-semibold font-mono tabular-nums">
+                    {selectedSale.paymentMethod === 'credit' 
+                      ? `${formatArabicCurrency(0)} (آجل على حساب العميل)`
+                      : formatArabicCurrency(selectedSale.paidPiasters)}
+                  </span>
                 </div>
               </div>
 

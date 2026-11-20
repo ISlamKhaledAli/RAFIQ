@@ -41,8 +41,18 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
-                                WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
-                                WHEN s.payment_method = 'multi' THEN MAX(0, (
+                                WHEN s.payment_method = 'credit' THEN 
+                                    CASE 
+                                        WHEN EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id) THEN MAX(0, (
+                                            SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                            FROM payments p 
+                                            WHERE p.sale_id = s.id AND p.method = 'cash'
+                                        ) - COALESCE(s.change_piasters, 0))
+                                        ELSE MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
+                                    END
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN MAX(0, (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method = 'cash'
@@ -53,7 +63,9 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'instapay' THEN (s.paid_piasters - s.service_fee_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method = 'instapay'
@@ -64,7 +76,9 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method IN ('vodafone_cash', 'wallet', 'orange_cash', 'etisalat_cash', 'we_pay') THEN (s.paid_piasters - s.service_fee_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method IN ('vodafone_cash', 'wallet', 'orange_cash', 'etisalat_cash', 'we_pay')
@@ -75,7 +89,9 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method IN ('card', 'visa', 'mastercard', 'meeza', 'pos', 'bank_card') THEN (s.paid_piasters - s.service_fee_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method IN ('card', 'visa', 'mastercard', 'meeza', 'pos', 'bank_card')
@@ -84,6 +100,18 @@ namespace RafiqPOS.Services
                             END
                         ), 0) AS card_sales,
                         COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'insurance'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS insurance_sales,
                         COALESCE(SUM(s.tax_piasters), 0) AS total_tax,
                         COALESCE(SUM(s.discount_piasters + (SELECT COALESCE(SUM(si.discount_piasters), 0) FROM sale_items si WHERE si.sale_id = s.id)), 0) AS total_discount,
                         COUNT(*) AS inv_count
@@ -105,6 +133,7 @@ namespace RafiqPOS.Services
                             summary.TodayVodafoneCashPiasters = Convert.ToInt64(reader["vodafone_cash_sales"]);
                             summary.TodayCardPiasters = Convert.ToInt64(reader["card_sales"]);
                             summary.TodayCreditPiasters = Convert.ToInt64(reader["credit_sales"]);
+                            summary.TodayInsurancePiasters = Convert.ToInt64(reader["insurance_sales"]);
                             summary.TodayTaxPiasters = Convert.ToInt64(reader["total_tax"]);
                             summary.TodayDiscountPiasters = Convert.ToInt64(reader["total_discount"]);
                             summary.TodayNetSalesExcludingTaxPiasters = Math.Max(0, summary.TodaySalesPiasters - summary.TodayTaxPiasters);
@@ -611,8 +640,18 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
-                                WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
-                                WHEN s.payment_method = 'multi' THEN MAX(0, (
+                                WHEN s.payment_method = 'credit' THEN 
+                                    CASE 
+                                        WHEN EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id) THEN MAX(0, (
+                                            SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                            FROM payments p 
+                                            WHERE p.sale_id = s.id AND p.method = 'cash'
+                                        ) - COALESCE(s.change_piasters, 0))
+                                        ELSE MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
+                                    END
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN MAX(0, (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method = 'cash'
@@ -623,7 +662,9 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'instapay' THEN (s.paid_piasters - s.service_fee_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method = 'instapay'
@@ -634,7 +675,9 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method IN ('vodafone_cash', 'wallet', 'orange_cash', 'etisalat_cash', 'we_pay') THEN (s.paid_piasters - s.service_fee_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method IN ('vodafone_cash', 'wallet', 'orange_cash', 'etisalat_cash', 'we_pay')
@@ -645,7 +688,9 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method IN ('card', 'visa', 'mastercard', 'meeza', 'pos', 'bank_card') THEN (s.paid_piasters - s.service_fee_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method IN ('card', 'visa', 'mastercard', 'meeza', 'pos', 'bank_card')
@@ -654,6 +699,18 @@ namespace RafiqPOS.Services
                             END
                         ), 0) AS card_sales,
                         COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'insurance'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS insurance_sales,
                         COALESCE(SUM(s.tax_piasters), 0) AS total_tax,
                         COALESCE(SUM(s.discount_piasters + (SELECT COALESCE(SUM(si.discount_piasters), 0) FROM sale_items si WHERE si.sale_id = s.id)), 0) AS total_discount,
                         COUNT(*) AS inv_count
@@ -681,11 +738,50 @@ namespace RafiqPOS.Services
                             report.VodafoneCashSalesPiasters = Convert.ToInt64(reader["vodafone_cash_sales"]);
                             report.CardSalesPiasters = Convert.ToInt64(reader["card_sales"]);
                             report.CreditSalesPiasters = Convert.ToInt64(reader["credit_sales"]);
+                            report.InsuranceSalesPiasters = Convert.ToInt64(reader["insurance_sales"]);
                             report.TotalTaxPiasters = Convert.ToInt64(reader["total_tax"]);
                             report.TotalDiscountsPiasters = Convert.ToInt64(reader["total_discount"]);
                             report.InvoicesCount = Convert.ToInt32(reader["inv_count"]);
                         }
                     }
+                }
+
+                // 1b. Insurance Claims Status Breakdown (Settled vs Pending)
+                try
+                {
+                    string insSql = string.Format(@"
+                        SELECT 
+                            COALESCE(SUM(CASE WHEN icl.status = 'paid' OR icl.settled_at IS NOT NULL THEN icl.company_piasters ELSE 0 END), 0) AS settled_piasters,
+                            COALESCE(SUM(CASE WHEN icl.status != 'paid' AND icl.settled_at IS NULL THEN icl.company_piasters ELSE 0 END), 0) AS pending_piasters
+                        FROM insurance_claim_lines icl
+                        JOIN sales s ON s.id = icl.sale_id
+                        WHERE {0}
+                          AND s.status != 'cancelled'
+                          AND s.id NOT LIKE 'demo_%'
+                          AND s.id NOT LIKE 'stress_%';
+                    ", dateFilterClause.Replace("created_at", "s.created_at"));
+
+                    using (var insCmd = new SQLiteCommand(insSql, conn))
+                    {
+                        if (period == "custom")
+                        {
+                            insCmd.Parameters.AddWithValue("@from", customFromDate);
+                            insCmd.Parameters.AddWithValue("@to", customToDate);
+                        }
+                        using (var insReader = insCmd.ExecuteReader())
+                        {
+                            if (insReader.Read())
+                            {
+                                report.InsuranceSettledPiasters = Convert.ToInt64(insReader["settled_piasters"]);
+                                report.InsurancePendingPiasters = Convert.ToInt64(insReader["pending_piasters"]);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    report.InsuranceSettledPiasters = 0;
+                    report.InsurancePendingPiasters = report.InsuranceSalesPiasters;
                 }
 
                 // 2. Cancelled Sales

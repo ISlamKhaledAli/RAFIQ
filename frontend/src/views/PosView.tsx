@@ -41,6 +41,7 @@ import { parseScaleBarcode } from '../utils/scaleBarcode';
 import { parseInvoiceBarcode, extractLegacyPaddedInvoiceNumber } from '../utils/invoiceBarcode';
 import { shouldPrintReceipt } from '../utils/receiptPrintPreference';
 import { useFeatures } from '../context/useFeatures';
+import { setCashierBusyForSync } from '../bridge/onlineStoreIpc';
 import { useAuth } from '../context/useAuth';
 
 // Modular POS Subcomponents & Hooks
@@ -72,7 +73,7 @@ import { DrugAlternativesDrawer } from './pos/DrugAlternativesDrawer';
 import { ControlledDrugDispenseModal } from './pos/ControlledDrugDispenseModal';
 import type { ControlledDrugDispense, DrugReferenceItem, CartInteractionCheckResult } from '../types/pharma';
 import { InsurancePrescriptionModal } from './pos/InsurancePrescriptionModal';
-import type { InsuranceClaimLine } from '../types/insurance';
+import type { InsuranceClaimLine, InsuranceCalculationResult } from '../types/insurance';
 import { ShieldAlert } from 'lucide-react';
 import { PosChronicDispenseModal } from './pos/PosChronicDispenseModal';
 import { ClinicalAllergyAlertModal } from './pos/ClinicalAllergyAlertModal';
@@ -138,9 +139,10 @@ export interface PosViewProps {
   isActive?: boolean;
   onNavigateToEpay?: () => void;
   onNavigateToWallets?: (subTab?: 'accounts' | 'transact') => void;
+  onActiveSaleChange?: (hasActiveSale: boolean) => void;
 }
 
-export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToEpay, onNavigateToWallets }) => {
+export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToEpay, onNavigateToWallets, onActiveSaleChange }) => {
   const { hasPermission, isAdmin, currentUser } = useAuth();
   const currentUserId = currentUser ? currentUser.id : null;
   // Mirrors the server-side discount permission checks in SaleService
@@ -157,11 +159,29 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const showKitchenPrinter = showCafeMode && isEnabled('feature_kitchen_printer');
   const showItemModifiers = showCafeMode && isEnabled('feature_item_modifiers');
   const showDeliveryManagement = showCafeMode && isEnabled('feature_delivery_management');
+  const isOnlineStoreEnabled = isEnabled('feature_online_store');
 
   // A cart saved moments ago (reload/crash) is restored at mount; an older one is only offered through the banner
   const [initialDraftRestore] = useState(() => readPosCartDraftRestore(currentUserId));
   const autoRestoredDraft = initialDraftRestore.mode === 'auto' ? initialDraftRestore.draft : null;
   const [cart, setCart] = useState<CartItem[]>(() => (autoRestoredDraft ? autoRestoredDraft.items : []));
+  const isCartBusy = cart.length > 0;
+
+  // Active Cashier Guard: pauses background online-store sync while cashier has an open cart
+  useEffect(() => {
+    if (!isOnlineStoreEnabled) return;
+    void setCashierBusyForSync(isCartBusy);
+    return () => {
+      if (isCartBusy) {
+        void setCashierBusyForSync(false);
+      }
+    };
+  }, [isOnlineStoreEnabled, isCartBusy]);
+
+  // Active Transaction Guard: informs app shell (e.g. AppUpdateModal) whenever cart has unpaid items
+  useEffect(() => {
+    onActiveSaleChange?.(isCartBusy);
+  }, [isCartBusy, onActiveSaleChange]);
   const [selectedCartIndex, setSelectedCartIndex] = useState<number | null>(() => (autoRestoredDraft ? 0 : null));
   const [barcodeQuery, setBarcodeQuery] = useState('');
   const [discountPiasters, setDiscountPiasters] = useState(() => (autoRestoredDraft ? autoRestoredDraft.discountPiasters : 0));
@@ -841,6 +861,54 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const totalItemCount = cart.reduce((count, item) => count + (item.quantityMilli / 1000), 0);
   const totalTaxPiasters = cart.reduce((sum, item) => sum + item.taxPiasters, 0);
 
+  // Auto-sync insurance split when cart items or quantities change
+  useEffect(() => {
+    if (!activeInsuranceClaim) return;
+    if (cart.length === 0) {
+      setActiveInsuranceClaim(null);
+      return;
+    }
+
+    if (grossSubtotalPiasters !== activeInsuranceClaim.totalInvoicePiasters) {
+      let isMounted = true;
+      const itemsPayload = cart.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        barcode: i.barcode || null,
+        categoryId: null,
+        unitPricePiasters: i.unitPricePiasters,
+        pricePiasters: i.unitPricePiasters,
+        totalPiasters: i.totalPiasters,
+        discountPiasters: i.discountPiasters || 0,
+        quantityMilli: i.quantityMilli,
+        unit: i.unit || 'piece',
+      }));
+
+      void invoke<InsuranceCalculationResult>('insurance:calculateSplit', {
+        contractId: activeInsuranceClaim.contractId,
+        items: itemsPayload,
+      }).then((recalc) => {
+        if (!isMounted || !recalc) return;
+        setActiveInsuranceClaim((prev) => {
+          if (!prev || prev.contractId !== recalc.contractId) return prev;
+          return {
+            ...prev,
+            totalInvoicePiasters: recalc.totalInvoicePiasters,
+            coveredPiasters: recalc.coveredPiasters,
+            patientPiasters: recalc.patientPiasters,
+            companyPiasters: recalc.companyPiasters,
+          };
+        });
+      }).catch(() => {
+        // preserve previous state if recalculation fails
+      });
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [cart, grossSubtotalPiasters, activeInsuranceClaim]);
+
   // Cafe & Restaurant Hospitality POS Suite Helpers (Stories 139-143)
   const loadCafeStats = useCallback(async () => {
     if (!showCafeMode) return;
@@ -1518,6 +1586,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setPaymentMethod('credit');
     } else {
       setPaymentMethod('cash');
+      setSelectedCustomerId('');
     }
     setIsPaymentModalOpen(true);
   }, [cart, hasOpenShift, requireOpenShiftToSell, showStatus, notifyShiftRequired, isDdiActive, ddiResult, isDdiOverridden]);
@@ -1549,18 +1618,68 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         .filter(i => i.isControlled && i.controlledDispense)
         .map(i => i.controlledDispense);
 
+      let paymentsToSend = paymentData.payments ? [...paymentData.payments] : [];
+      let calculatedPaidPiasters = paymentData.paidPiasters;
+      let finalPaymentMethod = paymentData.paymentMethod;
+
+      if (activeInsuranceClaim) {
+        // Retain any patient co-pay payments entered in PaymentModal (cash, credit, card, etc.)
+        const patientPayments = paymentsToSend.filter(p => p.method !== 'insurance');
+
+        if (patientPayments.length === 0) {
+          const isCreditOnly = paymentData.paymentMethod === 'credit';
+          if (isCreditOnly) {
+            patientPayments.push({
+              method: 'credit',
+              amountPiasters: activeInsuranceClaim.patientPiasters,
+            });
+          } else {
+            const patientMethod: SalePayment['method'] = (paymentData.paymentMethod && paymentData.paymentMethod !== 'insurance' && paymentData.paymentMethod !== 'multi') 
+              ? paymentData.paymentMethod 
+              : 'cash';
+            patientPayments.push({
+              method: patientMethod,
+              amountPiasters: activeInsuranceClaim.patientPiasters,
+            });
+          }
+        }
+
+        // Always include the insurance company coverage as the primary payment line
+        paymentsToSend = [
+          { method: 'insurance', amountPiasters: activeInsuranceClaim.companyPiasters },
+          ...patientPayments,
+        ];
+
+        // Total paid recorded is company coverage plus non-credit patient payments (e.g., cash/card/wallet)
+        const nonCreditTotal = paymentsToSend
+          .filter(p => p.method !== 'credit')
+          .reduce((sum, p) => sum + p.amountPiasters, 0);
+
+        calculatedPaidPiasters = nonCreditTotal;
+
+        // Determine final payment method for the sale header
+        const hasCredit = paymentsToSend.some(p => p.method === 'credit');
+        const hasNonCreditPatient = patientPayments.some(p => p.method !== 'credit');
+
+        if (hasCredit && hasNonCreditPatient) {
+          finalPaymentMethod = 'multi';
+        } else {
+          finalPaymentMethod = 'insurance';
+        }
+      }
+
       const salePayload: Partial<Sale> & { idempotencyKey?: string; supervisorPin?: string; controlledDispenses?: ControlledDrugDispense[]; insuranceClaim?: InsuranceClaimLine } = {
         subtotalPiasters,
         discountPiasters,
         taxPiasters: totalTaxPiasters,
         totalPiasters: activeInsuranceClaim ? subtotalPiasters : (paymentData.totalPiastersOverride ?? netTotalPiasters),
-        paidPiasters: paymentData.paidPiasters,
-        paymentMethod: activeInsuranceClaim ? 'insurance' : paymentData.paymentMethod,
+        paidPiasters: calculatedPaidPiasters,
+        paymentMethod: finalPaymentMethod,
         customerId: paymentData.customerId || selectedCustomerId || undefined,
         shiftId: shiftId || undefined,
         status: 'completed',
         items: cart,
-        payments: paymentData.payments,
+        payments: paymentsToSend,
         notes: paymentData.serviceFeeNote,
         changePiasters: paymentData.changeDuePiasters,
         idempotencyKey: undefined,
@@ -2727,12 +2846,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       showStatus('يرجى تحديد العميل أولاً لإتمام البيع الآجل (F10)', 'error');
       return;
     }
+    const isCredit = paymentMethod === 'credit';
     await handleConfirmPayment({
-      paymentMethod: activeInsuranceClaim ? 'insurance' : paymentMethod,
-      paidPiasters: paymentMethod === 'cash' || activeInsuranceClaim ? netTotalPiasters : 0,
-      payments: paymentMethod === 'cash' || activeInsuranceClaim
-        ? [{ method: 'cash', amountPiasters: netTotalPiasters }] 
-        : [{ method: 'credit', amountPiasters: 0 }],
+      paymentMethod: activeInsuranceClaim ? 'insurance' : (isCredit ? 'credit' : paymentMethod),
+      paidPiasters: isCredit ? 0 : netTotalPiasters,
+      payments: isCredit
+        ? [{ method: 'credit', amountPiasters: activeInsuranceClaim ? activeInsuranceClaim.patientPiasters : 0 }]
+        : [{ method: 'cash', amountPiasters: activeInsuranceClaim ? activeInsuranceClaim.patientPiasters : netTotalPiasters }],
       changeDuePiasters: 0,
       customerId: selectedCustomerId || undefined
     });
@@ -3325,6 +3445,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         onClose={() => {
           setIsPaymentModalOpen(false);
           setPaymentMethod('cash');
+          setSelectedCustomerId('');
           barcodeInputRef.current?.focus();
         }}
         invoiceNumber={nextExpectedInvoiceNumber || (lastInvoiceNumber ? lastInvoiceNumber + 1 : 1)}
@@ -3342,6 +3463,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         customers={customers}
         onConfirmPayment={handleConfirmPayment}
         loading={loading}
+        insuranceClaim={activeInsuranceClaim}
       />
 
       {/* 10.B DIGITAL PAYMENT MODAL (انستاباي ومحافظ الهاتف - مستقلة وبدون آجل) */}

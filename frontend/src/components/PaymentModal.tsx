@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { AppButton } from './AppButton';
-import { Banknote, X, CheckCircle2 } from 'lucide-react';
+import { Banknote, X, CheckCircle2, Building2 } from 'lucide-react';
 import type { Customer, SalePayment } from '../types/models';
+import type { InsuranceClaimLine } from '../types/insurance';
 import { formatArabicCurrency, normalizeArabicNumerals, poundsToPiasters } from '../utils/money';
 import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -31,6 +32,7 @@ interface PaymentModalProps {
   selectedCustomerId?: string | null;
   onCustomerChange?: (id: string) => void;
   customers: Customer[];
+  insuranceClaim?: InsuranceClaimLine | null;
   onConfirmPayment: (paymentData: {
     paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash';
     paidPiasters: number;
@@ -57,6 +59,7 @@ export const PaymentModal = ({
   selectedCustomerId,
   onCustomerChange,
   customers,
+  insuranceClaim,
   onConfirmPayment,
   loading = false,
 }: PaymentModalProps) => {
@@ -122,6 +125,7 @@ export const PaymentModal = ({
     }
     if (!isOpen) {
       prevIsOpenRef.current = false;
+      setCurrentCustomerId(null);
     }
   }, [isOpen, netTotalPiasters, selectedCustomerId, resetQuickAdd]);
 
@@ -219,9 +223,10 @@ export const PaymentModal = ({
       const isExceeded = selectedCustomer.creditLimitPiasters > 0 && newProjectedBalance > selectedCustomer.creditLimitPiasters;
 
       const proceedWithCreditSale = (verifiedSupervisorPin?: string) => {
+        const creditAmt = insuranceClaim ? insuranceClaim.patientPiasters : 0;
         const payments: SalePayment[] = [
           {
-            amountPiasters: 0,
+            amountPiasters: creditAmt,
             method: 'credit',
           },
         ];
@@ -263,11 +268,15 @@ export const PaymentModal = ({
       }
 
       // Credit through Enter or the button must never create debt silently: short confirm of the two key figures.
-      const debtPiasters = Math.max(0, netTotalPiasters - Math.max(0, -selectedCustomer.balancePiasters));
+      const debtPiasters = insuranceClaim
+        ? insuranceClaim.patientPiasters
+        : Math.max(0, netTotalPiasters - Math.max(0, -selectedCustomer.balancePiasters));
       if (debtPiasters > 0) {
         const confirmOnAccount = await rafiqConfirm({
           title: 'تسجيل الفاتورة على الحساب',
-          message: `مفيش كاش هيدخل الدرج.\nالزبون: «${selectedCustomer.name}»\nهيتسجل عليه: ${formatArabicCurrency(debtPiasters)}`,
+          message: insuranceClaim
+            ? `حصة شركة التأمين (${formatArabicCurrency(insuranceClaim.companyPiasters)}) سيتم إصدار مطالبة بها لاحقاً.\nالزبون: «${selectedCustomer.name}»\nهيتسجل عليه حصة تحمله: ${formatArabicCurrency(debtPiasters)}`
+            : `مفيش كاش هيدخل الدرج.\nالزبون: «${selectedCustomer.name}»\nهيتسجل عليه: ${formatArabicCurrency(debtPiasters)}`,
           confirmText: 'تسجيل على الحساب',
           cancelText: 'تراجع',
           variant: 'warning',
@@ -462,6 +471,28 @@ export const PaymentModal = ({
         {/* Body: both columns fill the fixed height; scrolling is only a last resort on very short screens */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="md:col-span-2 min-h-0 flex flex-col gap-4">
+            {insuranceClaim && (
+              <div className="bg-brand-soft/60 dark:bg-brand-dark-soft/40 border border-brand/20 dark:border-brand-bright/30 rounded-xl p-3 flex flex-col gap-1.5 text-xs text-ink dark:text-ink-dark shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-brand dark:text-brand-bright">
+                    <Building2 className="w-4 h-4 shrink-0" />
+                    <span className="truncate">روشتة تأمين: {insuranceClaim.companyName || 'شركة التأمين'}</span>
+                  </div>
+                  <span className="font-mono text-xs bg-surface dark:bg-surface-dark-2 px-2 py-0.5 rounded-full border border-line dark:border-line-dark shrink-0">
+                    {insuranceClaim.memberNo}
+                  </span>
+                </div>
+                <div className="text-ink-muted dark:text-ink-dark-muted flex items-center justify-between">
+                  <span>المريض: <strong className="text-ink dark:text-ink-dark">{insuranceClaim.patientName}</strong></span>
+                  {insuranceClaim.approvalNo && <span>موافقة: <strong className="text-ink dark:text-ink-dark">{insuranceClaim.approvalNo}</strong></span>}
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-brand/10 dark:border-brand-bright/10 font-mono text-xs">
+                  <span className="text-ink-muted dark:text-ink-dark-muted">تغطية التأمين: {formatArabicCurrency(insuranceClaim.companyPiasters)}</span>
+                  <span className="font-bold text-paid dark:text-paid-bright">تحمل المريض: {formatArabicCurrency(insuranceClaim.patientPiasters)}</span>
+                </div>
+              </div>
+            )}
+
             <PaymentSummary
               invoiceNumber={invoiceNumber}
               itemCount={itemCount}

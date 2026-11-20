@@ -438,6 +438,19 @@ namespace RafiqPOS.Services
                 }
             }
 
+            try
+            {
+                _repo.UpdateOnlineFields(product.Id, product.IsOnline, product.IsFeatured, product.OnlineDescription, product.ComparePricePiasters);
+                if (DatabaseService.SyncRepo != null)
+                {
+                    DatabaseService.SyncRepo.TryEnqueueOutboxIfEnabled("product", product.Id, "upsert", "{\"id\":\"" + product.Id + "\"}");
+                }
+            }
+            catch
+            {
+                // Online store fields/sync must never disrupt local POS product save
+            }
+
             return product;
         }
 
@@ -455,6 +468,17 @@ namespace RafiqPOS.Services
             if (string.IsNullOrWhiteSpace(id)) return;
             var existing = _repo.GetById(id);
             _repo.SoftDelete(id);
+
+            try
+            {
+                if (DatabaseService.SyncRepo != null)
+                {
+                    DatabaseService.SyncRepo.TryEnqueueOutboxIfEnabled("product", id, "soft_delete", "{\"id\":\"" + id + "\"}");
+                }
+            }
+            catch
+            {
+            }
 
             if (_auditRepo != null && existing != null)
             {

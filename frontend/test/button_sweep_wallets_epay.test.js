@@ -19,7 +19,7 @@ const ZONE = [
 ];
 
 // Selectable tiles / segmented tabs are intentionally not AppButton: they keep a solid "selected" fill.
-const SELECTABLE_HANDLERS = /handleAccountTypeChange|setTxType|setActiveTab\(|setProfSubView|setActiveFilter|setStatusFilter|setSelectedTerminalId|handleSelectServicePreset|setPaymentDestination/;
+const SELECTABLE_HANDLERS = /handleAccountTypeChange|setTxType|setActiveTab\(|setProfSubView|setActiveFilter|setStatusFilter|setSelectedTerminalId|handleSelectServicePreset|setPaymentDestination|setExclusionSubTab/;
 
 const rawButtonTags = (src) => [...src.matchAll(/<button\b[\s\S]*?\n\s*>/g)].map((m) => m[0]);
 

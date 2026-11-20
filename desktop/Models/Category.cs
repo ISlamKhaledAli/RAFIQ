@@ -23,10 +23,22 @@ namespace RafiqPOS.Models
         [JsonProperty("kotStation")]
         public string KotStation { get; set; }
 
+        [JsonProperty("isOnline")]
+        public bool IsOnline { get; set; }
+
+        [JsonProperty("imageUrl")]
+        public string ImageUrl { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 
         [JsonProperty("updatedAt")]
         public string UpdatedAt { get; set; }
+
+        public Category()
+        {
+            IsActive = true;
+            IsOnline = true;
+        }
     }
 }

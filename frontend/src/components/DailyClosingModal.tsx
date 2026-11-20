@@ -29,6 +29,7 @@ import { MoneyInput } from './MoneyInput';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { DateFilterControl } from './DateFilterControl';
 import { useDateFilter, useToday, isDateFilterActive, describeDateFilter, getDateFilterPayload, formatLocalDateTime } from '../utils/dateFilter';
+import { useFeatures } from '../context/useFeatures';
 
 import { AppButton } from './AppButton';
 import MotionHeight from './MotionHeight';
@@ -335,11 +336,51 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   const isMatch = differencePiasters === 0;
   const isShortage = differencePiasters < 0;
 
+  const { isEnabled } = useFeatures();
+
   const epayTxList = preview?.epayTransactions || [];
   const walletTxList = preview?.walletTransactions || [];
   const epayTerminalsList = preview?.epayTerminalsSummary || [];
   const walletsSummaryList = preview?.walletsSummary || [];
   const totalEpayAndWalletTxCount = epayTxList.length + walletTxList.length;
+
+  const totalWalletsBalancePiasters = useMemo(() => {
+    return walletsSummaryList.reduce((acc, curr) => acc + (curr.currentBalancePiasters || 0), 0);
+  }, [walletsSummaryList]);
+
+  const totalWalletsProfitPiasters = useMemo(() => {
+    return walletsSummaryList.reduce((acc, curr) => acc + (curr.netProfitPiasters || 0), 0);
+  }, [walletsSummaryList]);
+
+  const hasEpayFeature = isEnabled('feature_epay_services');
+  const hasEpayActivity =
+    epayTerminalsList.length > 0 ||
+    epayTxList.length > 0 ||
+    (preview?.epayTerminalsBalancePiasters || 0) > 0 ||
+    (preview?.epayTillCashPiasters || 0) > 0 ||
+    (preview?.epayNetProfitPiasters || 0) > 0 ||
+    (preview?.epayDrawerFundingPiasters || 0) > 0 ||
+    (preview?.epayDrawerCashPiasters || 0) !== 0 ||
+    (closedRecord?.epayTerminalsBalancePiasters || 0) > 0;
+  const showEpay = hasEpayFeature || hasEpayActivity;
+
+  const hasWalletsFeature = isEnabled('feature_digital_wallets');
+  const hasWalletsActivity =
+    walletsSummaryList.length > 0 ||
+    walletTxList.length > 0 ||
+    (preview?.walletsDrawerFundingPiasters || 0) > 0 ||
+    (preview?.walletsDrawerCashPiasters || 0) !== 0;
+  const showWallets = hasWalletsFeature || hasWalletsActivity;
+
+  const showReconciliationSection = showEpay || showWallets;
+
+  useEffect(() => {
+    if (!showEpay && showWallets && activeEpaySubTab !== 'wallets') {
+      setActiveEpaySubTab('wallets');
+    } else if (showEpay && !showWallets && activeEpaySubTab !== 'terminals') {
+      setActiveEpaySubTab('terminals');
+    }
+  }, [showEpay, showWallets, activeEpaySubTab]);
 
   const formatEpayServiceType = (type: string) => {
     switch (type) {
@@ -772,10 +813,18 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 <div className="border-b border-line dark:border-line-dark pb-4 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <Coins className="w-5 h-5 text-brand dark:text-brand-bright" />
-                    <h3 className="t-card-title text-ink dark:text-ink-dark">1. جرد ومطابقة نقدية درج كاشير المحل (كاش البضاعة)</h3>
+                    <h3 className="t-card-title text-ink dark:text-ink-dark">
+                      {showReconciliationSection ? '1. جرد ومطابقة نقدية درج كاشير المحل (كاش البضاعة)' : 'جرد ومطابقة نقدية درج كاشير المحل (كاش البضاعة)'}
+                    </h3>
                   </div>
                   <p className="text-sm text-ink-muted dark:text-ink-dark-muted leading-relaxed">
-                    حسبة الدرج = عهدة البداية + مبيعات الكاش + سداد الديون − المرتجعات − مصاريف الدرج ± حركات المحافظ والماكينات النقدية − مشتريات وموردي الدرج
+                    {showEpay && showWallets
+                      ? 'حسبة الدرج = عهدة البداية + مبيعات الكاش + سداد الديون − المرتجعات − مصاريف الدرج ± حركات المحافظ والماكينات النقدية − مشتريات وموردي الدرج'
+                      : showEpay
+                        ? 'حسبة الدرج = عهدة البداية + مبيعات الكاش + سداد الديون − المرتجعات − مصاريف الدرج ± حركات ماكينات الدفع النقدية − مشتريات وموردي الدرج'
+                        : showWallets
+                          ? 'حسبة الدرج = عهدة البداية + مبيعات الكاش + سداد الديون − المرتجعات − مصاريف الدرج ± حركات المحافظ النقدية − مشتريات وموردي الدرج'
+                          : 'حسبة الدرج = عهدة البداية + مبيعات الكاش + سداد الديون − المرتجعات − مصاريف الدرج − مشتريات وموردي الدرج'}
                   </p>
                 </div>
 
@@ -847,20 +896,89 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                     className="w-full text-sm px-4 py-3 rounded-xl border border-line dark:border-line-dark bg-white dark:bg-surface-dark text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 transition-colors"
                   />
                 </div>
+
+                {/* Drawer cash adjustments */}
+                {(preview.openingFloatPiasters || 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>عهدة بداية اليوم الافتتاحية: <strong>{formatArabicCurrency(preview.openingFloatPiasters || 0)}</strong></span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مضافة تلقائياً لحسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
+
+                {(preview.purchasesDrawerCashPiasters || 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>مشتريات بضاعة مسددة نقداً من الدرج: <strong>{formatArabicCurrency(preview.purchasesDrawerCashPiasters || 0)}</strong></span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
+
+                {(preview.supplierPaymentsDrawerCashPiasters || 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>دفعات موردين مسددة نقداً من الدرج: <strong>{formatArabicCurrency(preview.supplierPaymentsDrawerCashPiasters || 0)}</strong></span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
+
+                {showEpay && (preview.epayDrawerFundingPiasters || 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>تم سحب مبلغ من درج المحل لتغذية ماكينة دفع: <strong>{formatArabicCurrency(preview.epayDrawerFundingPiasters || 0)}</strong></span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
+
+                {showWallets && (preview.walletsDrawerFundingPiasters || 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>تم سحب مبلغ من درج المحل لتغذية محفظة إلكترونية: <strong>{formatArabicCurrency(preview.walletsDrawerFundingPiasters || 0)}</strong></span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
+
+                {showWallets && (preview.walletsDrawerCashPiasters || 0) !== 0 && (
+                  <div className={`p-3.5 rounded-xl border text-sm flex flex-wrap items-center justify-between gap-2 ${
+                    (preview.walletsDrawerCashPiasters || 0) < 0
+                      ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
+                      : 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-dark-border text-paid dark:text-paid-bright'
+                  }`}>
+                    <span>
+                      {(preview.walletsDrawerCashPiasters || 0) < 0
+                        ? `تم تسليم نقدية لعملاء من الدرج لمعاملات المحافظ وإنستاباي: `
+                        : `صافي نقدية محصلة بالدرج من معاملات المحافظ وإنستاباي: `}
+                      <strong>{formatArabicCurrency(Math.abs(preview.walletsDrawerCashPiasters || 0))}</strong>
+                      {walletTxList.length > 0 && (
+                        <span className="text-xs opacity-85 mr-1 font-semibold">({walletTxList.length} معاملة مسجلة)</span>
+                      )}
+                    </span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">
+                      {(preview.walletsDrawerCashPiasters || 0) < 0 ? 'مخصوم تلقائياً من حسبة كاش الدرج أعلاه' : 'مضاف تلقائياً لحسبة كاش الدرج أعلاه'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* 2. Epay & Terminal Reconciliation Section (Fawry / Aman / SuperPay) */}
+              {showReconciliationSection && (
               <div className="bg-surface dark:bg-surface-dark p-6 rounded-2xl border-2 border-line dark:border-line-dark shadow-xs space-y-5">
                 <div className="flex flex-wrap items-center justify-between border-b border-line dark:border-line-dark pb-4 gap-2">
                   <div className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-paid dark:text-paid-bright" />
-                    <h3 className="t-card-title text-ink dark:text-ink-dark">2. جرد وعهدة ماكينات وخدمات الدفع الإلكتروني</h3>
+                    {showEpay ? (
+                      <CreditCard className="w-5 h-5 text-paid dark:text-paid-bright" />
+                    ) : (
+                      <Smartphone className="w-5 h-5 text-brand dark:text-brand-bright" />
+                    )}
+                    <h3 className="t-card-title text-ink dark:text-ink-dark">
+                      {showEpay && showWallets
+                        ? '2. جرد وعهدة ماكينات وخدمات الدفع الإلكتروني والمحافظ'
+                        : showEpay
+                          ? '2. جرد وعهدة ماكينات وخدمات الدفع الإلكتروني'
+                          : '2. جرد وتسوية المحافظ الإلكترونية وإنستاباي'}
+                    </h3>
                   </div>
                   <span className="text-xs text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-3 py-1 rounded-full font-bold border border-paid/20 dark:border-paid/40">
-                    عهدة مستقلة مفصولة عن بضاعة المحل
+                    {showEpay ? 'عهدة مستقلة مفصولة عن بضاعة المحل' : 'حسابات ومحافظ إلكترونية'}
                   </span>
                 </div>
 
+                {showEpay && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Metric 1: Terminal Current Balance */}
                   <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
@@ -904,60 +1022,50 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                     </span>
                   </div>
                 </div>
-
-                {(preview.epayDrawerFundingPiasters || 0) > 0 && (
-                  <div className="p-3.5 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-sm flex flex-wrap items-center justify-between gap-2">
-                    <span>تم سحب مبلغ من درج المحل لتغذية ماكينة دفع: <strong>{formatArabicCurrency(preview.epayDrawerFundingPiasters || 0)}</strong></span>
-                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
-                  </div>
                 )}
 
-                {(preview.walletsDrawerFundingPiasters || 0) > 0 && (
-                  <div className="p-3.5 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-sm flex flex-wrap items-center justify-between gap-2">
-                    <span>تم سحب مبلغ من درج المحل لتغذية محفظة إلكترونية: <strong>{formatArabicCurrency(preview.walletsDrawerFundingPiasters || 0)}</strong></span>
-                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
-                  </div>
-                )}
+                {!showEpay && showWallets && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2 text-sm text-ink-muted dark:text-ink-dark-muted">
+                        <span>إجمالي أرصدة المحافظ والحسابات</span>
+                        <Smartphone className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
+                      </div>
+                      <span className="text-xl font-black text-paid dark:text-paid-bright block">
+                        {formatArabicCurrency(totalWalletsBalancePiasters)}
+                      </span>
+                      <span className="text-xs text-ink-muted dark:text-ink-dark-muted block leading-relaxed">
+                        جاهز للمعاملات والتحويلات
+                      </span>
+                    </div>
 
-                {(preview.walletsDrawerCashPiasters || 0) !== 0 && (
-                  <div className={`p-3.5 rounded-xl border text-sm flex flex-wrap items-center justify-between gap-2 ${
-                    (preview.walletsDrawerCashPiasters || 0) < 0
-                      ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
-                      : 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-dark-border text-paid dark:text-paid-bright'
-                  }`}>
-                    <span>
-                      {(preview.walletsDrawerCashPiasters || 0) < 0
-                        ? `تم تسليم نقدية لعملاء من الدرج لمعاملات المحافظ وإنستاباي: `
-                        : `صافي نقدية محصلة بالدرج من معاملات المحافظ وإنستاباي: `}
-                      <strong>{formatArabicCurrency(Math.abs(preview.walletsDrawerCashPiasters || 0))}</strong>
-                      {walletTxList.length > 0 && (
-                        <span className="text-xs opacity-85 mr-1 font-semibold">({walletTxList.length} معاملة مسجلة)</span>
-                      )}
-                    </span>
-                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">
-                      {(preview.walletsDrawerCashPiasters || 0) < 0 ? 'مخصوم تلقائياً من حسبة كاش الدرج أعلاه' : 'مضاف تلقائياً لحسبة كاش الدرج أعلاه'}
-                    </span>
-                  </div>
-                )}
+                    <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2 text-sm text-ink-muted dark:text-ink-dark-muted">
+                        <span>أثر حركات المحافظ على الدرج</span>
+                        <Wallet className="w-4 h-4 shrink-0 text-brand dark:text-brand-bright" />
+                      </div>
+                      <span className={`text-xl font-black block ${
+                        (preview.walletsDrawerCashPiasters || 0) < 0 ? 'text-danger dark:text-danger-bright' : 'text-paid dark:text-paid-bright'
+                      }`}>
+                        {formatArabicCurrency(preview.walletsDrawerCashPiasters || 0)}
+                      </span>
+                      <span className="text-xs text-ink-muted dark:text-ink-dark-muted block leading-relaxed">
+                        {(preview.walletsDrawerCashPiasters || 0) < 0 ? 'نقدية منصرفة من الدرج' : 'نقدية محصلة بالدرج'}
+                      </span>
+                    </div>
 
-                {(preview.purchasesDrawerCashPiasters || 0) > 0 && (
-                  <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-sm flex flex-wrap items-center justify-between gap-2">
-                    <span>مشتريات بضاعة مسددة نقداً من الدرج: <strong>{formatArabicCurrency(preview.purchasesDrawerCashPiasters || 0)}</strong></span>
-                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
-                  </div>
-                )}
-
-                {(preview.supplierPaymentsDrawerCashPiasters || 0) > 0 && (
-                  <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-sm flex flex-wrap items-center justify-between gap-2">
-                    <span>دفعات موردين مسددة نقداً من الدرج: <strong>{formatArabicCurrency(preview.supplierPaymentsDrawerCashPiasters || 0)}</strong></span>
-                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
-                  </div>
-                )}
-
-                {(preview.openingFloatPiasters || 0) > 0 && (
-                  <div className="p-3.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-sm flex flex-wrap items-center justify-between gap-2">
-                    <span>عهدة بداية اليوم الافتتاحية: <strong>{formatArabicCurrency(preview.openingFloatPiasters || 0)}</strong></span>
-                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مضافة تلقائياً لحسبة كاش الدرج أعلاه</span>
+                    <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2 text-sm text-ink-muted dark:text-ink-dark-muted">
+                        <span>أرباح وعمولات المحافظ</span>
+                        <TrendingUp className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
+                      </div>
+                      <span className="text-xl font-black text-paid dark:text-paid-bright block">
+                        {formatArabicCurrency(totalWalletsProfitPiasters)}
+                      </span>
+                      <span className="text-xs text-ink-muted dark:text-ink-dark-muted block leading-relaxed">
+                        أرباح العمليات المنفذة اليوم
+                      </span>
+                    </div>
                   </div>
                 )}
 
@@ -977,14 +1085,26 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                           <span className="font-bold text-ink dark:text-ink-dark text-base">
-                            سجل وتفاصيل كافة حركات الماكينات والمحافظ لليوم
+                            {showEpay && showWallets
+                              ? 'سجل وتفاصيل كافة حركات الماكينات والمحافظ لليوم'
+                              : showEpay
+                                ? 'سجل وتفاصيل حركات ماكينات الدفع لليوم'
+                                : 'سجل وتفاصيل حركات المحافظ الإلكترونية وإنستاباي لليوم'}
                           </span>
                           <span className="inline-flex items-center h-6 text-xs bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright font-bold px-2.5 rounded-full border border-brand/20 dark:border-brand-bright/30 whitespace-nowrap">
-                            {totalEpayAndWalletTxCount} معاملة مسجلة
+                            {showEpay && showWallets
+                              ? `${totalEpayAndWalletTxCount} معاملة مسجلة`
+                              : showEpay
+                                ? `${epayTxList.length} معاملة مسجلة`
+                                : `${walletTxList.length} معاملة مسجلة`}
                           </span>
                         </div>
                         <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mt-1">
-                          اضغط هنا لفتح أو طي تفاصيل كل ماكينة دفع ومحفظة وحساب إنستاباي بدقة
+                          {showEpay && showWallets
+                            ? 'اضغط هنا لفتح أو طي تفاصيل كل ماكينة دفع ومحفظة وحساب إنستاباي بدقة'
+                            : showEpay
+                              ? 'اضغط هنا لفتح أو طي تفاصيل كل ماكينة دفع بدقة'
+                              : 'اضغط هنا لفتح أو طي تفاصيل كل محفظة وحساب إنستاباي بدقة'}
                         </span>
                       </div>
                     </div>
@@ -1002,7 +1122,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   {showEpayDetails && (
                     <div id="daily-closing-epay-log" {...motionPanel} className="px-4 py-4 border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark space-y-4 animate-in fade-in duration-200">
                       {/* Sub-tabs switcher */}
-                      <div role="tablist" className="motion-static flex flex-wrap items-center gap-2">
+                      <div role="tablist" className={`motion-static flex flex-wrap items-center gap-2 ${showEpay && showWallets ? '' : 'hidden'}`}>
                         <button
                           type="button"
                           role="tab"
@@ -1047,7 +1167,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                       </div>
 
                       {/* Content of SubTab 1: Terminals */}
-                      {activeEpaySubTab === 'terminals' && (
+                      {(activeEpaySubTab === 'terminals' || !showWallets) && showEpay && (
                         <div className="space-y-4">
                           {/* Terminals summary cards */}
                           {epayTerminalsList.length > 0 && (
@@ -1126,7 +1246,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                       )}
 
                       {/* Content of SubTab 2: Wallets */}
-                      {activeEpaySubTab === 'wallets' && (
+                      {(activeEpaySubTab === 'wallets' || !showEpay) && showWallets && (
                         <div className="space-y-4">
                           {/* Wallets summary cards */}
                           {walletsSummaryList.length > 0 && (
@@ -1231,6 +1351,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   )}
                 </MotionHeight>
               </div>
+              )}
 
               {/* Profit & Zero-cost alert (Story 84 / Feature #46) */}
               <div className="bg-surface dark:bg-surface-dark p-5 rounded-xl border border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 text-sm">

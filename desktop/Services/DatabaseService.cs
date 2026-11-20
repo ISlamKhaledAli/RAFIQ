@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using RafiqPOS.Common;
 using RafiqPOS.Database;
+using RafiqPOS.Models;
 using RafiqPOS.Repositories;
 
 namespace RafiqPOS.Services
@@ -312,6 +313,9 @@ namespace RafiqPOS.Services
         public static DeliveryService Delivery { get; set; }
         public static RecipeRepository RecipeRepo { get; set; }
         public static RecipeService Recipes { get; set; }
+        public static SyncRepository SyncRepo { get; set; }
+        public static SyncEngine Sync { get; set; }
+        public static event Action<OnlineOrdersSyncedEvent> OnOnlineOrdersSynced;
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -461,6 +465,20 @@ namespace RafiqPOS.Services
             Delivery = new DeliveryService(DeliveryRepo);
             RecipeRepo = new RecipeRepository(_connectionString, AuditRepo);
             Recipes = new RecipeService(RecipeRepo);
+            SyncRepo = new SyncRepository(_connectionString);
+            Sync = new SyncEngine(SyncRepo, ProductRepo, CategoryRepo);
+            Sync.OnOrdersSynced += delegate(OnlineOrdersSyncedEvent evt)
+            {
+                var handler = OnOnlineOrdersSynced;
+                if (handler != null)
+                {
+                    try { handler(evt); }
+                    catch { }
+                }
+            };
+            Sales.SetSyncRepository(SyncRepo);
+            Purchases.SetSyncRepository(SyncRepo);
+            Returns.SetSyncRepository(SyncRepo);
 
             // Cleanup old held sales (> 7 days) on startup (Task 25-4)
             try
@@ -828,12 +846,14 @@ namespace RafiqPOS.Services
             _backgroundChecksRequested = true;
             if (License != null) License.StartBackgroundPeriodicCheck();
             if (Backup != null) Backup.StartBackgroundPeriodicCheck();
+            if (Sync != null) Sync.Start();
         }
 
         private static void StopBackgroundChecks()
         {
             if (License != null) License.StopBackgroundPeriodicCheck();
             if (Backup != null) Backup.StopBackgroundPeriodicCheck();
+            if (Sync != null) Sync.Stop();
         }
 
         public static TransactionResult RestoreFromBackup(string backupFilePath, string masterKey)
@@ -1354,7 +1374,10 @@ namespace RafiqPOS.Services
                             "categories", "storage_locations", "drug_reference",
 
                             // 11. Daily closings
-                            "daily_closings"
+                            "daily_closings",
+
+                            // 12. Online store sync tables
+                            "sync_inbox", "sync_outbox", "product_images"
                         };
                         for (int tIdx = 0; tIdx < tablesInDeleteOrder.Length; tIdx++)
                         {
@@ -1460,10 +1483,32 @@ namespace RafiqPOS.Services
                             cmd.ExecuteNonQuery();
                         }
 
+                        // Also clear sync state last timestamp if exists
+                        if (TableExists(conn, trans, "sync_state"))
+                        {
+                            using (var syncStateCmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM sync_state WHERE key = 'last_sync_timestamp';", conn, trans))
+                            {
+                                syncStateCmd.ExecuteNonQuery();
+                            }
+                        }
+
                         trans.Commit();
                         result.Success = true;
                         result.SafetyBackupFile = preResetBackupName;
                         result.Message = "تم مسح وتصفير كافة البيانات بنجاح، والنظام جاهز الآن كبداية نظيفة كلياً. النسخة الاحتياطية التي أُخذت قبل التصفير محفوظة على الجهاز.";
+
+                        if (Sync != null)
+                        {
+                            try
+                            {
+                                Sync.PurgeAllOrders();
+                                Sync.PurgeCloudCatalog();
+                            }
+                            catch (Exception syncEx)
+                            {
+                                Logger.Error("فشل تصفير بيانات المتجر الإلكتروني السحابي أثناء استعادة ضبط المصنع", syncEx);
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -1653,7 +1698,11 @@ namespace RafiqPOS.Services
                                 "storage_locations",
 
                                 // Layer 12: Daily closings
-                                "daily_closings"
+                                "daily_closings",
+
+                                // Layer 13: Online store sync tables
+                                "sync_inbox",
+                                "sync_outbox"
                             };
 
                             for (int tIdx = 0; tIdx < tablesInDeleteOrder.Length; tIdx++)
@@ -1754,10 +1803,32 @@ namespace RafiqPOS.Services
                                 cmd.ExecuteNonQuery();
                             }
 
+                            // Also clear sync state last timestamp if exists
+                            if (TableExists(conn, trans, "sync_state"))
+                            {
+                                using (var syncStateCmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM sync_state WHERE key = 'last_sync_timestamp';", conn, trans))
+                                {
+                                    syncStateCmd.ExecuteNonQuery();
+                                }
+                            }
+
                             trans.Commit();
                             result.Success = true;
                             result.SafetyBackupFile = preResetBackupName;
                             result.Message = "تم تصفير العمليات التشغيلية وبدء دورة جديدة بنجاح. النظام الآن جاهز بحسابات تبدأ من الصفر، مع الحفاظ الكامل على اسم المحل ونشاطه وحسابات الموظفين والترخيص.";
+
+                            if (Sync != null)
+                            {
+                                try
+                                {
+                                    Sync.PurgeAllOrders();
+                                    Sync.PurgeCloudCatalog();
+                                }
+                                catch (Exception syncEx)
+                                {
+                                    Logger.Error("فشل تصفير بيانات المتجر الإلكتروني السحابي أثناء تصفير العمليات التشغيلية", syncEx);
+                                }
+                            }
                         }
                         catch (Exception ex)
                         {

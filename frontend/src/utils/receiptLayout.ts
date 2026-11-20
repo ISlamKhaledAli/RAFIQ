@@ -5,6 +5,7 @@
 
 import JsBarcode from 'jsbarcode';
 import { resolveSignatureImageSrc } from './signatureImage.ts';
+import { getCurrentStoreType } from './storeTerminology.ts';
 
 export const RECEIPT_CURRENCY = 'ج.م';
 export const DEFAULT_RECEIPT_THANKS = 'شكراً لزيارتكم';
@@ -74,6 +75,17 @@ export interface ReceiptSaleInput {
   guestsCount?: number | null;
   waiterName?: string | null;
   hasColdChainItems?: boolean | null;
+  insuranceClaim?: {
+    companyName?: string | null;
+    contractName?: string | null;
+    memberNo?: string | null;
+    patientName?: string | null;
+    approvalNo?: string | null;
+    coveredPiasters?: number | null;
+    patientPiasters?: number | null;
+    companyPiasters?: number | null;
+    status?: string | null;
+  } | null;
   items?: ReadonlyArray<ReceiptItemInput> | null;
   payments?: ReadonlyArray<ReceiptPaymentInput> | null;
   deliveryInfo?: {
@@ -559,6 +571,7 @@ export function buildReceiptModel(
   const badges: string[] = [];
   if (options.isCopy) badges.push('نسخة - إعادة طباعة');
   if (isPreBill) badges.push('غير مدفوع - للمراجعة فقط');
+  if (sale.insuranceClaim || clean(sale.paymentMethod).toLowerCase() === 'insurance') badges.push('تأمين طبي - تعاقد');
   if (status.toUpperCase() === 'TEST_PILOT') badges.push('فاتورة تجريبية - تدريب');
   if (status.toLowerCase() === 'cancelled') badges.push('فاتورة ملغاة');
 
@@ -566,6 +579,19 @@ export function buildReceiptModel(
   if (!isDelivery && clean(sale.customerName) && clean(sale.customerId).toLowerCase() !== GENERAL_CASH_CUSTOMER_ID) {
     customer = `العميل: ${clean(sale.customerName)}`;
     if (clean(sale.customerPhone)) customer += ` (${clean(sale.customerPhone)})`;
+  }
+  if (sale.insuranceClaim) {
+    const claim = sale.insuranceClaim;
+    const parts: string[] = [];
+    if (clean(claim.companyName)) parts.push(`شركة: ${clean(claim.companyName)}`);
+    if (clean(claim.patientName)) {
+      let pat = `المريض: ${clean(claim.patientName)}`;
+      if (clean(claim.memberNo)) pat += ` (كارنيه: ${clean(claim.memberNo)})`;
+      parts.push(pat);
+    }
+    if (parts.length > 0) {
+      customer = customer ? `${customer} | ${parts.join(' - ')}` : parts.join(' - ');
+    }
   }
 
   const adjustmentRows: ReceiptRow[] = [];
@@ -575,6 +601,18 @@ export function buildReceiptModel(
   if (t.discountTotal > 0) adjustmentRows.push({ label: 'إجمالي الخصم', value: `-${formatReceiptMoney(t.discountTotal)}`, emphasis: false });
   if (t.serviceCharge > 0) adjustmentRows.push({ label: 'خدمة الصالة', value: formatReceiptMoney(t.serviceCharge), emphasis: false });
   if (t.deliveryFee > 0) adjustmentRows.push({ label: 'رسوم التوصيل', value: formatReceiptMoney(t.deliveryFee), emphasis: false });
+  if (sale.insuranceClaim && toInt(sale.insuranceClaim.companyPiasters) > 0) {
+    adjustmentRows.push({
+      label: 'تغطية شركة التأمين',
+      value: `-${formatReceiptMoney(toInt(sale.insuranceClaim.companyPiasters))}`,
+      emphasis: false
+    });
+    adjustmentRows.push({
+      label: 'تحمل المريض المطلوب',
+      value: formatReceiptMoney(toInt(sale.insuranceClaim.patientPiasters)),
+      emphasis: true
+    });
+  }
 
   let deliveryTitle = '';
   const deliveryLines: string[] = [];
@@ -700,11 +738,185 @@ export function layoutReceiptTable(lines: ReadonlyArray<ReceiptLineModel>, paper
 }
 
 // ---------------------------------------------------------------------------
-// Sample basket for the store-profile preview (a realistic sale: weight line, line + invoice discount, VAT, change)
+// Sample baskets for the store-profile preview adapted to the business activity
+// (realistic sales with integer piasters: correct totals, line + invoice discount, VAT, change)
 // ---------------------------------------------------------------------------
 
-export function buildSampleReceiptSale(): ReceiptSaleInput {
-  return {
+export const SAMPLE_BASKETS_BY_STORE_TYPE: Record<string, ReceiptSaleInput> = {
+  pharmacy: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 30500,
+    discountPiasters: 300,
+    taxPiasters: 3684,
+    totalPiasters: 30000,
+    paidPiasters: 35000,
+    changePiasters: 5000,
+    paymentMethod: 'cash',
+    items: [
+      { productName: 'بنادول إكسترا أقراص', quantityMilli: 2000, unitPricePiasters: 4500, unit: 'box', unitName: 'علبة' },
+      { productName: 'أوجمنتين 1 جم أقراص', quantityMilli: 1000, unitPricePiasters: 13500, unit: 'box', unitName: 'علبة' },
+      { productName: 'كتافلام 50 مجم مسكن', quantityMilli: 1000, unitPricePiasters: 5500, unit: 'box', unitName: 'علبة' },
+      { productName: 'فيتامين سي 1000 مجم فوار', quantityMilli: 1000, unitPricePiasters: 2500, discountPiasters: 200, unit: 'piece', unitName: 'عبوة' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 35000 }],
+  },
+  cafe_restaurant: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 30500,
+    discountPiasters: 300,
+    taxPiasters: 3684,
+    totalPiasters: 30000,
+    paidPiasters: 35000,
+    changePiasters: 5000,
+    paymentMethod: 'cash',
+    tableName: 'طاولة 4',
+    orderType: 'dine_in',
+    items: [
+      { productName: 'برجر لحم سبيشيال دبل', quantityMilli: 1000, unitPricePiasters: 14000, unit: 'piece' },
+      { productName: 'بيتزا مشكل جبن وسط', quantityMilli: 1000, unitPricePiasters: 11000, unit: 'piece' },
+      { productName: 'بطاطس فارم فريتس مقلية', quantityMilli: 1000, unitPricePiasters: 3500, unit: 'piece' },
+      { productName: 'كانز بيبسي 330 مل', quantityMilli: 1000, unitPricePiasters: 2000, discountPiasters: 200, unit: 'piece' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 35000 }],
+  },
+  clothing_apparel: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 150000,
+    discountPiasters: 3000,
+    taxPiasters: 17807,
+    totalPiasters: 145000,
+    paidPiasters: 150000,
+    changePiasters: 5000,
+    paymentMethod: 'cash',
+    items: [
+      { productName: 'قميص رجالي كاجوال قطن L', quantityMilli: 1000, unitPricePiasters: 45000, unit: 'piece' },
+      { productName: 'بنطلون جينز سليم فيت 34', quantityMilli: 1000, unitPricePiasters: 55000, unit: 'piece' },
+      { productName: 'تيشرت بولو صيفي XL', quantityMilli: 1000, unitPricePiasters: 35000, unit: 'piece' },
+      { productName: 'شراب قطن رجالي باكت 3 ق', quantityMilli: 1000, unitPricePiasters: 15000, discountPiasters: 2000, unit: 'piece' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 150000 }],
+  },
+  phones_electronics: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 90500,
+    discountPiasters: 500,
+    taxPiasters: 10991,
+    totalPiasters: 89500,
+    paidPiasters: 90000,
+    changePiasters: 500,
+    paymentMethod: 'cash',
+    items: [
+      { productName: 'شاحن سريع Type-C قدرة 25W', quantityMilli: 1000, unitPricePiasters: 35000, unit: 'piece' },
+      { productName: 'سماعة بلوتوث لاسلكية TWS', quantityMilli: 1000, unitPricePiasters: 45000, unit: 'piece' },
+      { productName: 'سكرينة حماية زجاجية 9D', quantityMilli: 1000, unitPricePiasters: 6000, unit: 'piece' },
+      { productName: 'جراب حماية شفاف مضاد للصدمات', quantityMilli: 1000, unitPricePiasters: 4500, discountPiasters: 500, unit: 'piece' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 90000 }],
+  },
+  produce_butchery: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 72250,
+    discountPiasters: 2000,
+    taxPiasters: 8596,
+    totalPiasters: 70000,
+    paidPiasters: 75000,
+    changePiasters: 5000,
+    paymentMethod: 'cash',
+    items: [
+      { productName: 'لحم بتلو طازج بلدي', quantityMilli: 1250, unitPricePiasters: 40000, unit: 'kg' },
+      { productName: 'تفاح سكري إيطالي فاخر', quantityMilli: 1500, unitPricePiasters: 8000, unit: 'kg' },
+      { productName: 'طماطم سلك بلدي طازجة', quantityMilli: 2000, unitPricePiasters: 2000, unit: 'kg' },
+      { productName: 'بطاطس تحمير روزيتا', quantityMilli: 2500, unitPricePiasters: 2500, discountPiasters: 250, unit: 'kg' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 75000 }],
+  },
+  dairy_bakery: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 45000,
+    discountPiasters: 500,
+    taxPiasters: 5403,
+    totalPiasters: 44000,
+    paidPiasters: 45000,
+    changePiasters: 1000,
+    paymentMethod: 'cash',
+    items: [
+      { productName: 'جبنة رومي قديمة فاخرة', quantityMilli: 500, unitPricePiasters: 36000, unit: 'kg' },
+      { productName: 'زبدة بلدي فلاحي جاموسي', quantityMilli: 500, unitPricePiasters: 32000, unit: 'kg' },
+      { productName: 'عيش فينو طازج كيس 10 أرغفة', quantityMilli: 2000, unitPricePiasters: 2000, unit: 'piece' },
+      { productName: 'حليب طازج طبيعي مبستر', quantityMilli: 2000, unitPricePiasters: 3500, discountPiasters: 500, unit: 'piece' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 45000 }],
+  },
+  spices_roastery: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 56000,
+    discountPiasters: 1500,
+    taxPiasters: 6631,
+    totalPiasters: 54000,
+    paidPiasters: 55000,
+    changePiasters: 1000,
+    paymentMethod: 'cash',
+    items: [
+      { productName: 'بن محوج فاخر حبهان مخصوص', quantityMilli: 500, unitPricePiasters: 52000, unit: 'kg' },
+      { productName: 'مكسرات مشكلة محمصة ممتازة', quantityMilli: 250, unitPricePiasters: 60000, unit: 'kg' },
+      { productName: 'كمون بلدي حب حصى', quantityMilli: 250, unitPricePiasters: 28000, unit: 'kg' },
+      { productName: 'فلفل أسود برازيلي حب', quantityMilli: 250, unitPricePiasters: 32000, discountPiasters: 500, unit: 'kg' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 55000 }],
+  },
+  stationery_gifts: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 45500,
+    discountPiasters: 1000,
+    taxPiasters: 5403,
+    totalPiasters: 44000,
+    paidPiasters: 45000,
+    changePiasters: 1000,
+    paymentMethod: 'cash',
+    items: [
+      { productName: 'كشكول سلك جامبو 100 ورقة', quantityMilli: 3000, unitPricePiasters: 4500, unit: 'piece' },
+      { productName: 'رزمة ورق تصوير A4 بوزن 80 جم', quantityMilli: 1000, unitPricePiasters: 22000, unit: 'piece' },
+      { productName: 'دستة أقلام جاف أزرق 12 قلم', quantityMilli: 1000, unitPricePiasters: 6000, unit: 'piece' },
+      { productName: 'طقم ألوان خشب 12 لون فاخر', quantityMilli: 1000, unitPricePiasters: 4000, discountPiasters: 500, unit: 'piece' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 45000 }],
+  },
+  toys_kids: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 85500,
+    discountPiasters: 1000,
+    taxPiasters: 10315,
+    totalPiasters: 84000,
+    paidPiasters: 85000,
+    changePiasters: 1000,
+    paymentMethod: 'cash',
+    items: [
+      { productName: 'سيارة سباق ريموت كنترول سريعة', quantityMilli: 1000, unitPricePiasters: 38000, unit: 'piece' },
+      { productName: 'مكعبات أطفال تعليمية 100 قطعة', quantityMilli: 1000, unitPricePiasters: 24000, unit: 'piece' },
+      { productName: 'دمية أطفال ناعمة محشوة', quantityMilli: 1000, unitPricePiasters: 15000, unit: 'piece' },
+      { productName: 'بازل خشبي تعليمي للأطفال', quantityMilli: 1000, unitPricePiasters: 8500, discountPiasters: 500, unit: 'piece' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 85000 }],
+  },
+  supermarket: {
     id: 'sample',
     invoiceNumber: 1042,
     cashierName: 'أحمد',
@@ -722,5 +934,98 @@ export function buildSampleReceiptSale(): ReceiptSaleInput {
       { productName: 'سكر حر 1 كجم', quantityMilli: 1000, unitPricePiasters: 2700, discountPiasters: 200, unit: 'piece' },
     ],
     payments: [{ method: 'cash', amountPiasters: 35000 }],
+  },
+  general_grocery: {
+    id: 'sample',
+    invoiceNumber: 1042,
+    cashierName: 'أحمد',
+    subtotalPiasters: 30500,
+    discountPiasters: 300,
+    taxPiasters: 3684,
+    totalPiasters: 30000,
+    paidPiasters: 35000,
+    changePiasters: 5000,
+    paymentMethod: 'cash',
+    items: [
+      { productName: 'جبنة عبور لاند 500 جم', quantityMilli: 1000, unitPricePiasters: 3800, unit: 'piece' },
+      { productName: 'شاي العروسة 100 جم', quantityMilli: 2000, unitPricePiasters: 1500, unit: 'piece' },
+      { productName: 'لحم مفروم بالوزن', quantityMilli: 750, unitPricePiasters: 28000, unit: 'kg' },
+      { productName: 'سكر حر 1 كجم', quantityMilli: 1000, unitPricePiasters: 2700, discountPiasters: 200, unit: 'piece' },
+    ],
+    payments: [{ method: 'cash', amountPiasters: 35000 }],
+  },
+};
+
+/**
+ * Intelligent heuristic resolution of store activity type:
+ * 1. Checks explicit storeType argument against recognized templates
+ * 2. Checks getCurrentStoreType() (from localStorage / active feature flags)
+ * 3. Inspects storeName and receiptHeader for domain keywords (e.g. "صيدلية" -> pharmacy)
+ * 4. Defaults safely to supermarket/general_grocery
+ */
+export function resolveStoreActivityType(
+  storeType?: string | null,
+  storeName?: string | null,
+  header?: string | null
+): string {
+  const explicit = (storeType ?? '').trim();
+  if (explicit && explicit in SAMPLE_BASKETS_BY_STORE_TYPE) {
+    return explicit;
+  }
+
+  try {
+    const detected = getCurrentStoreType();
+    if (detected && detected in SAMPLE_BASKETS_BY_STORE_TYPE) {
+      return detected;
+    }
+  } catch {
+    // ignore
+  }
+
+  const combined = `${storeName ?? ''} ${header ?? ''}`.toLowerCase();
+
+  if (/صيدلي|دواء|دوائي|علاج|روشت|pharmacy|pharma/i.test(combined)) {
+    return 'pharmacy';
+  }
+  if (/كافيه|كافية|قهوة|مقهى|مطعم|مطاعم|مشويات|بيتزا|برجر|سندوتش|وجبات|شاورما|عصير|حلواني|حلويات|cafe|restaurant|coffee/i.test(combined)) {
+    return 'cafe_restaurant';
+  }
+  if (/ملابس|أزياء|ازياء|بوتيك|أحذية|احذية|فاشون|عبايات|بدل|fashion|wear|clothes/i.test(combined)) {
+    return 'clothing_apparel';
+  }
+  if (/موبايل|هواتف|محمول|إلكترونيات|الكترونيات|صيانة محمول|كمبيوتر|اتصالات|phone|electronics/i.test(combined)) {
+    return 'phones_electronics';
+  }
+  if (/جزارة|جزاره|لحوم|خضار|فواكه|خضروات|فواكه وخضار|butcher|meat|produce/i.test(combined)) {
+    return 'produce_butchery';
+  }
+  if (/ألبان|البان|مخبز|مخابز|معجنات|فطائر|أفران|افران|bakery|dairy/i.test(combined)) {
+    return 'dairy_bakery';
+  }
+  if (/عطارة|عطاره|توابل|بهارات|محمصة|محمصه|بن |مطحنة|spices|roastery/i.test(combined)) {
+    return 'spices_roastery';
+  }
+  if (/مكتبة|مكتبه|أدوات مدرسية|قرطاسية|هدايا|stationery|gifts/i.test(combined)) {
+    return 'stationery_gifts';
+  }
+  if (/ألعاب|العاب|أطفال|اطفال|لعب|toys|kids/i.test(combined)) {
+    return 'toys_kids';
+  }
+
+  return 'supermarket';
+}
+
+export function buildSampleReceiptSale(
+  storeType?: string | null,
+  storeName?: string | null,
+  header?: string | null
+): ReceiptSaleInput {
+  const resolved = resolveStoreActivityType(storeType, storeName, header);
+  const basket = SAMPLE_BASKETS_BY_STORE_TYPE[resolved] ?? SAMPLE_BASKETS_BY_STORE_TYPE.supermarket;
+  // Return a cloned copy so modifications won't mutate the template
+  return {
+    ...basket,
+    items: basket.items ? [...basket.items] : [],
+    payments: basket.payments ? [...basket.payments] : [],
   };
 }

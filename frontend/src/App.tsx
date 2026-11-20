@@ -46,6 +46,9 @@ import {
   Ellipsis,
   LogOut,
   UserCheck,
+  Globe,
+  ShoppingBag,
+  Activity,
 } from 'lucide-react';
 import { HeaderMenu, type HeaderMenuItem } from './components/HeaderMenu';
 import { TextScaleControl } from './components/TextScaleControl';
@@ -59,7 +62,7 @@ import { useSystemNotifications } from './utils/useSystemNotifications';
 import { useExitTransition, useExitValue } from './hooks/useExitTransition';
 import SidebarGroupPanel from './components/SidebarGroupPanel';
 import { useTheme } from './context/useTheme';
-import { invoke } from './bridge/ipc';
+import { invoke, onBridgeEvent, type AppUpdateInfo } from './bridge/ipc';
 import { useDataSubscription, emitDataChanged } from './utils/eventBus';
 import { PANEL_TOGGLE_BUTTON_CLASS, PANEL_TOGGLE_ICON_CLASS } from './utils/panelToggle';
 import { PosView } from './views/PosView';
@@ -111,7 +114,20 @@ import { canAccessRootConsole, getAllowedRootSubTabs, resolveRootSubTab, type Ro
 import { getRoleLabel, getRoleNameClasses } from './utils/roleLabels';
 import { APP_TITLE, getShopSubtitle } from './utils/appBranding';
 import { AppUpdateModal } from './components/AppUpdateModal';
-import type { AppUpdateInfo } from './bridge/ipc';
+import {
+  getOnlineStoreState,
+  type OnlineOrderNotificationDto,
+  type OnlineOrdersSyncedEvent,
+  type OnlineStoreSubTab,
+  type SyncStateDto,
+} from './bridge/onlineStoreIpc';
+import { IncomingOrderAlertToast } from './components/onlineStore/IncomingOrderAlertToast';
+import { useOnlineStoreRealtime } from './hooks/useOnlineStoreRealtime';
+import {
+  isOnlineOrderSoundEnabled,
+  playOnlineOrderChime,
+  setOnlineOrderSoundEnabled,
+} from './utils/onlineOrderSound';
 
 // The cashier screen and the login stay in the entry bundle; every other screen loads the first time it is opened.
 // Each screen carries its own loading state, so a screen that is still loading never hides the others.
@@ -137,6 +153,7 @@ const ProductsView = lazyView(() => import('./views/ProductsView').then((m) => m
 const PurchasesView = lazyView(() => import('./views/PurchasesView').then((m) => m.PurchasesView));
 const SalesHistoryView = lazyView(() => import('./views/SalesHistoryView').then((m) => m.SalesHistoryView));
 const SettingsView = lazyView(() => import('./views/SettingsView').then((m) => m.SettingsView));
+const OnlineStoreView = lazyView(() => import('./views/OnlineStoreView').then((m) => m.OnlineStoreView));
 const RootConsoleView = lazyView(() => import('./views/root/RootConsoleView').then((m) => m.RootConsoleView));
 
 export interface SystemInfo {
@@ -147,7 +164,7 @@ export interface SystemInfo {
   dbStatus: string;
 }
 
-export type TabType = 'pos' | 'epay' | 'wallets' | 'insurance' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'settings' | 'root';
+export type TabType = 'pos' | 'epay' | 'wallets' | 'insurance' | 'online_store' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'settings' | 'root';
 
 /** Help center section for a tab: the root console shares the settings page (backup and security). */
 const helpSectionOf = (tab: TabType): string => (tab === 'root' ? 'settings' : tab);
@@ -212,6 +229,7 @@ export default function App() {
   const canAccessWallets = (isRoot || hasPermission('wallets.access') || hasPermission('wallets')) && 
     (isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets'));
   const canAccessInsurance = (isRoot || isAdmin || hasPermission('insurance.manage_contracts') || hasPermission('insurance.claims.manage')) && isEnabled('feature_insurance');
+  const canAccessOnlineStore = (isRoot || isAdmin || hasPermission('online_store.view_orders') || hasPermission('online_store.manage')) && isEnabled('feature_online_store');
   const canAccessDashboard = isRoot || hasPermission('reports.sales') || hasPermission('reports');
   const canAccessCustomers = isRoot || hasPermission('customers.view') || hasPermission('customers');
   const canAccessProducts = isRoot || hasPermission('products.view') || hasPermission('products');
@@ -248,6 +266,7 @@ export default function App() {
       case 'epay': return canAccessEpay;
       case 'wallets': return canAccessWallets;
       case 'insurance': return canAccessInsurance;
+      case 'online_store': return canAccessOnlineStore;
       case 'dashboard': return canAccessDashboard;
       case 'customers': return canAccessCustomers;
       case 'products': return canAccessProducts;
@@ -257,7 +276,7 @@ export default function App() {
       case 'settings': return canAccessSettings;
       default: return true;
     }
-  }, [canAccessPos, canAccessEpay, canAccessWallets, canAccessInsurance, canAccessDashboard, canAccessCustomers, canAccessProducts, canAccessPurchases, canAccessSales, canAccessRoot, canAccessSettings]);
+  }, [canAccessPos, canAccessEpay, canAccessWallets, canAccessInsurance, canAccessOnlineStore, canAccessDashboard, canAccessCustomers, canAccessProducts, canAccessPurchases, canAccessSales, canAccessRoot, canAccessSettings]);
 
   const effectiveActiveTab: TabType = canAccessTab(activeTab) ? activeTab : 'pos';
 
@@ -287,6 +306,8 @@ export default function App() {
   const [isWalletsMenuExpanded, setIsWalletsMenuExpanded] = useState(false);
   const [insuranceSubTab, setInsuranceSubTab] = useState<InsuranceSubTab>('companies');
   const [isInsuranceMenuExpanded, setIsInsuranceMenuExpanded] = useState(false);
+  const [onlineStoreSubTab, setOnlineStoreSubTab] = useState<OnlineStoreSubTab>('orders');
+  const [isOnlineStoreMenuExpanded, setIsOnlineStoreMenuExpanded] = useState(false);
   const [dashboardSubTab, setDashboardSubTab] = useState<DashboardSubTab>('today');
   const [isDashboardMenuExpanded, setIsDashboardMenuExpanded] = useState(false);
   const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('new_invoice');
@@ -299,6 +320,85 @@ export default function App() {
   const [isRootMenuExpanded, setIsRootMenuExpanded] = useState(false);
   const [isAppUpdateModalOpen, setIsAppUpdateModalOpen] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState<AppUpdateInfo | null>(null);
+  const [hasActivePosSale, setHasActivePosSale] = useState(false);
+  const [onlineStoreHeaderState, setOnlineStoreHeaderState] = useState<SyncStateDto | null>(null);
+  const [incomingOrderAlerts, setIncomingOrderAlerts] = useState<OnlineOrderNotificationDto[]>([]);
+  const [orderAlertSoundEnabled, setOrderAlertSoundEnabled] = useState<boolean>(() => isOnlineOrderSoundEnabled());
+
+  useEffect(() => {
+    if (!canAccessOnlineStore || !currentUserId) {
+      setOnlineStoreHeaderState(null);
+      setIncomingOrderAlerts([]);
+      return;
+    }
+    let mounted = true;
+    const pollOnlineStore = async () => {
+      try {
+        const st = await getOnlineStoreState();
+        if (mounted && st) setOnlineStoreHeaderState(st);
+      } catch {
+        // Silent when offline or unavailable
+      }
+    };
+    void pollOnlineStore();
+
+    // Real-time push from C# SyncEngine fast 8s pulse (brand-new orders + 2-way Web Dashboard status updates)
+    const unsubscribeOrders = onBridgeEvent<OnlineOrdersSyncedEvent>('onlineStore:ordersSynced', (evt) => {
+      if (!mounted || !evt) return;
+      setOnlineStoreHeaderState((prev) =>
+        prev
+          ? {
+              ...prev,
+              newOrdersCount: evt.totalPendingNewCount,
+              lastSyncTimestamp: evt.syncedAt || prev.lastSyncTimestamp,
+              lastError: '',
+            }
+          : prev
+      );
+      if (evt.newOrdersCount > 0 && Array.isArray(evt.newOrders) && evt.newOrders.length > 0) {
+        const soundOn = isOnlineOrderSoundEnabled();
+        setOrderAlertSoundEnabled(soundOn);
+        if (soundOn) {
+          playOnlineOrderChime();
+        }
+        setIncomingOrderAlerts((prev) => {
+          const seen = new Set(evt.newOrders.map((o) => o.orderId));
+          const merged = [...evt.newOrders, ...prev.filter((o) => !seen.has(o.orderId))];
+          return merged.slice(0, 10);
+        });
+      }
+      // Refresh full sync counters cleanly in the background
+      void pollOnlineStore();
+    });
+
+    // Triggered when cashier clicks the native Windows desktop balloon notification
+    const unsubscribeOpenOrders = onBridgeEvent('onlineStore:openOrders', () => {
+      if (!mounted) return;
+      setIncomingOrderAlerts([]);
+      navigateTo('online_store', () => {
+        setOnlineStoreSubTab('orders');
+        setIsOnlineStoreMenuExpanded(true);
+      });
+    });
+
+    const timer = setInterval(() => void pollOnlineStore(), 30000);
+    return () => {
+      mounted = false;
+      unsubscribeOrders();
+      unsubscribeOpenOrders();
+      clearInterval(timer);
+    };
+  }, [canAccessOnlineStore, currentUserId, navigateTo]);
+
+  // Persistent Durable Object WebSocket Hibernation connection (instant <200ms orders, Win7..Win11 safe via WebView2)
+  useOnlineStoreRealtime(
+    Boolean(
+      canAccessOnlineStore &&
+        currentUserId &&
+        onlineStoreHeaderState?.onlineStoreEnabled &&
+        onlineStoreHeaderState?.hasApiKey
+    )
+  );
   const handleUpdateInfoChange = useCallback((info: AppUpdateInfo | null) => {
     setAvailableUpdate(info);
   }, []);
@@ -935,6 +1035,16 @@ export default function App() {
           sublabel: 'استرجاع الفواتير المكتملة وحركات المبيعات من قاعدة البيانات',
           icon: <Receipt className="w-6 h-6 text-brand" />,
         };
+      case 'online_store':
+        return {
+          label: onlineStoreSubTab === 'settings'
+            ? 'جاري تحديث إعدادات الربط السحابي...'
+            : onlineStoreSubTab === 'status'
+            ? 'جاري تحديث حالة المزامنة السحابية...'
+            : 'جاري تحديث الطلبات الواردة من المتجر...',
+          sublabel: 'استرجاع الطلبات الواردة وحالة المزامنة السحابية',
+          icon: <Globe className="w-6 h-6 text-brand" />,
+        };
       case 'root':
         return {
           label: 'جاري تحديث لوحة المطور...',
@@ -954,7 +1064,7 @@ export default function App() {
           icon: <Database className="w-6 h-6 text-brand" />,
         };
     }
-  }, [effectiveActiveTab, dashboardSubTab]);
+  }, [effectiveActiveTab, dashboardSubTab, onlineStoreSubTab]);
 
   const handleUniversalRefresh = useCallback(async () => {
     if (isUniversalRefreshing) return;
@@ -1141,6 +1251,7 @@ export default function App() {
     { id: 'wallets' as TabType, label: 'المحافظ وإنستاباي', icon: Wallet, shortcut: 'Alt+6' },
     { id: 'epay' as TabType, label: 'خدمات وماكينات الدفع', icon: CreditCard, shortcut: 'Alt+7' },
     { id: 'insurance' as TabType, label: 'التأمين الطبي والتعاقدات', icon: Building2, shortcut: 'Alt+8' },
+    { id: 'online_store' as TabType, label: 'المتجر الإلكتروني', icon: Globe, shortcut: '' },
     { id: 'dashboard' as TabType, label: 'المتابعة والتقارير', icon: BarChart3, shortcut: 'Alt+9' },
     { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: '' },
     { id: 'root' as TabType, label: 'لوحة المطور', icon: Wrench, shortcut: '' },
@@ -1200,6 +1311,25 @@ export default function App() {
     return items;
   }, [canAccessWalletsTransact, canAccessWalletsHistory, canAccessWalletsAccounts, canAccessWalletsAnalytics, isEnabled, isRoot]);
 
+  const canManageOnlineStore = hasPermission('online_store.manage');
+
+  const onlineStoreTreeItems = useMemo(() => {
+    const items: Array<{ id: OnlineStoreSubTab; label: string; icon: typeof ShoppingBag }> = [
+      { id: 'orders', label: 'الطلبات الواردة', icon: ShoppingBag },
+      { id: 'status', label: 'حالة المزامنة', icon: Activity },
+    ];
+    if (canManageOnlineStore) {
+      items.push({ id: 'settings', label: 'إعدادات الربط السحابي', icon: Settings });
+    }
+    return items;
+  }, [canManageOnlineStore]);
+
+  useEffect(() => {
+    if (onlineStoreSubTab === 'settings' && !canManageOnlineStore) {
+      setOnlineStoreSubTab('orders');
+    }
+  }, [onlineStoreSubTab, canManageOnlineStore]);
+
   const epayTreeItems = useMemo(() => {
     const items = [
       { id: 'pos' as EpaySubTab, label: 'تنفيذ عملية دفع جديدة', icon: Smartphone },
@@ -1232,6 +1362,7 @@ export default function App() {
       case 'epay': return canAccessEpay;
       case 'wallets': return canAccessWallets;
       case 'insurance': return canAccessInsurance;
+      case 'online_store': return canAccessOnlineStore;
       case 'dashboard': return canAccessDashboard;
       case 'customers': return canAccessCustomers;
       case 'products': return canAccessProducts;
@@ -1484,6 +1615,48 @@ export default function App() {
             </button>
           )}
 
+          {canAccessOnlineStore && onlineStoreHeaderState && onlineStoreHeaderState.onlineStoreEnabled && (
+            <button
+              type="button"
+              onClick={() =>
+                navigateTo('online_store', () => {
+                  setOnlineStoreSubTab(
+                    onlineStoreHeaderState.newOrdersCount > 0
+                      ? 'orders'
+                      : onlineStoreHeaderState.lastError
+                      ? 'status'
+                      : 'orders'
+                  );
+                  setIsOnlineStoreMenuExpanded(true);
+                })
+              }
+              className={`flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg border text-xs font-bold shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0 ${
+                onlineStoreHeaderState.newOrdersCount > 0
+                  ? 'bg-warn-soft hover:bg-warn-soft/80 text-ink border-warn/35 dark:bg-warn-dark-soft dark:hover:bg-warn-dark-soft/80 dark:text-warn-bright dark:border-warn-bright/40'
+                  : onlineStoreHeaderState.lastError
+                  ? 'bg-danger-soft hover:bg-danger-soft/80 text-danger border-danger/30 dark:bg-danger-dark-soft dark:hover:bg-danger-dark-soft/80 dark:text-danger-bright dark:border-danger-bright/40'
+                  : 'bg-paid-soft hover:bg-paid-soft/80 text-paid border-paid/30 dark:bg-paid-dark-soft dark:hover:bg-paid-dark-soft/80 dark:text-paid-bright dark:border-paid-dark-border'
+              }`}
+              title={
+                onlineStoreHeaderState.newOrdersCount > 0
+                  ? `يوجد ${onlineStoreHeaderState.newOrdersCount} طلب أونلاين جديد بانتظار المراجعة`
+                  : onlineStoreHeaderState.lastError
+                  ? 'تنبيه في المزامنة السحابية للمتجر الإلكتروني'
+                  : 'المتجر الإلكتروني متصل ومتزامن'
+              }
+              aria-label="حالة المتجر الإلكتروني والطلبات الواردة"
+            >
+              <Globe className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden xl:inline text-xs font-extrabold">المتجر</span>
+              {onlineStoreHeaderState.newOrdersCount > 0 && (
+                <span className="relative inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-warn-bright text-ink dark:bg-warn-bright dark:text-ink text-micro font-black tabular-nums leading-none">
+                  <span className="absolute inset-0 rounded-full bg-warn-bright animate-ping opacity-60" />
+                  <span className="relative">{onlineStoreHeaderState.newOrdersCount}</span>
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Notification Bell Button with live Badge (license, backup, stock, clock and update alerts live here) */}
           <NotificationBellButton
             count={systemNotifications.length}
@@ -1642,6 +1815,7 @@ export default function App() {
               const isEpayItem = item.id === 'epay';
               const isWalletsItem = item.id === 'wallets';
               const isInsuranceItem = item.id === 'insurance';
+              const isOnlineStoreItem = item.id === 'online_store';
               const isDashboardItem = item.id === 'dashboard';
               const isProductsItem = item.id === 'products';
               const isPurchasesItem = item.id === 'purchases';
@@ -1658,6 +1832,7 @@ export default function App() {
                         if (isEpayItem) setEpaySubTab('pos');
                         if (isWalletsItem) setWalletsSubTab('transact');
                         if (isInsuranceItem) setInsuranceSubTab('members');
+                        if (isOnlineStoreItem) setOnlineStoreSubTab('orders');
                         if (isDashboardItem) setDashboardSubTab('today');
                         if (isProductsItem) setProductsSubView('catalog');
                         if (isPurchasesItem) setPurchasesSubView(defaultPurchasesSubView);
@@ -1708,6 +1883,12 @@ export default function App() {
                         } else {
                           setIsInsuranceMenuExpanded(!isInsuranceMenuExpanded);
                         }
+                      } else if (isOnlineStoreItem) {
+                        if (effectiveActiveTab !== 'online_store') {
+                          handleNavClick('online_store', () => setIsOnlineStoreMenuExpanded(true));
+                        } else {
+                          setIsOnlineStoreMenuExpanded(!isOnlineStoreMenuExpanded);
+                        }
                       } else if (isDashboardItem) {
                         if (effectiveActiveTab !== 'dashboard') {
                           handleNavClick('dashboard', () => setIsDashboardMenuExpanded(true));
@@ -1753,10 +1934,10 @@ export default function App() {
                       <span className="motion-sidebar-label truncate whitespace-nowrap" title={item.label}>{item.label}</span>
                     </div>
 
-                    {(isEpayItem || isWalletsItem || isInsuranceItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem || isRootItem) && (
+                    {(isEpayItem || isWalletsItem || isInsuranceItem || isOnlineStoreItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem || isRootItem) && (
                       <span className={`motion-sidebar-label shrink-0 ${isActive ? 'text-white/80 dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/70'}`}>
                         <ChevronLeft
-                          className={`motion-chevron w-3.5 h-3.5 ${(isEpayItem ? isEpayMenuExpanded : isWalletsItem ? isWalletsMenuExpanded : isInsuranceItem ? isInsuranceMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isRootItem ? isRootMenuExpanded : isSettingsMenuExpanded) ? '-rotate-90' : ''}`}
+                          className={`motion-chevron w-3.5 h-3.5 ${(isEpayItem ? isEpayMenuExpanded : isWalletsItem ? isWalletsMenuExpanded : isInsuranceItem ? isInsuranceMenuExpanded : isOnlineStoreItem ? isOnlineStoreMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isRootItem ? isRootMenuExpanded : isSettingsMenuExpanded) ? '-rotate-90' : ''}`}
                         />
                       </span>
                     )}
@@ -1846,6 +2027,55 @@ export default function App() {
                               <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
                               <span className="min-w-0 leading-snug break-words" title={sub.label}>{sub.label}</span>
                             </div>
+                          </button>
+                        );
+                      })}
+                    </SidebarGroupPanel>
+                  )}
+
+                  {/* Sub-tree for Online Store & Cloud Sync */}
+                  {isOnlineStoreItem && (
+                    <SidebarGroupPanel open={isOnlineStoreMenuExpanded && !isSidebarCollapsed}>
+                      {onlineStoreTreeItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = effectiveActiveTab === 'online_store' && onlineStoreSubTab === sub.id;
+                        const badgeCount =
+                          sub.id === 'orders'
+                            ? (onlineStoreHeaderState?.newOrdersCount ?? 0)
+                            : sub.id === 'status'
+                            ? (onlineStoreHeaderState?.pendingOutboxCount ?? 0)
+                            : 0;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={(e) => {
+                              e.currentTarget.blur();
+                              navigateTo('online_store', () => setOnlineStoreSubTab(sub.id));
+                            }}
+                            className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 min-h-[2.125rem] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                              isSubActive
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 text-start">
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
+                              <span className="min-w-0 leading-snug break-words" title={sub.label}>{sub.label}</span>
+                            </div>
+                            {badgeCount > 0 && (
+                              <span
+                                className={`px-1.5 py-0.5 rounded-full text-micro font-bold tabular-nums leading-none shrink-0 ${
+                                  isSubActive
+                                    ? 'bg-white/20 text-white dark:bg-paid-bright/20 dark:text-paid-bright'
+                                    : sub.id === 'orders'
+                                    ? 'bg-warn-soft text-ink border border-warn/30 dark:bg-warn-dark-soft dark:text-warn-bright dark:border-warn-bright/30'
+                                    : 'bg-surface-2 text-ink-muted border border-line dark:bg-surface-dark-2 dark:text-ink-dark-muted dark:border-line-dark'
+                                }`}
+                              >
+                                {badgeCount}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
@@ -2138,6 +2368,7 @@ export default function App() {
               isActive={effectiveActiveTab === 'pos'} 
               onNavigateToEpay={() => navigateTo('epay', () => { setEpaySubTab('pos'); setIsEpayMenuExpanded(true); })} 
               onNavigateToWallets={(subTab = 'accounts') => navigateTo('wallets', () => { setWalletsSubTab(subTab); setIsWalletsMenuExpanded(true); })}
+              onActiveSaleChange={setHasActivePosSale}
             />
           </div>
 
@@ -2258,6 +2489,16 @@ export default function App() {
           {canAccessSales && visitedTabs.has('sales') && (
             <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'sales' ? '' : 'hidden'}`}>
               <SalesHistoryView isActive={effectiveActiveTab === 'sales'} />
+            </div>
+          )}
+
+          {canAccessOnlineStore && visitedTabs.has('online_store') && (
+            <div className={`h-full w-full motion-panel ${effectiveActiveTab === 'online_store' ? '' : 'hidden'}`}>
+              <OnlineStoreView
+                isActive={effectiveActiveTab === 'online_store'}
+                activeSubTab={onlineStoreSubTab}
+                onStateChange={setOnlineStoreHeaderState}
+              />
             </div>
           )}
 
@@ -2472,8 +2713,31 @@ export default function App() {
         isOpen={isAppUpdateModalOpen}
         onClose={() => setIsAppUpdateModalOpen(false)}
         autoCheck={true}
+        hasActiveSale={hasActivePosSale}
         onUpdateInfoChange={handleUpdateInfoChange}
       />
+
+      {/* Global Real-Time Incoming Online Order Alert Banner (Visible from any POS screen) */}
+      {canAccessOnlineStore && incomingOrderAlerts.length > 0 && (
+        <IncomingOrderAlertToast
+          orders={incomingOrderAlerts}
+          soundEnabled={orderAlertSoundEnabled}
+          onToggleSound={() => {
+            const next = !orderAlertSoundEnabled;
+            setOrderAlertSoundEnabled(next);
+            setOnlineOrderSoundEnabled(next);
+            if (next) playOnlineOrderChime();
+          }}
+          onOpenOrders={() => {
+            setIncomingOrderAlerts([]);
+            navigateTo('online_store', () => {
+              setOnlineStoreSubTab('orders');
+              setIsOnlineStoreMenuExpanded(true);
+            });
+          }}
+          onDismiss={() => setIncomingOrderAlerts([])}
+        />
+      )}
 
       {/* Global Rafiq Custom Dialog Modal System */}
       <RafiqDialogContainer />

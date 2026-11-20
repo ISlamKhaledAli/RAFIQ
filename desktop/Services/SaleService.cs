@@ -14,6 +14,7 @@ namespace RafiqPOS.Services
         private readonly ProductRepository _productRepo;
         private readonly QuickItemRepository _quickRepo;
         private readonly SettingsRepository _settingsRepo;
+        private SyncRepository _syncRepo;
 
         public SaleService(SaleRepository saleRepo, ProductRepository productRepo, QuickItemRepository quickRepo = null, SettingsRepository settingsRepo = null)
         {
@@ -21,6 +22,25 @@ namespace RafiqPOS.Services
             _productRepo = productRepo;
             _quickRepo = quickRepo;
             _settingsRepo = settingsRepo;
+        }
+
+        public void SetSyncRepository(SyncRepository syncRepo)
+        {
+            _syncRepo = syncRepo;
+        }
+
+        private void NotifySaleStockChanged(Sale sale)
+        {
+            if (_syncRepo == null || sale == null || sale.Items == null || sale.Items.Count == 0) return;
+            var ids = new List<string>();
+            for (int i = 0; i < sale.Items.Count; i++)
+            {
+                if (!string.IsNullOrEmpty(sale.Items[i].ProductId))
+                {
+                    ids.Add(sale.Items[i].ProductId);
+                }
+            }
+            _syncRepo.NotifyProductsStockChanged(ids);
         }
 
         /// <summary>
@@ -71,6 +91,7 @@ namespace RafiqPOS.Services
                 }
 
                 Sale created = ProcessSaleCore(sale);
+                NotifySaleStockChanged(created);
 
                 if (!string.IsNullOrWhiteSpace(idempotencyKey))
                 {
@@ -366,7 +387,8 @@ namespace RafiqPOS.Services
             var resolvedProducts = new Dictionary<string, Product>();
 
             // Price authority applies to interactive sales by a logged-in user without the override permission
-            bool enforcePriceAuthority = SecurityService.CurrentUser != null
+            bool enforcePriceAuthority = !sale.IsVerifiedOnlineOrder
+                && SecurityService.CurrentUser != null
                 && DatabaseService.Security != null
                 && !DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.price_override");
             // Owner rule: a verified supervisor PIN approves catalogue-price deviations, each one is audited with the sale
@@ -892,7 +914,9 @@ namespace RafiqPOS.Services
                     throw new InvalidOperationException("رسوم الخدمة غير مسموح بها لهذه الفاتورة أو لهذا المستخدم. أزل رسوم الخدمة أو اطلب صلاحية إدارة الطلبات ثم أعد المحاولة.");
                 }
                 if (sale.DeliveryFeePiasters > 0
-                    && (feeOrderType != "delivery" || !DatabaseService.Security.HasPermission(feeUserId, "delivery.orders.manage")))
+                    && (feeOrderType != "delivery"
+                        || (!DatabaseService.Security.HasPermission(feeUserId, "delivery.orders.manage")
+                            && !(sale.IsVerifiedOnlineOrder && DatabaseService.Security.HasPermission(feeUserId, "online_store.process_orders")))))
                 {
                     throw new InvalidOperationException("رسوم التوصيل غير مسموح بها لهذه الفاتورة أو لهذا المستخدم. أزل رسوم التوصيل أو اطلب صلاحية إدارة التوصيل ثم أعد المحاولة.");
                 }
@@ -1047,17 +1071,45 @@ namespace RafiqPOS.Services
                     });
                 }
 
-                // If no other payment was specified, default patient co-pay to sale.PaymentMethod or cash
-                long nonInsuranceInPayments = 0;
+                // 2. Handle patient co-pay payment method (credit, cash, card, multi)
+                bool isCreditMethod = string.Equals(sale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase);
+                bool hasCreditPayment = false;
+                SalePayment creditPayment = null;
+                long nonInsuranceNonCreditInPayments = 0;
+
                 for (int pi = 0; pi < sale.Payments.Count; pi++)
                 {
-                    if (!string.Equals(sale.Payments[pi].Method, "insurance", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(sale.Payments[pi].Method, "credit", StringComparison.OrdinalIgnoreCase))
                     {
-                        nonInsuranceInPayments += sale.Payments[pi].AmountPiasters;
+                        hasCreditPayment = true;
+                        creditPayment = sale.Payments[pi];
+                    }
+                    else if (!string.Equals(sale.Payments[pi].Method, "insurance", StringComparison.OrdinalIgnoreCase))
+                    {
+                        nonInsuranceNonCreditInPayments += sale.Payments[pi].AmountPiasters;
                     }
                 }
 
-                if (nonInsuranceInPayments == 0 && split.PatientPiasters > 0)
+                if (isCreditMethod || hasCreditPayment)
+                {
+                    long creditDue = Math.Max(0, split.PatientPiasters - nonInsuranceNonCreditInPayments);
+                    if (creditPayment != null)
+                    {
+                        if (creditPayment.AmountPiasters <= 0)
+                        {
+                            creditPayment.AmountPiasters = creditDue;
+                        }
+                    }
+                    else if (creditDue > 0)
+                    {
+                        sale.Payments.Add(new SalePayment
+                        {
+                            Method = "credit",
+                            AmountPiasters = creditDue
+                        });
+                    }
+                }
+                else if (nonInsuranceNonCreditInPayments == 0 && split.PatientPiasters > 0)
                 {
                     string patientMethod = string.IsNullOrEmpty(sale.PaymentMethod) || string.Equals(sale.PaymentMethod, "insurance", StringComparison.OrdinalIgnoreCase)
                         ? "cash"
@@ -1069,7 +1121,7 @@ namespace RafiqPOS.Services
                     });
                 }
 
-                // Total paid across non-credit payments is full invoice (or patient payment + company claim)
+                // 3. Total paid across non-credit payments is company claim + patient non-credit payments (cash/card/etc.)
                 long totalNonCreditInPayments = 0;
                 for (int pi = 0; pi < sale.Payments.Count; pi++)
                 {
@@ -1079,9 +1131,12 @@ namespace RafiqPOS.Services
                     }
                 }
                 sale.PaidPiasters = totalNonCreditInPayments;
+
+                // Story 132 / Task 189-5: Sale header method is always 'insurance' for any sale carrying an insurance claim
+                sale.PaymentMethod = "insurance";
             }
 
-            if (sale.PaidPiasters <= 0 && !string.Equals(sale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
+            if (sale.PaidPiasters <= 0 && !string.Equals(sale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase) && sale.InsuranceClaim == null)
             {
                 // Default full payment for cash
                 sale.PaidPiasters = sale.TotalPiasters;
@@ -1591,7 +1646,9 @@ namespace RafiqPOS.Services
 
             lock (FinancialWriteLock)
             {
-                return _saleRepo.CancelSaleAtomic(saleId, reason.Trim(), userId);
+                Sale cancelled = _saleRepo.CancelSaleAtomic(saleId, reason.Trim(), userId);
+                NotifySaleStockChanged(cancelled);
+                return cancelled;
             }
         }
     }

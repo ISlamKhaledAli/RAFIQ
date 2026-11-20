@@ -58,6 +58,7 @@ export interface CustomDatePickerProps {
   minDate?: string;
   maxDate?: string;
   className?: string;
+  buttonClassName?: string;
   disabled?: boolean;
   size?: 'sm' | 'md' | 'lg';
   id?: string;
@@ -72,6 +73,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   minDate,
   maxDate,
   className = '',
+  buttonClassName = '',
   disabled = false,
   size = 'md',
   id,
@@ -297,17 +299,19 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
   const yearRange = useMemo(() => {
     const currentYear = new Date().getFullYear();
+    const start = Math.min(currentYear - 10, viewYear - 5);
+    const end = Math.max(currentYear + 10, viewYear + 5);
     const years: number[] = [];
-    for (let y = currentYear - 5; y <= currentYear + 2; y++) {
+    for (let y = start; y <= end; y++) {
       years.push(y);
     }
     return years;
-  }, []);
+  }, [viewYear]);
 
   const sizeClasses = {
-    sm: 'h-[1.75rem] px-2 text-micro',
-    md: 'h-[2.125rem] px-2.5 text-xs',
-    lg: 'h-[2.5rem] px-3 text-sm',
+    sm: 'h-[1.75rem] px-2 text-micro rounded-lg',
+    md: 'h-9 px-2.5 text-xs rounded-xl',
+    lg: 'h-[2.5rem] px-3 text-sm rounded-xl',
   }[size];
 
   return (
@@ -318,11 +322,11 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`w-full ${sizeClasses} bg-surface dark:bg-surface-dark-2 border rounded-lg flex items-center justify-between gap-2 transition-all font-semibold shadow-2xs ${
+        className={`w-full ${sizeClasses} bg-surface dark:bg-surface-dark-2 border flex items-center justify-between gap-2 transition-all font-semibold shadow-2xs ${
           isOpen
             ? 'border-brand dark:border-brand-bright ring-1 ring-brand/30 dark:ring-brand-bright/30'
             : 'border-line dark:border-line-dark hover:border-brand/60 dark:hover:border-brand-bright/60'
-        } ${disabled ? 'opacity-50 cursor-not-allowed bg-surface-2 dark:bg-surface-dark-3' : 'cursor-pointer text-ink dark:text-ink-dark'}`}
+        } ${disabled ? 'opacity-50 cursor-not-allowed bg-surface-2 dark:bg-surface-dark-3' : 'cursor-pointer text-ink dark:text-ink-dark'} ${buttonClassName}`}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
       >

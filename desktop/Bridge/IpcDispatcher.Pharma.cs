@@ -1012,6 +1012,8 @@ namespace RafiqPOS.Bridge
 
                 case "ddi:exportToExcel":
                 case "ddi.exportToExcel":
+                case "ddi:exportExcel":
+                case "ddi.exportExcel":
                     string expSearch = null;
                     string expSev = null;
                     string expPath = null;
@@ -1038,6 +1040,8 @@ namespace RafiqPOS.Bridge
 
                 case "ddi:generateTemplate":
                 case "ddi.generateTemplate":
+                case "ddi:downloadTemplate":
+                case "ddi.downloadTemplate":
                     string tmplPath = null;
                     if (request.Payload != null)
                     {

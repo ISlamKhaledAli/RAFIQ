@@ -11,7 +11,7 @@ const guard = '@media screen and (prefers-reduced-motion: no-preference) {';
 const motionCss = css.slice(css.indexOf(guard));
 const sidebarCss = motionCss.slice(motionCss.indexOf('Sidebar («القوائم الرئيسية»)'));
 const sidebar = app.slice(app.indexOf('<aside'), app.indexOf('</aside>'));
-const GROUPS = ['Epay', 'Wallets', 'Insurance', 'Dashboard', 'Products', 'Purchases', 'Root', 'Settings'];
+const GROUPS = ['Epay', 'Wallets', 'Insurance', 'OnlineStore', 'Dashboard', 'Products', 'Purchases', 'Root', 'Settings'];
 
 describe('sidebar group panels', () => {
   it('every expandable group renders its children through SidebarGroupPanel, driven by its expanded flag and the sidebar width', () => {

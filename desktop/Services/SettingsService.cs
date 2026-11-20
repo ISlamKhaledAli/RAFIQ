@@ -548,6 +548,18 @@ namespace RafiqPOS.Services
                 {
                 }
             }
+
+            if (DatabaseService.Sync != null &&
+                (key == "store_name" ||
+                 key == "store_phone" ||
+                 key == "store_address" ||
+                 key == "store_logo_raw" ||
+                 key == "store_logo_url" ||
+                 key == "store_wallet_number" ||
+                 key == "store_instapay_address"))
+            {
+                DatabaseService.Sync.TriggerStoreProfileSync();
+            }
         }
 
         public Dictionary<string, string> SaveSettings(Dictionary<string, string> newSettings, string userId = null)
@@ -572,6 +584,19 @@ namespace RafiqPOS.Services
             }
 
             _repo.SaveBatch(newSettings);
+
+            // Auto-sync real store name, wallets & original full-color receipt logo to Online Store cloud whenever changed
+            if (DatabaseService.Sync != null &&
+                (newSettings.ContainsKey("store_name") ||
+                 newSettings.ContainsKey("store_phone") ||
+                 newSettings.ContainsKey("store_address") ||
+                 newSettings.ContainsKey("store_logo_raw") ||
+                 newSettings.ContainsKey("store_logo_url") ||
+                 newSettings.ContainsKey("store_wallet_number") ||
+                 newSettings.ContainsKey("store_instapay_address")))
+            {
+                DatabaseService.Sync.TriggerStoreProfileSync();
+            }
 
             if (_auditRepo != null && changes.Count > 0)
             {
@@ -644,6 +669,19 @@ namespace RafiqPOS.Services
             }
 
             _repo.Set(key, enabled ? "1" : "0");
+
+            // Keep background Online Store sync engine 100% dormant when feature is disabled
+            if (key == "feature_online_store" && DatabaseService.Sync != null)
+            {
+                if (enabled)
+                {
+                    DatabaseService.Sync.Start();
+                }
+                else
+                {
+                    DatabaseService.Sync.Stop();
+                }
+            }
         }
 
         private static bool GetBool(Dictionary<string, string> dict, string key, bool defaultValue)

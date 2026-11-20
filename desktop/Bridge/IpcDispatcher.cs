@@ -139,6 +139,8 @@ namespace RafiqPOS.Bridge
                 request.Action == "migration:restore" ||
                 request.Action == "system:factoryReset" ||
                 request.Action == "system:trialDataPurge" ||
+                request.Action == "onlineStore:purgeOrders" ||
+                request.Action == "onlineStore:purgeCatalog" ||
                 request.Action == "audit:resealChain";
             bool lockTaken = false;
             try
@@ -180,6 +182,7 @@ namespace RafiqPOS.Bridge
                 if (TryDispatchPatients(request, out response)) return response;
                 if (TryDispatchShifts(request, out response)) return response;
                 if (TryDispatchCafe(request, out response)) return response;
+                if (TryDispatchOnlineStore(request, out response)) return response;
 
                 Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);
                 return BridgeResponse.Fail(request.Id, "ACTION_NOT_FOUND", "الإجراء غير مسجل في النواة: " + request.Action);
@@ -618,6 +621,11 @@ namespace RafiqPOS.Bridge
             { "printer:saveReceiptImage", "pos.reprint" },
             // The printed or saved document is a screen the user can already see, so any signed-in session may print or save it
             { "system:showPrintDialog", REQUIRE_SESSION },
+            { "system:showSaveFileDialog", REQUIRE_SESSION },
+            { "system:openPath", REQUIRE_SESSION },
+            { "system:showInFolder", REQUIRE_SESSION },
+            { "dialog:saveFile", REQUIRE_SESSION },
+            { "excel:browseSaveFile", "products.export" },
             { "report:getPrinterStatus", REQUIRE_SESSION },
             { "report:savePdf", REQUIRE_SESSION },
             { "report:saveFile", REQUIRE_SESSION },
@@ -665,6 +673,10 @@ namespace RafiqPOS.Bridge
             { "license:generateSupportCode", "settings.license" },
             { "license:deactivateForTransfer", "settings.license" },
             { "updates:check", "system.updates" },
+            { "updates:startDownload", "system.updates" },
+            { "updates:getDownloadState", "system.updates" },
+            { "updates:cancelDownload", "system.updates" },
+            { "updates:launchInstaller", "system.updates" },
 
             // Security & Users
             { "security:setPin", REQUIRE_OWNER },
@@ -831,8 +843,12 @@ namespace RafiqPOS.Bridge
             { "ddi.importFromExcel", "pharma.ddi.manage" },
             { "ddi:exportToExcel", "pharma.ddi.manage" },
             { "ddi.exportToExcel", "pharma.ddi.manage" },
+            { "ddi:exportExcel", "pharma.ddi.manage" },
+            { "ddi.exportExcel", "pharma.ddi.manage" },
             { "ddi:generateTemplate", "pharma.ddi.manage" },
             { "ddi.generateTemplate", "pharma.ddi.manage" },
+            { "ddi:downloadTemplate", "pharma.ddi.manage" },
+            { "ddi.downloadTemplate", "pharma.ddi.manage" },
             { "ddi:override", REQUIRE_SESSION },
             { "ddi.override", REQUIRE_SESSION },
 
@@ -921,7 +937,37 @@ namespace RafiqPOS.Bridge
             { "recipes:produce", "recipes.produce" },
             { "recipes.produce", "recipes.produce" },
             { "recipes:getProductionLog", REQUIRE_SESSION },
-            { "recipes.getProductionLog", REQUIRE_SESSION }
+            { "recipes.getProductionLog", REQUIRE_SESSION },
+            { "onlineStore:getState", "online_store.view_orders" },
+            { "onlineStore.getState", "online_store.view_orders" },
+            { "onlineStore:saveConfig", "online_store.manage" },
+            { "onlineStore.saveConfig", "online_store.manage" },
+            { "onlineStore:triggerSync", "online_store.sync" },
+            { "onlineStore.triggerSync", "online_store.sync" },
+            { "onlineStore:getOrders", "online_store.view_orders" },
+            { "onlineStore.getOrders", "online_store.view_orders" },
+            { "onlineStore:processOrder", "online_store.process_orders" },
+            { "onlineStore.processOrder", "online_store.process_orders" },
+            { "onlineStore:convertToSale", "online_store.process_orders" },
+            { "onlineStore.convertToSale", "online_store.process_orders" },
+            { "onlineStore:processOrderToSale", "online_store.process_orders" },
+            { "onlineStore.processOrderToSale", "online_store.process_orders" },
+            { "onlineStore:updateProductOnline", "online_store.manage" },
+            { "onlineStore.updateProductOnline", "online_store.manage" },
+            { "onlineStore:openExternalUrl", REQUIRE_SESSION },
+            { "onlineStore.openExternalUrl", REQUIRE_SESSION },
+            { "onlineStore:setCashierBusy", REQUIRE_SESSION },
+            { "onlineStore.setCashierBusy", REQUIRE_SESSION },
+            { "onlineStore:getRealtimeSession", "online_store.view_orders" },
+            { "onlineStore.getRealtimeSession", "online_store.view_orders" },
+            { "onlineStore:fastPulse", "online_store.view_orders" },
+            { "onlineStore.fastPulse", "online_store.view_orders" },
+            { "onlineStore:setRealtimeConnected", REQUIRE_SESSION },
+            { "onlineStore.setRealtimeConnected", REQUIRE_SESSION },
+            { "onlineStore:purgeOrders", "online_store.manage" },
+            { "onlineStore.purgeOrders", "online_store.manage" },
+            { "onlineStore:purgeCatalog", "online_store.manage" },
+            { "onlineStore.purgeCatalog", "online_store.manage" }
         };
 
         /// <summary>
@@ -953,7 +999,7 @@ namespace RafiqPOS.Bridge
         private static readonly HashSet<string> LICENSE_EXPIRED_ALLOWED_ACTIONS = new HashSet<string>(StringComparer.Ordinal)
         {
             // Shell, theme and PIN recovery: the owner must always be able to sign in and reach the license screen
-            "system:appReady", "system:ping", "system:setTheme", "system:showPrintDialog",
+            "system:appReady", "system:ping", "system:setTheme", "system:showPrintDialog", "system:showSaveFileDialog", "system:openPath", "system:showInFolder",
             "security:resetWithRecovery", "security:setPin", "users:changePin",
 
             // Support and diagnostics

@@ -162,10 +162,15 @@ namespace RafiqPOS.Services
 
             lock (SaleService.FinancialWriteLock)
             {
-                return RunInTransaction(delegate(SQLiteConnection conn, SQLiteTransaction trans)
+                StockMovement mov = RunInTransaction(delegate(SQLiteConnection conn, SQLiteTransaction trans)
                 {
                     return AdjustStockInTransaction(conn, trans, productId, newStockQuantityMilli, reason, userId, adjustmentType, "MANUAL_ADJUSTMENT");
                 });
+                if (DatabaseService.SyncRepo != null)
+                {
+                    DatabaseService.SyncRepo.NotifyProductsStockChanged(new string[] { productId });
+                }
+                return mov;
             }
         }
 
@@ -182,7 +187,7 @@ namespace RafiqPOS.Services
 
             lock (SaleService.FinancialWriteLock)
             {
-                return RunInTransaction(delegate(SQLiteConnection conn, SQLiteTransaction trans)
+                StockMovement mov = RunInTransaction(delegate(SQLiteConnection conn, SQLiteTransaction trans)
                 {
                     // The current stock is read inside the lock and transaction so a concurrent sale cannot shift the delta
                     long currentStock = ReadProductStock(conn, trans, productId);
@@ -195,6 +200,11 @@ namespace RafiqPOS.Services
                     }
                     return AdjustStockInTransaction(conn, trans, productId, targetStock, reason, userId, adjustmentType, "MANUAL_ADJUSTMENT");
                 });
+                if (DatabaseService.SyncRepo != null)
+                {
+                    DatabaseService.SyncRepo.NotifyProductsStockChanged(new string[] { productId });
+                }
+                return mov;
             }
         }
 

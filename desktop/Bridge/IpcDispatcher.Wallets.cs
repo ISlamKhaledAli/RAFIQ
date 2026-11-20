@@ -63,6 +63,10 @@ namespace RafiqPOS.Bridge
                         lock (SaleService.FinancialWriteLock)
                         {
                             var saved = repo.SaveAccount(account);
+                            if (DatabaseService.Sync != null)
+                            {
+                                DatabaseService.Sync.TriggerStoreProfileSync();
+                            }
                             response = BridgeResponse.Ok(request.Id, saved);
                         }
                         return true;
@@ -94,6 +98,10 @@ namespace RafiqPOS.Bridge
                         lock (SaleService.FinancialWriteLock)
                         {
                             var updated = repo.SetDefaultAccount(accountId);
+                            if (DatabaseService.Sync != null)
+                            {
+                                DatabaseService.Sync.TriggerStoreProfileSync();
+                            }
                             response = BridgeResponse.Ok(request.Id, updated);
                         }
                         return true;
@@ -125,6 +133,10 @@ namespace RafiqPOS.Bridge
                         lock (SaleService.FinancialWriteLock)
                         {
                             repo.DeleteAccount(accountId);
+                            if (DatabaseService.Sync != null)
+                            {
+                                DatabaseService.Sync.TriggerStoreProfileSync();
+                            }
                             response = BridgeResponse.Ok(request.Id, new { success = true });
                         }
                         return true;

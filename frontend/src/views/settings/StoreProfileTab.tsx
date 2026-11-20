@@ -36,6 +36,7 @@ import MotionHeight from '../../components/MotionHeight';
 import { BUILT_IN_SIGNATURE_IMAGES } from '../../utils/signatureDefaults';
 
 interface StoreProfileTabProps {
+  storeType?: string;
   storeName: string;
   setStoreName: (val: string) => void;
   phone: string;
@@ -85,6 +86,7 @@ const DEFAULT_LOGOS = ['/receipt_logo.png', '/receipt_logo_square.png', '/logo.p
 const DEFAULT_LOGO_URL = '/receipt_logo_square.png';
 
 export const StoreProfileTab = ({
+  storeType,
   storeName,
   setStoreName,
   phone,
@@ -260,7 +262,7 @@ export const StoreProfileTab = ({
   return (
     <div className="flex flex-col gap-5 flex-1">
       {/* Top Tab Bar: Sales Receipt (Mother Invoice) vs All Other Document Templates */}
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl p-2 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl p-2 flex flex-wrap items-center gap-3">
         <div className="inline-flex rounded-xl border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark p-1 gap-1.5 text-xs font-bold">
           <button
             type="button"
@@ -290,26 +292,6 @@ export const StoreProfileTab = ({
             <span>معاينة وتخصيص باقي الفواتير والمستندات</span>
           </button>
         </div>
-
-        {profileViewMode === 'sales_receipt' ? (
-          <button
-            type="button"
-            onClick={() => setProfileViewMode('other_templates')}
-            className="text-xs font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1.5 cursor-pointer px-2"
-          >
-            <ScrollText className="w-4 h-4" />
-            <span>معاينة نماذج المرتجع والمشتريات والسندات</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setProfileViewMode('sales_receipt')}
-            className="text-xs font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1.5 cursor-pointer px-2"
-          >
-            <Receipt className="w-4 h-4" />
-            <span>العودة لبيانات المحل وفاتورة المبيعات</span>
-          </button>
-        )}
       </div>
 
       {profileViewMode === 'other_templates' ? (
@@ -319,6 +301,7 @@ export const StoreProfileTab = ({
           storeAddress={address}
           taxNumber={taxNumber}
           storeLogoUrl={storeLogoUrl}
+          storeType={storeType}
           saveBarRef={saveBarRef}
           onOpenPrinterSettings={onOpenPrinterSettings}
         />
@@ -596,7 +579,7 @@ export const StoreProfileTab = ({
           <div className="flex justify-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4">
             <ReceiptPaper
               model={buildReceiptModel(
-                buildSampleReceiptSale(),
+                buildSampleReceiptSale(storeType, storeName, receiptHeader),
                 {
                   name: storeName,
                   phone,

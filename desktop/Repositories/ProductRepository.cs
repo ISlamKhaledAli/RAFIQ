@@ -2043,6 +2043,18 @@ namespace RafiqPOS.Repositories
 
             bool isControlled = (!string.IsNullOrEmpty(controlledSchedule) && controlledSchedule != "none") || rxStatus == "controlled";
 
+            bool isOnline = true;
+            try { if (reader["is_online"] != DBNull.Value) isOnline = Convert.ToInt32(reader["is_online"]) == 1; } catch { }
+
+            bool isFeatured = false;
+            try { if (reader["is_featured"] != DBNull.Value) isFeatured = Convert.ToInt32(reader["is_featured"]) == 1; } catch { }
+
+            string onlineDescription = null;
+            try { if (reader["online_description"] != DBNull.Value) onlineDescription = reader["online_description"].ToString(); } catch { }
+
+            long? comparePricePiasters = null;
+            try { if (reader["compare_price_piasters"] != DBNull.Value) comparePricePiasters = Convert.ToInt64(reader["compare_price_piasters"]); } catch { }
+
             return new Product
             {
                 Id = reader["id"].ToString(),
@@ -2092,7 +2104,11 @@ namespace RafiqPOS.Repositories
                 DosageFormName = dosageFormName,
                 RxStatus = rxStatus,
                 ControlledSchedule = controlledSchedule,
-                IsControlled = isControlled
+                IsControlled = isControlled,
+                IsOnline = isOnline,
+                IsFeatured = isFeatured,
+                OnlineDescription = onlineDescription,
+                ComparePricePiasters = comparePricePiasters
             };
         }
     }

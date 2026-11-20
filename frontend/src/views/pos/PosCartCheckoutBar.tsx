@@ -362,9 +362,9 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
         {/* Primary Checkout Triggers (كاش / انستاباي / محفظة / شكك) */}
         <div className="flex items-stretch gap-3">
           {paymentMethod === 'credit' ? (
-            /* شكك */
+            /* آجل */
             <PayButtonGuard notice={shiftBlock}>
-              <RafiqTooltip content="تسجيل بيع شكك (F12)" wrapperClassName="w-full flex">
+              <RafiqTooltip content="تسجيل بيع آجل (F12)" wrapperClassName="w-full flex">
                 <button 
                   type="button"
                   onClick={() => handleOpenCheckout('credit')}
@@ -373,7 +373,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                 >
                   <CreditCard className={PAY_ICON} />
                   <span className="truncate">
-                    تسجيل بيع شكك {selectedCust ? `(${selectedCust.name})` : ''}
+                    تسجيل بيع آجل {selectedCust ? `(${selectedCust.name})` : ''}
                   </span>
                 </button>
               </RafiqTooltip>

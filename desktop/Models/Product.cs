@@ -172,6 +172,19 @@ namespace RafiqPOS.Models
         [JsonProperty("isControlled")]
         public bool IsControlled { get; set; }
 
+        // Online Store Fields
+        [JsonProperty("isOnline")]
+        public bool IsOnline { get; set; }
+
+        [JsonProperty("isFeatured")]
+        public bool IsFeatured { get; set; }
+
+        [JsonProperty("onlineDescription")]
+        public string OnlineDescription { get; set; }
+
+        [JsonProperty("comparePricePiasters")]
+        public long? ComparePricePiasters { get; set; }
+
         // Presentation helpers (Never used in internal DB math)
         [JsonProperty("priceFormatted")]
         public string PriceFormatted
@@ -212,6 +225,7 @@ namespace RafiqPOS.Models
         public Product()
         {
             IsActive = true;
+            IsOnline = true;
             Barcodes = new System.Collections.Generic.List<string>();
             Units = new System.Collections.Generic.List<ProductUnit>();
         }

@@ -33,6 +33,7 @@ import {
   Milk,
   Flame,
   Loader2,
+  Globe,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { unitsLoadBlockMessage, type UnitsLoadState } from './unitsLoadGuard';
@@ -47,6 +48,7 @@ import type {
 } from '../../types/pharma';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { MoneyInput } from '../../components/MoneyInput';
+import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { CustomSelect, type SelectOption } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { ProductUnitsEditor } from '../../components/ProductUnitsEditor';
@@ -61,6 +63,7 @@ import { getStoreTerminology, getCurrentStoreType } from '../../utils/storeTermi
 import { formatCompoundStock } from '../../utils/packaging';
 import { formatUnitArabic } from '../../utils/units';
 import { sanitizeScannedBarcode } from '../../utils/barcodeReader';
+import { generateSmartDescriptionOptions } from '../../utils/smartDescriptionGenerator';
 
 export interface BelowCostWarningData {
   pricePiasters: number;
@@ -144,6 +147,14 @@ export interface ProductFormModalProps {
   onOpenStorageLocationsModal?: () => void;
   pharmaInfo?: ProductPharmaInfo;
   setPharmaInfo?: React.Dispatch<React.SetStateAction<ProductPharmaInfo>>;
+  isOnline?: boolean;
+  setIsOnline?: (v: boolean) => void;
+  isFeatured?: boolean;
+  setIsFeatured?: (v: boolean) => void;
+  onlineDescription?: string;
+  setOnlineDescription?: (v: string) => void;
+  comparePricePiasters?: number;
+  setComparePricePiasters?: (v: number) => void;
 }
 
 export const ProductFormModal: React.FC<ProductFormModalProps> = ({
@@ -221,9 +232,18 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   setIsColdChain,
   storageLocations = [],
   onOpenStorageLocationsModal,
+  isOnline = true,
+  setIsOnline,
+  isFeatured = false,
+  setIsFeatured,
+  onlineDescription = '',
+  setOnlineDescription,
+  comparePricePiasters = 0,
+  setComparePricePiasters,
 }) => {
   const { isEnabled } = useFeatures();
   const isTaxEnabled = isEnabled('feature_taxes');
+  const isOnlineStoreEnabled = isEnabled('feature_online_store');
 
   // Active Store Profile / Template Detection
   const [storeType, setStoreType] = useState<string>(() => {
@@ -2736,6 +2756,140 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               )}
             </div>
             </MotionHeight>
+
+            {isOnlineStoreEnabled && setIsOnline && (
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between gap-2 pb-2 border-b border-line dark:border-line-dark">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-brand dark:text-paid-bright shrink-0" />
+                    <span className="text-xs font-bold text-ink dark:text-ink-dark">إعدادات العرض في المتجر الإلكتروني</span>
+                  </div>
+                  <ToggleSwitch checked={isOnline} onChange={setIsOnline} />
+                </div>
+
+                {isOnline && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                      <div className="flex items-center justify-between gap-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg px-3 py-2">
+                        <span className="text-xs font-semibold text-ink dark:text-ink-dark">منتج مميز بالرئيسية</span>
+                        {setIsFeatured && <ToggleSwitch checked={isFeatured} onChange={setIsFeatured} />}
+                      </div>
+
+                      {setComparePricePiasters && (
+                        <div>
+                          <label className="block text-micro font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+                            سعر قبل الخصم للعرض
+                          </label>
+                          <MoneyInput
+                            valuePiasters={comparePricePiasters}
+                            onChangePiasters={setComparePricePiasters}
+                            placeholder="0.00"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {setOnlineDescription && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                          <label className="block text-micro font-semibold text-ink-muted dark:text-ink-dark-muted">
+                            وصف الصنف لعملاء المتجر الإلكتروني
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted flex items-center gap-0.5 ml-1">
+                              <Sparkles className="w-2.5 h-2.5 text-brand" />
+                              <span>توليد ذكي:</span>
+                            </span>
+                            <button
+                              type="button"
+                              disabled={!name.trim()}
+                              onClick={() => {
+                                const cat = categories.find((c) => c.id === categoryId);
+                                const opts = generateSmartDescriptionOptions(
+                                  {
+                                    name: name.trim(),
+                                    category_name: cat?.name,
+                                    unit_name: unit,
+                                    barcode: barcode,
+                                    price_piasters: pricePiasters,
+                                  },
+                                  cat?.name,
+                                  effectiveStoreType
+                                );
+                                setOnlineDescription(opts.catchy);
+                              }}
+                              className="px-1.5 py-0.5 text-micro font-medium rounded bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-bright transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title="صياغة تسويقية جذابة للمتجر"
+                            >
+                              تسويقي
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!name.trim()}
+                              onClick={() => {
+                                const cat = categories.find((c) => c.id === categoryId);
+                                const opts = generateSmartDescriptionOptions(
+                                  {
+                                    name: name.trim(),
+                                    category_name: cat?.name,
+                                    unit_name: unit,
+                                    barcode: barcode,
+                                    price_piasters: pricePiasters,
+                                  },
+                                  cat?.name,
+                                  effectiveStoreType
+                                );
+                                setOnlineDescription(opts.short);
+                              }}
+                              className="px-1.5 py-0.5 text-micro font-medium rounded bg-surface hover:bg-surface-2 dark:bg-surface-dark-2 dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title="صياغة مختصرة ونظيفة"
+                            >
+                              مختصر
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!name.trim()}
+                              onClick={() => {
+                                const cat = categories.find((c) => c.id === categoryId);
+                                const opts = generateSmartDescriptionOptions(
+                                  {
+                                    name: name.trim(),
+                                    category_name: cat?.name,
+                                    unit_name: unit,
+                                    barcode: barcode,
+                                    price_piasters: pricePiasters,
+                                  },
+                                  cat?.name,
+                                  effectiveStoreType
+                                );
+                                setOnlineDescription(opts.detailed);
+                              }}
+                              className="px-1.5 py-0.5 text-micro font-medium rounded bg-surface hover:bg-surface-2 dark:bg-surface-dark-2 dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title="صياغة تفصيلية بالنقاط"
+                            >
+                              تفصيلي
+                            </button>
+                          </div>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={onlineDescription}
+                          onChange={(e) => setOnlineDescription(e.target.value)}
+                          placeholder="وصف مختصر يظهر للزبون في صفحة المنتج على الويب..."
+                          className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg px-2.5 py-2 text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/60 dark:placeholder:text-ink-dark-muted/60 focus:outline-none focus:border-brand resize-none"
+                        />
+                        {onlineDescription ? (
+                          <div className="flex justify-between items-center text-micro text-ink-muted dark:text-ink-dark-muted mt-1 px-1">
+                            <span>يتم مزامنته تلقائياً مع المتجر الإلكتروني السحابي</span>
+                            <span>{onlineDescription.length} حرف</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
           </div>
 

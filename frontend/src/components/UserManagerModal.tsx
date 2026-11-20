@@ -31,6 +31,7 @@ import {
   Building2,
   HeartPulse,
   Coffee,
+  Globe,
 } from 'lucide-react';
 import { SearchInput } from './SearchInput';
 import { invoke, deleteUser } from '../bridge/ipc';
@@ -79,6 +80,7 @@ const PERMISSION_ICONS: Record<PermissionIconId, React.ReactNode> = {
   insurance: <Building2 className="w-4 h-4 text-brand" />,
   patients: <HeartPulse className="w-4 h-4 text-brand" />,
   cafe: <Coffee className="w-4 h-4 text-brand" />,
+  onlineStore: <Globe className="w-4 h-4 text-brand" />,
   ownerGrade: <ShieldCheck className="w-4 h-4 text-brand" />,
 };
 

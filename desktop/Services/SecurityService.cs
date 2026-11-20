@@ -2649,6 +2649,7 @@ namespace RafiqPOS.Services
             "modifiers.manage",
             "delivery.orders.manage", "delivery.riders.settle", "delivery.zones_riders.configure",
             "recipes.manage", "recipes.produce",
+            "online_store.manage", "online_store.view_orders", "online_store.process_orders", "online_store.sync", "online_store.images",
             // Legacy aliases
             "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay", "wallets",
             "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
@@ -2982,6 +2983,13 @@ namespace RafiqPOS.Services
             p["delivery.zones_riders.configure"] = isAdmin;
             p["recipes.manage"] = isAdmin;
             p["recipes.produce"] = true;
+
+            // Online Store & Cloud Sync
+            p["online_store.manage"] = isAdmin;
+            p["online_store.view_orders"] = true;
+            p["online_store.process_orders"] = true;
+            p["online_store.sync"] = true;
+            p["online_store.images"] = isAdmin;
 
             SyncPermissionAliases(p);
 

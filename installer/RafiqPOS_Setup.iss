@@ -27,7 +27,7 @@
   #define PrereqDir AddBackslash(SourcePath) + "prerequisites"
 #endif
 
-#ifndef Slim
+#if !defined(Slim) && !defined(UpdateOnly)
 #if !FileExists(AddBackslash(PrereqDir) + DotNetInstaller)
   #error Missing ndp48-x86-x64-allos-enu.exe in PrereqDir (.NET Framework 4.8 offline installer). See installer\prerequisites\README.md
 #endif
@@ -38,8 +38,10 @@
 #if !FileExists(AddBackslash(SourcePath) + ReleaseDir + "\dist\index.html")
   #error Missing desktop\bin\Release\dist\index.html (frontend build). Build with the Setup .bat script.
 #endif
+#ifndef UpdateOnly
 #if !FileExists(AddBackslash(PrereqDir) + "MicrosoftEdgeWebview2Setup.exe")
   #error Missing MicrosoftEdgeWebview2Setup.exe in PrereqDir
+#endif
 #endif
 #if !FileExists(AddBackslash(AddBackslash(SourcePath) + ReleaseDir) + MyAppExeName)
   #error Missing desktop\bin\Release\RafiqPOS.exe (C# Release build). Build with the Setup .bat script.
@@ -59,7 +61,9 @@ DefaultDirName={autopf}\RafiqPOS
 DefaultGroupName={cm:MyAppName}
 AllowNoIcons=yes
 OutputDir=Output
-#ifdef Slim
+#ifdef UpdateOnly
+OutputBaseFilename=RafiqPOS_Update_v{#MyAppVersion}
+#elif defined(Slim)
 OutputBaseFilename=RafiqPOS_Setup_Slim_v{#MyAppVersion}
 #else
 OutputBaseFilename=RafiqPOS_Setup_v{#MyAppVersion}
@@ -234,7 +238,7 @@ Type: files; Name: "{userdesktop}\{#MyAppEnglishName}.lnk"
 ; يتم استبعاد فيديوهات الشرح التدريبية (\dist\videos\*) لتوفير ~20 ميجابايت من حجم ملف التثبيت
 Source: "{#ReleaseDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.xml,*_test_output.json,data\*,rollback_backup\*,update_staging\*,نسخة_تلقائية_*\*,*.db,*.db-wal,*.db-shm,\runtimes\fixed109\*,\dist\videos\*,dist\videos\*"
 
-#ifndef Slim
+#if !defined(Slim) && !defined(UpdateOnly)
 ; مشغل العرض WebView2 Fixed Runtime 109 (x86) — إلزامي لويندوز 7/8/8.1، واحتياطي بدون إنترنت لويندوز 10/11 إذا لم يكن Evergreen مثبتاً
 ; (البرنامج 32 بت x86 لذلك نسخة x86 تعمل على أنظمة 32 و 64 بت)
 Source: "{#ReleaseDir}\runtimes\fixed109\*"; DestDir: "{app}\runtimes\fixed109"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -243,8 +247,10 @@ Source: "{#ReleaseDir}\runtimes\fixed109\*"; DestDir: "{app}\runtimes\fixed109";
 Source: "{#PrereqDir}\{#DotNetInstaller}"; DestDir: "{tmp}"; Flags: dontcopy
 #endif
 
+#ifndef UpdateOnly
 ; مثبت WebView2 Evergreen (يحتاج إنترنت) — اختياري من صفحة الإنهاء فقط في النسخة الشاملة؛ ومساعد في النسخة الخفيفة إذا كان WebView2 مفقوداً
 Source: "{#PrereqDir}\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Check: IsWindows10OrLater and not IsWebView2Installed
+#endif
 
 ; قاعدة البيانات: تُنشأ تلقائياً عند أول تشغيل عبر DatabaseService و MigrationRunner في {commonappdata}\RafiqPOS\data
 ; حماية البيانات: لا تُنسخ أي بيانات من المثبت (انظر Excludes)، ولا يحذف إلغاء التثبيت بيانات المحل إلا بعد سؤال صريح (الافتراضي: لا) ولا يحذفها أبداً في الوضع الصامت
@@ -266,8 +272,10 @@ Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\backups"" 
 Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S-1-15-2-1:(OI)(CI)(RX) /T /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsWindows8OrLater and DirExists(ExpandConstant('{app}\runtimes\fixed109'))
 Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S-1-15-2-2:(OI)(CI)(RX) /T /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsWindows10OrLater and DirExists(ExpandConstant('{app}\runtimes\fixed109'))
 
+#ifndef UpdateOnly
 ; 2. اختياري (يحتاج إنترنت): تثبيت WebView2 Evergreen الأحدث على ويندوز 10/11 غير المحتوي عليه. غير محدد افتراضياً؛ البرنامج يعمل بدونه عبر fixed109
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; Description: "{cm:InstallWebView2Desc}"; StatusMsg: "{cm:InstallingWebView2Status}"; Flags: postinstall unchecked skipifsilent waituntilterminated; Check: IsWindows10OrLater and not IsWebView2Installed and not DotNetRestartPending
+#endif
 
 ; تشغيل البرنامج بعد انتهاء التثبيت (لا يُعرض إذا كانت إعادة تشغيل الجهاز مطلوبة بعد تثبيت .NET 4.8)
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{cm:MyAppName}}"; Flags: nowait postinstall skipifsilent; Check: IsAppReadyToLaunch
@@ -918,7 +926,7 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
-#ifndef Slim
+#if !defined(Slim) && !defined(UpdateOnly)
   if not IsDotNet48Installed() then
     Result := InstallDotNet48();
 #else

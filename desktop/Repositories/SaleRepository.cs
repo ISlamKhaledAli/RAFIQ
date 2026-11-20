@@ -821,7 +821,26 @@ namespace RafiqPOS.Repositories
                                 }
                                 else
                                 {
-                                    ledgerNote = string.Format("فاتورة آجل رقم #{0}{1}", sale.InvoiceNumber, creditOverrideNote);
+                                    if (sale.InsuranceClaim != null)
+                                    {
+                                        string compName = !string.IsNullOrEmpty(sale.InsuranceClaim.CompanyName) ? sale.InsuranceClaim.CompanyName : "تأمين طبي";
+                                        if (debtAmount < sale.InsuranceClaim.PatientPiasters && debtAmount > 0)
+                                        {
+                                            ledgerNote = string.Format("فاتورة رقم #{0} (تحمل مريض - {1} - متبقي آجل {2}){3}",
+                                                sale.InvoiceNumber,
+                                                compName,
+                                                Common.Money.FormatPiasters(debtAmount),
+                                                creditOverrideNote);
+                                        }
+                                        else
+                                        {
+                                            ledgerNote = string.Format("فاتورة آجل رقم #{0} (تحمل مريض - {1}){2}", sale.InvoiceNumber, compName, creditOverrideNote);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        ledgerNote = string.Format("فاتورة آجل رقم #{0}{1}", sale.InvoiceNumber, creditOverrideNote);
+                                    }
                                 }
 
                                 string insLedgerSql = @"
@@ -1170,6 +1189,102 @@ namespace RafiqPOS.Repositories
                 {
                     sale.DeliveryFeePiasters = reader[i] != DBNull.Value ? Convert.ToInt64(reader[i]) : 0;
                 }
+                else if (string.Equals(col, "insurance_claim_id", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value && !string.IsNullOrEmpty(reader[i].ToString()))
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.Id = reader[i].ToString();
+                    }
+                }
+                else if (string.Equals(col, "insurance_company_id", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value && !string.IsNullOrEmpty(reader[i].ToString()))
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.CompanyId = reader[i].ToString();
+                    }
+                }
+                else if (string.Equals(col, "insurance_company_name", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.CompanyName = reader[i].ToString();
+                    }
+                }
+                else if (string.Equals(col, "insurance_contract_id", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value && !string.IsNullOrEmpty(reader[i].ToString()))
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.ContractId = reader[i].ToString();
+                    }
+                }
+                else if (string.Equals(col, "insurance_contract_name", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.ContractName = reader[i].ToString();
+                    }
+                }
+                else if (string.Equals(col, "insurance_member_no", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.MemberNo = reader[i].ToString();
+                    }
+                }
+                else if (string.Equals(col, "insurance_patient_name", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.PatientName = reader[i].ToString();
+                    }
+                }
+                else if (string.Equals(col, "insurance_approval_no", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.ApprovalNo = reader[i].ToString();
+                    }
+                }
+                else if (string.Equals(col, "insurance_covered_piasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.CoveredPiasters = Convert.ToInt64(reader[i]);
+                    }
+                }
+                else if (string.Equals(col, "insurance_patient_piasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.PatientPiasters = Convert.ToInt64(reader[i]);
+                    }
+                }
+                else if (string.Equals(col, "insurance_company_piasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.CompanyPiasters = Convert.ToInt64(reader[i]);
+                    }
+                }
+                else if (string.Equals(col, "insurance_claim_status", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (reader[i] != DBNull.Value)
+                    {
+                        if (sale.InsuranceClaim == null) sale.InsuranceClaim = new InsuranceClaimLine();
+                        sale.InsuranceClaim.Status = reader[i].ToString();
+                    }
+                }
             }
 
             if (string.IsNullOrEmpty(sale.CashierName))
@@ -1200,10 +1315,25 @@ namespace RafiqPOS.Repositories
                 string sql = string.Format(@"
                     SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
                            COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name,
-                           COALESCE((SELECT SUM(r.total_piasters) FROM returns r WHERE r.sale_id = s.id OR (r.invoice_number IS NOT NULL AND r.invoice_number = s.invoice_number)), 0) AS refunded_piasters
+                           COALESCE((SELECT SUM(r.total_piasters) FROM returns r WHERE r.sale_id = s.id OR (r.invoice_number IS NOT NULL AND r.invoice_number = s.invoice_number)), 0) AS refunded_piasters,
+                           icl.id AS insurance_claim_id,
+                           icl.company_id AS insurance_company_id,
+                           icomp.name AS insurance_company_name,
+                           icl.contract_id AS insurance_contract_id,
+                           icontr.name AS insurance_contract_name,
+                           icl.member_no AS insurance_member_no,
+                           icl.patient_name AS insurance_patient_name,
+                           icl.approval_no AS insurance_approval_no,
+                           icl.covered_piasters AS insurance_covered_piasters,
+                           icl.patient_piasters AS insurance_patient_piasters,
+                           icl.company_piasters AS insurance_company_piasters,
+                           icl.status AS insurance_claim_status
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
                     LEFT JOIN users u ON s.cashier_id = u.id
+                    LEFT JOIN insurance_claim_lines icl ON icl.sale_id = s.id
+                    LEFT JOIN insurance_companies icomp ON icl.company_id = icomp.id
+                    LEFT JOIN insurance_contracts icontr ON icl.contract_id = icontr.id
                     {0}
                     ORDER BY s.created_at DESC LIMIT @limit;
                 ", whereSql);
@@ -1257,6 +1387,10 @@ namespace RafiqPOS.Repositories
                 if (string.Equals(status.Trim(), "refunded", StringComparison.OrdinalIgnoreCase))
                 {
                     whereClauses.Add("s.status IN ('refunded', 'partially_refunded')");
+                }
+                else if (string.Equals(status.Trim(), "insurance", StringComparison.OrdinalIgnoreCase))
+                {
+                    whereClauses.Add("(s.payment_method = 'insurance' OR icl.id IS NOT NULL)");
                 }
                 else
                 {
@@ -1331,13 +1465,13 @@ namespace RafiqPOS.Repositories
                     int invNum;
                     if (int.TryParse(cleanQuery.TrimStart('#'), out invNum) && invNum > 0)
                     {
-                        whereClauses.Add("(s.invoice_number = @invNum OR s.notes LIKE @qWild OR c.name LIKE @qWild OR c.phone LIKE @qWild)");
+                        whereClauses.Add("(s.invoice_number = @invNum OR s.notes LIKE @qWild OR c.name LIKE @qWild OR c.phone LIKE @qWild OR icomp.name LIKE @qWild OR icl.patient_name LIKE @qWild OR icl.member_no LIKE @qWild)");
                         parameters.Add(new SQLiteParameter("@invNum", invNum));
                         parameters.Add(new SQLiteParameter("@qWild", "%" + cleanQuery + "%"));
                     }
                     else
                     {
-                        whereClauses.Add("(s.notes LIKE @qWild OR s.payment_method LIKE @qWild OR c.name LIKE @qWild OR c.phone LIKE @qWild)");
+                        whereClauses.Add("(s.notes LIKE @qWild OR s.payment_method LIKE @qWild OR c.name LIKE @qWild OR c.phone LIKE @qWild OR icomp.name LIKE @qWild OR icl.patient_name LIKE @qWild OR icl.member_no LIKE @qWild)");
                         parameters.Add(new SQLiteParameter("@qWild", "%" + cleanQuery + "%"));
                     }
                 }
@@ -1366,10 +1500,25 @@ namespace RafiqPOS.Repositories
                 string sql = string.Format(@"
                     SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
                            COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name,
-                           COALESCE((SELECT SUM(r.total_piasters) FROM returns r WHERE r.sale_id = s.id OR (r.invoice_number IS NOT NULL AND r.invoice_number = s.invoice_number)), 0) AS refunded_piasters
+                           COALESCE((SELECT SUM(r.total_piasters) FROM returns r WHERE r.sale_id = s.id OR (r.invoice_number IS NOT NULL AND r.invoice_number = s.invoice_number)), 0) AS refunded_piasters,
+                           icl.id AS insurance_claim_id,
+                           icl.company_id AS insurance_company_id,
+                           icomp.name AS insurance_company_name,
+                           icl.contract_id AS insurance_contract_id,
+                           icontr.name AS insurance_contract_name,
+                           icl.member_no AS insurance_member_no,
+                           icl.patient_name AS insurance_patient_name,
+                           icl.approval_no AS insurance_approval_no,
+                           icl.covered_piasters AS insurance_covered_piasters,
+                           icl.patient_piasters AS insurance_patient_piasters,
+                           icl.company_piasters AS insurance_company_piasters,
+                           icl.status AS insurance_claim_status
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
                     LEFT JOIN users u ON s.cashier_id = u.id
+                    LEFT JOIN insurance_claim_lines icl ON icl.sale_id = s.id
+                    LEFT JOIN insurance_companies icomp ON icl.company_id = icomp.id
+                    LEFT JOIN insurance_contracts icontr ON icl.contract_id = icontr.id
                     {0}
                     ORDER BY s.created_at DESC
                     LIMIT @limit;
@@ -1524,6 +1673,10 @@ namespace RafiqPOS.Repositories
             {
                 sale.Items = GetSaleItems(sale.Id);
                 sale.Payments = GetSalePayments(sale.Id);
+                if (sale.InsuranceClaim == null && DatabaseService.InsuranceRepo != null)
+                {
+                    sale.InsuranceClaim = DatabaseService.InsuranceRepo.GetClaimLineBySaleId(sale.Id);
+                }
                 if (sale.Items != null)
                 {
                     for (int i = 0; i < sale.Items.Count; i++)
@@ -1594,6 +1747,10 @@ namespace RafiqPOS.Repositories
             {
                 sale.Items = GetSaleItems(sale.Id);
                 sale.Payments = GetSalePayments(sale.Id);
+                if (sale.InsuranceClaim == null && DatabaseService.InsuranceRepo != null)
+                {
+                    sale.InsuranceClaim = DatabaseService.InsuranceRepo.GetClaimLineBySaleId(sale.Id);
+                }
             }
             return sale;
         }
