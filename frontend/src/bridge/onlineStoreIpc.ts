@@ -116,8 +116,47 @@ export function saveOnlineStoreConfig(req: SyncConfigUpdateRequest): Promise<Syn
   return invoke<SyncStateDto>('onlineStore:saveConfig', req);
 }
 
-export function triggerOnlineStoreSync(fullCatalog = false): Promise<SyncCycleResult> {
-  return invoke<SyncCycleResult>('onlineStore:triggerSync', { fullCatalog }, 180000);
+export interface CatalogSyncOptions {
+  fullCatalog?: boolean;
+  categoryIds?: string[];
+  excludedProductIds?: string[];
+  selectedProductIds?: string[];
+  onlyInStock?: boolean;
+  onlyOnline?: boolean;
+  pruneOutOfStock?: boolean;
+}
+
+export interface CategoryProductItem {
+  id: string;
+  name: string;
+  categoryId: string;
+  pricePiasters: number;
+  priceFormatted: string;
+  stockQuantityMilli: number;
+  stockFormatted: string;
+  isOnline: boolean;
+  unit: string;
+}
+
+export function triggerOnlineStoreSync(options: boolean | CatalogSyncOptions = false): Promise<SyncCycleResult> {
+  const payload = typeof options === 'boolean' ? { fullCatalog: options } : { fullCatalog: true, ...options };
+  return invoke<SyncCycleResult>('onlineStore:triggerSync', payload, 180000);
+}
+
+export function getCatalogSyncStats(options: CatalogSyncOptions = {}): Promise<{ count: number }> {
+  return invoke<{ count: number }>('onlineStore:getCatalogStats', options);
+}
+
+export function getCategoryProducts(
+  categoryId: string,
+  onlyInStock = false,
+  onlyOnline = false
+): Promise<CategoryProductItem[]> {
+  return invoke<CategoryProductItem[]>('onlineStore:getCategoryProducts', {
+    categoryId,
+    onlyInStock,
+    onlyOnline,
+  });
 }
 
 export function getOnlineStoreOrders(status = 'all', limit = 100): Promise<SyncInboxItem[]> {

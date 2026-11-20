@@ -640,6 +640,11 @@ namespace RafiqPOS.Services
                 {
                     val = GetBool(settings, "tax_enabled", def.DefaultValue);
                 }
+                if (def.Key == "feature_online_store")
+                {
+                    bool syncEnabled = DatabaseService.SyncRepo == null || DatabaseService.SyncRepo.GetState("online_store_enabled", "0") == "1";
+                    val = val && syncEnabled;
+                }
                 flags[def.Key] = val;
             }
 
@@ -656,6 +661,11 @@ namespace RafiqPOS.Services
             {
                 return GetBool(settings, "tax_enabled", defVal);
             }
+            if (key == "feature_online_store")
+            {
+                bool syncEnabled = DatabaseService.SyncRepo == null || DatabaseService.SyncRepo.GetState("online_store_enabled", "0") == "1";
+                return GetBool(settings, key, defVal) && syncEnabled;
+            }
             return GetBool(settings, key, defVal);
         }
 
@@ -669,6 +679,7 @@ namespace RafiqPOS.Services
             }
 
             _repo.Set(key, enabled ? "1" : "0");
+            DatabaseService.RaiseFeatureFlagChanged(key, enabled);
 
             // Keep background Online Store sync engine 100% dormant when feature is disabled
             if (key == "feature_online_store" && DatabaseService.Sync != null)

@@ -222,6 +222,8 @@ namespace RafiqPOS
             this.Shown += MainForm_Shown;
             this.FormClosing += MainForm_FormClosing;
             DatabaseService.OnOnlineOrdersSynced += HandleOnlineOrdersSynced;
+            DatabaseService.OnFeatureFlagChanged += HandleFeatureFlagChanged;
+            DatabaseService.OnOnlineStoreStateChanged += HandleOnlineStoreStateChanged;
         }
 
         private void InitializeBrandedSplashScreen()
@@ -1903,6 +1905,16 @@ namespace RafiqPOS
             }
         }
 
+        private void HandleFeatureFlagChanged(string key, bool enabled)
+        {
+            PostHostEvent("features:changed", new { key = key, enabled = enabled });
+        }
+
+        private void HandleOnlineStoreStateChanged(SyncStateDto state)
+        {
+            PostHostEvent("onlineStore:stateChanged", state);
+        }
+
         private void ShowDesktopOrderNotification(OnlineOrdersSyncedEvent evt)
         {
             try
@@ -2193,6 +2205,8 @@ namespace RafiqPOS
             try
             {
                 DatabaseService.OnOnlineOrdersSynced -= HandleOnlineOrdersSynced;
+                DatabaseService.OnFeatureFlagChanged -= HandleFeatureFlagChanged;
+                DatabaseService.OnOnlineStoreStateChanged -= HandleOnlineStoreStateChanged;
                 if (_onlineOrderNotifyIcon != null)
                 {
                     try

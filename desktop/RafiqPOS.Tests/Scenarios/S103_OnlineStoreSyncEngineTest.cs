@@ -230,5 +230,92 @@ namespace RafiqPOS.Tests.Scenarios
             engine.SaveConfig(new SyncConfigUpdateRequest { OnlineStoreEnabled = false });
             Assert.IsFalse(engine.IsRunning);
         }
+
+        [Test]
+        public void IsExplicitStoreDeactivation_StrictlyDistinguishesBetweenNetworkLagAndAdministrativeShutoff()
+        {
+            // 1. Temporary network drops, timeouts, and DNS failures MUST NOT be treated as deactivation
+            var offlineResp = new SyncHttpResponse { StatusCode = 0, IsSuccess = false, ErrorMessage = "تعذر الاتصال بالسيرفر السحابي: The operation has timed out" };
+            Assert.IsFalse(SyncEngine.IsExplicitStoreDeactivation(offlineResp), "انقطاع أو تأخر النت يجب ألا يُعتبر إيقافاً للمتجر (حرمة الأوفلاين)");
+
+            var server502Resp = new SyncHttpResponse { StatusCode = 502, IsSuccess = false, Body = "Bad Gateway" };
+            Assert.IsFalse(SyncEngine.IsExplicitStoreDeactivation(server502Resp));
+
+            var server500Resp = new SyncHttpResponse { StatusCode = 500, IsSuccess = false, Body = "Internal Server Error" };
+            Assert.IsFalse(SyncEngine.IsExplicitStoreDeactivation(server500Resp));
+
+            // 2. Explicit Cloud Administrative shutoff (403 STORE_LICENSE_INACTIVE / STORE_DISABLED) MUST be recognized
+            var deactResp = new SyncHttpResponse
+            {
+                StatusCode = 403,
+                IsSuccess = false,
+                Body = "{\"error\":\"هذا المتجر الإلكتروني غير متاح حالياً. يرجى التواصل مع إدارة المحل.\",\"code\":\"STORE_LICENSE_INACTIVE\"}"
+            };
+            Assert.IsTrue(SyncEngine.IsExplicitStoreDeactivation(deactResp), "كود 403 STORE_LICENSE_INACTIVE يجب تمييزه كإيقاف إداري صريح");
+
+            var disabledResp = new SyncHttpResponse
+            {
+                StatusCode = 403,
+                IsSuccess = false,
+                Body = "{\"error\":\"Store account is disabled or inactive\"}"
+            };
+            Assert.IsTrue(SyncEngine.IsExplicitStoreDeactivation(disabledResp), "رد تعطيل المتجر يجب تمييزه كإيقاف إداري صريح");
+
+            var notFoundResp = new SyncHttpResponse
+            {
+                StatusCode = 404,
+                IsSuccess = false,
+                Body = "{\"error\":\"Store not found\"}"
+            };
+            Assert.IsTrue(SyncEngine.IsExplicitStoreDeactivation(notFoundResp));
+        }
+
+        [Test]
+        public void HandleExplicitDeactivation_InstantlyDisablesState_And_FiresReactiveEvents()
+        {
+            var repo = new SyncRepository(ConnectionString);
+            var catRepo = new CategoryRepository(ConnectionString);
+            var engine = new SyncEngine(repo, ProductRepo, catRepo);
+
+            repo.SetState("online_store_enabled", "1");
+            repo.SetState("store_cloud_id", "test-store-1");
+            repo.SetState("sync_api_key", "test-key-1");
+
+            bool eventFired = false;
+            SyncStateDto capturedState = null;
+            engine.OnSyncStateChanged += delegate(SyncStateDto st)
+            {
+                eventFired = true;
+                capturedState = st;
+            };
+
+            bool featureEventFired = false;
+            string changedFeatureKey = "";
+            bool changedFeatureVal = true;
+            engine.OnFeatureStateChanged += delegate(string k, bool val)
+            {
+                featureEventFired = true;
+                changedFeatureKey = k;
+                changedFeatureVal = val;
+            };
+
+            // Trigger explicit deactivation (simulating cloud 403 response)
+            engine.HandleExplicitDeactivation("HTTP 403 STORE_LICENSE_INACTIVE");
+
+            // 1. Database state is immediately 0
+            Assert.AreEqual("0", repo.GetState("online_store_enabled"));
+
+            // 2. Engine is stopped
+            Assert.IsFalse(engine.IsRunning);
+
+            // 3. Reactive UI events fired
+            Assert.IsTrue(eventFired, "يجب إطلاق حدث OnSyncStateChanged للواجهة فوراً");
+            Assert.IsNotNull(capturedState);
+            Assert.IsFalse(capturedState.OnlineStoreEnabled);
+
+            Assert.IsTrue(featureEventFired, "يجب إطلاق حدث OnFeatureStateChanged للواجهة فوراً");
+            Assert.AreEqual("feature_online_store", changedFeatureKey);
+            Assert.IsFalse(changedFeatureVal);
+        }
     }
 }

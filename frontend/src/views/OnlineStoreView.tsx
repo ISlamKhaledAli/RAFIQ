@@ -21,6 +21,7 @@ import { AppButton } from '../components/AppButton';
 import { ToggleSwitch } from '../components/ToggleSwitch';
 import { CustomSelect } from '../components/CustomSelect';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { UploadCatalogModal } from '../components/onlineStore/UploadCatalogModal';
 import { useMotionPanel } from '../hooks/useMotionPanel';
 import { OnlineOrdersDispatch, type ReceiptPreviewData } from '../components/onlineStore/OnlineOrdersDispatch';
 import { onBridgeEvent } from '../bridge/ipc';
@@ -40,7 +41,7 @@ import {
   openOnlineStoreExternalUrl,
   purgeOnlineStoreOrders,
 } from '../bridge/onlineStoreIpc';
-import type { OnlineStoreSubTab, SyncStateDto, SyncInboxItem } from '../bridge/onlineStoreIpc';
+import type { OnlineStoreSubTab, SyncStateDto, SyncInboxItem, CatalogSyncOptions } from '../bridge/onlineStoreIpc';
 
 export type { OnlineStoreSubTab };
 
@@ -131,6 +132,7 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
   const [previewReceipt, setPreviewReceipt] = useState<ReceiptPreviewData | null>(null);
   const [showPurgeOrdersConfirm, setShowPurgeOrdersConfirm] = useState(false);
   const [purgingOrders, setPurgingOrders] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   useEffect(() => {
     if (!previewReceipt) return;
@@ -186,14 +188,22 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
     const unsubscribe = onBridgeEvent('onlineStore:ordersSynced', () => {
       void loadData(true);
     });
+    const unsubscribeState = onBridgeEvent<SyncStateDto>('onlineStore:stateChanged', (nextState) => {
+      if (nextState) {
+        setSyncState(nextState);
+        onStateChange?.(nextState);
+        setCfgEnabled(nextState.onlineStoreEnabled);
+      }
+    });
     const intervalId = window.setInterval(() => {
       void loadData(true);
     }, 30000);
     return () => {
       unsubscribe();
+      unsubscribeState();
       window.clearInterval(intervalId);
     };
-  }, [isActive, loadData]);
+  }, [isActive, loadData, onStateChange]);
 
   const handleManualSync = async (fullCatalog: boolean) => {
     if (!canSync) return;
@@ -217,6 +227,41 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
           type: 'success',
           text: `${res.message} (${parts.join(' | ')})`,
         });
+      } else {
+        setBannerMessage({ type: 'error', text: res.message || 'تعذرت المزامنة مع السحابة' });
+      }
+      await loadData(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء المزامنة';
+      setBannerMessage({ type: 'error', text: msg });
+    } finally {
+      setSyncMode(null);
+    }
+  };
+
+  const handleCustomCatalogUpload = async (options: CatalogSyncOptions) => {
+    if (!canSync) return;
+    setSyncMode('full');
+    setBannerMessage(null);
+    try {
+      const res = await triggerOnlineStoreSync(options);
+      if (res.success) {
+        const parts: string[] = [];
+        if (res.catalogSyncedCount > 0) {
+          parts.push(`أصناف مرفوعة: ${res.catalogSyncedCount}`);
+        }
+        if ((res.prunedOutOfStockCount ?? 0) > 0) {
+          parts.push(`تم تنظيف ${res.prunedOutOfStockCount} صنف منتهي`);
+        }
+        if (res.stockSyncedCount > 0) {
+          parts.push(`تحديث مخزون: ${res.stockSyncedCount}`);
+        }
+        parts.push(`طلبات جديدة: ${res.newOrdersDownloaded}`);
+        setBannerMessage({
+          type: 'success',
+          text: `${res.message} (${parts.join(' | ')})`,
+        });
+        setIsUploadModalOpen(false);
       } else {
         setBannerMessage({ type: 'error', text: res.message || 'تعذرت المزامنة مع السحابة' });
       }
@@ -410,10 +455,10 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
                 icon={UploadCloud}
                 loading={syncMode === 'full'}
                 disabled={!syncState?.onlineStoreEnabled || syncing}
-                onClick={() => handleManualSync(true)}
-                title="رفع الأصناف المتوفرة بالمخزن فقط وتنظيف الأصناف المنتهية من المتجر"
+                onClick={() => setIsUploadModalOpen(true)}
+                title="تخصيص ورفع أقسام وأصناف المحل إلى المتجر الإلكتروني"
               >
-                {syncMode === 'full' ? 'جاري رفع المتوفر...' : 'رفع الكتالوج بالكامل'}
+                {syncMode === 'full' ? 'جاري رفع الكتالوج...' : 'رفع الكتالوج'}
               </AppButton>
               <AppButton
                 variant="primary"
@@ -739,6 +784,13 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
         isDanger={true}
         onConfirm={() => void handlePurgeOrders()}
         onCancel={() => setShowPurgeOrdersConfirm(false)}
+      />
+      {/* Upload Catalog Custom Modal */}
+      <UploadCatalogModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onConfirmUpload={handleCustomCatalogUpload}
+        isUploading={syncMode === 'full'}
       />
     </div>
   );

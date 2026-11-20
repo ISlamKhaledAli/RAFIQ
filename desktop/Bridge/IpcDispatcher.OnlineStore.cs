@@ -59,12 +59,128 @@ namespace RafiqPOS.Bridge
                 if (action == "onlineStore:triggerSync")
                 {
                     bool fullCatalog = false;
-                    if (pObj != null && pObj["fullCatalog"] != null)
+                    List<string> categoryIds = null;
+                    List<string> excludedProductIds = null;
+                    List<string> selectedProductIds = null;
+                    bool onlyInStock = true;
+                    bool onlyOnline = true;
+                    bool pruneOutOfStock = true;
+
+                    if (pObj != null)
                     {
-                        fullCatalog = pObj["fullCatalog"].Value<bool>();
+                        if (pObj["fullCatalog"] != null)
+                        {
+                            fullCatalog = pObj["fullCatalog"].Value<bool>();
+                        }
+                        if (pObj["categoryIds"] != null && pObj["categoryIds"].Type == JTokenType.Array)
+                        {
+                            categoryIds = pObj["categoryIds"].ToObject<List<string>>();
+                        }
+                        if (pObj["excludedProductIds"] != null && pObj["excludedProductIds"].Type == JTokenType.Array)
+                        {
+                            excludedProductIds = pObj["excludedProductIds"].ToObject<List<string>>();
+                        }
+                        if (pObj["selectedProductIds"] != null && pObj["selectedProductIds"].Type == JTokenType.Array)
+                        {
+                            selectedProductIds = pObj["selectedProductIds"].ToObject<List<string>>();
+                        }
+                        if (pObj["onlyInStock"] != null)
+                        {
+                            onlyInStock = pObj["onlyInStock"].Value<bool>();
+                        }
+                        if (pObj["onlyOnline"] != null)
+                        {
+                            onlyOnline = pObj["onlyOnline"].Value<bool>();
+                        }
+                        if (pObj["pruneOutOfStock"] != null)
+                        {
+                            pruneOutOfStock = pObj["pruneOutOfStock"].Value<bool>();
+                        }
                     }
-                    var syncResult = DatabaseService.Sync.RunSyncCycle(true, fullCatalog);
+
+                    var syncResult = DatabaseService.Sync.RunSyncCycle(
+                        true,
+                        fullCatalog,
+                        categoryIds,
+                        onlyInStock,
+                        onlyOnline,
+                        pruneOutOfStock,
+                        excludedProductIds,
+                        selectedProductIds);
                     response = BridgeResponse.Ok(request.Id, syncResult);
+                    return true;
+                }
+
+                if (action == "onlineStore:getCatalogStats")
+                {
+                    bool onlyInStock = true;
+                    bool onlyOnline = true;
+                    List<string> categoryIds = null;
+                    List<string> excludedProductIds = null;
+                    List<string> selectedProductIds = null;
+
+                    if (pObj != null)
+                    {
+                        if (pObj["onlyInStock"] != null)
+                        {
+                            onlyInStock = pObj["onlyInStock"].Value<bool>();
+                        }
+                        if (pObj["onlyOnline"] != null)
+                        {
+                            onlyOnline = pObj["onlyOnline"].Value<bool>();
+                        }
+                        if (pObj["categoryIds"] != null && pObj["categoryIds"].Type == JTokenType.Array)
+                        {
+                            categoryIds = pObj["categoryIds"].ToObject<List<string>>();
+                        }
+                        if (pObj["excludedProductIds"] != null && pObj["excludedProductIds"].Type == JTokenType.Array)
+                        {
+                            excludedProductIds = pObj["excludedProductIds"].ToObject<List<string>>();
+                        }
+                        if (pObj["selectedProductIds"] != null && pObj["selectedProductIds"].Type == JTokenType.Array)
+                        {
+                            selectedProductIds = pObj["selectedProductIds"].ToObject<List<string>>();
+                        }
+                    }
+
+                    int count = DatabaseService.ProductRepo.CountProductsForCloudSync(onlyOnline, onlyInStock, categoryIds, excludedProductIds, selectedProductIds);
+                    response = BridgeResponse.Ok(request.Id, new { count = count });
+                    return true;
+                }
+
+                if (action == "onlineStore:getCategoryProducts")
+                {
+                    string categoryId = "";
+                    bool onlyInStock = false;
+                    bool onlyOnline = false;
+
+                    if (pObj != null)
+                    {
+                        if (pObj["categoryId"] != null) categoryId = pObj["categoryId"].ToString();
+                        if (pObj["onlyInStock"] != null) onlyInStock = pObj["onlyInStock"].Value<bool>();
+                        if (pObj["onlyOnline"] != null) onlyOnline = pObj["onlyOnline"].Value<bool>();
+                    }
+
+                    var catIds = !string.IsNullOrEmpty(categoryId) ? new List<string> { categoryId } : null;
+                    var products = DatabaseService.ProductRepo.GetProductsForCloudSync(onlyOnline, onlyInStock, catIds);
+                    var list = new List<object>();
+                    for (int i = 0; i < products.Count; i++)
+                    {
+                        var p = products[i];
+                        list.Add(new
+                        {
+                            id = p.Id,
+                            name = p.Name,
+                            categoryId = p.CategoryId,
+                            pricePiasters = p.PricePiasters,
+                            priceFormatted = p.PriceFormatted,
+                            stockQuantityMilli = p.StockQuantityMilli,
+                            stockFormatted = p.StockFormatted,
+                            isOnline = p.IsOnline,
+                            unit = string.IsNullOrEmpty(p.Unit) ? "قطعة" : p.Unit
+                        });
+                    }
+                    response = BridgeResponse.Ok(request.Id, list);
                     return true;
                 }
 

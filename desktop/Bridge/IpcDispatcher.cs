@@ -943,6 +943,8 @@ namespace RafiqPOS.Bridge
             { "onlineStore:saveConfig", "online_store.manage" },
             { "onlineStore.saveConfig", "online_store.manage" },
             { "onlineStore:triggerSync", "online_store.sync" },
+            { "onlineStore:getCatalogStats", "online_store.sync" },
+            { "onlineStore:getCategoryProducts", "online_store.sync" },
             { "onlineStore.triggerSync", "online_store.sync" },
             { "onlineStore:getOrders", "online_store.view_orders" },
             { "onlineStore.getOrders", "online_store.view_orders" },

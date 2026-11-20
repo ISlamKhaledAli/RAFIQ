@@ -598,14 +598,47 @@ namespace RafiqPOS.Repositories
                         }
                         else
                         {
-                            using (var cmd = new SQLiteCommand(insertPaymentSql, conn, trans))
+                            long paid = sale.PaidPiasters;
+                            string payMethod = sale.PaymentMethod ?? "cash";
+                            if (string.Equals(payMethod, "credit", StringComparison.OrdinalIgnoreCase))
                             {
-                                cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                                cmd.Parameters.AddWithValue("@saleId", sale.Id);
-                                cmd.Parameters.AddWithValue("@amount", sale.PaidPiasters);
-                                cmd.Parameters.AddWithValue("@method", sale.PaymentMethod ?? "cash");
-                                cmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
-                                cmd.ExecuteNonQuery();
+                                if (paid > 0)
+                                {
+                                    using (var cmd = new SQLiteCommand(insertPaymentSql, conn, trans))
+                                    {
+                                        cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                        cmd.Parameters.AddWithValue("@saleId", sale.Id);
+                                        cmd.Parameters.AddWithValue("@amount", paid);
+                                        cmd.Parameters.AddWithValue("@method", "cash");
+                                        cmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                                        cmd.ExecuteNonQuery();
+                                    }
+                                }
+                                long debtAmount = Math.Max(0, sale.TotalPiasters - (paid - sale.ServiceFeePiasters));
+                                if (debtAmount > 0 || paid == 0)
+                                {
+                                    using (var cmd = new SQLiteCommand(insertPaymentSql, conn, trans))
+                                    {
+                                        cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                        cmd.Parameters.AddWithValue("@saleId", sale.Id);
+                                        cmd.Parameters.AddWithValue("@amount", debtAmount);
+                                        cmd.Parameters.AddWithValue("@method", "credit");
+                                        cmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                                        cmd.ExecuteNonQuery();
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                using (var cmd = new SQLiteCommand(insertPaymentSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                    cmd.Parameters.AddWithValue("@saleId", sale.Id);
+                                    cmd.Parameters.AddWithValue("@amount", sale.PaidPiasters);
+                                    cmd.Parameters.AddWithValue("@method", sale.PaymentMethod ?? "cash");
+                                    cmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                                    cmd.ExecuteNonQuery();
+                                }
                             }
                         }
 

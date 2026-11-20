@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '../bridge/ipc';
+import { invoke, onBridgeEvent } from '../bridge/ipc';
 import { 
   FeaturesContext, 
   DEFAULT_FLAGS, 
@@ -80,8 +80,44 @@ export const FeaturesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         console.error('Failed to load feature flags:', err);
       }
     })();
+
+    // Live reactive event from C# host whenever a feature flag changes (e.g. cloud deactivation or central license renewal)
+    const unsubscribeFeatures = onBridgeEvent<{ key: string; enabled: boolean }>(
+      'features:changed',
+      (evt) => {
+        if (!active || !evt || typeof evt.key !== 'string' || typeof evt.enabled !== 'boolean') return;
+        setFlags((prev) => {
+          if (prev[evt.key] === evt.enabled) return prev;
+          const next = { ...prev, [evt.key]: evt.enabled };
+          try {
+            localStorage.setItem('rafiq_feature_flags', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
+    );
+
+    // Live reactive event when online store sync state changes in C# host (e.g. cloud administrative deactivation)
+    const unsubscribeStoreState = onBridgeEvent<{ onlineStoreEnabled?: boolean }>(
+      'onlineStore:stateChanged',
+      (st) => {
+        if (!active || !st || typeof st.onlineStoreEnabled !== 'boolean') return;
+        const isStoreEnabled = Boolean(st.onlineStoreEnabled);
+        setFlags((prev) => {
+          if (prev.feature_online_store === isStoreEnabled) return prev;
+          const next: Record<string, boolean> = { ...prev, feature_online_store: isStoreEnabled };
+          try {
+            localStorage.setItem('rafiq_feature_flags', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
+    );
+
     return () => {
       active = false;
+      unsubscribeFeatures();
+      unsubscribeStoreState();
     };
   }, []);
 

@@ -653,6 +653,8 @@ namespace RafiqPOS.Common
                     "onlineStore:getState",
                     "onlineStore:saveConfig",
                     "onlineStore:triggerSync",
+                    "onlineStore:getCatalogStats",
+                    "onlineStore:getCategoryProducts",
                     "onlineStore:getOrders",
                     "onlineStore:processOrder",
                     "onlineStore:convertToSale",

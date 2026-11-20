@@ -37,8 +37,22 @@ namespace RafiqPOS.Services
         private DateTime _circuitOpenUntilUtc = DateTime.MinValue;
         private string _lastError = "";
 
+        private class CachedRealtimeSessionInfo
+        {
+            public bool Enabled;
+            public string WsUrl;
+            public string StoreId;
+            public string ExpiresAt;
+            public DateTime ExpiresAtUtc;
+        }
+
+        private CachedRealtimeSessionInfo _cachedRealtimeSession;
+        private readonly object _realtimeSessionLock = new object();
+
         public event Action<int> OnNewOnlineOrdersReceived;
         public event Action<OnlineOrdersSyncedEvent> OnOrdersSynced;
+        public event Action<string, bool> OnFeatureStateChanged;
+        public event Action<SyncStateDto> OnSyncStateChanged;
 
         public SyncEngine(
             SyncRepository syncRepo,
@@ -75,12 +89,27 @@ namespace RafiqPOS.Services
         /// <summary>
         /// Exchanges the store's C#-only Sync API Key for a short-lived signed WebSocket session URL
         /// so WebView2 can connect to the StoreRealtimeHub Durable Object without ever seeing the API Key.
+        /// Low-overhead in-memory token cache: returns in 0ms on cache hit, zero IPC blocking.
         /// </summary>
         public object RequestRealtimeSession()
         {
             if (!ShouldRunBackgroundSync())
             {
                 return new { enabled = false, wsUrl = "", storeId = "", expiresAt = "" };
+            }
+
+            lock (_realtimeSessionLock)
+            {
+                if (_cachedRealtimeSession != null && _cachedRealtimeSession.Enabled && DateTime.UtcNow < _cachedRealtimeSession.ExpiresAtUtc)
+                {
+                    return new
+                    {
+                        enabled = _cachedRealtimeSession.Enabled,
+                        wsUrl = _cachedRealtimeSession.WsUrl,
+                        storeId = _cachedRealtimeSession.StoreId,
+                        expiresAt = _cachedRealtimeSession.ExpiresAt
+                    };
+                }
             }
 
             string storeId = _syncRepo.GetState("store_cloud_id", "");
@@ -92,9 +121,15 @@ namespace RafiqPOS.Services
                 return new { enabled = false, wsUrl = "", storeId = "", expiresAt = "" };
             }
 
-            SyncHttpResponse resp = _http.PostJson(baseUrl + "/sync/realtime-token", "{}", storeId, apiKey, 10000);
+            // Quick 3500ms timeout so offline or lagging networks never stall the desktop app or IPC queue
+            SyncHttpResponse resp = _http.PostJson(baseUrl + "/sync/realtime-token", "{}", storeId, apiKey, 3500);
             if (!resp.IsSuccess || string.IsNullOrEmpty(resp.Body))
             {
+                if (IsExplicitStoreDeactivation(resp))
+                {
+                    HandleExplicitDeactivation(resp.ErrorMessage ?? resp.Body);
+                    return new { enabled = false, wsUrl = "", storeId = storeId, expiresAt = "", disabledByServer = true };
+                }
                 return new { enabled = false, wsUrl = "", storeId = storeId, expiresAt = "", error = resp.ErrorMessage ?? "تعذر الحصول على جلسة الاتصال الفوري." };
             }
 
@@ -107,6 +142,20 @@ namespace RafiqPOS.Services
                 {
                     return new { enabled = false, wsUrl = "", storeId = storeId, expiresAt = "" };
                 }
+
+                lock (_realtimeSessionLock)
+                {
+                    _cachedRealtimeSession = new CachedRealtimeSessionInfo
+                    {
+                        Enabled = true,
+                        WsUrl = wsUrl,
+                        StoreId = storeId,
+                        ExpiresAt = expiresAt,
+                        // Cloudflare signed tokens are valid for 6 hours; cache safely for 5 hours
+                        ExpiresAtUtc = DateTime.UtcNow.AddHours(5)
+                    };
+                }
+
                 return new
                 {
                     enabled = true,
@@ -196,6 +245,10 @@ namespace RafiqPOS.Services
         public void Stop()
         {
             _isRunning = false;
+            lock (_realtimeSessionLock)
+            {
+                _cachedRealtimeSession = null;
+            }
             if (_timer != null)
             {
                 try
@@ -403,6 +456,94 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
+        /// Strictly differentiates between explicit administrative cloud deactivation (HTTP 403 STORE_LICENSE_INACTIVE / STORE_DISABLED)
+        /// versus normal offline / temporary network lag (timeouts, DNS drop, 5xx server issues).
+        /// When offline or server lag: store remains active locally (offline-first).
+        /// When explicit deactivation: store is immediately disabled locally and UI is notified.
+        /// </summary>
+        public static bool IsExplicitStoreDeactivation(SyncHttpResponse resp)
+        {
+            if (resp == null) return false;
+            if (resp.StatusCode == 403)
+            {
+                string body = (resp.Body ?? "").Trim();
+                string err = (resp.ErrorMessage ?? "").Trim();
+                if (body.IndexOf("STORE_LICENSE_INACTIVE", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    body.IndexOf("STORE_DISABLED", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    body.IndexOf("disabled or inactive", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    err.IndexOf("STORE_LICENSE_INACTIVE", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    err.IndexOf("STORE_DISABLED", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+            if (resp.StatusCode == 404)
+            {
+                string body = (resp.Body ?? "").Trim();
+                if (body.IndexOf("Store not found", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void HandleExplicitDeactivation(string reason)
+        {
+            try
+            {
+                Logger.Warn("SyncEngine: رصد إيقاف المتجر الإلكتروني السحابي من السيرفر المركزي: " + reason);
+                _syncRepo.SetState("online_store_enabled", "0");
+                _lastError = "تم إيقاف المتجر الإلكتروني السحابي من قبل الإدارة.";
+                lock (_realtimeSessionLock)
+                {
+                    _cachedRealtimeSession = null;
+                }
+
+                if (DatabaseService.Settings != null)
+                {
+                    try
+                    {
+                        DatabaseService.Settings.SetFeatureFlag("feature_online_store", false);
+                    }
+                    catch (Exception setEx)
+                    {
+                        Logger.Warn("SyncEngine SetFeatureFlag warning: " + setEx.Message);
+                    }
+                }
+
+                Stop();
+
+                SyncStateDto state = GetState();
+                if (OnSyncStateChanged != null)
+                {
+                    try { OnSyncStateChanged(state); }
+                    catch { }
+                }
+
+                if (OnFeatureStateChanged != null)
+                {
+                    try { OnFeatureStateChanged("feature_online_store", false); }
+                    catch { }
+                }
+
+                // Trigger background license verification to align full license state with central server
+                if (DatabaseService.License != null)
+                {
+                    ThreadPool.QueueUserWorkItem(delegate(object _)
+                    {
+                        try { DatabaseService.License.VerifyLicenseOnline(); }
+                        catch { }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("SyncEngine HandleExplicitDeactivation error: " + ex.Message);
+            }
+        }
+
+        /// <summary>
         /// Gets the complete current state of the online store sync subsystem for UI display.
         /// </summary>
         public SyncStateDto GetState()
@@ -454,6 +595,16 @@ namespace RafiqPOS.Services
             if (req.OnlineStoreEnabled.HasValue)
             {
                 _syncRepo.SetState("online_store_enabled", req.OnlineStoreEnabled.Value ? "1" : "0");
+                if (DatabaseService.Settings != null)
+                {
+                    try { DatabaseService.Settings.SetFeatureFlag("feature_online_store", req.OnlineStoreEnabled.Value); }
+                    catch { }
+                }
+                if (OnFeatureStateChanged != null)
+                {
+                    try { OnFeatureStateChanged("feature_online_store", req.OnlineStoreEnabled.Value); }
+                    catch { }
+                }
             }
             if (req.StoreCloudId != null)
             {
@@ -498,7 +649,15 @@ namespace RafiqPOS.Services
         /// <summary>
         /// Runs a complete sync cycle. Thread-safe and non-overlapping.
         /// </summary>
-        public SyncCycleResult RunSyncCycle(bool isManual = true, bool fullCatalogPush = false)
+        public SyncCycleResult RunSyncCycle(
+            bool isManual = true,
+            bool fullCatalogPush = false,
+            List<string> categoryIds = null,
+            bool onlyInStock = true,
+            bool onlyOnline = true,
+            bool pruneOutOfStock = true,
+            List<string> excludedProductIds = null,
+            List<string> selectedProductIds = null)
         {
             var result = new SyncCycleResult();
 
@@ -568,7 +727,17 @@ namespace RafiqPOS.Services
                 // 2b. Full catalog push if requested
                 if (fullCatalogPush)
                 {
-                    int pushed = PushFullCatalogInternal(baseUrl, storeId, apiKey, result);
+                    int pushed = PushFullCatalogInternal(
+                        baseUrl,
+                        storeId,
+                        apiKey,
+                        result,
+                        categoryIds,
+                        onlyInStock,
+                        onlyOnline,
+                        pruneOutOfStock,
+                        excludedProductIds,
+                        selectedProductIds);
                     result.CatalogSyncedCount += pushed;
                 }
 
@@ -655,11 +824,42 @@ namespace RafiqPOS.Services
             return true;
         }
 
-        private int PushFullCatalogInternal(string baseUrl, string storeId, string apiKey, SyncCycleResult result)
+        private int PushFullCatalogInternal(
+            string baseUrl,
+            string storeId,
+            string apiKey,
+            SyncCycleResult result,
+            List<string> categoryIds = null,
+            bool onlyInStock = true,
+            bool onlyOnline = true,
+            bool pruneOutOfStock = true,
+            List<string> excludedProductIds = null,
+            List<string> selectedProductIds = null)
         {
-            var categories = _categoryRepo != null ? _categoryRepo.GetAll(false) : new List<Category>();
-            // Only upload active, online, IN-STOCK (> 0) non-demo products to avoid cloud clutter & bloat
-            var products = _productRepo != null ? _productRepo.GetProductsForCloudSync(true, true) : new List<Product>();
+            var allCategories = _categoryRepo != null ? _categoryRepo.GetAll(false) : new List<Category>();
+            var categories = new List<Category>();
+
+            HashSet<string> targetCatSet = null;
+            if (categoryIds != null && categoryIds.Count > 0)
+            {
+                targetCatSet = new HashSet<string>(categoryIds, StringComparer.OrdinalIgnoreCase);
+            }
+
+            for (int i = 0; i < allCategories.Count; i++)
+            {
+                var c = allCategories[i];
+                if (c == null) continue;
+                if (targetCatSet != null && !targetCatSet.Contains(c.Id))
+                {
+                    continue; // Skip categories not in selected list
+                }
+                categories.Add(c);
+            }
+
+            // Fetch products according to filters
+            var products = _productRepo != null
+                ? _productRepo.GetProductsForCloudSync(onlyOnline, onlyInStock, categoryIds, excludedProductIds, selectedProductIds)
+                : new List<Product>();
 
             var catPayload = new List<object>();
             for (int i = 0; i < categories.Count; i++)
@@ -677,7 +877,7 @@ namespace RafiqPOS.Services
                 });
             }
 
-            // Track IDs of all in-stock eligible products so stale/out-of-stock rows in Cloud D1 are pruned cleanly
+            // Track IDs of all eligible products so stale/out-of-stock rows in Cloud D1 can be pruned cleanly
             var keepProductIds = new List<string>(products.Count);
             for (int i = 0; i < products.Count; i++)
             {
@@ -722,24 +922,29 @@ namespace RafiqPOS.Services
                 }
             }
 
-            // Prune any previously uploaded products that are now out-of-stock, inactive, offline, or deleted
-            try
+            // Prune only when doing a full catalog push (no category filter) and pruning is enabled.
+            // When uploading selective categories, prune MUST NOT run so products in other categories are preserved on Cloud D1!
+            bool canPrune = pruneOutOfStock && (categoryIds == null || categoryIds.Count == 0) && (selectedProductIds == null || selectedProductIds.Count == 0);
+            if (canPrune)
             {
-                string pruneBody = JsonConvert.SerializeObject(new { keep_product_ids = keepProductIds });
-                SyncHttpResponse pruneResp = _http.PostJson(baseUrl + "/sync/catalog/prune", pruneBody, storeId, apiKey, 30000);
-                if (pruneResp.IsSuccess && !string.IsNullOrEmpty(pruneResp.Body) && result != null)
+                try
                 {
-                    JObject pruneObj = JObject.Parse(pruneResp.Body);
-                    JToken prunedTok = pruneObj["total_pruned"];
-                    if (prunedTok != null && prunedTok.Type == JTokenType.Integer)
+                    string pruneBody = JsonConvert.SerializeObject(new { keep_product_ids = keepProductIds });
+                    SyncHttpResponse pruneResp = _http.PostJson(baseUrl + "/sync/catalog/prune", pruneBody, storeId, apiKey, 30000);
+                    if (pruneResp.IsSuccess && !string.IsNullOrEmpty(pruneResp.Body) && result != null)
                     {
-                        result.PrunedOutOfStockCount += prunedTok.Value<int>();
+                        JObject pruneObj = JObject.Parse(pruneResp.Body);
+                        JToken prunedTok = pruneObj["total_pruned"];
+                        if (prunedTok != null && prunedTok.Type == JTokenType.Integer)
+                        {
+                            result.PrunedOutOfStockCount += prunedTok.Value<int>();
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Logger.Warn("SyncEngine catalog prune warning: " + ex.Message);
+                catch (Exception ex)
+                {
+                    Logger.Warn("SyncEngine catalog prune warning: " + ex.Message);
+                }
             }
 
             return totalSynced;
@@ -854,6 +1059,11 @@ namespace RafiqPOS.Services
                         else
                         {
                             _syncRepo.MarkOutboxItemsStatus(catalogOutboxIds, "failed", resp.ErrorMessage);
+                            if (IsExplicitStoreDeactivation(resp))
+                            {
+                                HandleExplicitDeactivation(resp.ErrorMessage ?? resp.Body);
+                                return;
+                            }
                             throw new Exception("فشل رفع تغييرات الكتالوج: " + resp.ErrorMessage);
                         }
                     }
@@ -956,6 +1166,11 @@ namespace RafiqPOS.Services
                         else
                         {
                             _syncRepo.MarkOutboxItemsStatus(stockOutboxIds, "failed", stockResp.ErrorMessage);
+                            if (IsExplicitStoreDeactivation(stockResp))
+                            {
+                                HandleExplicitDeactivation(stockResp.ErrorMessage ?? stockResp.Body);
+                                return;
+                            }
                         }
                     }
                     else
@@ -980,6 +1195,11 @@ namespace RafiqPOS.Services
                     else
                     {
                         _syncRepo.MarkOutboxItemsStatus(idList, "failed", resp.ErrorMessage);
+                        if (IsExplicitStoreDeactivation(resp))
+                        {
+                            HandleExplicitDeactivation(resp.ErrorMessage ?? resp.Body);
+                            return;
+                        }
                     }
                 }
 
@@ -1079,6 +1299,10 @@ namespace RafiqPOS.Services
             SyncHttpResponse resp = _http.GetJson(baseUrl + "/sync/orders/pending", storeId, apiKey, 10000);
             if (!resp.IsSuccess || string.IsNullOrEmpty(resp.Body))
             {
+                if (IsExplicitStoreDeactivation(resp))
+                {
+                    HandleExplicitDeactivation(resp.ErrorMessage ?? resp.Body);
+                }
                 return false;
             }
 
@@ -1340,6 +1564,10 @@ namespace RafiqPOS.Services
                 }
                 else
                 {
+                    if (IsExplicitStoreDeactivation(resp))
+                    {
+                        HandleExplicitDeactivation(resp.ErrorMessage ?? resp.Body);
+                    }
                     Logger.Warn("SyncEngine store profile sync warning: " + resp.ErrorMessage);
                 }
             }

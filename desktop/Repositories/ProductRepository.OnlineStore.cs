@@ -35,7 +35,7 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public List<Product> GetProductsForCloudSync(bool onlyOnline = false, bool onlyInStock = false)
+        public List<Product> GetProductsForCloudSync(bool onlyOnline = false, bool onlyInStock = false, List<string> categoryIds = null, List<string> excludedProductIds = null, List<string> selectedProductIds = null)
         {
             var list = new List<Product>();
             using (var conn = new SQLiteConnection(_connectionString))
@@ -57,18 +57,145 @@ namespace RafiqPOS.Repositories
                 {
                     sql += " AND COALESCE(p.stock_quantity_milli, 0) > 0 ";
                 }
+                if (categoryIds != null && categoryIds.Count > 0)
+                {
+                    var catParams = new List<string>();
+                    for (int i = 0; i < categoryIds.Count; i++)
+                    {
+                        catParams.Add("@cat" + i);
+                    }
+                    sql += " AND p.category_id IN (" + string.Join(",", catParams.ToArray()) + ") ";
+                }
+                if (excludedProductIds != null && excludedProductIds.Count > 0)
+                {
+                    var exParams = new List<string>();
+                    for (int i = 0; i < excludedProductIds.Count; i++)
+                    {
+                        exParams.Add("@ex" + i);
+                    }
+                    sql += " AND p.id NOT IN (" + string.Join(",", exParams.ToArray()) + ") ";
+                }
+                if (selectedProductIds != null && selectedProductIds.Count > 0)
+                {
+                    var selParams = new List<string>();
+                    for (int i = 0; i < selectedProductIds.Count; i++)
+                    {
+                        selParams.Add("@sel" + i);
+                    }
+                    sql += " AND p.id IN (" + string.Join(",", selParams.ToArray()) + ") ";
+                }
                 sql += " ORDER BY p.name ASC;";
 
                 using (var cmd = new SQLiteCommand(sql, conn))
-                using (var reader = cmd.ExecuteReader())
                 {
-                    while (reader.Read())
+                    if (categoryIds != null && categoryIds.Count > 0)
                     {
-                        list.Add(MapReaderToProduct(reader));
+                        for (int i = 0; i < categoryIds.Count; i++)
+                        {
+                            cmd.Parameters.AddWithValue("@cat" + i, categoryIds[i]);
+                        }
+                    }
+                    if (excludedProductIds != null && excludedProductIds.Count > 0)
+                    {
+                        for (int i = 0; i < excludedProductIds.Count; i++)
+                        {
+                            cmd.Parameters.AddWithValue("@ex" + i, excludedProductIds[i]);
+                        }
+                    }
+                    if (selectedProductIds != null && selectedProductIds.Count > 0)
+                    {
+                        for (int i = 0; i < selectedProductIds.Count; i++)
+                        {
+                            cmd.Parameters.AddWithValue("@sel" + i, selectedProductIds[i]);
+                        }
+                    }
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            list.Add(MapReaderToProduct(reader));
+                        }
                     }
                 }
             }
             return list;
+        }
+
+        public int CountProductsForCloudSync(bool onlyOnline = false, bool onlyInStock = false, List<string> categoryIds = null, List<string> excludedProductIds = null, List<string> selectedProductIds = null)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT COUNT(*)
+                    FROM products p
+                    WHERE p.is_active = 1
+                      AND p.id NOT LIKE 'demo_%'
+                      AND p.id NOT LIKE 'stress_%'
+                ";
+                if (onlyOnline)
+                {
+                    sql += " AND COALESCE(p.is_online, 1) = 1 ";
+                }
+                if (onlyInStock)
+                {
+                    sql += " AND COALESCE(p.stock_quantity_milli, 0) > 0 ";
+                }
+                if (categoryIds != null && categoryIds.Count > 0)
+                {
+                    var catParams = new List<string>();
+                    for (int i = 0; i < categoryIds.Count; i++)
+                    {
+                        catParams.Add("@cat" + i);
+                    }
+                    sql += " AND p.category_id IN (" + string.Join(",", catParams.ToArray()) + ") ";
+                }
+                if (excludedProductIds != null && excludedProductIds.Count > 0)
+                {
+                    var exParams = new List<string>();
+                    for (int i = 0; i < excludedProductIds.Count; i++)
+                    {
+                        exParams.Add("@ex" + i);
+                    }
+                    sql += " AND p.id NOT IN (" + string.Join(",", exParams.ToArray()) + ") ";
+                }
+                if (selectedProductIds != null && selectedProductIds.Count > 0)
+                {
+                    var selParams = new List<string>();
+                    for (int i = 0; i < selectedProductIds.Count; i++)
+                    {
+                        selParams.Add("@sel" + i);
+                    }
+                    sql += " AND p.id IN (" + string.Join(",", selParams.ToArray()) + ") ";
+                }
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    if (categoryIds != null && categoryIds.Count > 0)
+                    {
+                        for (int i = 0; i < categoryIds.Count; i++)
+                        {
+                            cmd.Parameters.AddWithValue("@cat" + i, categoryIds[i]);
+                        }
+                    }
+                    if (excludedProductIds != null && excludedProductIds.Count > 0)
+                    {
+                        for (int i = 0; i < excludedProductIds.Count; i++)
+                        {
+                            cmd.Parameters.AddWithValue("@ex" + i, excludedProductIds[i]);
+                        }
+                    }
+                    if (selectedProductIds != null && selectedProductIds.Count > 0)
+                    {
+                        for (int i = 0; i < selectedProductIds.Count; i++)
+                        {
+                            cmd.Parameters.AddWithValue("@sel" + i, selectedProductIds[i]);
+                        }
+                    }
+                    object res = cmd.ExecuteScalar();
+                    return res != null && res != DBNull.Value ? Convert.ToInt32(res) : 0;
+                }
+            }
         }
 
         /// <summary>

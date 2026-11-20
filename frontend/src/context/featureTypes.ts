@@ -331,6 +331,8 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
       'onlineStore:getState',
       'onlineStore:saveConfig',
       'onlineStore:triggerSync',
+      'onlineStore:getCatalogStats',
+      'onlineStore:getCategoryProducts',
       'onlineStore:getOrders',
       'onlineStore:processOrder',
       'onlineStore:updateProductOnline',

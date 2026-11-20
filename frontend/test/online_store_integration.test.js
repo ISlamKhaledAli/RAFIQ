@@ -43,6 +43,8 @@ describe('Online Store Desktop Integration & Architecture Invariants', () => {
       'onlineStore:getState',
       'onlineStore:saveConfig',
       'onlineStore:triggerSync',
+      'onlineStore:getCatalogStats',
+      'onlineStore:getCategoryProducts',
       'onlineStore:getOrders',
       'onlineStore:processOrder',
       'onlineStore:updateProductOnline',
@@ -108,5 +110,35 @@ describe('Online Store Desktop Integration & Architecture Invariants', () => {
 
     // Backend Cloudflare API guard
     assert.ok(dashboardHandler.includes("body.status === 'ready'"), 'API dashboard.ts must block body.status === ready');
+  });
+
+  it('provides selective catalog upload modal with scope, category picker, stock filters, and safe pruning', () => {
+    const modal = read('frontend/src/components/onlineStore/UploadCatalogModal.tsx');
+    const view = read('frontend/src/views/OnlineStoreView.tsx');
+    const syncEngine = read('desktop/Services/SyncEngine.cs');
+    const productRepo = read('desktop/Repositories/ProductRepository.OnlineStore.cs');
+
+    // Modal invariants
+    assert.ok(!/<select[\s>]/i.test(modal), 'UploadCatalogModal must not use native <select>');
+    assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(modal), 'UploadCatalogModal must not contain ad-hoc hex colors');
+    assert.ok(modal.includes('UploadCloud'), 'UploadCatalogModal must use Lucide UploadCloud');
+    assert.ok(modal.includes('ToggleSwitch'), 'UploadCatalogModal must use ToggleSwitch');
+    assert.ok(modal.includes('getCatalogSyncStats'), 'UploadCatalogModal must call getCatalogSyncStats for live count preview');
+    assert.ok(modal.includes('selectedCategoryIds'), 'UploadCatalogModal must support category selection');
+
+    // OnlineStoreView integration
+    assert.ok(view.includes('UploadCatalogModal'), 'OnlineStoreView must integrate UploadCatalogModal');
+    assert.ok(view.includes('isUploadModalOpen'), 'OnlineStoreView must track isUploadModalOpen state');
+    assert.ok(view.includes('handleCustomCatalogUpload'), 'OnlineStoreView must handle custom upload');
+
+    // C# backend safety: selective upload must NOT prune unselected categories from cloud
+    assert.ok(
+      syncEngine.includes('canPrune = pruneOutOfStock && (categoryIds == null || categoryIds.Count == 0)'),
+      'SyncEngine must only prune when performing full catalog push without category filter'
+    );
+    assert.ok(
+      productRepo.includes('CountProductsForCloudSync'),
+      'ProductRepository must define CountProductsForCloudSync'
+    );
   });
 });

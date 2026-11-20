@@ -656,7 +656,6 @@ namespace RafiqPOS.Services
                                 if (details["online_store_enabled"] != null && details["online_store_enabled"].Type == JTokenType.Boolean)
                                 {
                                     bool onlineStoreEnabled = details["online_store_enabled"].Value<bool>();
-                                    _settingsRepo.Set("feature_online_store", onlineStoreEnabled ? "1" : "0");
 
                                     if (DatabaseService.SyncRepo != null)
                                     {
@@ -667,13 +666,22 @@ namespace RafiqPOS.Services
                                         if (!string.IsNullOrEmpty(cloudSlug)) DatabaseService.SyncRepo.SetState("online_store_slug", cloudSlug);
                                         if (!string.IsNullOrEmpty(cloudId)) DatabaseService.SyncRepo.SetState("store_cloud_id", cloudId);
                                         if (!string.IsNullOrEmpty(syncKey)) DatabaseService.SyncRepo.SetState("sync_api_key", syncKey);
-                                        if (!onlineStoreEnabled) DatabaseService.SyncRepo.SetState("online_store_enabled", "0");
+                                        DatabaseService.SyncRepo.SetState("online_store_enabled", onlineStoreEnabled ? "1" : "0");
                                     }
+
+                                    _settingsRepo.Set("feature_online_store", onlineStoreEnabled ? "1" : "0");
+                                    if (DatabaseService.Settings != null)
+                                    {
+                                        try { DatabaseService.Settings.SetFeatureFlag("feature_online_store", onlineStoreEnabled); }
+                                        catch { }
+                                    }
+                                    DatabaseService.RaiseFeatureFlagChanged("feature_online_store", onlineStoreEnabled);
 
                                     if (DatabaseService.Sync != null)
                                     {
                                         if (onlineStoreEnabled) DatabaseService.Sync.Start();
                                         else DatabaseService.Sync.Stop();
+                                        DatabaseService.RaiseOnlineStoreStateChanged(DatabaseService.Sync.GetState());
                                     }
                                 }
                             }
@@ -947,6 +955,8 @@ namespace RafiqPOS.Services
             return result;
         }
 
+        private bool _hasDoneStartupOnlineVerify = false;
+
         // Feature #174: Background Periodic Verification (Task 174-1, 174-2, 174-6)
         public void StartBackgroundPeriodicCheck()
         {
@@ -957,10 +967,18 @@ namespace RafiqPOS.Services
                 {
                     try
                     {
-                        // Dynamic rate limit: If license is expired or <= 1 day left, check every 1 minute.
-                        // Otherwise, check at most every 15 minutes to preserve network/resources.
+                        // On app startup, ALWAYS verify license once after initial 2 seconds to reflect store enabling/renewal
+                        if (!_hasDoneStartupOnlineVerify)
+                        {
+                            _hasDoneStartupOnlineVerify = true;
+                            VerifyLicenseOnline();
+                            return;
+                        }
+
+                        // Periodic check: every 2 minutes if near expiry (<= 7 days) or store is disabled, else 10 minutes
                         LicenseInfo currentInfo = GetLicenseInfo();
-                        int minIntervalMinutes = (currentInfo.IsExpired || currentInfo.DaysRemaining <= 1) ? 1 : 15;
+                        bool isStoreOff = DatabaseService.SyncRepo != null && DatabaseService.SyncRepo.GetState("online_store_enabled", "0") != "1";
+                        int minIntervalMinutes = (currentInfo.IsExpired || currentInfo.DaysRemaining <= 7 || isStoreOff) ? 2 : 10;
 
                         string lastAttemptStr = _settingsRepo.Get("last_online_verify_attempt", "");
                         DateTime lastAttempt;

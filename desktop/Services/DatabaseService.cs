@@ -316,6 +316,28 @@ namespace RafiqPOS.Services
         public static SyncRepository SyncRepo { get; set; }
         public static SyncEngine Sync { get; set; }
         public static event Action<OnlineOrdersSyncedEvent> OnOnlineOrdersSynced;
+        public static event Action<string, bool> OnFeatureFlagChanged;
+        public static event Action<SyncStateDto> OnOnlineStoreStateChanged;
+
+        public static void RaiseFeatureFlagChanged(string key, bool enabled)
+        {
+            var handler = OnFeatureFlagChanged;
+            if (handler != null)
+            {
+                try { handler(key, enabled); }
+                catch { }
+            }
+        }
+
+        public static void RaiseOnlineStoreStateChanged(SyncStateDto state)
+        {
+            var handler = OnOnlineStoreStateChanged;
+            if (handler != null)
+            {
+                try { handler(state); }
+                catch { }
+            }
+        }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -475,6 +497,14 @@ namespace RafiqPOS.Services
                     try { handler(evt); }
                     catch { }
                 }
+            };
+            Sync.OnFeatureStateChanged += delegate(string key, bool enabled)
+            {
+                RaiseFeatureFlagChanged(key, enabled);
+            };
+            Sync.OnSyncStateChanged += delegate(SyncStateDto state)
+            {
+                RaiseOnlineStoreStateChanged(state);
             };
             Sales.SetSyncRepository(SyncRepo);
             Purchases.SetSyncRepository(SyncRepo);

@@ -219,6 +219,7 @@ export default function App() {
   const { currentUser, isLoading, logout, hasPermission, isRoot, isAdmin, isOwnerOrRoot, refreshUser } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>(POST_SETUP_SETTINGS_TAB ? 'settings' : 'pos');
+  const [onlineStoreHeaderState, setOnlineStoreHeaderState] = useState<SyncStateDto | null>(null);
   // Effects key on stable primitives, never on the user object, so a user refresh cannot re-trigger them.
   const currentUserId = currentUser?.id ?? null;
   const mustChangePinNow = requiresForcedPinChange(currentUser);
@@ -229,7 +230,8 @@ export default function App() {
   const canAccessWallets = (isRoot || hasPermission('wallets.access') || hasPermission('wallets')) && 
     (isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets'));
   const canAccessInsurance = (isRoot || isAdmin || hasPermission('insurance.manage_contracts') || hasPermission('insurance.claims.manage')) && isEnabled('feature_insurance');
-  const canAccessOnlineStore = (isRoot || isAdmin || hasPermission('online_store.view_orders') || hasPermission('online_store.manage')) && isEnabled('feature_online_store');
+  const isOnlineStoreAvailable = isEnabled('feature_online_store') && (onlineStoreHeaderState ? onlineStoreHeaderState.onlineStoreEnabled : true);
+  const canAccessOnlineStore = (isRoot || isAdmin || hasPermission('online_store.view_orders') || hasPermission('online_store.manage')) && isOnlineStoreAvailable;
   const canAccessDashboard = isRoot || hasPermission('reports.sales') || hasPermission('reports');
   const canAccessCustomers = isRoot || hasPermission('customers.view') || hasPermission('customers');
   const canAccessProducts = isRoot || hasPermission('products.view') || hasPermission('products');
@@ -321,12 +323,11 @@ export default function App() {
   const [isAppUpdateModalOpen, setIsAppUpdateModalOpen] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState<AppUpdateInfo | null>(null);
   const [hasActivePosSale, setHasActivePosSale] = useState(false);
-  const [onlineStoreHeaderState, setOnlineStoreHeaderState] = useState<SyncStateDto | null>(null);
   const [incomingOrderAlerts, setIncomingOrderAlerts] = useState<OnlineOrderNotificationDto[]>([]);
   const [orderAlertSoundEnabled, setOrderAlertSoundEnabled] = useState<boolean>(() => isOnlineOrderSoundEnabled());
 
   useEffect(() => {
-    if (!canAccessOnlineStore || !currentUserId) {
+    if (!isEnabled('feature_online_store') || !currentUserId) {
       setOnlineStoreHeaderState(null);
       setIncomingOrderAlerts([]);
       return;
@@ -381,14 +382,21 @@ export default function App() {
       });
     });
 
+    // Reactive push when online store state changes in C# host (e.g. cloud administrative deactivation)
+    const unsubscribeState = onBridgeEvent<SyncStateDto>('onlineStore:stateChanged', (st) => {
+      if (!mounted || !st) return;
+      setOnlineStoreHeaderState(st);
+    });
+
     const timer = setInterval(() => void pollOnlineStore(), 30000);
     return () => {
       mounted = false;
       unsubscribeOrders();
       unsubscribeOpenOrders();
+      unsubscribeState();
       clearInterval(timer);
     };
-  }, [canAccessOnlineStore, currentUserId, navigateTo]);
+  }, [isEnabled, currentUserId, navigateTo]);
 
   // Persistent Durable Object WebSocket Hibernation connection (instant <200ms orders, Win7..Win11 safe via WebView2)
   useOnlineStoreRealtime(
@@ -399,6 +407,22 @@ export default function App() {
         onlineStoreHeaderState?.hasApiKey
     )
   );
+
+  // Silent idle prefetch for licensed online store view so opening is instantaneous (< 30ms) on low-spec hardware
+  useEffect(() => {
+    if (typeof window === 'undefined' || !canAccessOnlineStore) return;
+    const timer = window.setTimeout(() => {
+      const runPrefetch = () => {
+        void import('./views/OnlineStoreView');
+      };
+      if ('requestIdleCallback' in window) {
+        (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback?.(runPrefetch);
+      } else {
+        runPrefetch();
+      }
+    }, 3500);
+    return () => window.clearTimeout(timer);
+  }, [canAccessOnlineStore]);
   const handleUpdateInfoChange = useCallback((info: AppUpdateInfo | null) => {
     setAvailableUpdate(info);
   }, []);
@@ -1075,6 +1099,7 @@ export default function App() {
         refreshSettings(),
         refreshLowStock(),
         refreshUser(),
+        invoke('license:verify').catch(() => {}),
       ]);
       // Keep loading visible for a pleasant smooth feedback moment (600ms)
       await new Promise((resolve) => setTimeout(resolve, 600));
