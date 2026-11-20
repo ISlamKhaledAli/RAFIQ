@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **RAFIQ** (25369 symbols, 75090 relationships, 1089 execution flows).
+This project is indexed by GitNexus as **RAFIQ** (27596 symbols, 79938 relationships, 994 execution flows).
 
 > Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
 
@@ -40,25 +40,25 @@ This project is indexed by GitNexus as **RAFIQ** (25369 symbols, 75090 relations
 | Rename / extract / split / refactor | `.claude/skills/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
-| Work in the Services area (1294 symbols) | `.claude/skills/gitnexus-area-services/SKILL.md` |
-| Work in the Components area (1141 symbols) | `.claude/skills/gitnexus-area-components/SKILL.md` |
-| Work in the Scenarios area (1101 symbols) | `.claude/skills/gitnexus-area-scenarios/SKILL.md` |
-| Work in the Repositories area (458 symbols) | `.claude/skills/gitnexus-area-repositories/SKILL.md` |
-| Work in the Views area (163 symbols) | `.claude/skills/gitnexus-area-views/SKILL.md` |
+| Work in the Services area (1367 symbols) | `.claude/skills/gitnexus-area-services/SKILL.md` |
+| Work in the Components area (1168 symbols) | `.claude/skills/gitnexus-area-components/SKILL.md` |
+| Work in the Scenarios area (1155 symbols) | `.claude/skills/gitnexus-area-scenarios/SKILL.md` |
+| Work in the Repositories area (437 symbols) | `.claude/skills/gitnexus-area-repositories/SKILL.md` |
+| Work in the Views area (184 symbols) | `.claude/skills/gitnexus-area-views/SKILL.md` |
 | Work in the Test area (100 symbols) | `.claude/skills/gitnexus-area-test/SKILL.md` |
-| Work in the Database area (83 symbols) | `.claude/skills/gitnexus-area-database/SKILL.md` |
+| Work in the Database area (87 symbols) | `.claude/skills/gitnexus-area-database/SKILL.md` |
+| Work in the Handlers area (86 symbols) | `.claude/skills/gitnexus-area-handlers/SKILL.md` |
+| Work in the Bridge area (81 symbols) | `.claude/skills/gitnexus-area-bridge/SKILL.md` |
+| Work in the Admin area (75 symbols) | `.claude/skills/gitnexus-area-admin/SKILL.md` |
 | Work in the E2e area (70 symbols) | `.claude/skills/gitnexus-area-e2e/SKILL.md` |
-| Work in the Bridge area (69 symbols) | `.claude/skills/gitnexus-area-bridge/SKILL.md` |
 | Work in the Purchases area (60 symbols) | `.claude/skills/gitnexus-area-purchases/SKILL.md` |
-| Work in the Settings area (55 symbols) | `.claude/skills/gitnexus-area-settings/SKILL.md` |
-| Work in the Handlers area (52 symbols) | `.claude/skills/gitnexus-area-handlers/SKILL.md` |
-| Work in the Desktop area (41 symbols) | `.claude/skills/gitnexus-area-desktop/SKILL.md` |
+| Work in the Settings area (56 symbols) | `.claude/skills/gitnexus-area-settings/SKILL.md` |
+| Work in the Desktop area (54 symbols) | `.claude/skills/gitnexus-area-desktop/SKILL.md` |
+| Work in the Api area (45 symbols) | `.claude/skills/gitnexus-area-api/SKILL.md` |
+| Work in the Pages area (42 symbols) | `.claude/skills/gitnexus-area-pages/SKILL.md` |
 | Work in the Root area (37 symbols) | `.claude/skills/gitnexus-area-root/SKILL.md` |
 | Work in the Pos area (34 symbols) | `.claude/skills/gitnexus-area-pos/SKILL.md` |
-| Work in the Models area (28 symbols) | `.claude/skills/gitnexus-area-models/SKILL.md` |
+| Work in the Models area (27 symbols) | `.claude/skills/gitnexus-area-models/SKILL.md` |
 | Work in the Tests area (27 symbols) | `.claude/skills/gitnexus-area-tests/SKILL.md` |
-| Work in the Context area (24 symbols) | `.claude/skills/gitnexus-area-context/SKILL.md` |
-| Work in the Cluster_227 area (22 symbols) | `.claude/skills/gitnexus-area-cluster-227/SKILL.md` |
-| Work in the Scripts area (21 symbols) | `.claude/skills/gitnexus-area-scripts/SKILL.md` |
 
 <!-- gitnexus:end -->

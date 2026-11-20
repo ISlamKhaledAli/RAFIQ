@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-services
-description: "Skill for the Services area of RAFIQ. 1294 symbols across 216 files."
+description: "Skill for the Services area of RAFIQ. 1367 symbols across 223 files."
 ---
 
 # Services
 
-1294 symbols | 216 files | Cohesion: 62%
+1367 symbols | 223 files | Cohesion: 60%
 
 ## When to Use
 
@@ -18,15 +18,15 @@ description: "Skill for the Services area of RAFIQ. 1294 symbols across 216 file
 | File | Symbols |
 |------|---------|
 | `desktop/Services/PrinterService.cs` | PrintResult, PrinterInfo, PrinterStatusInfo, ReceiptLine, ReceiptRenderJob (+112) |
+| `desktop/Services/ReportsService.cs` | BindCustomDates, GetCashierPerformanceReport, GetCategoryPerformance, GetClosingHistory, GetCreditOverview (+29) |
 | `desktop/Services/SeniorRuthlessAuditRunner.cs` | AssertCondition, RunAllTests, RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity, RunTest11_SupplierDirectPaymentDrawerDeductionAndLedgerParity, RunTest12_SaleCancellationBlockedOnExistingReturns (+28) |
+| `desktop/Services/DatabaseService.cs` | ApplyIntegrityFailure, CheckAndQuarantine, MoveAsideWalAndShm, PruneDirectoryFiles, ReplaceDatabaseFile (+28) |
 | `desktop/Services/MigrationService.cs` | Dispose, TryDetectRecoveryCodeFromFolder, MigrationPackageExportResult, CheckRestoreDiskSpace, CopyDirectoryRecursive (+28) |
-| `desktop/Services/ReportsService.cs` | BindCustomDates, GetCashierPerformanceReport, GetCategoryPerformance, GetClosingHistory, GetCreditOverview (+28) |
-| `desktop/Services/DatabaseService.cs` | ApplyIntegrityFailure, CheckAndQuarantine, MoveAsideWalAndShm, PruneDirectoryFiles, ReplaceDatabaseFile (+27) |
 | `desktop/Services/DemoDataService.cs` | DemoCustomerSeed, DemoStatusResult, CountWhere, GetDemoCustomers, GetDemoProductsForStoreType (+25) |
 | `desktop/Services/SupportService.cs` | SupportBundleResult, BuildReadme, BuildSuccessMessage, BuildTargets, CreateSupportBundle (+25) |
+| `desktop/Services/SyncEngine.cs` | BuildCloudProductDto, IsDemoOrStressId, IsEligibleForCloudStore, ProcessOutboxInternal, PushFullCatalogInternal (+23) |
 | `desktop/Services/BackupService.cs` | ReadLiveCounts, VerifyBackupCore, VerifyBackupDetailed, DriveItem, GetAvailableDrives (+20) |
-| `desktop/Services/SettingsService.cs` | Get, GetDetectedDefaultMotionLevel, GetUiMotionLevel, GetUiMotionStyle, IsUiMotionChange (+18) |
-| `desktop/Services/ProductService.cs` | BulkUpdateMinStock, BulkUpdateTaxRate, GetAll, GetAllSearchIds, GetByExactBarcode (+18) |
+| `desktop/Services/SettingsService.cs` | Get, TryDecodeSignatureImage, GetDetectedDefaultMotionLevel, GetUiMotionLevel, GetUiMotionStyle (+19) |
 
 ## Entry Points
 
@@ -35,8 +35,8 @@ Start here when exploring this area:
 - **`assert`** (Function) — `desktop/Services/PurchasesTestRunner.cs:22`
 - **`Customer`** (Class) — `desktop/Models/Customer.cs:6`
 - **`CustomerBalanceVerification`** (Class) — `desktop/Models/Customer.cs:105`
-- **`DailyClosingPreview`** (Class) — `desktop/Models/DailyClosing.cs:177`
-- **`UnclosedDayAlert`** (Class) — `desktop/Models/DailyClosing.cs:562`
+- **`DigitalAccount`** (Class) — `desktop/Models/DigitalAccountModels.cs:7`
+- **`DigitalTransaction`** (Class) — `desktop/Models/DigitalAccountModels.cs:106`
 
 ## Key Symbols
 
@@ -44,8 +44,6 @@ Start here when exploring this area:
 |--------|------|------|------|
 | `Customer` | Class | `desktop/Models/Customer.cs` | 6 |
 | `CustomerBalanceVerification` | Class | `desktop/Models/Customer.cs` | 105 |
-| `DailyClosingPreview` | Class | `desktop/Models/DailyClosing.cs` | 177 |
-| `UnclosedDayAlert` | Class | `desktop/Models/DailyClosing.cs` | 562 |
 | `DigitalAccount` | Class | `desktop/Models/DigitalAccountModels.cs` | 7 |
 | `DigitalTransaction` | Class | `desktop/Models/DigitalAccountModels.cs` | 106 |
 | `EpayTerminal` | Class | `desktop/Models/EpayModels.cs` | 7 |
@@ -59,24 +57,26 @@ Start here when exploring this area:
 | `QuickItem` | Class | `desktop/Models/QuickItem.cs` | 5 |
 | `ReturnItem` | Class | `desktop/Models/Return.cs` | 6 |
 | `ReturnRefundPart` | Class | `desktop/Models/Return.cs` | 55 |
-| `SalePayment` | Class | `desktop/Models/Sale.cs` | 246 |
 | `SaleItemBatchAllocation` | Class | `desktop/Models/SaleItemBatchAllocation.cs` | 5 |
-| `OpenShiftRequest` | Class | `desktop/Models/ShiftModels.cs` | 144 |
+| `OpenShiftRequest` | Class | `desktop/Models/ShiftModels.cs` | 156 |
+| `Supplier` | Class | `desktop/Models/Supplier.cs` | 5 |
+| `SupplierBalanceVerification` | Class | `desktop/Models/Supplier.cs` | 44 |
+| `SupplierTransaction` | Class | `desktop/Models/SupplierTransaction.cs` | 5 |
 
 ## Execution Flows
 
 | Flow | Type | Steps |
 |------|------|-------|
-| `RunTest26_GenericWalletAndCardClosingParity → Shift` | cross_community | 8 |
+| `RunBaseline → InsuranceClaimLine` | cross_community | 8 |
+| `RunAllTests → InsuranceClaimLine` | cross_community | 8 |
+| `RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity → InsuranceClaimLine` | cross_community | 8 |
+| `RunTest20_DigitalWalletRefundAndCancelOverdraftGuards → InsuranceClaimLine` | cross_community | 8 |
+| `RunTest26_GenericWalletAndCardClosingParity → InsuranceClaimLine` | cross_community | 8 |
+| `RunTest29_CustomerAdvanceCreditReturnSymmetry → InsuranceClaimLine` | cross_community | 8 |
+| `RunTest30_MultiTenderInstapayWalletCashSplitParity → InsuranceClaimLine` | cross_community | 8 |
+| `RunTest8_FinancialRoundingAndCreditReversals → InsuranceClaimLine` | cross_community | 8 |
+| `RunAllTests → InsuranceClaimLine` | cross_community | 8 |
 | `TryDispatchSales → CheckAndRotate` | cross_community | 7 |
-| `RunBaseline → Sale` | cross_community | 7 |
-| `RunBaseline → ReadOptionalLong` | cross_community | 7 |
-| `RunAllTests → InsertInternal` | cross_community | 7 |
-| `RunAllTests → SaleItemModifier` | cross_community | 7 |
-| `RunAllTests → SaleItem` | cross_community | 7 |
-| `RunAllTests → SalePayment` | cross_community | 7 |
-| `ProcessReturnCore → User` | cross_community | 7 |
-| `RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity → NetOutCancelledSettlements` | cross_community | 7 |
 
 ## How to Explore
 

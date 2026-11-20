@@ -1,67 +1,67 @@
 ---
 name: gitnexus-area-handlers
-description: "Skill for the Handlers area of RAFIQ. 52 symbols across 15 files."
+description: "Skill for the Handlers area of RAFIQ. 86 symbols across 18 files."
 ---
 
 # Handlers
 
-52 symbols | 15 files | Cohesion: 84%
+86 symbols | 18 files | Cohesion: 92%
 
 ## When to Use
 
 - Working with code in `online-store/`
-- Understanding how authenticateOwnerRequest, verifySessionToken, handleDashboardGetOrders work
+- Understanding how authenticateOwnerRequest, authenticateSyncRequest, checkCloudStoreEntitlement work
 - Modifying handlers-related functionality
 
 ## Key Files
 
 | File | Symbols |
 |------|---------|
-| `online-store/api/src/handlers/dashboard.ts` | handleDashboardGetOrders, handleDashboardGetProducts, handleDashboardOverview, handleDashboardUpdateOrderStatus, handleDashboardUpdateProductOnlineSettings (+3) |
-| `online-store/api/src/handlers/sync.ts` | handleGetPendingOrders, handleGetSettings, handleHeartbeat, handleSyncStock, handleUpdateOrdersStatus (+2) |
+| `online-store/api/src/handlers/dashboard.ts` | handleDashboardBatchUpdateProducts, handleDashboardBulkUpdateCategoriesVisibility, handleDashboardBulkUpdateProductsVisibility, handleDashboardGetCategories, handleDashboardGetOrders (+12) |
+| `online-store/api/src/handlers/sync.ts` | decodeBase64Bytes, ensureStoreColumns, handleGetCatalogUpdates, handleGetPendingOrders, handleGetSettings (+11) |
+| `online-store/api/src/handlers/store.ts` | decodeBase64ToArrayBuffer, handleCreateOrder, restoreReservedStock, handleGetStore, handleGetStoreCategories (+4) |
 | `license-server/src/crypto.ts` | base64UrlEncode, computeFingerprintTag, generateClockResetToken, generateOfflineSupportCode, generatePinRecoveryToken (+2) |
-| `online-store/api/src/handlers/store.ts` | handleGetStore, handleGetStoreCategories, handleGetStoreProductDetail, handleGetStoreProducts, handleTrackOrder (+1) |
-| `online-store/api/src/crypto.ts` | verifySessionToken, createSessionToken, sha256Hex, timingSafeEqual, generateUUID |
-| `license-server/src/handlers/admin.ts` | generateLicenseKey, part, handleAdmin, isAllowedReleaseDownloadUrl |
+| `license-server/src/handlers/admin.ts` | generateLicenseKey, part, handleAdmin, hmacSha256Hex, isAllowedReleaseDownloadUrl (+2) |
+| `online-store/api/src/crypto.ts` | createSessionToken, generateUUID, hmacSha256Hex, sha256Hex, timingSafeEqual (+1) |
+| `online-store/api/src/handlers/images.ts` | handleDashboardDeleteProductImage, handleDashboardUploadProductImage, handleServePublicImage, parseImageUrls |
+| `online-store/api/src/auth.ts` | authenticateOwnerRequest, authenticateSyncRequest, checkCloudStoreEntitlement |
+| `online-store/api/src/realtime.ts` | handleIssuePosRealtimeToken, handleRealtimeWebSocketConnect, notifyStoreRealtime |
 | `license-server/src/auth.ts` | safeStringCompare, validateAdminSecret, validateClientApiKey |
-| `online-store/api/src/auth.ts` | authenticateOwnerRequest, authenticateSyncRequest |
-| `online-store/api/src/index.ts` | corsHeaders, fetch |
-| `license-server/src/handlers/activate.ts` | handleActivate, logAudit |
 
 ## Entry Points
 
 Start here when exploring this area:
 
-- **`authenticateOwnerRequest`** (Function) — `online-store/api/src/auth.ts:56`
-- **`verifySessionToken`** (Function) — `online-store/api/src/crypto.ts:49`
-- **`handleDashboardGetOrders`** (Function) — `online-store/api/src/handlers/dashboard.ts:122`
-- **`handleDashboardGetProducts`** (Function) — `online-store/api/src/handlers/dashboard.ts:217`
-- **`handleDashboardOverview`** (Function) — `online-store/api/src/handlers/dashboard.ts:58`
+- **`authenticateOwnerRequest`** (Function) — `online-store/api/src/auth.ts:92`
+- **`authenticateSyncRequest`** (Function) — `online-store/api/src/auth.ts:3`
+- **`checkCloudStoreEntitlement`** (Function) — `online-store/api/src/auth.ts:67`
+- **`createSessionToken`** (Function) — `online-store/api/src/crypto.ts:43`
+- **`generateUUID`** (Function) — `online-store/api/src/crypto.ts:32`
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
-| `authenticateOwnerRequest` | Function | `online-store/api/src/auth.ts` | 56 |
-| `verifySessionToken` | Function | `online-store/api/src/crypto.ts` | 49 |
-| `handleDashboardGetOrders` | Function | `online-store/api/src/handlers/dashboard.ts` | 122 |
-| `handleDashboardGetProducts` | Function | `online-store/api/src/handlers/dashboard.ts` | 217 |
-| `handleDashboardOverview` | Function | `online-store/api/src/handlers/dashboard.ts` | 58 |
-| `handleDashboardUpdateOrderStatus` | Function | `online-store/api/src/handlers/dashboard.ts` | 166 |
-| `handleDashboardUpdateProductOnlineSettings` | Function | `online-store/api/src/handlers/dashboard.ts` | 256 |
-| `handleDashboardUpdateStoreSettings` | Function | `online-store/api/src/handlers/dashboard.ts` | 302 |
-| `handleDashboardUpdateStoreTheme` | Function | `online-store/api/src/handlers/dashboard.ts` | 357 |
-| `handleGetStore` | Function | `online-store/api/src/handlers/store.ts` | 3 |
-| `handleGetStoreCategories` | Function | `online-store/api/src/handlers/store.ts` | 43 |
-| `handleGetStoreProductDetail` | Function | `online-store/api/src/handlers/store.ts` | 143 |
-| `handleGetStoreProducts` | Function | `online-store/api/src/handlers/store.ts` | 69 |
-| `handleTrackOrder` | Function | `online-store/api/src/handlers/store.ts` | 398 |
-| `handleGetPendingOrders` | Function | `online-store/api/src/handlers/sync.ts` | 228 |
-| `handleGetSettings` | Function | `online-store/api/src/handlers/sync.ts` | 311 |
-| `handleHeartbeat` | Function | `online-store/api/src/handlers/sync.ts` | 333 |
-| `handleSyncStock` | Function | `online-store/api/src/handlers/sync.ts` | 135 |
-| `handleUpdateOrdersStatus` | Function | `online-store/api/src/handlers/sync.ts` | 270 |
-| `base64UrlEncode` | Function | `license-server/src/crypto.ts` | 5 |
+| `authenticateOwnerRequest` | Function | `online-store/api/src/auth.ts` | 92 |
+| `authenticateSyncRequest` | Function | `online-store/api/src/auth.ts` | 3 |
+| `checkCloudStoreEntitlement` | Function | `online-store/api/src/auth.ts` | 67 |
+| `createSessionToken` | Function | `online-store/api/src/crypto.ts` | 43 |
+| `generateUUID` | Function | `online-store/api/src/crypto.ts` | 32 |
+| `hmacSha256Hex` | Function | `online-store/api/src/crypto.ts` | 9 |
+| `sha256Hex` | Function | `online-store/api/src/crypto.ts` | 2 |
+| `timingSafeEqual` | Function | `online-store/api/src/crypto.ts` | 23 |
+| `verifySessionToken` | Function | `online-store/api/src/crypto.ts` | 63 |
+| `handleDashboardBatchUpdateProducts` | Function | `online-store/api/src/handlers/dashboard.ts` | 1038 |
+| `handleDashboardBulkUpdateCategoriesVisibility` | Function | `online-store/api/src/handlers/dashboard.ts` | 867 |
+| `handleDashboardBulkUpdateProductsVisibility` | Function | `online-store/api/src/handlers/dashboard.ts` | 929 |
+| `handleDashboardGetCategories` | Function | `online-store/api/src/handlers/dashboard.ts` | 745 |
+| `handleDashboardGetOrders` | Function | `online-store/api/src/handlers/dashboard.ts` | 531 |
+| `handleDashboardGetProducts` | Function | `online-store/api/src/handlers/dashboard.ts` | 692 |
+| `handleDashboardOverview` | Function | `online-store/api/src/handlers/dashboard.ts` | 184 |
+| `handleDashboardSmartPublishCatalog` | Function | `online-store/api/src/handlers/dashboard.ts` | 1104 |
+| `handleDashboardUpdateCategoryVisibility` | Function | `online-store/api/src/handlers/dashboard.ts` | 793 |
+| `handleDashboardUpdateOrderStatus` | Function | `online-store/api/src/handlers/dashboard.ts` | 575 |
+| `handleDashboardUpdateProductOnlineSettings` | Function | `online-store/api/src/handlers/dashboard.ts` | 992 |
 
 ## Execution Flows
 
@@ -69,6 +69,12 @@ Start here when exploring this area:
 |------|------|-------|
 | `HandleAdmin → SafeStringCompare` | cross_community | 3 |
 | `HandleAdmin → Part` | intra_community | 3 |
+| `HandleCreateOrder → GenerateUUID` | intra_community | 3 |
+| `HandleCreateOrder → DecodeBase64ToArrayBuffer` | intra_community | 3 |
+| `Fetch → HmacSha256Hex` | intra_community | 3 |
+| `Fetch → TimingSafeEqual` | intra_community | 3 |
+| `Fetch → CheckCloudStoreEntitlement` | intra_community | 3 |
+| `Fetch → VerifySessionToken` | intra_community | 3 |
 
 ## How to Explore
 

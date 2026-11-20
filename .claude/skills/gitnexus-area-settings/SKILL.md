@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-settings
-description: "Skill for the Settings area of RAFIQ. 55 symbols across 14 files."
+description: "Skill for the Settings area of RAFIQ. 56 symbols across 14 files."
 ---
 
 # Settings
 
-55 symbols | 14 files | Cohesion: 64%
+56 symbols | 14 files | Cohesion: 64%
 
 ## When to Use
 
@@ -19,7 +19,7 @@ description: "Skill for the Settings area of RAFIQ. 55 symbols across 14 files."
 |------|---------|
 | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | InvoiceTemplatesTab, handleTestPrint, updateCurrentConfig, BarcodeSnippet, mm (+6) |
 | `frontend/src/utils/thermalImageOptimizer.ts` | applyFloydSteinbergDither, autoLevelPixels, calculatePerceivedLuma, detectImageComplexity, findLogoContentBounds (+4) |
-| `frontend/src/utils/receiptLayout.ts` | buildSampleReceiptSale, layoutReceiptTable, normalizeReceiptText, receiptTextLimitError, resolveReceiptFooter (+2) |
+| `frontend/src/utils/receiptLayout.ts` | buildSampleReceiptSale, layoutReceiptTable, normalizeReceiptText, receiptTextLimitError, resolveReceiptFooter (+3) |
 | `frontend/src/views/settings/SalesPoliciesTab.tsx` | SalesPoliciesTab, fetchUntaxedCount, handleBulkApplyTax, handleIdleTimeoutChange, handleToggleMandatoryField |
 | `frontend/src/views/SettingsView.tsx` | SettingsView, SettingsViewContent, handleSave, save |
 | `frontend/src/views/settings/StoreProfileTab.tsx` | StoreProfileTab, handleLogoUpload, handleModeChange, handleToggleThermalSim |
@@ -34,9 +34,9 @@ Start here when exploring this area:
 
 - **`ReceiptPaper`** (Function) — `frontend/src/components/ReceiptPaper.tsx:65`
 - **`UnsavedChangesChip`** (Function) — `frontend/src/components/UnsavedChangesChip.tsx:6`
-- **`buildSampleReceiptSale`** (Function) — `frontend/src/utils/receiptLayout.ts:705`
-- **`layoutReceiptTable`** (Function) — `frontend/src/utils/receiptLayout.ts:684`
-- **`normalizeReceiptText`** (Function) — `frontend/src/utils/receiptLayout.ts:300`
+- **`buildSampleReceiptSale`** (Function) — `frontend/src/utils/receiptLayout.ts:1017`
+- **`layoutReceiptTable`** (Function) — `frontend/src/utils/receiptLayout.ts:722`
+- **`normalizeReceiptText`** (Function) — `frontend/src/utils/receiptLayout.ts:312`
 
 ## Key Symbols
 
@@ -44,22 +44,22 @@ Start here when exploring this area:
 |--------|------|------|------|
 | `ReceiptPaper` | Function | `frontend/src/components/ReceiptPaper.tsx` | 65 |
 | `UnsavedChangesChip` | Function | `frontend/src/components/UnsavedChangesChip.tsx` | 6 |
-| `buildSampleReceiptSale` | Function | `frontend/src/utils/receiptLayout.ts` | 705 |
-| `layoutReceiptTable` | Function | `frontend/src/utils/receiptLayout.ts` | 684 |
-| `normalizeReceiptText` | Function | `frontend/src/utils/receiptLayout.ts` | 300 |
-| `receiptTextLimitError` | Function | `frontend/src/utils/receiptLayout.ts` | 325 |
-| `resolveReceiptFooter` | Function | `frontend/src/utils/receiptLayout.ts` | 486 |
-| `resolveReceiptSignature` | Function | `frontend/src/utils/receiptLayout.ts` | 493 |
-| `splitReceiptText` | Function | `frontend/src/utils/receiptLayout.ts` | 319 |
+| `buildSampleReceiptSale` | Function | `frontend/src/utils/receiptLayout.ts` | 1017 |
+| `layoutReceiptTable` | Function | `frontend/src/utils/receiptLayout.ts` | 722 |
+| `normalizeReceiptText` | Function | `frontend/src/utils/receiptLayout.ts` | 312 |
+| `receiptTextLimitError` | Function | `frontend/src/utils/receiptLayout.ts` | 337 |
+| `resolveReceiptFooter` | Function | `frontend/src/utils/receiptLayout.ts` | 498 |
+| `resolveReceiptSignature` | Function | `frontend/src/utils/receiptLayout.ts` | 505 |
+| `splitReceiptText` | Function | `frontend/src/utils/receiptLayout.ts` | 331 |
 | `resolveSettingsSubTab` | Function | `frontend/src/utils/settingsAccess.ts` | 25 |
-| `SettingsView` | Function | `frontend/src/views/SettingsView.tsx` | 672 |
+| `SettingsView` | Function | `frontend/src/views/SettingsView.tsx` | 675 |
 | `RootReceiptPage` | Function | `frontend/src/views/root/RootReceiptPage.tsx` | 65 |
 | `handleSave` | Function | `frontend/src/views/root/RootReceiptPage.tsx` | 124 |
 | `save` | Function | `frontend/src/views/root/RootReceiptPage.tsx` | 152 |
-| `InvoiceTemplatesTab` | Function | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | 206 |
-| `handleTestPrint` | Function | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | 326 |
-| `updateCurrentConfig` | Function | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | 271 |
-| `StoreProfileTab` | Function | `frontend/src/views/settings/StoreProfileTab.tsx` | 86 |
+| `InvoiceTemplatesTab` | Function | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | 207 |
+| `handleTestPrint` | Function | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | 328 |
+| `updateCurrentConfig` | Function | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | 273 |
+| `StoreProfileTab` | Function | `frontend/src/views/settings/StoreProfileTab.tsx` | 87 |
 | `ReceiptTextField` | Function | `frontend/src/views/settings/settingsParts.tsx` | 24 |
 | `ToggleRow` | Function | `frontend/src/views/settings/settingsParts.tsx` | 123 |
 

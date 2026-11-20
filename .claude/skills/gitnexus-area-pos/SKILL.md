@@ -55,8 +55,8 @@ Start here when exploring this area:
 | `handlePrintPreBill` | Function | `frontend/src/views/pos/FloorTablesModal.tsx` | 175 |
 | `handleSaveFloorTable` | Function | `frontend/src/views/pos/FloorTablesModal.tsx` | 300 |
 | `handleTransferTable` | Function | `frontend/src/views/pos/FloorTablesModal.tsx` | 190 |
-| `handleRecallHeldSale` | Function | `frontend/src/views/PosView.tsx` | 1129 |
-| `lookupProductsByIds` | Function | `frontend/src/views/PosView.tsx` | 1106 |
+| `handleRecallHeldSale` | Function | `frontend/src/views/PosView.tsx` | 1197 |
+| `lookupProductsByIds` | Function | `frontend/src/views/PosView.tsx` | 1174 |
 | `collectProductIds` | Function | `frontend/src/views/pos/catalogLoad.ts` | 92 |
 | `isLegacyHeldCart` | Function | `frontend/src/views/pos/heldSalePricing.ts` | 117 |
 | `resolveHeldInvoiceDiscount` | Function | `frontend/src/views/pos/heldSalePricing.ts` | 134 |
