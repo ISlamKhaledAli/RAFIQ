@@ -9,14 +9,33 @@ ENVIRONMENT = "production"
 [[d1_databases]]
 binding = "DB"
 database_name = "rafiq-stores-db"
-database_id = "rafiq-stores-db-prod-id"
+database_id = "f785a7ea-dc11-46e6-a317-668beca05ac3"
 
-# R2 Bucket Binding (Product Images)
-[[r2_buckets]]
-binding = "IMAGES"
-bucket_name = "rafiq-product-images"
-
-# KV Namespace Binding (Themes & Presets)
+# Shared KV Namespace for Store Entitlement / Kill-Switch Edge Gating
 [[kv_namespaces]]
-binding = "THEMES"
-id = "rafiq-store-themes-prod-id"
+binding = "STORE_LICENSES"
+id = "4c48d04355a94855957764b00edfd20b"
+
+# Product Images KV Storage (Free Tier 1GB, zero card required; seamlessly upgrades to R2 later)
+[[kv_namespaces]]
+binding = "PRODUCT_IMAGES_KV"
+id = "3b490a734a3b41b4b6c789000be875c0"
+
+# Optional R2 Bucket (enable R2 in Cloudflare Dashboard first, then uncomment)
+# [[r2_buckets]]
+# binding = "IMAGES"
+# bucket_name = "rafiq-product-images"
+
+# Daily Data Retention Cron (Design Doc Section 11.1 - 03:00 UTC)
+[triggers]
+crons = ["0 3 * * *"]
+
+# Per-Store SQLite-backed Durable Object for Instant Real-Time WebSocket Hibernation (Free Tier compatible)
+[durable_objects]
+bindings = [
+  { name = "STORE_REALTIME", class_name = "StoreRealtimeHub" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StoreRealtimeHub"]

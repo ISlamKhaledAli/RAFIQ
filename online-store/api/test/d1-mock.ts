@@ -19,6 +19,29 @@ export function createMockD1Database(): any {
       db.exec(query);
       return Promise.resolve();
     },
+    async batch(statements: Array<{ _query: string; _bindings: any[]; run: () => Promise<any> }>) {
+      const results: any[] = [];
+      db.exec('BEGIN');
+      try {
+        for (const stmtObj of statements) {
+          const stmt = db.prepare(stmtObj._query);
+          const info = stmt.run(...(stmtObj._bindings || [])) as { changes?: number | bigint; lastInsertRowid?: number | bigint };
+          results.push({
+            success: true,
+            results: [],
+            meta: {
+              changes: Number(info?.changes ?? 0),
+              last_row_id: Number(info?.lastInsertRowid ?? 0),
+            },
+          });
+        }
+        db.exec('COMMIT');
+        return results;
+      } catch (err) {
+        db.exec('ROLLBACK');
+        throw err;
+      }
+    },
     prepare(query: string) {
       return {
         _query: query,
@@ -40,10 +63,16 @@ export function createMockD1Database(): any {
           const rows = stmt.all(...this._bindings) as T[];
           return { results: rows || [], success: true };
         },
-        async run(): Promise<{ success: boolean }> {
+        async run(): Promise<{ success: boolean; meta: { changes: number; last_row_id: number } }> {
           const stmt = db.prepare(this._query);
-          stmt.run(...this._bindings);
-          return { success: true };
+          const info = stmt.run(...this._bindings) as { changes?: number | bigint; lastInsertRowid?: number | bigint };
+          return {
+            success: true,
+            meta: {
+              changes: Number(info?.changes ?? 0),
+              last_row_id: Number(info?.lastInsertRowid ?? 0),
+            },
+          };
         },
       };
     },

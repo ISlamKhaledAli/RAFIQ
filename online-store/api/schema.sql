@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS stores (
     theme_custom        TEXT,                          -- JSON: custom CSS tokens override
     min_order_amount    INTEGER NOT NULL DEFAULT 0,    -- Minimum order amount in piasters
     delivery_zones      TEXT,                          -- JSON: [{"name":"وسط البلد","fee":1500}] (fees in piasters)
+    vodafone_cash_phone TEXT,                          -- Primary Vodafone Cash wallet number for e-payments
+    instapay_handle     TEXT,                          -- Primary InstaPay IPA handle / account for e-payments
+    accept_vodafone_cash INTEGER NOT NULL DEFAULT 1,   -- 1 = accept Vodafone Cash, 0 = disabled
+    accept_instapay     INTEGER NOT NULL DEFAULT 1,    -- 1 = accept InstaPay, 0 = disabled
     is_active           INTEGER NOT NULL DEFAULT 1,    -- 1 = active, 0 = disabled
     is_paused           INTEGER NOT NULL DEFAULT 0,    -- Temporary store closing (e.g. vacation)
     pause_message       TEXT,                          -- Message displayed when paused
@@ -98,7 +102,11 @@ CREATE TABLE IF NOT EXISTS orders (
     subtotal            INTEGER NOT NULL,              -- Items total in piasters
     total               INTEGER NOT NULL,              -- Final grand total (subtotal + delivery_fee) in piasters
     notes               TEXT,                          -- Customer special instructions
-    status              TEXT NOT NULL DEFAULT 'new',   -- 'new' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'rejected'
+    payment_method      TEXT,                          -- 'كاش عند الاستلام' | 'إنستاباي' | 'فودافون كاش ومحافظ المحمول'
+    sender_phone        TEXT,                          -- Sender phone or InstaPay IPA handle
+    payment_ref         TEXT,                          -- Transfer reference number (optional)
+    receipt_image       TEXT,                          -- Cloud URL (R2/KV) or compressed data URL of transfer receipt
+    status              TEXT NOT NULL DEFAULT 'new',   -- 'new' | 'viewed' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'rejected' | 'cancelled'
     rejection_reason    TEXT,                          -- Reason if rejected
     status_history      TEXT,                          -- JSON array: [{"status":"new","at":"..."}, ...]
     synced_to_pos       INTEGER NOT NULL DEFAULT 0,    -- 1 once downloaded by POS sync engine
@@ -142,6 +150,7 @@ CREATE TABLE IF NOT EXISTS daily_sales_summaries (
     returns_total       INTEGER NOT NULL DEFAULT 0,    -- Returns total in piasters
     hourly_breakdown    TEXT,                          -- JSON: {"09": 150000, "10": 245000, ...}
     top_products        TEXT,                          -- JSON: [{"id":"...","name":"...","qty":50000}, ...]
+    metrics_json        TEXT,                          -- JSON: extended desktop POS metrics (profit, expenses, wallets, debts)
     synced_at           TEXT NOT NULL,
     FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE,
     UNIQUE(store_id, summary_date)
