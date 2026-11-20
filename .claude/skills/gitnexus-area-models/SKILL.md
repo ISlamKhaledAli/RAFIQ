@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-models
-description: "Skill for the Models area of RAFIQ. 28 symbols across 15 files."
+description: "Skill for the Models area of RAFIQ. 27 symbols across 15 files."
 ---
 
 # Models
 
-28 symbols | 15 files | Cohesion: 63%
+27 symbols | 15 files | Cohesion: 63%
 
 ## When to Use
 
@@ -17,9 +17,9 @@ description: "Skill for the Models area of RAFIQ. 28 symbols across 15 files."
 
 | File | Symbols |
 |------|---------|
-| `desktop/Models/DashboardSummary.cs` | DashboardSummary, StockAdjustmentSummaryItem, TopDebtorItem, TopSellingItem |
 | `desktop/Models/DailyClosing.cs` | DailyClosingEpayTerminalSummary, DailyClosingEpayTransactionItem, DailyClosingWalletSummary, DailyClosingWalletTransactionItem |
 | `desktop/Models/Customer.cs` | CustomerImportPreviewResult, CustomerImportResult, CustomerImportRow |
+| `desktop/Models/DashboardSummary.cs` | DashboardSummary, StockAdjustmentSummaryItem, TopDebtorItem |
 | `desktop/Common/CompoundStockHelper.cs` | FormatCompoundStock, IsOpenPackage, LocalizeUnit |
 | `desktop/Models/DigitalAccountModels.cs` | DigitalAccountFunding, DigitalAnalyticsSummary |
 | `desktop/Repositories/DigitalAccountRepository.cs` | GetAnalytics, MapFunding |
@@ -36,7 +36,7 @@ Start here when exploring this area:
 - **`CustomerImportResult`** (Class) — `desktop/Models/Customer.cs:246`
 - **`CustomerImportRow`** (Class) — `desktop/Models/Customer.cs:167`
 - **`DashboardSummary`** (Class) — `desktop/Models/DashboardSummary.cs:6`
-- **`StockAdjustmentSummaryItem`** (Class) — `desktop/Models/DashboardSummary.cs:257`
+- **`StockAdjustmentSummaryItem`** (Class) — `desktop/Models/DashboardSummary.cs:266`
 
 ## Key Symbols
 
@@ -46,9 +46,8 @@ Start here when exploring this area:
 | `CustomerImportResult` | Class | `desktop/Models/Customer.cs` | 246 |
 | `CustomerImportRow` | Class | `desktop/Models/Customer.cs` | 167 |
 | `DashboardSummary` | Class | `desktop/Models/DashboardSummary.cs` | 6 |
-| `StockAdjustmentSummaryItem` | Class | `desktop/Models/DashboardSummary.cs` | 257 |
-| `TopDebtorItem` | Class | `desktop/Models/DashboardSummary.cs` | 341 |
-| `TopSellingItem` | Class | `desktop/Models/DashboardSummary.cs` | 302 |
+| `StockAdjustmentSummaryItem` | Class | `desktop/Models/DashboardSummary.cs` | 266 |
+| `TopDebtorItem` | Class | `desktop/Models/DashboardSummary.cs` | 350 |
 | `DigitalAccountFunding` | Class | `desktop/Models/DigitalAccountModels.cs` | 227 |
 | `DigitalAnalyticsSummary` | Class | `desktop/Models/DigitalAccountModels.cs` | 266 |
 | `EpayAnalyticsSummary` | Class | `desktop/Models/EpayModels.cs` | 247 |
@@ -62,21 +61,22 @@ Start here when exploring this area:
 | `FormatPiasters` | Method | `desktop/Common/Money.cs` | 33 |
 | `GetAnalytics` | Method | `desktop/Repositories/DigitalAccountRepository.cs` | 1300 |
 | `GetByProductId` | Method | `desktop/Repositories/ProductPriceHistoryRepository.cs` | 83 |
+| `RevertBulkPriceAdjustment` | Method | `desktop/Repositories/ProductRepository.BulkPricing.cs` | 288 |
 
 ## Execution Flows
 
 | Flow | Type | Steps |
 |------|------|-------|
-| `TryDispatchCustomers → FormatPiasters` | cross_community | 6 |
 | `TryDispatchEpay → FormatPiasters` | cross_community | 6 |
 | `RunTest22_AdvancedSubsystemAssetAndCatalogIntegrityGuards → FormatPiasters` | cross_community | 6 |
 | `TryDispatchWallets → FormatPiasters` | cross_community | 5 |
 | `RunAllTests → FormatPiasters` | cross_community | 5 |
 | `ExportFullStoreData → FormatPiasters` | cross_community | 5 |
 | `RunAllTests → FormatPiasters` | cross_community | 5 |
-| `RunTest17_ReturnCeilingsAndDigitalRefundGuards → FormatPiasters` | cross_community | 5 |
 | `RunTest21_EntityArchivalAndActiveValidationGuards → FormatPiasters` | cross_community | 5 |
 | `RunTest23_SeniorCustomerLedgerAndQuickCatalogGuards → FormatPiasters` | cross_community | 5 |
+| `RunTest24_ReturnCartBatchAndUnitResilienceGuards → FormatPiasters` | cross_community | 5 |
+| `RunAllTests → FormatPiasters` | cross_community | 5 |
 
 ## How to Explore
 

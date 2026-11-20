@@ -651,6 +651,31 @@ namespace RafiqPOS.Services
                                 if (!string.IsNullOrEmpty(licType)) _settingsRepo.Set("license_type", licType);
                                 _settingsRepo.Set("license_expires_at", expires);
                                 if (!string.IsNullOrEmpty(shop)) _settingsRepo.Set("license_shop_name", shop);
+
+                                // Auto-provision & govern Online Store entitlement from central license server (Single Source of Truth)
+                                if (details["online_store_enabled"] != null && details["online_store_enabled"].Type == JTokenType.Boolean)
+                                {
+                                    bool onlineStoreEnabled = details["online_store_enabled"].Value<bool>();
+                                    _settingsRepo.Set("feature_online_store", onlineStoreEnabled ? "1" : "0");
+
+                                    if (DatabaseService.SyncRepo != null)
+                                    {
+                                        string cloudSlug = details["online_store_slug"] != null ? details["online_store_slug"].ToString().Trim().ToLowerInvariant() : "";
+                                        string cloudId = details["online_store_cloud_id"] != null ? details["online_store_cloud_id"].ToString().Trim() : "";
+                                        string syncKey = details["online_store_sync_key"] != null ? details["online_store_sync_key"].ToString().Trim() : "";
+
+                                        if (!string.IsNullOrEmpty(cloudSlug)) DatabaseService.SyncRepo.SetState("online_store_slug", cloudSlug);
+                                        if (!string.IsNullOrEmpty(cloudId)) DatabaseService.SyncRepo.SetState("store_cloud_id", cloudId);
+                                        if (!string.IsNullOrEmpty(syncKey)) DatabaseService.SyncRepo.SetState("sync_api_key", syncKey);
+                                        if (!onlineStoreEnabled) DatabaseService.SyncRepo.SetState("online_store_enabled", "0");
+                                    }
+
+                                    if (DatabaseService.Sync != null)
+                                    {
+                                        if (onlineStoreEnabled) DatabaseService.Sync.Start();
+                                        else DatabaseService.Sync.Stop();
+                                    }
+                                }
                             }
 
                             _settingsRepo.Set("last_online_verify_at", DateTime.UtcNow.ToString("o"));

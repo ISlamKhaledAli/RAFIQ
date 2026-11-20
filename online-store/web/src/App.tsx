@@ -1,7 +1,14 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Store, Category, Product, CartItem } from './types';
-import { apiClient, MOCK_STORE, MOCK_CATEGORIES, MOCK_PRODUCTS } from './api/client';
-import { ThemeInjector } from './components/ThemeInjector';
+import { apiClient, MOCK_STORE, MOCK_CATEGORIES, MOCK_PRODUCTS, StoreUnavailableError } from './api/client';
+import {
+  ThemeInjector,
+  resolveThemePreset,
+  resolveLayoutTemplate,
+  type StoreThemeCustom,
+} from './components/ThemeInjector';
+import { applyDocumentBranding } from './utils/documentMeta';
+import { buildWhatsAppUrl } from './utils/whatsapp';
 import { Header } from './components/Header';
 import { DesktopHero } from './components/DesktopHero';
 import { DesktopSidebar } from './components/DesktopSidebar';
@@ -17,27 +24,167 @@ import { FloatingCartBar } from './components/FloatingCartBar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Toast } from './components/Toast';
 import { RafiqBrandingCard } from './components/RafiqBrandingCard';
-import { Sparkles, MapPin, Clock, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { StoreNotFoundPage } from './components/StoreNotFoundPage';
+import { Sparkles, MapPin, Clock, ShieldCheck, CheckCircle2, Loader2 } from 'lucide-react';
+
+const STOREFRONT_PAGE_SIZE = 48;
+
+const VALID_SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+function getCartStorageKey(slug: string): string {
+  return `rafiq_store_cart_v1:${slug || 'rafiq'}`;
+}
+
+function getDeliveryPrefsStorageKey(slug: string): string {
+  return `rafiq_store_delivery_v1:${slug || 'rafiq'}`;
+}
+
+function readStoredCart(slug: string): CartItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(getCartStorageKey(slug));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is CartItem =>
+        Boolean(item) &&
+        typeof item === 'object' &&
+        Boolean(item.product) &&
+        typeof item.product.id === 'string' &&
+        typeof item.product.name === 'string' &&
+        typeof item.product.price_piasters === 'number' &&
+        Number.isFinite(item.product.price_piasters) &&
+        typeof item.quantity === 'number' &&
+        Number.isInteger(item.quantity) &&
+        item.quantity > 0
+    );
+  } catch {
+    return [];
+  }
+}
+
+function readStoredDeliveryPrefs(slug: string): { method?: 'delivery' | 'pickup'; zone?: string } {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(getDeliveryPrefsStorageKey(slug));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return {
+      method: parsed.method === 'pickup' || parsed.method === 'delivery' ? parsed.method : undefined,
+      zone: typeof parsed.zone === 'string' ? parsed.zone : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function safeDecodeSegment(seg: string): string {
+  try {
+    return decodeURIComponent(seg);
+  } catch {
+    return seg;
+  }
+}
 
 export const App: React.FC = () => {
-  const storeSlug = useMemo(() => {
-    const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
-    return path || 'souq-el-khair';
+  const { storeSlug, isDemoRoot, invalidRoute, rawPathname } = useMemo(() => {
+    const rawPath = window.location.pathname || '/';
+    const segments = rawPath
+      .replace(/^\/+|\/+$/g, '')
+      .split('/')
+      .filter(Boolean);
+
+    if (segments.length === 0) {
+      return { storeSlug: 'rafiq', isDemoRoot: true, invalidRoute: false, rawPathname: rawPath };
+    }
+
+    const first = safeDecodeSegment(segments[0]).toLowerCase();
+    if (segments.length === 1) {
+      if (first === 'admin' || first === 'dashboard' || first === 'rafiq') {
+        return { storeSlug: 'rafiq', isDemoRoot: true, invalidRoute: false, rawPathname: rawPath };
+      }
+      return {
+        storeSlug: first,
+        isDemoRoot: false,
+        invalidRoute: !VALID_SLUG_REGEX.test(first),
+        rawPathname: rawPath,
+      };
+    }
+
+    if (segments.length === 2) {
+      const second = safeDecodeSegment(segments[1]).toLowerCase();
+      if (second === 'admin' || second === 'dashboard') {
+        if (first === 'rafiq') {
+          return { storeSlug: 'rafiq', isDemoRoot: true, invalidRoute: false, rawPathname: rawPath };
+        }
+        return {
+          storeSlug: first,
+          isDemoRoot: false,
+          invalidRoute: !VALID_SLUG_REGEX.test(first),
+          rawPathname: rawPath,
+        };
+      }
+    }
+
+    return {
+      storeSlug: first,
+      isDemoRoot: false,
+      invalidRoute: true,
+      rawPathname: rawPath,
+    };
   }, []);
 
+  const [storeUnavailable, setStoreUnavailable] = useState<{ status: number; message: string; code?: string } | null>(
+    () =>
+      invalidRoute
+        ? {
+            status: 404,
+            message: 'الصفحة أو المتجر الذي تحاول الوصول إليه غير موجود. يرجى التأكد من صحة الرابط.',
+            code: 'ROUTE_NOT_FOUND',
+          }
+        : null
+  );
+  const [isLoadingStore, setIsLoadingStore] = useState<boolean>(() => !isDemoRoot && !invalidRoute);
+  const [reloadNonce, setReloadNonce] = useState<number>(0);
+
   const [store, setStore] = useState<Store>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('rafiq_active_theme_preset') : null;
-    return saved ? { ...MOCK_STORE, theme_preset: saved } : MOCK_STORE;
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('rafiq_active_theme_preset_v2') : null;
+    let savedCustom: StoreThemeCustom | null = null;
+    try {
+      const rawCustom = typeof window !== 'undefined' ? localStorage.getItem('rafiq_active_theme_custom_v2') : null;
+      if (rawCustom) savedCustom = JSON.parse(rawCustom);
+    } catch {}
+    return {
+      ...MOCK_STORE,
+      ...(saved ? { theme_preset: saved } : {}),
+      ...(savedCustom ? { theme_custom: savedCustom } : {}),
+    };
   });
   const [categories, setCategories] = useState<Category[]>(MOCK_CATEGORIES);
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('cat-1');
+  const [productsPage, setProductsPage] = useState<number>(1);
+  const [productsTotal, setProductsTotal] = useState<number>(MOCK_PRODUCTS.length);
+  const [productsTotalPages, setProductsTotalPages] = useState<number>(1);
+  const [isLoadingProducts, setIsLoadingProducts] = useState<boolean>(false);
+  const [isLoadingMoreProducts, setIsLoadingMoreProducts] = useState<boolean>(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [searchQuery]);
   const [themePreset, setThemePreset] = useState<string>(() => {
     return (
-      (typeof window !== 'undefined' && localStorage.getItem('rafiq_active_theme_preset')) ||
+      (typeof window !== 'undefined' && localStorage.getItem('rafiq_active_theme_preset_v2')) ||
       MOCK_STORE.theme_preset ||
-      'duo-forest-cream'
+      'rafiq-official'
     );
   });
 
@@ -45,9 +192,32 @@ export const App: React.FC = () => {
     setThemePreset(newPreset);
     setStore(prev => ({ ...prev, theme_preset: newPreset }));
     try {
-      localStorage.setItem('rafiq_active_theme_preset', newPreset);
+      if (isDemoRoot) {
+        localStorage.setItem('rafiq_active_theme_preset_v2', newPreset);
+      }
     } catch {}
   };
+
+  const handleThemeCustomChange = (newCustom: StoreThemeCustom) => {
+    setStore(prev => ({ ...prev, theme_custom: newCustom }));
+    try {
+      if (isDemoRoot) {
+        localStorage.setItem('rafiq_active_theme_custom_v2', JSON.stringify(newCustom));
+      }
+    } catch {}
+  };
+
+  const activeLayoutTemplate = useMemo(
+    () => resolveLayoutTemplate(store.theme_custom as StoreThemeCustom | null),
+    [store.theme_custom]
+  );
+
+  const productsGridClass =
+    activeLayoutTemplate === 'compact'
+      ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3.5'
+      : activeLayoutTemplate === 'boutique'
+      ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6'
+      : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-3 sm:gap-5';
 
   // Desktop quick filters
   const [featuredOnly, setFeaturedOnly] = useState(false);
@@ -73,15 +243,16 @@ export const App: React.FC = () => {
   const navigateToView = (view: 'store' | 'admin') => {
     setCurrentView(view);
     try {
+      const url = new URL(window.location.href);
       if (view === 'admin') {
-        const url = new URL(window.location.href);
         url.searchParams.set('admin', '1');
         window.history.pushState({}, '', url.toString());
       } else {
-        const url = new URL(window.location.href);
         url.searchParams.delete('admin');
         url.searchParams.delete('view');
-        window.history.pushState({}, '', url.pathname + (url.search ? url.search : ''));
+        url.searchParams.delete('tab');
+        const cleanedPath = url.pathname.replace(/\/(admin|dashboard)\/?$/i, '') || '/';
+        window.history.pushState({}, '', cleanedPath + (url.search ? url.search : ''));
       }
     } catch {}
   };
@@ -107,8 +278,8 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Cart & Modals
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  // Cart & Modals (persisted per store slug across page refreshes)
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => readStoredCart(storeSlug));
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
@@ -116,9 +287,10 @@ export const App: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Toast Notification
-  const [toast, setToast] = useState<{ visible: boolean; message: string; subMessage?: string }>({
+  const [toast, setToast] = useState<{ visible: boolean; message: string; key: number }>({
     visible: false,
     message: '',
+    key: 0,
   });
 
   // Orders State
@@ -127,9 +299,51 @@ export const App: React.FC = () => {
   const [lastOrderPaymentMethod, setLastOrderPaymentMethod] = useState<string>('cash');
   const [lastOrderReceipt, setLastOrderReceipt] = useState<string | null>(null);
 
-  // Delivery
-  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
-  const [selectedDeliveryZone, setSelectedDeliveryZone] = useState<string>('وسط البلد');
+  // Delivery (persisted per store slug)
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>(
+    () => readStoredDeliveryPrefs(storeSlug).method || 'delivery'
+  );
+  const [selectedDeliveryZone, setSelectedDeliveryZone] = useState<string>(
+    () =>
+      readStoredDeliveryPrefs(storeSlug).zone ||
+      (isDemoRoot ? MOCK_STORE.delivery_zones?.[0]?.name || '' : '')
+  );
+
+  // Persist cart to localStorage on every update
+  useEffect(() => {
+    if (typeof window === 'undefined' || invalidRoute) return;
+    try {
+      const key = getCartStorageKey(storeSlug);
+      if (cartItems.length === 0) {
+        window.localStorage.removeItem(key);
+      } else {
+        window.localStorage.setItem(key, JSON.stringify(cartItems));
+      }
+    } catch {}
+  }, [cartItems, storeSlug, invalidRoute]);
+
+  // Persist delivery method & zone per store
+  useEffect(() => {
+    if (typeof window === 'undefined' || invalidRoute) return;
+    try {
+      window.localStorage.setItem(
+        getDeliveryPrefsStorageKey(storeSlug),
+        JSON.stringify({ method: deliveryMethod, zone: selectedDeliveryZone })
+      );
+    } catch {}
+  }, [deliveryMethod, selectedDeliveryZone, storeSlug, invalidRoute]);
+
+  // Reload isolated cart if storeSlug changes
+  const prevSlugRef = useRef(storeSlug);
+  useEffect(() => {
+    if (prevSlugRef.current !== storeSlug) {
+      prevSlugRef.current = storeSlug;
+      setCartItems(readStoredCart(storeSlug));
+      const prefs = readStoredDeliveryPrefs(storeSlug);
+      setDeliveryMethod(prefs.method || 'delivery');
+      setSelectedDeliveryZone(prefs.zone || '');
+    }
+  }, [storeSlug]);
 
   // Active bottom nav tab
   const [mobileTab, setMobileTab] = useState<'home' | 'categories'>('home');
@@ -138,26 +352,251 @@ export const App: React.FC = () => {
 
   // Load Data
   useEffect(() => {
+    if (invalidRoute) {
+      setIsLoadingStore(false);
+      return;
+    }
+    let cancelled = false;
     async function loadData() {
       try {
-        const storeData = await apiClient.getStore(storeSlug);
-        const saved = typeof window !== 'undefined' ? localStorage.getItem('rafiq_active_theme_preset') : null;
-        const effectiveTheme = saved || storeData.theme_preset || 'duo-forest-cream';
-        const mergedStore = { ...storeData, theme_preset: effectiveTheme };
+        if (!isDemoRoot) setIsLoadingStore(true);
+        setStoreUnavailable(null);
+        const storeData = await apiClient.getStore(storeSlug, isDemoRoot);
+        if (cancelled) return;
+        const saved = isDemoRoot && typeof window !== 'undefined' ? localStorage.getItem('rafiq_active_theme_preset_v2') : null;
+        let savedCustom: StoreThemeCustom | null = null;
+        if (isDemoRoot && typeof window !== 'undefined') {
+          try {
+            const rawC = localStorage.getItem('rafiq_active_theme_custom_v2');
+            if (rawC) savedCustom = JSON.parse(rawC);
+          } catch {}
+        }
+        const effectiveTheme = saved || storeData.theme_preset || 'rafiq-official';
+        const mergedStore = {
+          ...storeData,
+          theme_preset: effectiveTheme,
+          theme_custom: savedCustom || storeData.theme_custom || null,
+        };
         setStore(mergedStore);
         setThemePreset(effectiveTheme);
+        if (mergedStore.delivery_zones && mergedStore.delivery_zones.length > 0) {
+          setSelectedDeliveryZone(prev =>
+            mergedStore.delivery_zones!.some(z => z.name === prev)
+              ? prev
+              : mergedStore.delivery_zones![0].name
+          );
+        } else {
+          setSelectedDeliveryZone('');
+        }
 
-        const cats = await apiClient.getCategories(storeSlug);
+        const [cats, firstPage] = await Promise.all([
+          apiClient.getCategories(storeSlug, isDemoRoot),
+          apiClient.getProductsPage(
+            storeSlug,
+            { page: 1, limit: STOREFRONT_PAGE_SIZE },
+            isDemoRoot
+          ),
+        ]);
+        if (cancelled) return;
         setCategories(cats);
+        setProducts(firstPage.products);
+        setProductsPage(1);
+        setProductsTotal(firstPage.pagination.total);
+        setProductsTotalPages(firstPage.pagination.totalPages);
 
-        const prods = await apiClient.getProducts(storeSlug);
-        setProducts(prods);
+        // Refresh prices/stock for any restored cart items present in the first page (server validates full cart on checkout)
+        if (firstPage.products.length > 0) {
+          const liveById = new Map(firstPage.products.map(p => [p.id, p]));
+          setCartItems(prev => {
+            if (prev.length === 0) return prev;
+            const reconciled: CartItem[] = [];
+            for (const item of prev) {
+              const live = liveById.get(item.product.id);
+              if (live) {
+                if (!live.in_stock || live.stock_quantity <= 0) continue;
+                reconciled.push({ product: live, quantity: item.quantity });
+              } else {
+                reconciled.push(item);
+              }
+            }
+            return reconciled;
+          });
+        }
       } catch (e) {
+        if (cancelled) return;
+        if (e instanceof StoreUnavailableError) {
+          setStoreUnavailable({ status: e.status, message: e.message, code: e.code });
+          return;
+        }
         console.error('Failed to load store data:', e);
+      } finally {
+        if (!cancelled) setIsLoadingStore(false);
       }
     }
     loadData();
-  }, [storeSlug]);
+    return () => {
+      cancelled = true;
+    };
+  }, [storeSlug, isDemoRoot, invalidRoute, reloadNonce]);
+
+  // Server-side filtered query whenever category, featured toggle, or debounced search changes
+  const isInitialFilterMountRef = useRef(true);
+  useEffect(() => {
+    if (invalidRoute || storeUnavailable) return;
+    if (isInitialFilterMountRef.current) {
+      isInitialFilterMountRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    async function fetchFilteredFirstPage() {
+      setIsLoadingProducts(true);
+      try {
+        const res = await apiClient.getProductsPage(
+          storeSlug,
+          {
+            categoryId: selectedCategoryId,
+            search: debouncedSearchQuery,
+            featured: featuredOnly,
+            page: 1,
+            limit: STOREFRONT_PAGE_SIZE,
+          },
+          isDemoRoot
+        );
+        if (cancelled) return;
+        setProducts(res.products);
+        setProductsPage(1);
+        setProductsTotal(res.pagination.total);
+        setProductsTotalPages(res.pagination.totalPages);
+      } catch {
+        // Keep previous products on transient network hiccup
+      } finally {
+        if (!cancelled) setIsLoadingProducts(false);
+      }
+    }
+    void fetchFilteredFirstPage();
+    return () => {
+      cancelled = true;
+    };
+  }, [storeSlug, isDemoRoot, invalidRoute, storeUnavailable, selectedCategoryId, featuredOnly, debouncedSearchQuery]);
+
+  const handleLoadMoreProducts = useCallback(async () => {
+    if (isLoadingMoreProducts || isLoadingProducts || productsPage >= productsTotalPages) return;
+    const nextPage = productsPage + 1;
+    setIsLoadingMoreProducts(true);
+    try {
+      const res = await apiClient.getProductsPage(
+        storeSlug,
+        {
+          categoryId: selectedCategoryId,
+          search: debouncedSearchQuery,
+          featured: featuredOnly,
+          page: nextPage,
+          limit: STOREFRONT_PAGE_SIZE,
+        },
+        isDemoRoot
+      );
+      setProducts(prev => {
+        const seen = new Set(prev.map(p => p.id));
+        const merged = [...prev];
+        for (const p of res.products) {
+          if (!seen.has(p.id)) {
+            seen.add(p.id);
+            merged.push(p);
+          }
+        }
+        return merged;
+      });
+      setProductsPage(nextPage);
+      setProductsTotal(res.pagination.total);
+      setProductsTotalPages(res.pagination.totalPages);
+    } finally {
+      setIsLoadingMoreProducts(false);
+    }
+  }, [
+    isLoadingMoreProducts,
+    isLoadingProducts,
+    productsPage,
+    productsTotalPages,
+    storeSlug,
+    selectedCategoryId,
+    debouncedSearchQuery,
+    featuredOnly,
+    isDemoRoot,
+  ]);
+
+  // Smooth infinite scroll: automatically loads next 48 products when shopper approaches bottom
+  useEffect(() => {
+    const el = loadMoreSentinelRef.current;
+    if (!el || currentView !== 'store' || productsPage >= productsTotalPages) return;
+    if (typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0]?.isIntersecting) {
+          void handleLoadMoreProducts();
+        }
+      },
+      { rootMargin: '320px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [currentView, productsPage, productsTotalPages, handleLoadMoreProducts]);
+
+  // Dynamic Page Title, Favicon & Theme Color per Store / Slug / View
+  useEffect(() => {
+    if (storeUnavailable) {
+      const title =
+        storeUnavailable.status === 403
+          ? 'المتجر غير متاح حالياً | رفيق للمتاجر الإلكترونية'
+          : storeUnavailable.status === 0 || storeUnavailable.status >= 500
+          ? 'تعذر الاتصال | رفيق للمتاجر الإلكترونية'
+          : 'المتجر غير موجود (404) | رفيق للمتاجر الإلكترونية';
+      applyDocumentBranding({
+        title,
+        description: storeUnavailable.message,
+        faviconHref: '/app_icon_512.png',
+        appleTouchIconHref: '/app_icon_512.png',
+        themeColor: '#004D3F',
+      });
+      return;
+    }
+
+    if (!isLoadingStore && store?.name) {
+      const themeCfg = resolveThemePreset(themePreset || store.theme_preset || 'rafiq-official');
+      const isOfficialDemo = store.slug === 'rafiq';
+      const cleanName = (store.name || '').trim();
+      const displayStoreName =
+        cleanName.length > 0 && cleanName.toLowerCase() !== 'test'
+          ? cleanName
+          : (store.slug && store.slug !== 'test' ? store.slug : 'متجر رفيق');
+
+      const title =
+        currentView === 'admin'
+          ? `لوحة تحكم ${displayStoreName} | رفيق`
+          : isOfficialDemo
+          ? `${displayStoreName} | تسوق أونلاين`
+          : `${displayStoreName} | اطلب أونلاين`;
+
+      const faviconHref =
+        store.logo_url && store.logo_url.trim().length > 0
+          ? store.logo_url.trim()
+          : '/rafiq_logo.png';
+
+      const appleTouchIconHref =
+        store.logo_url && store.logo_url.trim().length > 0
+          ? store.logo_url.trim()
+          : '/rafiq_logo.png';
+
+      applyDocumentBranding({
+        title,
+        description:
+          store.welcome_message ||
+          `تسوق الآن من ${store.name}${store.address ? ` — ${store.address}` : ''} واطلب أونلاين بأسعار المحل الرسمية.`,
+        faviconHref,
+        appleTouchIconHref,
+        themeColor: themeCfg.primary,
+      });
+    }
+  }, [storeUnavailable, isLoadingStore, store, themePreset, currentView]);
 
   // Cart operations with Toast feedback
   const handleAddToCart = (product: Product) => {
@@ -171,12 +610,12 @@ export const App: React.FC = () => {
       return [...prev, { product, quantity: 1 }];
     });
 
-    // Sensory feedback toast
-    setToast({
+    // Compact micro-pill toast feedback
+    setToast(prev => ({
       visible: true,
-      message: `تمت إضافة "${product.name}" إلى السلة`,
-      subMessage: `السعر: ${(product.price_piasters / 100).toFixed(2)} ج.م`,
-    });
+      message: `تمت إضافة "${product.name}" للسلة`,
+      key: prev.key + 1,
+    }));
   };
 
   const handleRemoveFromCart = (productId: string) => {
@@ -203,9 +642,54 @@ export const App: React.FC = () => {
     return cartItems.reduce((acc, i) => acc + i.product.price_piasters * i.quantity, 0);
   }, [cartItems]);
 
+  const hiddenCategoryIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of categories) {
+      if (c.is_online === 0) set.add(c.id);
+    }
+    return set;
+  }, [categories]);
+
+  // Storefront-visible products (strictly exclude manually hidden items, out-of-stock, and hidden categories)
+  const storefrontProducts = useMemo(() => {
+    return products.filter(p => {
+      if (p.is_online === 0) return false;
+      if (p.stock_quantity <= 0) return false;
+      if (p.category_id && hiddenCategoryIds.has(p.category_id)) return false;
+      return true;
+    });
+  }, [products, hiddenCategoryIds]);
+
+  // Storefront-visible categories (server already excludes disabled & empty categories via SQL INNER JOIN)
+  const storefrontCategories = useMemo(() => {
+    const allEntry = categories.find(c => c.id === 'all' || c.id === 'cat-1') || {
+      id: 'all',
+      name: 'الكل',
+      parent_id: null,
+      image_url: null,
+      sort_order: 0,
+    };
+    const visibleReal = categories.filter(
+      c => c.id !== 'all' && c.id !== 'cat-1' && c.is_online !== 0
+    );
+    return [allEntry, ...visibleReal];
+  }, [categories]);
+
+  // Reset selected category to 'all' if it was just hidden in Admin
+  useEffect(() => {
+    if (
+      selectedCategoryId &&
+      selectedCategoryId !== 'all' &&
+      selectedCategoryId !== 'cat-1' &&
+      !storefrontCategories.some(c => c.id === selectedCategoryId)
+    ) {
+      setSelectedCategoryId('all');
+    }
+  }, [selectedCategoryId, storefrontCategories]);
+
   // Filtered products
   const filteredProducts = useMemo(() => {
-    let list = [...products];
+    let list = [...storefrontProducts];
 
     if (selectedCategoryId && selectedCategoryId !== 'cat-1' && selectedCategoryId !== 'all') {
       list = list.filter(p => p.category_id === selectedCategoryId);
@@ -227,16 +711,39 @@ export const App: React.FC = () => {
     }
 
     return list;
-  }, [products, selectedCategoryId, featuredOnly, inStockOnly, searchQuery]);
+  }, [storefrontProducts, selectedCategoryId, featuredOnly, inStockOnly, searchQuery]);
+
+  // Official Rafiq Motion Twin-Phase for Catalog Filtering & Search
+  const [catalogMotionPhase, setCatalogMotionPhase] = useState<'a' | 'b'>('a');
+  const prevImmediateFilterRef = useRef<string>(`${selectedCategoryId}|${featuredOnly}|${inStockOnly}`);
+  const prevSearchRef = useRef<string>(searchQuery.trim().toLowerCase());
+
+  useEffect(() => {
+    const key = `${selectedCategoryId}|${featuredOnly}|${inStockOnly}`;
+    if (prevImmediateFilterRef.current !== key) {
+      prevImmediateFilterRef.current = key;
+      setCatalogMotionPhase(prev => (prev === 'a' ? 'b' : 'a'));
+    }
+  }, [selectedCategoryId, featuredOnly, inStockOnly]);
+
+  useEffect(() => {
+    const normalized = searchQuery.trim().toLowerCase();
+    if (prevSearchRef.current === normalized) return;
+    const timer = window.setTimeout(() => {
+      prevSearchRef.current = normalized;
+      setCatalogMotionPhase(prev => (prev === 'a' ? 'b' : 'a'));
+    }, 130);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   const featuredProducts = useMemo(() => {
-    return products.filter(p => p.is_featured === 1);
-  }, [products]);
+    return storefrontProducts.filter(p => p.is_featured === 1);
+  }, [storefrontProducts]);
 
   const handleMobileNavSelect = (tab: string) => {
     if (tab === 'home') {
       setMobileTab('home');
-      setSelectedCategoryId('cat-1');
+      setSelectedCategoryId('all');
       setSearchQuery('');
       setFeaturedOnly(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -246,6 +753,39 @@ export const App: React.FC = () => {
     }
   };
 
+  // Branded Loading State (prevents flashing demo store on real/404 slugs)
+  if (isLoadingStore) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-[#F7FAFC] flex flex-col items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-5 animate-fade-in-up">
+          <img
+            src="/logo_full.png"
+            alt="رفيق للمتاجر الإلكترونية"
+            className="h-11 sm:h-12 w-auto object-contain"
+          />
+          <div className="w-44 h-1.5 rounded-full bg-[#E6F2ED] overflow-hidden">
+            <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-[#004D3F] to-[#006D41] animate-pulse" />
+          </div>
+          <p className="text-xs font-bold text-[#52605D]">جاري تحميل بيانات المتجر...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Store Unavailable / Disabled Gate (404 Not Found, 403 Kill-Switch, or Network Error)
+  if (storeUnavailable) {
+    return (
+      <StoreNotFoundPage
+        status={storeUnavailable.status}
+        message={storeUnavailable.message}
+        code={storeUnavailable.code}
+        requestedSlug={storeSlug}
+        requestedPath={rawPathname}
+        onRetry={() => setReloadNonce(n => n + 1)}
+      />
+    );
+  }
+
   // Full-Page Shopify Polaris Merchant Admin Portal
   if (currentView === 'admin') {
     return (
@@ -253,10 +793,14 @@ export const App: React.FC = () => {
         <ThemeInjector preset={themePreset} custom={store.theme_custom} />
         <AdminDashboardPage
           store={store}
+          categories={categories}
           products={products}
           currentThemePreset={themePreset}
           onThemeChange={handleThemeChange}
+          onThemeCustomChange={handleThemeCustomChange}
           onUpdateStore={updated => setStore(updated)}
+          onCategoriesChange={setCategories}
+          onProductsChange={setProducts}
           onBackToStore={() => navigateToView('store')}
         />
       </div>
@@ -268,13 +812,12 @@ export const App: React.FC = () => {
       {/* Dynamic Theme Injector */}
       <ThemeInjector preset={themePreset} custom={store.theme_custom} />
 
-      {/* Floating Mini-Toast Notification */}
+      {/* Floating Micro-Pill Toast Notification */}
       <Toast
         isVisible={toast.visible}
+        toastKey={toast.key}
         message={toast.message}
-        subMessage={toast.subMessage}
         onClose={() => setToast(prev => ({ ...prev, visible: false }))}
-        onOpenCart={() => setIsCartOpen(true)}
       />
 
       {/* Header */}
@@ -295,15 +838,16 @@ export const App: React.FC = () => {
       <DesktopHero
         store={store}
         onExploreOffers={() => {
-          setSelectedCategoryId('cat-1');
+          setSelectedCategoryId('all');
           setFeaturedOnly(true);
         }}
+        onOpenDashboard={() => navigateToView('admin')}
       />
 
       {/* Mobile-Only Category Pills Bar */}
       <div ref={categoriesSectionRef} className="sm:hidden px-3 w-full mt-1">
         <CategoryPills
-          categories={categories}
+          categories={storefrontCategories}
           selectedCategoryId={selectedCategoryId}
           onSelectCategory={id => {
             setSelectedCategoryId(id);
@@ -352,7 +896,7 @@ export const App: React.FC = () => {
       </div>
 
       {/* Mobile-Only Featured Carousel */}
-      {!searchQuery && selectedCategoryId === 'cat-1' && !featuredOnly && featuredProducts.length > 0 && (
+      {!searchQuery && (selectedCategoryId === 'all' || selectedCategoryId === 'cat-1') && !featuredOnly && featuredProducts.length > 0 && (
         <section className="sm:hidden px-3 w-full mt-4">
           <div className="flex items-center justify-between mb-2.5 px-0.5">
             <div className="flex items-center gap-1.5">
@@ -392,7 +936,7 @@ export const App: React.FC = () => {
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           {/* Desktop Categories & Info Sidebar */}
           <DesktopSidebar
-            categories={categories}
+            categories={storefrontCategories}
             selectedCategoryId={selectedCategoryId}
             onSelectCategory={setSelectedCategoryId}
             featuredOnly={featuredOnly}
@@ -412,12 +956,12 @@ export const App: React.FC = () => {
                     ? `نتائج البحث عن: "${searchQuery}"`
                     : featuredOnly
                     ? 'العروض والتخفيضات المميزة'
-                    : selectedCategoryId === 'cat-1'
+                    : selectedCategoryId === 'all' || selectedCategoryId === 'cat-1'
                     ? 'كافة المنتجات المتاحة'
                     : categories.find(c => c.id === selectedCategoryId)?.name || 'الأصناف'}
                 </h3>
-                <span className="text-xs bg-store-card-subtle text-store-muted border border-store-line px-3 py-1 rounded-full font-bold">
-                  {filteredProducts.length} صنف متاح
+                <span className="text-xs bg-store-card-subtle text-store-muted border border-store-line px-3 py-1 rounded-full font-bold tabular-nums">
+                  {productsTotal.toLocaleString('en-US')} صنف متاح
                 </span>
               </div>
 
@@ -441,7 +985,7 @@ export const App: React.FC = () => {
                       setFeaturedOnly(false);
                       setInStockOnly(false);
                       setSearchQuery('');
-                      setSelectedCategoryId('cat-1');
+                      setSelectedCategoryId('all');
                     }}
                     className="text-xs font-bold text-rose-600 hover:underline mr-2 btn-spring"
                   >
@@ -458,37 +1002,47 @@ export const App: React.FC = () => {
                   ? `نتائج البحث: "${searchQuery}"`
                   : featuredOnly
                   ? 'العروض والتخفيضات'
-                  : selectedCategoryId === 'cat-1'
+                  : selectedCategoryId === 'all' || selectedCategoryId === 'cat-1'
                   ? 'كافة الأصناف والمنتجات'
                   : categories.find(c => c.id === selectedCategoryId)?.name || 'الأصناف'}
               </h3>
-              <span className="text-[11px] font-bold text-store-muted">
-                {filteredProducts.length} صنف
+              <span className="text-[11px] font-bold text-store-muted tabular-nums">
+                {productsTotal.toLocaleString('en-US')} صنف
               </span>
             </div>
 
             {/* Products Grid */}
-            {filteredProducts.length === 0 ? (
-              <div className="py-16 text-center text-store-muted bg-store-card rounded-3xl border border-store-line p-8 shadow-2xs transition-colors">
-                <div className="w-16 h-16 rounded-3xl bg-store-primary-light text-store-primary mx-auto flex items-center justify-center mb-3 shadow-inner border border-store-primary/20">
-                  <Sparkles className="w-8 h-8" />
+            {isLoadingProducts ? (
+              <div className="py-16 flex flex-col items-center justify-center gap-3 text-store-muted bg-store-card rounded-3xl border border-store-line">
+                <Loader2 className="w-7 h-7 animate-spin text-store-primary" />
+                <span className="text-xs font-bold">جاري تحميل الأصناف...</span>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div data-motion-phase={catalogMotionPhase}>
+                <div className="py-16 text-center text-store-muted bg-store-card rounded-3xl border border-store-line p-8 shadow-sm transition-colors">
+                  <div className="w-16 h-16 rounded-3xl bg-store-primary-light text-store-primary mx-auto flex items-center justify-center mb-3 shadow-inner border border-store-primary/20">
+                    <Sparkles className="w-8 h-8" />
+                  </div>
+                  <h4 className="text-base font-black text-store-text">لا توجد أصناف مطابقة</h4>
+                  <p className="text-xs text-store-muted mt-1">جرب إزالة بعض الفلاتر أو البحث بكلمة أخرى</p>
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setFeaturedOnly(false);
+                      setInStockOnly(false);
+                      setSelectedCategoryId('all');
+                    }}
+                    className="mt-4 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-store-primary to-store-secondary text-store-primary-contrast text-xs font-black shadow-md btn-spring"
+                  >
+                    عرض كافة المنتجات
+                  </button>
                 </div>
-                <h4 className="text-base font-black text-store-text">لا توجد أصناف مطابقة</h4>
-                <p className="text-xs text-store-muted mt-1">جرب إزالة بعض الفلاتر أو البحث بكلمة أخرى</p>
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setFeaturedOnly(false);
-                    setInStockOnly(false);
-                    setSelectedCategoryId('cat-1');
-                  }}
-                  className="mt-4 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-store-primary to-store-secondary text-store-primary-contrast text-xs font-black shadow-md btn-spring"
-                >
-                  عرض كافة المنتجات
-                </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-3 sm:gap-5">
+              <div
+                data-motion-phase={catalogMotionPhase}
+                className={`${productsGridClass} motion-catalog-grid`}
+              >
                 {filteredProducts.map(product => {
                   const inCart = cartItems.find(i => i.product.id === product.id)?.quantity || 0;
                   return (
@@ -496,12 +1050,37 @@ export const App: React.FC = () => {
                       key={product.id}
                       product={product}
                       quantityInCart={inCart}
+                      layoutTemplate={activeLayoutTemplate}
                       onAddToCart={handleAddToCart}
                       onRemoveFromCart={handleRemoveFromCart}
                       onSelectProduct={setSelectedProduct}
                     />
                   );
                 })}
+              </div>
+            )}
+
+            {/* Infinite Scroll Sentinel & Crisp Load More Control */}
+            {!isLoadingProducts && productsPage < productsTotalPages && (
+              <div ref={loadMoreSentinelRef} className="mt-6 flex flex-col items-center justify-center gap-2">
+                <button
+                  type="button"
+                  disabled={isLoadingMoreProducts}
+                  onClick={() => void handleLoadMoreProducts()}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-store-card hover:bg-store-primary-light border border-store-line hover:border-store-primary/40 text-xs font-black text-store-primary shadow-sm transition-colors disabled:opacity-60 cursor-pointer"
+                >
+                  {isLoadingMoreProducts ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>جاري تحميل المزيد...</span>
+                    </>
+                  ) : (
+                    <span>
+                      عرض المزيد ({filteredProducts.length.toLocaleString('en-US')} من{' '}
+                      {productsTotal.toLocaleString('en-US')} صنف)
+                    </span>
+                  )}
+                </button>
               </div>
             )}
           </main>
@@ -525,8 +1104,15 @@ export const App: React.FC = () => {
             {/* Store Information */}
             <div className="md:col-span-2 space-y-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-store-primary to-store-secondary text-white flex items-center justify-center font-black text-base shadow-sm border border-white/20">
-                  {store.name.charAt(0)}
+                <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm border border-white/25 overflow-hidden p-1">
+                  <img
+                    src={store.logo_url || '/rafiq_logo.png'}
+                    alt={store.name}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/rafiq_logo.png';
+                    }}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <div>
                   <h4 className="text-base font-black text-white">{store.name}</h4>
@@ -589,7 +1175,7 @@ export const App: React.FC = () => {
                 </button>
                 {store.whatsapp && (
                   <a
-                    href={`https://wa.me/2${store.whatsapp.replace(/^0+/, '')}`}
+                    href={buildWhatsAppUrl(store.whatsapp)}
                     target="_blank"
                     rel="noreferrer"
                     className="hover:text-emerald-400 transition-colors flex items-center justify-between pb-1.5 border-b border-white/10 text-xs"
@@ -681,7 +1267,7 @@ export const App: React.FC = () => {
         store={store}
         deliveryMethod={deliveryMethod}
         selectedDeliveryZone={selectedDeliveryZone}
-        createOrderApi={orderData => apiClient.createOrder(storeSlug, orderData)}
+        createOrderApi={orderData => apiClient.createOrder(storeSlug, orderData, isDemoRoot)}
         onOrderCompleted={(orderNum, total, payMethod, receiptImg) => {
           setLastOrderNumber(orderNum);
           setLastOrderTotal(total);
@@ -690,6 +1276,12 @@ export const App: React.FC = () => {
           setCartItems([]);
           setIsCheckoutOpen(false);
           setIsSuccessOpen(true);
+          if (!isDemoRoot) {
+            apiClient
+              .getProducts(storeSlug, undefined, false)
+              .then(fresh => setProducts(fresh))
+              .catch(() => {});
+          }
         }}
       />
 
@@ -711,7 +1303,7 @@ export const App: React.FC = () => {
       <OrderTrackerModal
         isOpen={isTrackerOpen}
         onClose={() => setIsTrackerOpen(false)}
-        trackOrderApi={(num, ph) => apiClient.trackOrder(storeSlug, num, ph)}
+        trackOrderApi={(num, ph) => apiClient.trackOrder(storeSlug, num, ph, isDemoRoot)}
       />
     </div>
   );

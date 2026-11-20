@@ -27,6 +27,19 @@ namespace RafiqPOS.Models
         [JsonProperty("unitPricePiasters")]
         public long UnitPricePiasters { get; set; }
 
+        [JsonProperty("pricePiasters")]
+        public long PricePiasters
+        {
+            get { return UnitPricePiasters; }
+            set
+            {
+                if (UnitPricePiasters == 0)
+                {
+                    UnitPricePiasters = value;
+                }
+            }
+        }
+
         [JsonProperty("unitCostPiasters")]
         public long UnitCostPiasters { get; set; }
 
@@ -217,6 +230,14 @@ namespace RafiqPOS.Models
 
         [JsonProperty("deliveryInfo")]
         public DeliveryOrderCreateInfo DeliveryInfo { get; set; }
+
+        /// <summary>
+        /// Server-only flag (never deserialized from JSON) indicating the sale was constructed
+        /// directly from a verified sync_inbox online order so price updates after ordering
+        /// do not block non-admin cashiers from dispatching the order.
+        /// </summary>
+        [JsonIgnore]
+        public bool IsVerifiedOnlineOrder { get; set; }
 
         public Sale()
         {

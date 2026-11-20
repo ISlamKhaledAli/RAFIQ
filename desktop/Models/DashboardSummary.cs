@@ -51,6 +51,15 @@ namespace RafiqPOS.Models
             get { return Common.Money.FormatPiasters(this.TodayVodafoneCashPiasters); }
         }
 
+        [JsonProperty("todayInsurancePiasters")]
+        public long TodayInsurancePiasters { get; set; }
+
+        [JsonProperty("todayInsuranceFormatted")]
+        public string TodayInsuranceFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayInsurancePiasters); }
+        }
+
         [JsonProperty("todayCreditPiasters")]
         public long TodayCreditPiasters { get; set; }
 

@@ -131,6 +131,12 @@ namespace RafiqPOS.Models
         [JsonProperty("productName")]
         public string ProductName { get; set; }
 
+        [JsonProperty("productBarcode")]
+        public string ProductBarcode { get; set; }
+
+        [JsonProperty("productPricePiasters")]
+        public long? ProductPricePiasters { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
     }
@@ -315,6 +321,21 @@ namespace RafiqPOS.Models
         [JsonProperty("settlementDeductionTarget")]
         public string SettlementDeductionTarget { get; set; }
 
+        /// <summary>
+        /// Destination for approved cash receipt: 'none', 'drawer', 'digital_account'
+        /// </summary>
+        [JsonProperty("settlementReceiptTarget")]
+        public string SettlementReceiptTarget { get; set; }
+
+        [JsonProperty("settlementReceiptAccountId")]
+        public string SettlementReceiptAccountId { get; set; }
+
+        [JsonProperty("settlementDrawerTxId")]
+        public string SettlementDrawerTxId { get; set; }
+
+        [JsonProperty("settlementDigitalTxId")]
+        public string SettlementDigitalTxId { get; set; }
+
         [JsonProperty("notes")]
         public string Notes { get; set; }
 
@@ -333,6 +354,7 @@ namespace RafiqPOS.Models
         public InsuranceClaimBatch()
         {
             Status = "open";
+            SettlementReceiptTarget = "none";
             Lines = new List<InsuranceClaimLine>();
         }
     }

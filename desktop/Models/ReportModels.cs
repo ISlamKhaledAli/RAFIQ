@@ -33,6 +33,15 @@ namespace RafiqPOS.Models
         [JsonProperty("vodafoneCashSalesPiasters")]
         public long VodafoneCashSalesPiasters { get; set; }
 
+        [JsonProperty("insuranceSalesPiasters")]
+        public long InsuranceSalesPiasters { get; set; }
+
+        [JsonProperty("insuranceSettledPiasters")]
+        public long InsuranceSettledPiasters { get; set; }
+
+        [JsonProperty("insurancePendingPiasters")]
+        public long InsurancePendingPiasters { get; set; }
+
         [JsonProperty("returnsTotalPiasters")]
         public long ReturnsTotalPiasters { get; set; }
 

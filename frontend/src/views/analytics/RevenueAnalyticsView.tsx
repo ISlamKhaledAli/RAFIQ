@@ -99,6 +99,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
   const { isEnabled } = useFeatures();
   const isTaxesEnabled = isEnabled('feature_taxes');
+  const isInsuranceEnabled = isEnabled('feature_insurance');
 
   const [activeSection, setActiveSection] = useState<RevenueSection>('overview');
   const motionPanel = useMotionPanel(activeSection);
@@ -183,11 +184,38 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const cardSales = salesReport?.cardSalesPiasters || 0;
   const instapaySales = salesReport?.instapaySalesPiasters || 0;
   const vodafoneCashSales = salesReport?.vodafoneCashSalesPiasters || 0;
-  const cashPct = totalSales > 0 ? Math.round((cashSales * 100) / totalSales) : 0;
-  const creditPct = totalSales > 0 ? Math.round((creditSales * 100) / totalSales) : 0;
-  const cardPct = totalSales > 0 ? Math.round((cardSales * 100) / totalSales) : 0;
-  const instapayPct = totalSales > 0 ? Math.round((instapaySales * 100) / totalSales) : 0;
-  const vodafoneCashPct = totalSales > 0 ? Math.max(0, 100 - cashPct - creditPct - cardPct - instapayPct) : 0;
+  const insuranceSales = salesReport?.insuranceSalesPiasters || 0;
+  const insuranceSettled = salesReport?.insuranceSettledPiasters || 0;
+  const insurancePending = salesReport?.insurancePendingPiasters != null
+    ? salesReport.insurancePendingPiasters
+    : Math.max(0, insuranceSales - insuranceSettled);
+
+  // Exact proportional arithmetic: channels with 0 sales MUST be 0% (zero mathematical leaks)
+  const cashPct = totalSales > 0 && cashSales > 0 ? Math.round((cashSales * 100) / totalSales) : 0;
+  const creditPct = totalSales > 0 && creditSales > 0 ? Math.round((creditSales * 100) / totalSales) : 0;
+  const cardPct = totalSales > 0 && cardSales > 0 ? Math.round((cardSales * 100) / totalSales) : 0;
+  const instapayPct = totalSales > 0 && instapaySales > 0 ? Math.round((instapaySales * 100) / totalSales) : 0;
+  const vodafoneCashPct = totalSales > 0 && vodafoneCashSales > 0 ? Math.round((vodafoneCashSales * 100) / totalSales) : 0;
+  const insurancePct = totalSales > 0 && insuranceSales > 0 ? Math.round((insuranceSales * 100) / totalSales) : 0;
+
+  // Dynamic payment slices for SVG donut chart (Only active channels with > 0 sales are drawn)
+  const paymentSlices = useMemo(() => {
+    const raw = [
+      { id: 'cash', label: 'مبيعات نقدية', amount: cashSales, pct: cashPct, color: '#006D41' },
+      { id: 'credit', label: 'مبيعات آجلة', amount: creditSales, pct: creditPct, color: '#b3720e' },
+      { id: 'card', label: 'مدفوعات بطاقة / فيزا', amount: cardSales, pct: cardPct, color: '#0284c7' },
+      { id: 'instapay', label: 'إنستاباي', amount: instapaySales, pct: instapayPct, color: '#582C83' },
+      { id: 'vodafone', label: 'فودافون كاش ومحافظ', amount: vodafoneCashSales, pct: vodafoneCashPct, color: '#e60000' },
+      { id: 'insurance', label: 'تأمين طبي وجهات تعاقد', amount: insuranceSales, pct: insurancePct, color: '#007a78' },
+    ];
+    const active = raw.filter((s) => s.amount > 0 && s.pct > 0);
+    let offset = 0;
+    return active.map((slice) => {
+      const currentOffset = offset;
+      offset += slice.pct;
+      return { ...slice, offset: currentOffset };
+    });
+  }, [cashSales, cashPct, creditSales, creditPct, cardSales, cardPct, instapaySales, instapayPct, vodafoneCashSales, vodafoneCashPct, insuranceSales, insurancePct]);
 
   // Composite Financial Health Score (0 - 100)
   const financialScore = Math.max(
@@ -428,69 +456,20 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                     <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                       {/* Background circle */}
                       <circle cx="18" cy="18" r="15.915" fill="none" stroke="currentColor" strokeWidth="4" className="text-line dark:text-line-dark" />
-                      {/* Cash slice (Green) */}
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="15.915"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        className="text-paid dark:text-paid-bright"
-                        strokeDasharray={`${cashPct} ${100 - cashPct}`}
-                        strokeDashoffset="0"
-                      />
-                      {/* Credit slice (Amber/Warn) */}
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="15.915"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        className="text-warn dark:text-warn-bright"
-                        strokeDasharray={`${creditPct} ${100 - creditPct}`}
-                        strokeDashoffset={`${-cashPct}`}
-                      />
-                      {/* Card / Visa slice (Sky Blue) */}
-                      {cardPct > 0 && (
+                      {/* Dynamic Slices (Only active channels with > 0 sales are drawn) */}
+                      {paymentSlices.map((slice) => (
                         <circle
+                          key={slice.id}
                           cx="18"
                           cy="18"
                           r="15.915"
                           fill="none"
-                          stroke="#0284c7"
+                          stroke={slice.color}
                           strokeWidth="4"
-                          strokeDasharray={`${cardPct} ${100 - cardPct}`}
-                          strokeDashoffset={`${-(cashPct + creditPct)}`}
+                          strokeDasharray={`${slice.pct} ${100 - slice.pct}`}
+                          strokeDashoffset={`${-slice.offset}`}
                         />
-                      )}
-                      {/* InstaPay slice (Purple) */}
-                      {instapayPct > 0 && (
-                        <circle
-                          cx="18"
-                          cy="18"
-                          r="15.915"
-                          fill="none"
-                          stroke="#582C83"
-                          strokeWidth="4"
-                          strokeDasharray={`${instapayPct} ${100 - instapayPct}`}
-                          strokeDashoffset={`${-(cashPct + creditPct + cardPct)}`}
-                        />
-                      )}
-                      {/* Vodafone Cash slice (Red) */}
-                      {vodafoneCashPct > 0 && (
-                        <circle
-                          cx="18"
-                          cy="18"
-                          r="15.915"
-                          fill="none"
-                          stroke="#e60000"
-                          strokeWidth="4"
-                          strokeDasharray={`${vodafoneCashPct} ${100 - vodafoneCashPct}`}
-                          strokeDashoffset={`${-(cashPct + creditPct + cardPct + instapayPct)}`}
-                        />
-                      )}
+                      ))}
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
                       <span className="text-xs text-ink-muted dark:text-ink-dark-muted">نقدي مباشر</span>
@@ -550,6 +529,39 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                       {formatArabicCurrency(vodafoneCashSales)} ({vodafoneCashPct}%)
                     </div>
                   </div>
+
+                  {/* Insurance / Medical Contracts (Smart Pharmacy Section) */}
+                  {(insuranceSales > 0 || isInsuranceEnabled) && (
+                    <div className="pt-2 border-t border-line/60 dark:border-line-dark/60 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-[#007a78] shrink-0" />
+                          <span>تأمين طبي وجهات تعاقد (مطالبات):</span>
+                        </div>
+                        <div className="font-mono font-bold text-[#007a78]">
+                          {formatArabicCurrency(insuranceSales)} ({insurancePct}%)
+                        </div>
+                      </div>
+                      {insuranceSales > 0 && (
+                        <div className="flex items-center justify-between text-xs pr-5 text-ink-muted dark:text-ink-dark-muted font-mono">
+                          {insurancePending > 0 ? (
+                            <span className="text-warn dark:text-warn-bright">
+                              معلق قيد التحصيل: {formatArabicCurrency(insurancePending)}
+                            </span>
+                          ) : (
+                            <span className="text-paid dark:text-paid-bright">
+                              مسدد بالكامل من شركة التأمين ({formatArabicCurrency(insuranceSettled || insuranceSales)})
+                            </span>
+                          )}
+                          {insuranceSettled > 0 && insurancePending > 0 && (
+                            <span className="text-paid dark:text-paid-bright">
+                              محصل: {formatArabicCurrency(insuranceSettled)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

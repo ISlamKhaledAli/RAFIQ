@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
  * Custom hook to handle fluid opening AND closing exit animations in React
  * Keeps the component mounted in the DOM while the exit animation plays.
  */
-export function useModalAnimation(isOpen: boolean, durationMs = 300) {
+export function useModalAnimation(isOpen: boolean, durationMs = 280) {
   const [mounted, setMounted] = useState(isOpen);
   const [visible, setVisible] = useState(false);
 

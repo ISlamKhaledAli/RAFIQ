@@ -8,17 +8,33 @@ namespace RafiqPOS.Services
     public class PurchaseService
     {
         private readonly PurchaseRepository _purchaseRepo;
+        private SyncRepository _syncRepo;
 
         public PurchaseService(PurchaseRepository purchaseRepo)
         {
             _purchaseRepo = purchaseRepo;
         }
 
+        public void SetSyncRepository(SyncRepository syncRepo)
+        {
+            _syncRepo = syncRepo;
+        }
+
         public Purchase CreatePurchase(Purchase purchase, string costingMethod = "LATEST", string userId = null)
         {
             lock (SaleService.FinancialWriteLock)
             {
-                return _purchaseRepo.CreatePurchase(purchase, costingMethod, userId);
+                Purchase saved = _purchaseRepo.CreatePurchase(purchase, costingMethod, userId);
+                if (_syncRepo != null && saved != null && saved.Items != null)
+                {
+                    var ids = new List<string>();
+                    for (int i = 0; i < saved.Items.Count; i++)
+                    {
+                        if (!string.IsNullOrEmpty(saved.Items[i].ProductId)) ids.Add(saved.Items[i].ProductId);
+                    }
+                    _syncRepo.NotifyProductsStockChanged(ids);
+                }
+                return saved;
             }
         }
 
@@ -36,7 +52,17 @@ namespace RafiqPOS.Services
         {
             lock (SaleService.FinancialWriteLock)
             {
-                return _purchaseRepo.CreatePurchaseReturn(returnDoc, userId);
+                PurchaseReturn saved = _purchaseRepo.CreatePurchaseReturn(returnDoc, userId);
+                if (_syncRepo != null && saved != null && saved.Items != null)
+                {
+                    var ids = new List<string>();
+                    for (int i = 0; i < saved.Items.Count; i++)
+                    {
+                        if (!string.IsNullOrEmpty(saved.Items[i].ProductId)) ids.Add(saved.Items[i].ProductId);
+                    }
+                    _syncRepo.NotifyProductsStockChanged(ids);
+                }
+                return saved;
             }
         }
 

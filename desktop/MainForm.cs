@@ -5,12 +5,14 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using Newtonsoft.Json;
 using RafiqPOS.Bridge;
 using RafiqPOS.Common;
+using RafiqPOS.Models;
 using RafiqPOS.Services;
 
 namespace RafiqPOS
@@ -72,6 +74,24 @@ namespace RafiqPOS
         private System.Windows.Forms.Timer _webViewUnresponsiveTimer;
         private bool _isDemoError;
         private bool _isKioskFullscreen;
+        private NotifyIcon _onlineOrderNotifyIcon;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FLASHWINFO
+        {
+            public uint cbSize;
+            public IntPtr hwnd;
+            public uint dwFlags;
+            public uint uCount;
+            public uint dwTimeout;
+        }
+
+        private const uint FLASHW_TRAY = 2;
+        private const uint FLASHW_TIMERNOFG = 12;
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
 
         // System DPI scale factor (1.0 at 96 DPI, 1.5 at 150%) — app.manifest declares the process DPI aware
         private float _uiScale = 1f;
@@ -201,6 +221,7 @@ namespace RafiqPOS
             this.Load += MainForm_Load;
             this.Shown += MainForm_Shown;
             this.FormClosing += MainForm_FormClosing;
+            DatabaseService.OnOnlineOrdersSynced += HandleOnlineOrdersSynced;
         }
 
         private void InitializeBrandedSplashScreen()
@@ -762,6 +783,12 @@ namespace RafiqPOS
 
         private void DismissSplashNow()
         {
+            if (_errorPanel != null && _errorPanel.Visible)
+            {
+                // Never dismiss or hide an active fatal error screen
+                return;
+            }
+
             if (_isSplashDismissed) return;
             _isSplashDismissed = true;
 
@@ -796,7 +823,6 @@ namespace RafiqPOS
                 {
                     _splashPanel.Visible = false;
                 }
-                _errorPanel.Visible = false;
                 if (_webView != null)
                 {
                     _webView.Focus();
@@ -1386,11 +1412,31 @@ namespace RafiqPOS
                     }
                 };
 
-                // Strict Window Policy: Block any untrusted popups or new browser windows
+                // Strict Window Policy: Open only user-initiated trusted HTTPS store/WhatsApp URLs in system browser; block all other popups
                 _webView.CoreWebView2.NewWindowRequested += delegate(object sNewWin, CoreWebView2NewWindowRequestedEventArgs newWinArgs)
                 {
                     newWinArgs.Handled = true;
-                    Logger.Warn("تم حظر محاولة فتح نافذة متصفح منبثقة: " + newWinArgs.Uri);
+                    string requestedUri = newWinArgs.Uri ?? "";
+                    Uri parsedUri;
+                    if (newWinArgs.IsUserInitiated &&
+                        Uri.TryCreate(requestedUri, UriKind.Absolute, out parsedUri) &&
+                        string.Equals(parsedUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                        IsTrustedExternalHost(parsedUri.Host))
+                    {
+                        try
+                        {
+                            System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo(parsedUri.AbsoluteUri);
+                            psi.UseShellExecute = true;
+                            System.Diagnostics.Process.Start(psi);
+                            Logger.Info("تم فتح الرابط الموثوق في المتصفح الافتراضي: " + parsedUri.AbsoluteUri);
+                        }
+                        catch (Exception openEx)
+                        {
+                            Logger.Error("تعذر فتح الرابط في المتصفح الخارجي: " + parsedUri.AbsoluteUri, openEx);
+                        }
+                        return;
+                    }
+                    Logger.Warn("تم حظر محاولة فتح نافذة متصفح منبثقة: " + requestedUri);
                 };
 
                 // DevTools give full access to the IPC bridge; allow them only in Debug builds (Audit F-02)
@@ -1521,6 +1567,26 @@ namespace RafiqPOS
             _lblErrorTitle.Text = title;
             _txtErrorDetails.Text = details;
             _lblAdviceBody.Text = advice;
+
+            // Stop all splash and safety timers immediately so they never dismiss or hide the error screen
+            if (_splashAnimTimer != null)
+            {
+                _splashAnimTimer.Stop();
+                _splashAnimTimer.Dispose();
+                _splashAnimTimer = null;
+            }
+            if (_splashSafetyTimer != null)
+            {
+                _splashSafetyTimer.Stop();
+                _splashSafetyTimer.Dispose();
+                _splashSafetyTimer = null;
+            }
+            if (_dismissDelayTimer != null)
+            {
+                _dismissDelayTimer.Stop();
+                _dismissDelayTimer.Dispose();
+                _dismissDelayTimer = null;
+            }
 
             if (_splashPanel != null) _splashPanel.Visible = false;
             if (_webView != null)
@@ -1662,6 +1728,16 @@ namespace RafiqPOS
             NullValueHandling = NullValueHandling.Include
         };
 
+        private static bool IsTrustedExternalHost(string host)
+        {
+            if (string.IsNullOrWhiteSpace(host)) return false;
+            string h = host.Trim().ToLowerInvariant();
+            return h == "rafiq-store-web.rafiq-store-api.workers.dev" ||
+                   h.EndsWith(".rafiq-store-api.workers.dev") ||
+                   h == "wa.me" ||
+                   h == "api.whatsapp.com";
+        }
+
         private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
             // A message from the page proves the renderer is alive again
@@ -1760,6 +1836,163 @@ namespace RafiqPOS
             });
         }
 
+
+        public void PostHostEvent(string eventName, object data)
+        {
+            if (string.IsNullOrEmpty(eventName)) return;
+            string payloadJson;
+            try
+            {
+                payloadJson = JsonConvert.SerializeObject(new
+                {
+                    type = "event",
+                    @event = eventName,
+                    data = data
+                }, BridgeSerializerSettings);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("فشل تحويل حدث النظام إلى JSON: " + ex.Message);
+                return;
+            }
+
+            try
+            {
+                if (!this.IsDisposed && this.IsHandleCreated)
+                {
+                    this.BeginInvoke(new Action(delegate
+                    {
+                        try
+                        {
+                            if (_webView != null && _webView.CoreWebView2 != null)
+                            {
+                                _webView.CoreWebView2.PostWebMessageAsJson(payloadJson);
+                            }
+                        }
+                        catch (Exception postEx)
+                        {
+                            Logger.Warn("فشل إرسال حدث النظام إلى الواجهة: " + postEx.Message);
+                        }
+                    }));
+                }
+            }
+            catch { }
+        }
+
+        private void HandleOnlineOrdersSynced(OnlineOrdersSyncedEvent evt)
+        {
+            if (evt == null) return;
+
+            // 1. Push real-time event immediately to React UI (live badge + floating alert + chime + list reload)
+            PostHostEvent("onlineStore:ordersSynced", evt);
+
+            // 2. For brand-new incoming orders, show native Windows desktop notification + flash taskbar if unfocused
+            if (evt.NewOrdersCount > 0)
+            {
+                try
+                {
+                    if (!this.IsDisposed && this.IsHandleCreated)
+                    {
+                        this.BeginInvoke(new Action(delegate
+                        {
+                            ShowDesktopOrderNotification(evt);
+                        }));
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private void ShowDesktopOrderNotification(OnlineOrdersSyncedEvent evt)
+        {
+            try
+            {
+                if (this.IsDisposed || evt == null || evt.NewOrdersCount <= 0) return;
+
+                // Flash taskbar icon on Windows 7..11 when window is minimized or behind another app
+                if (this.WindowState == FormWindowState.Minimized || Form.ActiveForm == null)
+                {
+                    try
+                    {
+                        FLASHWINFO fi = new FLASHWINFO();
+                        fi.cbSize = Convert.ToUInt32(Marshal.SizeOf(fi));
+                        fi.hwnd = this.Handle;
+                        fi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
+                        fi.uCount = 5;
+                        fi.dwTimeout = 0;
+                        FlashWindowEx(ref fi);
+                    }
+                    catch { }
+                }
+
+                // Lazily initialize Windows Tray NotifyIcon (native Windows 7/8 balloon + Windows 10/11 Action Center toast)
+                if (_onlineOrderNotifyIcon == null)
+                {
+                    _onlineOrderNotifyIcon = new NotifyIcon();
+                    _onlineOrderNotifyIcon.Icon = this.Icon != null ? this.Icon : SystemIcons.Information;
+                    _onlineOrderNotifyIcon.Text = "نظام رفيق — طلبات المتجر الإلكتروني";
+                    _onlineOrderNotifyIcon.BalloonTipClicked += delegate(object s, EventArgs args)
+                    {
+                        BringToFrontAndOpenOnlineOrders();
+                    };
+                    _onlineOrderNotifyIcon.DoubleClick += delegate(object s, EventArgs args)
+                    {
+                        BringToFrontAndOpenOnlineOrders();
+                    };
+                }
+
+                string title = evt.NewOrdersCount == 1
+                    ? "طلب أونلاين جديد — نظام رفيق"
+                    : string.Format("{0} طلبات أونلاين جديدة — نظام رفيق", evt.NewOrdersCount);
+
+                string body;
+                if (evt.NewOrders != null && evt.NewOrders.Count == 1)
+                {
+                    OnlineOrderNotificationDto first = evt.NewOrders[0];
+                    string code = "#ORD-" + first.OrderNumber.ToString().PadLeft(4, '0');
+                    string customer = string.IsNullOrWhiteSpace(first.CustomerName) ? "عميل المتجر" : first.CustomerName.Trim();
+                    string amount = (first.TotalPiasters / 100.0).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    string mode = string.Equals(first.DeliveryMethod, "pickup", StringComparison.OrdinalIgnoreCase) ? "استلام بالمحل" : "توصيل";
+                    body = string.Format("طلب {0} من {1} بقيمة {2} ج.م ({3}) — اضغط للعرض والتجهيز", code, customer, amount, mode);
+                }
+                else if (evt.NewOrders != null && evt.NewOrders.Count > 1)
+                {
+                    long sumPiasters = 0;
+                    for (int i = 0; i < evt.NewOrders.Count; i++)
+                    {
+                        sumPiasters += evt.NewOrders[i].TotalPiasters;
+                    }
+                    string totalStr = (sumPiasters / 100.0).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    body = string.Format("وصل {0} طلبات أونلاين جديدة بإجمالي {1} ج.م — اضغط هنا لفتح شاشة الطلبات.", evt.NewOrdersCount, totalStr);
+                }
+                else
+                {
+                    body = string.Format("يوجد {0} طلب أونلاين جديد بانتظار المراجعة والتجهيز.", evt.NewOrdersCount);
+                }
+
+                _onlineOrderNotifyIcon.Visible = true;
+                _onlineOrderNotifyIcon.ShowBalloonTip(8000, title, body, ToolTipIcon.Info);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر عرض إشعار ويندوز للطلب الجديد: " + ex.Message);
+            }
+        }
+
+        private void BringToFrontAndOpenOnlineOrders()
+        {
+            try
+            {
+                if (this.IsDisposed) return;
+                if (this.WindowState == FormWindowState.Minimized)
+                {
+                    this.WindowState = FormWindowState.Normal;
+                }
+                WindowHelper.ActivateAndBringToFront(this);
+                PostHostEvent("onlineStore:openOrders", null);
+            }
+            catch { }
+        }
 
         public void ToggleFullscreen()
         {
@@ -1959,6 +2192,17 @@ namespace RafiqPOS
         {
             try
             {
+                DatabaseService.OnOnlineOrdersSynced -= HandleOnlineOrdersSynced;
+                if (_onlineOrderNotifyIcon != null)
+                {
+                    try
+                    {
+                        _onlineOrderNotifyIcon.Visible = false;
+                        _onlineOrderNotifyIcon.Dispose();
+                        _onlineOrderNotifyIcon = null;
+                    }
+                    catch { }
+                }
                 if (DatabaseService.License != null)
                 {
                     DatabaseService.License.StopBackgroundPeriodicCheck();
@@ -1966,6 +2210,10 @@ namespace RafiqPOS
                 if (DatabaseService.Backup != null)
                 {
                     DatabaseService.Backup.StopBackgroundPeriodicCheck();
+                }
+                if (DatabaseService.Sync != null)
+                {
+                    DatabaseService.Sync.Stop();
                 }
 
                 if (DatabaseService.SettingsRepo != null && !DatabaseService.IsCorrupted)

@@ -199,14 +199,26 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
   };
 
   const handleExport = async () => {
-    setIsExporting(true);
-    setMessage(null);
     try {
-      const res = await invoke<{ success: boolean; filePath: string }>('ddi:exportExcel');
+      const defaultFileName = `دليل_التفاعلات_الدوائية_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const dialogRes = await invoke<{ filePath?: string; cancelled: boolean }>('system:showSaveFileDialog', {
+        title: 'تحديد مكان حفظ ملف التفاعلات الدوائية',
+        defaultFileName,
+        filter: 'ملفات إكسل (*.xlsx)|*.xlsx|جميع الملفات (*.*)|*.*',
+        defaultExt: 'xlsx'
+      });
+      if (dialogRes?.cancelled || !dialogRes?.filePath) {
+        return;
+      }
+      setIsExporting(true);
+      setMessage(null);
+      const res = await invoke<{ success: boolean; filePath: string }>('ddi:exportExcel', {
+        targetPath: dialogRes.filePath
+      });
       if (res?.success) {
         setMessage({
           type: 'success',
-          text: `تم تصدير ملف الإكسل إلى: ${res.filePath}`,
+          text: `تم تصدير ملف الإكسل بنجاح إلى: ${res.filePath}`,
         });
       }
     } catch (err: unknown) {
@@ -219,11 +231,23 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
   const handleDownloadTemplate = async () => {
     try {
-      const res = await invoke<{ success: boolean; filePath: string }>('ddi:downloadTemplate');
+      const defaultFileName = 'قالب_استيراد_التفاعلات_الدوائية.xlsx';
+      const dialogRes = await invoke<{ filePath?: string; cancelled: boolean }>('system:showSaveFileDialog', {
+        title: 'تحديد مكان حفظ قالب استيراد التفاعلات الدوائية',
+        defaultFileName,
+        filter: 'ملفات إكسل (*.xlsx)|*.xlsx|جميع الملفات (*.*)|*.*',
+        defaultExt: 'xlsx'
+      });
+      if (dialogRes?.cancelled || !dialogRes?.filePath) {
+        return;
+      }
+      const res = await invoke<{ success: boolean; filePath: string }>('ddi:downloadTemplate', {
+        targetPath: dialogRes.filePath
+      });
       if (res?.success) {
         setMessage({
           type: 'success',
-          text: `تم حفظ قالب الإكسل الفارغ في: ${res.filePath}`,
+          text: `تم حفظ قالب الإكسل بنجاح في: ${res.filePath}`,
         });
       }
     } catch (err: unknown) {

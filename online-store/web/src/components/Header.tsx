@@ -1,6 +1,6 @@
-import React from 'react';
-import type { Store, Category } from '../types';
-import { ShoppingBag, Search, X, Clock, MapPin, Shield, ChevronDown, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import type { Store } from '../types';
+import { ShoppingBag, Search, X, Clock, MapPin, Shield, ChevronDown, Sparkles, BadgeCheck } from 'lucide-react';
 
 interface Props {
   store: Store;
@@ -28,70 +28,87 @@ export const Header: React.FC<Props> = ({
   onSelectZoneClick,
 }) => {
   const cartTotalPounds = (cartTotalPiasters / 100).toFixed(2);
+  const [badgePop, setBadgePop] = useState<'a' | 'b'>('a');
+  const prevCartCountRef = useRef(cartCount);
+
+  useEffect(() => {
+    if (cartCount > 0 && cartCount !== prevCartCountRef.current) {
+      setBadgePop(prev => (prev === 'a' ? 'b' : 'a'));
+    }
+    prevCartCountRef.current = cartCount;
+  }, [cartCount]);
 
   return (
-    <header className="sticky top-0 z-30 bg-store-card/90 backdrop-blur-md border-b border-store-line/80 shadow-2xs transition-all">
-      {/* Top Welcome Announcement ticker if set */}
+    <>
+      {/* Top Welcome Announcement ticker (scrolls away naturally to maximize mobile browsing space) */}
       {store.welcome_message && (
-        <div className="bg-gradient-to-r from-store-primary via-store-secondary to-store-primary text-store-primary-contrast text-[11px] sm:text-xs py-1.5 px-4 text-center font-bold tracking-wide flex items-center justify-center gap-2 overflow-hidden shadow-xs">
-          <Sparkles className="w-3.5 h-3.5 text-store-accent animate-pulse-slow flex-shrink-0" />
+        <div className="bg-gradient-to-r from-store-primary via-store-secondary to-store-primary text-store-primary-contrast text-[11px] sm:text-xs py-1 sm:py-1.5 px-3 sm:px-4 text-center font-bold tracking-wide flex items-center justify-center gap-1.5 sm:gap-2 overflow-hidden">
+          <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-store-accent animate-pulse-slow flex-shrink-0" />
           <span className="truncate">{store.welcome_message}</span>
         </div>
       )}
 
-      {/* Main Bar */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20 gap-3">
-          {/* Store Logo & Title & Delivery Area */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative flex-shrink-0 group cursor-pointer">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-store-primary to-store-secondary text-store-primary-contrast flex items-center justify-center font-black text-base sm:text-xl shadow-lg shadow-store-primary/20 group-hover:scale-105 transition-transform overflow-hidden p-1.5 border border-white/20">
-                {store.logo_url ? (
-                  <img src={store.logo_url} alt={store.name} className="w-full h-full object-contain" />
-                ) : (
-                  <span className="text-white font-black text-base sm:text-xl select-none">
-                    {store.name.charAt(0)}
-                  </span>
-                )}
-              </div>
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">
-                {store.is_paused !== 1 && (
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                )}
-                <span
-                  className={`relative inline-flex rounded-full h-3.5 w-3.5 border-2 border-white ${
-                    store.is_paused === 1 ? 'bg-amber-500' : 'bg-emerald-500'
-                  }`}
-                  title={store.is_paused === 1 ? 'مغلق مؤقتاً' : 'مفتوح للطلب الآن'}
-                ></span>
-              </span>
-            </div>
-
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-sm sm:text-lg font-black text-store-text truncate">
-                  {store.name}
-                </h1>
-                {store.is_paused === 1 && (
-                  <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md font-bold flex-shrink-0">
-                    مغلق
-                  </span>
-                )}
-              </div>
-
-              {/* Delivery Zone Dropdown Pill */}
-              <button
-                onClick={onSelectZoneClick || onOpenCart}
-                className="flex items-center gap-1 text-[11px] text-store-muted hover:text-store-primary transition-colors text-right truncate group"
-              >
-                <MapPin className="w-3 h-3 text-store-primary flex-shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="truncate">
-                  التوصيل لحد: <strong className="text-store-text font-black">{selectedDeliveryZone || 'اختار منطقتك'}</strong>
+      <header className="sticky top-0 z-30 bg-store-card border-b border-store-line/80 shadow-sm">
+        {/* Main Bar */}
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-12 sm:h-20 gap-2.5 sm:gap-3">
+            {/* Store Logo & Title & Delivery Area */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="relative flex-shrink-0 group cursor-pointer">
+                <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white flex items-center justify-center shadow-md shadow-black/10 group-hover:scale-105 transition-transform overflow-hidden p-1 sm:p-1.5 border border-store-line">
+                  <img
+                    src={store.logo_url || '/rafiq_logo.png'}
+                    alt={store.name}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/rafiq_logo.png';
+                    }}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5 sm:h-3.5 sm:w-3.5">
+                  {store.is_paused !== 1 && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  )}
+                  <span
+                    className={`relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 border-[1.5px] sm:border-2 border-white ${
+                      store.is_paused === 1 ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`}
+                    title={store.is_paused === 1 ? 'مغلق مؤقتاً' : 'مفتوح للطلب الآن'}
+                  ></span>
                 </span>
-                <ChevronDown className="w-3 h-3 text-slate-400 flex-shrink-0" />
-              </button>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-1 sm:gap-1.5">
+                  <h1 className="text-[13px] sm:text-lg font-black text-store-text truncate leading-tight">
+                    {store.name}
+                  </h1>
+                  {store.slug === 'rafiq' && (
+                    <BadgeCheck
+                      className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-store-secondary flex-shrink-0"
+                      aria-label="متجر رسمي معتمد"
+                    />
+                  )}
+                  {store.is_paused === 1 && (
+                    <span className="text-[9px] sm:text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md font-bold flex-shrink-0">
+                      مغلق
+                    </span>
+                  )}
+                </div>
+
+                {/* Delivery Zone Dropdown Pill */}
+                <button
+                  onClick={onSelectZoneClick || onOpenCart}
+                  className="flex items-center gap-1 text-[10px] sm:text-[11px] text-store-muted hover:text-store-primary transition-colors text-right truncate group leading-tight"
+                >
+                  <MapPin className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-store-primary flex-shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className="truncate">
+                    التوصيل لحد: <strong className="text-store-text font-black">{selectedDeliveryZone || 'اختار منطقتك'}</strong>
+                  </span>
+                  <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-slate-400 flex-shrink-0" />
+                </button>
+              </div>
             </div>
-          </div>
 
           {/* Desktop Search Center */}
           <div className="hidden lg:flex flex-1 max-w-md mx-4">
@@ -138,42 +155,58 @@ export const Header: React.FC<Props> = ({
             {/* Desktop Cart Button */}
             <button
               onClick={onOpenCart}
-              className="hidden sm:flex items-center gap-2.5 bg-gradient-to-r from-store-primary to-store-secondary hover:brightness-105 text-store-primary-contrast px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-store-primary/20 btn-spring transition-all"
+              className="hidden sm:flex items-center gap-2.5 bg-gradient-to-r from-store-primary to-store-secondary hover:brightness-105 text-store-primary-contrast px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-store-primary/20 btn-spring transition-all whitespace-nowrap"
             >
-              <ShoppingBag className="w-4 h-4" />
+              <span className="relative flex items-center justify-center">
+                <ShoppingBag className="w-4 h-4 shrink-0" />
+                {cartCount > 0 && (
+                  <span
+                    data-pop={badgePop}
+                    className="absolute -top-2 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-store-accent text-slate-950 text-[10px] font-black flex items-center justify-center shadow-sm tabular-nums leading-none"
+                  >
+                    {cartCount > 99 ? '99+' : cartCount}
+                  </span>
+                )}
+              </span>
               <span>السلة</span>
-              {cartCount > 0 ? (
-                <div className="flex items-center gap-1.5 bg-white/20 px-2 py-0.5 rounded-xl animate-pop">
-                  <span className="font-black text-store-accent">{cartCount}</span>
-                  <span className="text-[11px] text-store-primary-contrast/90">• {cartTotalPounds} ج.م</span>
-                </div>
-              ) : null}
+              {cartCount > 0 && (
+                <>
+                  <span className="h-4 w-px bg-white/25" aria-hidden="true" />
+                  <span
+                    data-pop={badgePop}
+                    className="text-xs font-black text-white tabular-nums whitespace-nowrap"
+                  >
+                    {cartTotalPounds} <span className="text-[10px] font-bold text-white/85">ج.م</span>
+                  </span>
+                </>
+              )}
             </button>
           </div>
         </div>
 
-        {/* Mobile Search Bar & Real Category Pills */}
-        <div className="lg:hidden pb-3 pt-0.5">
-          <div className="relative w-full">
-            <input
-              type="text"
-              placeholder="بتدور على إيه؟ اكتب اسم الصنف أو الباركود..."
-              value={searchQuery}
-              onChange={e => onSearchChange(e.target.value)}
-              className="w-full pl-9 pr-10 py-2 sm:py-2.5 rounded-2xl border border-store-line bg-store-card-subtle text-xs sm:text-sm text-store-text placeholder:text-store-muted focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all shadow-inner"
-            />
-            <Search className="w-4 h-4 text-store-muted absolute right-3.5 top-1/2 -translate-y-1/2" />
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange('')}
-                className="absolute left-3 top-1/2 -translate-y-1/2 p-1 text-store-muted hover:text-store-text rounded-full hover:bg-store-primary-light/40"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          {/* Mobile Search Bar */}
+          <div className="lg:hidden pb-2 pt-0">
+            <div className="relative w-full">
+              <input
+                type="text"
+                placeholder="بتدور على إيه؟ اكتب اسم الصنف أو الباركود..."
+                value={searchQuery}
+                onChange={e => onSearchChange(e.target.value)}
+                className="w-full pl-8 pr-9 py-1.5 sm:py-2.5 rounded-xl sm:rounded-2xl border border-store-line bg-store-card-subtle text-xs sm:text-sm text-store-text placeholder:text-store-muted focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all shadow-inner"
+              />
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-store-muted absolute right-3 top-1/2 -translate-y-1/2" />
+              {searchQuery && (
+                <button
+                  onClick={() => onSearchChange('')}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-store-muted hover:text-store-text rounded-full hover:bg-store-primary-light/40"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </>
   );
 };

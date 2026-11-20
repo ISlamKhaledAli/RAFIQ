@@ -193,6 +193,38 @@ namespace RafiqPOS.Services
                 Assert(calcOdd.PatientPiasters == 667, "حساب نصيب المريض في الكسور الفردية 667 قرش", result);
                 Assert(calcOdd.CompanyPiasters + calcOdd.PatientPiasters == 3333, "انعدام أي فارق تقريب (Zero Drift)", result);
 
+                // Basket 4: Combined Category & Specific Product Exclusions
+                var contractDual = new InsuranceContract
+                {
+                    Id = "cnt_bupa_dual",
+                    CompanyId = "comp_bupa",
+                    Name = "فئة مرنة - استثناء فئة وصنف محدد",
+                    PatientShareBps = 1000, // 10% patient share, 90% company
+                    IsActive = true,
+                    Exclusions = new List<InsuranceExclusion>
+                    {
+                        new InsuranceExclusion { CategoryId = "cat_cosmetics" },
+                        new InsuranceExclusion { ProductId = "prod_augmentin" }
+                    }
+                };
+                insuranceRepo.SaveContract(contractDual);
+                var savedDual = insuranceRepo.GetContractById("cnt_bupa_dual");
+                Assert(savedDual != null && savedDual.Exclusions != null && savedDual.Exclusions.Count == 2, "حفظ واسترجاع عقد يجمع بين استثناء فئة وصنف محدد", result);
+
+                var itemsDual = new List<SaleItem>
+                {
+                    new SaleItem { ProductId = "prod_panadol", UnitPricePiasters = 5000, QuantityMilli = 1000, TotalPiasters = 5000 },
+                    new SaleItem { ProductId = "prod_augmentin", UnitPricePiasters = 12000, QuantityMilli = 1000, TotalPiasters = 12000 },
+                    new SaleItem { ProductId = "prod_sunscreen", UnitPricePiasters = 30000, QuantityMilli = 1000, TotalPiasters = 30000 }
+                };
+                var calcDual = insuranceRepo.CalculateSplit("cnt_bupa_dual", itemsDual);
+                Assert(calcDual.TotalInvoicePiasters == 47000, "إجمالي سلة الاستثناء المزدوج 47,000 قرش", result);
+                Assert(calcDual.ExcludedPiasters == 42000, "إجمالي الأصناف المستثناة 42,000 قرش (12,000 أوجمنتين + 30,000 صن بلوك)", result);
+                Assert(calcDual.CoveredPiasters == 5000, "إجمالي الأصناف المغطاة 5,000 قرش (بنادول فقط)", result);
+                Assert(calcDual.CompanyPiasters == 4500, "تغطية الشركة 90% من البنادول = 4,500 قرش", result);
+                Assert(calcDual.PatientPiasters == 42500, "تحمل المريض = 42,000 مستثنى + 500 قرش (10% بنادول)", result);
+                Assert(calcDual.PatientPiasters + calcDual.CompanyPiasters == calcDual.TotalInvoicePiasters, "تطابق المجموع النهائي في الاستثناء المزدوج", result);
+
                 // =========================================================================
                 // Test 3: Atomic Sale Integration & Cash Drawer Isolation
                 // =========================================================================
@@ -302,6 +334,69 @@ namespace RafiqPOS.Services
                 Assert(File.Exists(exportedExcel), "توليد ملف إكسل رسمي لمطالبة التأمين بنجاح", result);
                 var fi = new FileInfo(exportedExcel);
                 Assert(fi.Length > 2000, "ملف الإكسل يحتوي على بيانات وتنسيقات جدولية كاملة", result);
+
+                // =========================================================================
+                // Test 7: Insurance Sale with Patient Co-Pay on Credit (الآجل) - Zero Cash Drawer Leak & Customer Debt Invariant
+                // =========================================================================
+                var customerRepo = new CustomerRepository(tempConnStr);
+                var testCustomer = new Customer
+                {
+                    Id = "cust_ahmed_credit",
+                    Name = "أحمد محمد كمال (زبون آجل)",
+                    Phone = "01099998888",
+                    BalancePiasters = 0,
+                    CreditLimitPiasters = 50000
+                };
+                customerRepo.SaveCustomer(testCustomer);
+
+                var testCreditSale = new Sale
+                {
+                    Id = "sale_ins_test_credit",
+                    InvoiceNumber = 102,
+                    SubtotalPiasters = 17000,
+                    TotalPiasters = 17000,
+                    PaidPiasters = 10000, // Company share only
+                    DiscountPiasters = 0,
+                    TaxPiasters = 0,
+                    PaymentMethod = "credit", // passed as credit by client, normalized to insurance
+                    CustomerId = "cust_ahmed_credit",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    CashierId = "usr_admin_default",
+                    ShiftId = "shift_test_credit",
+                    Items = new List<SaleItem>
+                    {
+                        new SaleItem { ProductId = "prod_panadol", UnitPricePiasters = 5000, QuantityMilli = 1000, TotalPiasters = 5000 },
+                        new SaleItem { ProductId = "prod_augmentin", UnitPricePiasters = 12000, QuantityMilli = 1000, TotalPiasters = 12000 }
+                    },
+                    Payments = new List<SalePayment>
+                    {
+                        new SalePayment { Id = "pay_ins_cred", Method = "insurance", AmountPiasters = 10000 },
+                        new SalePayment { Id = "pay_pat_cred", Method = "credit", AmountPiasters = 7000 }
+                    },
+                    InsuranceClaim = new InsuranceClaimLine
+                    {
+                        Id = "claim_line_credit_1",
+                        CompanyId = "comp_bupa",
+                        ContractId = "cnt_bupa_gold",
+                        MemberId = "mem_ahmed",
+                        MemberNo = "CARD-998877",
+                        ApprovalNo = "APPR-99999",
+                        TotalInvoicePiasters = 17000,
+                        CoveredPiasters = 17000,
+                        PatientPiasters = 7000,
+                        CompanyPiasters = 10000,
+                        PatientName = "أحمد محمد كمال",
+                        Status = "pending"
+                    }
+                };
+
+                saleRepo.CreateSaleAtomic(testCreditSale);
+
+                var drawerCreditRes = DrawerCashCalculator.Calculate(tempConnStr, nowWindow.AddHours(-1), nowWindow.AddHours(1), "shift_test_credit");
+                Assert(drawerCreditRes.CashSalesPiasters == 0, "عزل كاش الدرج التام عند البيع بالتأمين والآجل: الدرج = 0 قرش ولا يتسرب إليه أي قرش من حصة شركة التأمين (10000 قرش)", result);
+
+                var custAfterCredit = customerRepo.GetById("cust_ahmed_credit");
+                Assert(custAfterCredit != null && custAfterCredit.BalancePiasters == 7000, "تسجيل حصة تحمل المريض فقط (7000 قرش) كدين آجل في كشف حساب العميل والشكك", result);
 
                 result.Message = string.Format("نجحت جميع اختبارات التأمين الطبي ({0}/{1}) بدون أي أخطاء", result.PassedAssertions, result.TotalAssertions);
             }

@@ -320,6 +320,29 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
     ownedCommands: ['recipes:save', 'recipes:delete', 'recipes:produce'],
     ownedPermissions: ['recipes.manage', 'recipes.produce'],
   },
+  {
+    key: 'feature_online_store',
+    nameAr: 'المتجر الإلكتروني والمزامنة السحابية',
+    descriptionAr: 'ربط نقطة البيع بمتجر إلكتروني سحابي، ومزامنة المنتجات والمخزون، واستقبال ومعالجة طلبات الزبائن أونلاين',
+    category: 'السحابة والتجارة الإلكترونية',
+    defaultValue: false,
+    requires: [],
+    ownedCommands: [
+      'onlineStore:getState',
+      'onlineStore:saveConfig',
+      'onlineStore:triggerSync',
+      'onlineStore:getOrders',
+      'onlineStore:processOrder',
+      'onlineStore:updateProductOnline',
+    ],
+    ownedPermissions: [
+      'online_store.manage',
+      'online_store.view_orders',
+      'online_store.process_orders',
+      'online_store.sync',
+      'online_store.images',
+    ],
+  },
 ];
 
 export const DEFAULT_FLAGS: Record<string, boolean> = {
@@ -352,6 +375,7 @@ export const DEFAULT_FLAGS: Record<string, boolean> = {
   feature_item_modifiers: false,
   feature_delivery_management: false,
   feature_manufacturing_recipes: false,
+  feature_online_store: false,
 };
 
 export const FeaturesContext = createContext<FeaturesState>({

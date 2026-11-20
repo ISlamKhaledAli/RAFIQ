@@ -132,6 +132,18 @@ namespace RafiqPOS.Models
         [JsonProperty("performedByName")]
         public string PerformedByName { get; set; }
 
+        [JsonProperty("isCancelled")]
+        public bool IsCancelled { get; set; }
+
+        [JsonProperty("cancelledAt")]
+        public string CancelledAt { get; set; }
+
+        [JsonProperty("cancelledBy")]
+        public string CancelledBy { get; set; }
+
+        [JsonProperty("cancelReason")]
+        public string CancelReason { get; set; }
+
         [JsonIgnore]
         public string IdempotencyKey { get; set; }
 

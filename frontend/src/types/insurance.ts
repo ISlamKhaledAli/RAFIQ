@@ -21,6 +21,8 @@ export interface InsuranceExclusion {
   categoryName?: string | null;
   productId?: string | null;
   productName?: string | null;
+  productBarcode?: string | null;
+  productPricePiasters?: number | null;
   createdAt?: string;
 }
 
@@ -76,7 +78,7 @@ export interface InsuranceClaimLine {
   coveredPiasters: number;
   patientPiasters: number;
   companyPiasters: number;
-  status: 'pending' | 'batched' | 'claimed' | 'paid' | 'rejected';
+  status: 'pending' | 'batched' | 'claimed' | 'paid' | 'settled' | 'rejected';
   claimBatchId?: string | null;
   claimBatchNumber?: string | null;
   settledAt?: string | null;
@@ -101,6 +103,10 @@ export interface InsuranceClaimBatch {
   rejectionReason?: string | null;
   settlementNotes?: string | null;
   settlementDeductionTarget?: 'patient_debt' | 'expense' | null;
+  settlementReceiptTarget?: 'none' | 'drawer' | 'digital_account' | null;
+  settlementReceiptAccountId?: string | null;
+  settlementDrawerTxId?: string | null;
+  settlementDigitalTxId?: string | null;
   notes?: string | null;
   createdBy?: string;
   createdAt?: string;

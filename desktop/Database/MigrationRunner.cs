@@ -15,7 +15,7 @@ namespace RafiqPOS.Database
 
     public static partial class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 66;
+        public const int LATEST_SUPPORTED_VERSION = 69;
 
         private static void ThrowIfSchemaTooNew(int currentVersion)
         {
@@ -502,6 +502,7 @@ namespace RafiqPOS.Database
                 ApplyCafeHospitalityMigrations(conn, dbPath, currentVersion);
                 ApplyIdempotencyMigrations(conn, dbPath, currentVersion);
                 ApplyUserHierarchyMigrations(conn, dbPath, currentVersion);
+                ApplyOnlineStoreMigrations(conn, dbPath, currentVersion);
                 EnsureSchemaHealth(conn);
                 HandleLegacySaleItemsQuantity(conn, dbPath);
                 EnsureIdempotencySchemaHealth(conn);

@@ -11,12 +11,18 @@ namespace RafiqPOS.Services
         private readonly ReturnRepository _returnRepo;
         private readonly SaleRepository _saleRepo;
         private readonly DailyClosingService _dailyClosingService;
+        private SyncRepository _syncRepo;
 
         public ReturnService(ReturnRepository returnRepo, SaleRepository saleRepo, DailyClosingService dailyClosingService = null)
         {
             _returnRepo = returnRepo;
             _saleRepo = saleRepo;
             _dailyClosingService = dailyClosingService;
+        }
+
+        public void SetSyncRepository(SyncRepository syncRepo)
+        {
+            _syncRepo = syncRepo;
         }
 
         public Return ProcessReturn(Return returnObj, string supervisorPin = null)
@@ -423,7 +429,17 @@ namespace RafiqPOS.Services
                 }
             }
 
-            return _returnRepo.CreateReturnAtomic(returnObj);
+            Return saved = _returnRepo.CreateReturnAtomic(returnObj);
+            if (_syncRepo != null && saved != null && saved.Items != null)
+            {
+                var ids = new List<string>();
+                for (int i = 0; i < saved.Items.Count; i++)
+                {
+                    if (!string.IsNullOrEmpty(saved.Items[i].ProductId)) ids.Add(saved.Items[i].ProductId);
+                }
+                _syncRepo.NotifyProductsStockChanged(ids);
+            }
+            return saved;
         }
 
         private static readonly string[] ALLOWED_REFUND_METHODS = new string[]

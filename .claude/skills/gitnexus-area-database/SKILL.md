@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-database
-description: "Skill for the Database area of RAFIQ. 83 symbols across 4 files."
+description: "Skill for the Database area of RAFIQ. 87 symbols across 5 files."
 ---
 
 # Database
 
-83 symbols | 4 files | Cohesion: 100%
+87 symbols | 5 files | Cohesion: 100%
 
 ## When to Use
 
@@ -21,38 +21,39 @@ description: "Skill for the Database area of RAFIQ. 83 symbols across 4 files."
 | `desktop/Database/MigrationRunner.Idempotency.cs` | ApplyIdempotencyMigrations, ApplyMigration60, ApplyMigration61, ApplyMigration62, EnsureColumn (+4) |
 | `desktop/Database/MigrationRunner.UserHierarchy.cs` | ApplyMigration63, ApplyMigration64, ApplyMigration65, ApplyMigration66, ApplyUserHierarchyMigrations (+3) |
 | `desktop/Database/MigrationRunner.Cafe.cs` | ApplyCafeHospitalityMigrations, ApplyMigration56, ApplyMigration57, ApplyMigration58, ApplyMigration59 |
+| `desktop/Database/MigrationRunner.OnlineStore.cs` | ApplyMigration67, ApplyMigration68, ApplyMigration69, ApplyOnlineStoreMigrations |
 
 ## Entry Points
 
 Start here when exploring this area:
 
 - **`ApplyMigrations`** (Method) — `desktop/Database/MigrationRunner.cs:27`
-- **`ComputeAuditHash`** (Method) — `desktop/Database/MigrationRunner.cs:8529`
+- **`ComputeAuditHash`** (Method) — `desktop/Database/MigrationRunner.cs:8530`
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
 | `ApplyMigrations` | Method | `desktop/Database/MigrationRunner.cs` | 27 |
-| `ComputeAuditHash` | Method | `desktop/Database/MigrationRunner.cs` | 8529 |
-| `RebaseRepairItem` | Class | `desktop/Database/MigrationRunner.cs` | 2625 |
-| `ApplyMigration1` | Method | `desktop/Database/MigrationRunner.cs` | 2732 |
-| `ApplyMigration10` | Method | `desktop/Database/MigrationRunner.cs` | 3392 |
-| `ApplyMigration11` | Method | `desktop/Database/MigrationRunner.cs` | 3465 |
-| `ApplyMigration12` | Method | `desktop/Database/MigrationRunner.cs` | 3503 |
-| `ApplyMigration13` | Method | `desktop/Database/MigrationRunner.cs` | 3544 |
-| `ApplyMigration14` | Method | `desktop/Database/MigrationRunner.cs` | 3630 |
-| `ApplyMigration15` | Method | `desktop/Database/MigrationRunner.cs` | 3742 |
-| `ApplyMigration16` | Method | `desktop/Database/MigrationRunner.cs` | 3933 |
-| `ApplyMigration17` | Method | `desktop/Database/MigrationRunner.cs` | 4041 |
-| `ApplyMigration18` | Method | `desktop/Database/MigrationRunner.cs` | 4077 |
-| `ApplyMigration19` | Method | `desktop/Database/MigrationRunner.cs` | 4144 |
-| `ApplyMigration2` | Method | `desktop/Database/MigrationRunner.cs` | 2892 |
-| `ApplyMigration20` | Method | `desktop/Database/MigrationRunner.cs` | 4194 |
-| `ApplyMigration21` | Method | `desktop/Database/MigrationRunner.cs` | 4298 |
-| `ApplyMigration22` | Method | `desktop/Database/MigrationRunner.cs` | 4433 |
-| `ApplyMigration23` | Method | `desktop/Database/MigrationRunner.cs` | 4519 |
-| `ApplyMigration24` | Method | `desktop/Database/MigrationRunner.cs` | 4576 |
+| `ComputeAuditHash` | Method | `desktop/Database/MigrationRunner.cs` | 8530 |
+| `RebaseRepairItem` | Class | `desktop/Database/MigrationRunner.cs` | 2626 |
+| `ApplyMigration1` | Method | `desktop/Database/MigrationRunner.cs` | 2733 |
+| `ApplyMigration10` | Method | `desktop/Database/MigrationRunner.cs` | 3393 |
+| `ApplyMigration11` | Method | `desktop/Database/MigrationRunner.cs` | 3466 |
+| `ApplyMigration12` | Method | `desktop/Database/MigrationRunner.cs` | 3504 |
+| `ApplyMigration13` | Method | `desktop/Database/MigrationRunner.cs` | 3545 |
+| `ApplyMigration14` | Method | `desktop/Database/MigrationRunner.cs` | 3631 |
+| `ApplyMigration15` | Method | `desktop/Database/MigrationRunner.cs` | 3743 |
+| `ApplyMigration16` | Method | `desktop/Database/MigrationRunner.cs` | 3934 |
+| `ApplyMigration17` | Method | `desktop/Database/MigrationRunner.cs` | 4042 |
+| `ApplyMigration18` | Method | `desktop/Database/MigrationRunner.cs` | 4078 |
+| `ApplyMigration19` | Method | `desktop/Database/MigrationRunner.cs` | 4145 |
+| `ApplyMigration2` | Method | `desktop/Database/MigrationRunner.cs` | 2893 |
+| `ApplyMigration20` | Method | `desktop/Database/MigrationRunner.cs` | 4195 |
+| `ApplyMigration21` | Method | `desktop/Database/MigrationRunner.cs` | 4299 |
+| `ApplyMigration22` | Method | `desktop/Database/MigrationRunner.cs` | 4434 |
+| `ApplyMigration23` | Method | `desktop/Database/MigrationRunner.cs` | 4520 |
+| `ApplyMigration24` | Method | `desktop/Database/MigrationRunner.cs` | 4577 |
 
 ## Execution Flows
 

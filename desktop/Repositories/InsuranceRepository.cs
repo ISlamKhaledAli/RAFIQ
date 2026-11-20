@@ -390,8 +390,8 @@ namespace RafiqPOS.Repositories
                                 {
                                     exCmd.Parameters.AddWithValue("@id", "excl_" + Guid.NewGuid().ToString("N"));
                                     exCmd.Parameters.AddWithValue("@cid", contract.Id);
-                                    exCmd.Parameters.AddWithValue("@cat_id", (object)ex.CategoryId ?? DBNull.Value);
-                                    exCmd.Parameters.AddWithValue("@prod_id", (object)ex.ProductId ?? DBNull.Value);
+                                    exCmd.Parameters.AddWithValue("@cat_id", string.IsNullOrWhiteSpace(ex.CategoryId) ? DBNull.Value : (object)ex.CategoryId.Trim());
+                                    exCmd.Parameters.AddWithValue("@prod_id", string.IsNullOrWhiteSpace(ex.ProductId) ? DBNull.Value : (object)ex.ProductId.Trim());
                                     exCmd.Parameters.AddWithValue("@created", now);
                                     exCmd.ExecuteNonQuery();
                                 }
@@ -441,7 +441,7 @@ namespace RafiqPOS.Repositories
             string sql = @"
                 SELECT 
                     e.id, e.contract_id, e.category_id, cat.name AS category_name,
-                    e.product_id, p.name AS product_name, e.created_at
+                    e.product_id, p.name AS product_name, p.barcode AS product_barcode, p.price_piasters AS product_price_piasters, e.created_at
                 FROM insurance_exclusions e
                 LEFT JOIN categories cat ON cat.id = e.category_id
                 LEFT JOIN products p ON p.id = e.product_id
@@ -462,6 +462,8 @@ namespace RafiqPOS.Repositories
                             CategoryName = reader["category_name"] != DBNull.Value ? reader["category_name"].ToString() : null,
                             ProductId = reader["product_id"] != DBNull.Value ? reader["product_id"].ToString() : null,
                             ProductName = reader["product_name"] != DBNull.Value ? reader["product_name"].ToString() : null,
+                            ProductBarcode = reader["product_barcode"] != DBNull.Value ? reader["product_barcode"].ToString() : null,
+                            ProductPricePiasters = reader["product_price_piasters"] != DBNull.Value ? (long?)Convert.ToInt64(reader["product_price_piasters"]) : null,
                             CreatedAt = reader["created_at"].ToString()
                         });
                     }
@@ -725,24 +727,39 @@ namespace RafiqPOS.Repositories
                     if (it == null) continue;
 
                     long lineTotal = it.TotalPiasters;
-                    if (lineTotal <= 0)
+                    if (lineTotal <= 0 && it.UnitPricePiasters > 0)
+                    {
+                        lineTotal = (it.UnitPricePiasters * it.QuantityMilli) / 1000L - it.DiscountPiasters;
+                        if (lineTotal < 0) lineTotal = 0;
+                    }
+
+                    // Query product category & cosmetic flag (and recover unit price from products table if missing)
+                    string prodCatId = null;
+                    string prodCatName = null;
+                    bool isCosmetic = false;
+
+                    using (var cmd = new SQLiteCommand("SELECT category_id, price_piasters FROM products WHERE id = @pid LIMIT 1;", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@pid", it.ProductId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                if (reader["category_id"] != DBNull.Value) prodCatId = reader["category_id"].ToString();
+                                if (it.UnitPricePiasters <= 0 && reader["price_piasters"] != DBNull.Value)
+                                {
+                                    it.UnitPricePiasters = Convert.ToInt64(reader["price_piasters"]);
+                                }
+                            }
+                        }
+                    }
+
+                    if (lineTotal <= 0 && it.UnitPricePiasters > 0)
                     {
                         lineTotal = (it.UnitPricePiasters * it.QuantityMilli) / 1000L - it.DiscountPiasters;
                         if (lineTotal < 0) lineTotal = 0;
                     }
                     totalInvoice += lineTotal;
-
-                    // Query product category & cosmetic flag
-                    string prodCatId = null;
-                    string prodCatName = null;
-                    bool isCosmetic = false;
-
-                    using (var cmd = new SQLiteCommand("SELECT category_id FROM products WHERE id = @pid LIMIT 1;", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@pid", it.ProductId);
-                        object catObj = cmd.ExecuteScalar();
-                        if (catObj != null && catObj != DBNull.Value) prodCatId = catObj.ToString();
-                    }
 
                     if (!string.IsNullOrEmpty(prodCatId))
                     {
@@ -764,12 +781,7 @@ namespace RafiqPOS.Repositories
                     bool isExcluded = false;
                     string reason = null;
 
-                    if (contract.ExcludesCosmetics && isCosmetic)
-                    {
-                        isExcluded = true;
-                        reason = "مستحضرات تجميل غير مغطاة بالعقد";
-                    }
-                    else if (!string.IsNullOrEmpty(it.ProductId) && excludedProductIds.Contains(it.ProductId))
+                    if (!string.IsNullOrEmpty(it.ProductId) && excludedProductIds.Contains(it.ProductId))
                     {
                         isExcluded = true;
                         reason = "الصنف مستثنى صراحة من تغطية العقد";
@@ -777,7 +789,14 @@ namespace RafiqPOS.Repositories
                     else if (!string.IsNullOrEmpty(prodCatId) && excludedCategoryIds.Contains(prodCatId))
                     {
                         isExcluded = true;
-                        reason = "تصنيف الصنف مستثنى من تغطية العقد";
+                        reason = !string.IsNullOrEmpty(prodCatName)
+                            ? string.Format("تصنيف الصنف ({0}) مستثنى من تغطية العقد", prodCatName)
+                            : "تصنيف الصنف مستثنى من تغطية العقد";
+                    }
+                    else if (contract.ExcludesCosmetics && isCosmetic)
+                    {
+                        isExcluded = true;
+                        reason = "مستحضرات تجميل غير مغطاة بالعقد";
                     }
 
                     var itemCov = new InsuranceItemCoverage
@@ -956,6 +975,43 @@ namespace RafiqPOS.Repositories
             return list;
         }
 
+        public InsuranceClaimLine GetClaimLineBySaleId(string saleId)
+        {
+            if (string.IsNullOrEmpty(saleId)) return null;
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT 
+                        l.id, l.sale_id, s.invoice_number, l.contract_id, k.name AS contract_name,
+                        l.company_id, c.name AS company_name, l.member_id, l.member_no, l.patient_name,
+                        l.approval_no, l.total_invoice_piasters, l.covered_piasters, l.patient_piasters,
+                        l.company_piasters, l.status, l.claim_batch_id, b.batch_number AS claim_batch_number,
+                        l.settled_at, l.rejection_reason, l.created_at, l.updated_at
+                    FROM insurance_claim_lines l
+                    INNER JOIN insurance_companies c ON c.id = l.company_id
+                    INNER JOIN insurance_contracts k ON k.id = l.contract_id
+                    LEFT JOIN insurance_claim_batches b ON b.id = l.claim_batch_id
+                    INNER JOIN sales s ON s.id = l.sale_id
+                    WHERE l.sale_id = @saleId LIMIT 1;
+                ";
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@saleId", saleId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return ReadClaimLine(reader);
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
         public List<InsuranceClaimBatch> GetBatches(string companyId = null, string status = null)
         {
             var list = new List<InsuranceClaimBatch>();
@@ -968,6 +1024,8 @@ namespace RafiqPOS.Repositories
                         b.total_claims_count, b.total_amount_piasters, b.status, b.submitted_at,
                         b.settled_at, b.settled_amount_piasters, b.rejected_amount_piasters,
                         b.rejection_reason, b.settlement_notes, b.settlement_deduction_target,
+                        b.settlement_receipt_target, b.settlement_receipt_account_id,
+                        b.settlement_drawer_tx_id, b.settlement_digital_tx_id,
                         b.notes, b.created_by, b.created_at, b.updated_at
                     FROM insurance_claim_batches b
                     INNER JOIN insurance_companies c ON c.id = b.company_id
@@ -1010,6 +1068,8 @@ namespace RafiqPOS.Repositories
                         b.total_claims_count, b.total_amount_piasters, b.status, b.submitted_at,
                         b.settled_at, b.settled_amount_piasters, b.rejected_amount_piasters,
                         b.rejection_reason, b.settlement_notes, b.settlement_deduction_target,
+                        b.settlement_receipt_target, b.settlement_receipt_account_id,
+                        b.settlement_drawer_tx_id, b.settlement_digital_tx_id,
                         b.notes, b.created_by, b.created_at, b.updated_at
                     FROM insurance_claim_batches b
                     INNER JOIN insurance_companies c ON c.id = b.company_id
@@ -1037,7 +1097,7 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public InsuranceClaimBatch CreateClaimBatch(string companyId, string period, List<string> claimLineIds, string createdBy, string notes = null)
+        public InsuranceClaimBatch CreateClaimBatch(string companyId, string period, List<string> claimLineIds, string createdBy, string notes = null, string customBatchNumber = null)
         {
             if (string.IsNullOrEmpty(companyId)) throw new ArgumentException("معرف شركة التأمين مطلوب.");
             if (string.IsNullOrEmpty(period)) throw new ArgumentException("فترة المطالبة مطلوبة (مثال: 2026-10).");
@@ -1051,16 +1111,27 @@ namespace RafiqPOS.Repositories
                     try
                     {
                         string batchId = "btch_" + Guid.NewGuid().ToString("N");
-                        string batchNo = "CLM-" + DateTime.UtcNow.ToString("yyyyMM") + "-" + (DateTime.UtcNow.Ticks % 10000).ToString("0000");
+                        string batchNo = !string.IsNullOrWhiteSpace(customBatchNumber)
+                            ? customBatchNumber.Trim()
+                            : ("CLM-" + DateTime.UtcNow.ToString("yyyyMM") + "-" + (DateTime.UtcNow.Ticks % 10000).ToString("0000"));
                         string now = DateTime.UtcNow.ToString("o");
 
+                        // Guard against duplicate batch number upfront
+                        using (var checkNoCmd = new SQLiteCommand("SELECT 1 FROM insurance_claim_batches WHERE batch_number = @no LIMIT 1;", conn, trans))
+                        {
+                            checkNoCmd.Parameters.AddWithValue("@no", batchNo);
+                            if (checkNoCmd.ExecuteScalar() != null)
+                            {
+                                throw new InvalidOperationException(string.Format("رقم المطالبة «{0}» مسجل مسبقاً، يرجى استخدام رقم دفعة آخر.", batchNo));
+                            }
+                        }
+
                         long totalPiasters = 0;
-                        int validCount = 0;
+                        var validLineIds = new List<string>();
 
                         for (int i = 0; i < claimLineIds.Count; i++)
                         {
                             string lid = claimLineIds[i];
-                            long lineCompanyAmt = 0;
 
                             using (var checkCmd = new SQLiteCommand(@"
                                 SELECT company_piasters FROM insurance_claim_lines
@@ -1071,30 +1142,18 @@ namespace RafiqPOS.Repositories
                                 object res = checkCmd.ExecuteScalar();
                                 if (res != null && res != DBNull.Value)
                                 {
-                                    lineCompanyAmt = Convert.ToInt64(res);
-                                    validCount++;
-                                    totalPiasters += lineCompanyAmt;
-
-                                    // Update line to batched
-                                    using (var updCmd = new SQLiteCommand(@"
-                                        UPDATE insurance_claim_lines 
-                                        SET status = 'batched', claim_batch_id = @bid, updated_at = @now
-                                        WHERE id = @lid;", conn, trans))
-                                    {
-                                        updCmd.Parameters.AddWithValue("@bid", batchId);
-                                        updCmd.Parameters.AddWithValue("@now", now);
-                                        updCmd.Parameters.AddWithValue("@lid", lid);
-                                        updCmd.ExecuteNonQuery();
-                                    }
+                                    totalPiasters += Convert.ToInt64(res);
+                                    validLineIds.Add(lid);
                                 }
                             }
                         }
 
-                        if (validCount == 0)
+                        if (validLineIds.Count == 0)
                         {
                             throw new InvalidOperationException("لم يتم العثور على أي بنود مطالبات معلقة صالحة للشركة المحددة.");
                         }
 
+                        // 1. Insert Batch FIRST to satisfy Foreign Key constraints on claim_batch_id
                         string batchSql = @"
                             INSERT INTO insurance_claim_batches (
                                 id, batch_number, company_id, period, total_claims_count, total_amount_piasters,
@@ -1110,12 +1169,27 @@ namespace RafiqPOS.Repositories
                             bCmd.Parameters.AddWithValue("@no", batchNo);
                             bCmd.Parameters.AddWithValue("@cid", companyId);
                             bCmd.Parameters.AddWithValue("@period", period.Trim());
-                            bCmd.Parameters.AddWithValue("@cnt", validCount);
+                            bCmd.Parameters.AddWithValue("@cnt", validLineIds.Count);
                             bCmd.Parameters.AddWithValue("@amt", totalPiasters);
                             bCmd.Parameters.AddWithValue("@now", now);
                             bCmd.Parameters.AddWithValue("@notes", (object)notes ?? DBNull.Value);
                             bCmd.Parameters.AddWithValue("@by", createdBy ?? "cashier");
                             bCmd.ExecuteNonQuery();
+                        }
+
+                        // 2. Update claim lines to batched referencing the newly created batch
+                        for (int i = 0; i < validLineIds.Count; i++)
+                        {
+                            using (var updCmd = new SQLiteCommand(@"
+                                UPDATE insurance_claim_lines 
+                                SET status = 'batched', claim_batch_id = @bid, updated_at = @now
+                                WHERE id = @lid;", conn, trans))
+                            {
+                                updCmd.Parameters.AddWithValue("@bid", batchId);
+                                updCmd.Parameters.AddWithValue("@now", now);
+                                updCmd.Parameters.AddWithValue("@lid", validLineIds[i]);
+                                updCmd.ExecuteNonQuery();
+                            }
                         }
 
                         trans.Commit();
@@ -1137,7 +1211,9 @@ namespace RafiqPOS.Repositories
             string rejectionReason,
             string settlementDeductionTarget,
             string settledBy,
-            string notes = null)
+            string notes = null,
+            string receiptTarget = "none",
+            string receiptAccountId = null)
         {
             if (string.IsNullOrEmpty(batchId)) throw new ArgumentException("معرف دفعة المطالبة مطلوب.");
             if (settledAmountPiasters < 0 || rejectedAmountPiasters < 0)
@@ -1161,14 +1237,202 @@ namespace RafiqPOS.Repositories
                             throw new InvalidOperationException(string.Format("مجموع المسدد ({0} قرش) والمرفوض ({1} قرش) لا يساوي إجمالي الدفعة ({2} قرش).", settledAmountPiasters, rejectedAmountPiasters, totalBatch));
                         }
 
+                        string normalizedTarget = string.IsNullOrEmpty(receiptTarget) ? "none" : receiptTarget.ToLowerInvariant().Trim();
+                        if (normalizedTarget != "drawer" && normalizedTarget != "digital_account" && normalizedTarget != "none")
+                        {
+                            normalizedTarget = "none";
+                        }
+
                         string now = DateTime.UtcNow.ToString("o");
                         string newStatus = (rejectedAmountPiasters == 0) ? "settled" : (settledAmountPiasters > 0 ? "partially_settled" : "rejected");
+
+                        // 1. REVERSE PREVIOUS RECEIPT (Atomic Rollback of earlier settlement movements)
+                        string prevTarget = batch.SettlementReceiptTarget ?? "none";
+                        long prevSettledAmt = batch.SettledAmountPiasters;
+                        string prevDrawerTxId = batch.SettlementDrawerTxId;
+                        string prevDigitalTxId = batch.SettlementDigitalTxId;
+                        string prevReceiptAccountId = batch.SettlementReceiptAccountId;
+
+                        // A. Cancel previous drawer movement if it was directed to drawer
+                        if (string.Equals(prevTarget, "drawer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string cancelDrawerSql = @"
+                                UPDATE cash_drawer_transactions
+                                SET is_cancelled = 1,
+                                    cancelled_at = @now,
+                                    cancelled_by = @by,
+                                    cancel_reason = @creason
+                                WHERE (id = @prevTxId OR (idempotency_key LIKE @idemPattern AND shift_id IS NOT NULL))
+                                  AND (is_cancelled = 0 OR is_cancelled IS NULL);";
+
+                            using (var cCmd = new SQLiteCommand(cancelDrawerSql, conn, trans))
+                            {
+                                cCmd.Parameters.AddWithValue("@now", now);
+                                cCmd.Parameters.AddWithValue("@by", settledBy ?? "system");
+                                cCmd.Parameters.AddWithValue("@creason", string.Format("إلغاء توريد سابق لتعديل تسوية دفعة المطالبة {0}", batch.BatchNumber));
+                                cCmd.Parameters.AddWithValue("@prevTxId", (object)prevDrawerTxId ?? DBNull.Value);
+                                cCmd.Parameters.AddWithValue("@idemPattern", "insurance_receipt:" + batch.Id + "%");
+                                cCmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        // B. Revert previous digital account movement if it was directed to digital account
+                        if (string.Equals(prevTarget, "digital_account", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(prevReceiptAccountId) && prevSettledAmt > 0)
+                        {
+                            // Decrement account balance
+                            using (var decCmd = new SQLiteCommand(@"
+                                UPDATE digital_accounts
+                                SET balance_piasters = balance_piasters - @prevAmt,
+                                    updated_at = @now
+                                WHERE id = @accId;", conn, trans))
+                            {
+                                decCmd.Parameters.AddWithValue("@prevAmt", prevSettledAmt);
+                                decCmd.Parameters.AddWithValue("@now", now);
+                                decCmd.Parameters.AddWithValue("@accId", prevReceiptAccountId);
+                                decCmd.ExecuteNonQuery();
+                            }
+
+                            // Mark digital transaction as cancelled
+                            using (var cTxCmd = new SQLiteCommand(@"
+                                UPDATE digital_transactions
+                                SET status = 'cancelled',
+                                    notes = notes || @suffix
+                                WHERE (id = @prevDigitalId OR (account_id = @accId AND tx_type = 'insurance_settlement' AND notes LIKE @exactPattern))
+                                  AND status = 'completed';", conn, trans))
+                            {
+                                cTxCmd.Parameters.AddWithValue("@prevDigitalId", (object)prevDigitalTxId ?? DBNull.Value);
+                                cTxCmd.Parameters.AddWithValue("@accId", prevReceiptAccountId);
+                                cTxCmd.Parameters.AddWithValue("@exactPattern", "%مطالبة شركة التأمين: " + batch.BatchNumber + "%");
+                                cTxCmd.Parameters.AddWithValue("@suffix", string.Format(" (أُلغيت لتعديل تسوية المطالبة {0})", batch.BatchNumber));
+                                cTxCmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        // 2. APPLY NEW RECEIPT (if approved amount > 0)
+                        string newDrawerTxId = null;
+                        string newDigitalTxId = null;
+                        string finalReceiptAccountId = null;
+
+                        if (settledAmountPiasters > 0)
+                        {
+                            if (normalizedTarget == "drawer")
+                            {
+                                // Must find open shift
+                                string activeShiftId = null;
+                                using (var shiftCmd = new SQLiteCommand("SELECT id FROM shifts WHERE status = 'open' ORDER BY opened_at DESC LIMIT 1;", conn, trans))
+                                {
+                                    object sRes = shiftCmd.ExecuteScalar();
+                                    if (sRes != null && sRes != DBNull.Value) activeShiftId = sRes.ToString();
+                                }
+
+                                if (string.IsNullOrEmpty(activeShiftId))
+                                {
+                                    throw new InvalidOperationException("لا يمكن توريد المبلغ إلى درج الكاشير لعدم وجود وردية عمل مفتوحة حالياً. يرجى فتح وردية أولاً أو اختيار وجهة استلام أخرى (حساب رقمي / بدون توريد).");
+                                }
+
+                                string performerName = "الكاشير";
+                                using (var uCmd = new SQLiteCommand("SELECT display_name, username FROM users WHERE id = @uid LIMIT 1;", conn, trans))
+                                {
+                                    uCmd.Parameters.AddWithValue("@uid", settledBy ?? "system");
+                                    using (var uReader = uCmd.ExecuteReader())
+                                    {
+                                        if (uReader.Read())
+                                        {
+                                            if (uReader["display_name"] != DBNull.Value && !string.IsNullOrWhiteSpace(uReader["display_name"].ToString()))
+                                                performerName = uReader["display_name"].ToString();
+                                            else if (uReader["username"] != DBNull.Value)
+                                                performerName = uReader["username"].ToString();
+                                        }
+                                    }
+                                }
+
+                                newDrawerTxId = "ctx_" + Guid.NewGuid().ToString("N");
+                                string drawerReason = string.Format("توريد دفعة سداد شركة التأمين: {0} ({1})", batch.BatchNumber, batch.CompanyName);
+                                string drawerIdemKey = string.Format("insurance_receipt:{0}:{1}", batch.Id, Guid.NewGuid().ToString("N").Substring(0, 8));
+
+                                using (var dInsCmd = new SQLiteCommand(@"
+                                    INSERT INTO cash_drawer_transactions (
+                                        id, shift_id, type, amount_piasters, reason, performed_by_id, performed_by_name, created_at, idempotency_key, is_cancelled
+                                    ) VALUES (
+                                        @id, @shiftId, 'cash_in', @amt, @reason, @by, @byName, @now, @idemKey, 0
+                                    );", conn, trans))
+                                {
+                                    dInsCmd.Parameters.AddWithValue("@id", newDrawerTxId);
+                                    dInsCmd.Parameters.AddWithValue("@shiftId", activeShiftId);
+                                    dInsCmd.Parameters.AddWithValue("@amt", settledAmountPiasters);
+                                    dInsCmd.Parameters.AddWithValue("@reason", drawerReason);
+                                    dInsCmd.Parameters.AddWithValue("@by", settledBy ?? "system");
+                                    dInsCmd.Parameters.AddWithValue("@byName", performerName);
+                                    dInsCmd.Parameters.AddWithValue("@now", now);
+                                    dInsCmd.Parameters.AddWithValue("@idemKey", drawerIdemKey);
+                                    dInsCmd.ExecuteNonQuery();
+                                }
+                            }
+                            else if (normalizedTarget == "digital_account")
+                            {
+                                if (string.IsNullOrWhiteSpace(receiptAccountId))
+                                {
+                                    throw new InvalidOperationException("يرجى اختيار الحساب الرقمي أو المحفظة لتوريد المبلغ المعتمد.");
+                                }
+
+                                string accName = null;
+                                using (var accCmd = new SQLiteCommand("SELECT name FROM digital_accounts WHERE id = @aid LIMIT 1;", conn, trans))
+                                {
+                                    accCmd.Parameters.AddWithValue("@aid", receiptAccountId.Trim());
+                                    object aRes = accCmd.ExecuteScalar();
+                                    if (aRes != null && aRes != DBNull.Value) accName = aRes.ToString();
+                                }
+
+                                if (string.IsNullOrEmpty(accName))
+                                {
+                                    throw new InvalidOperationException("الحساب الرقمي المحدد غير موجود أو تم حذفه.");
+                                }
+
+                                finalReceiptAccountId = receiptAccountId.Trim();
+
+                                // Credit account balance
+                                using (var incCmd = new SQLiteCommand(@"
+                                    UPDATE digital_accounts
+                                    SET balance_piasters = balance_piasters + @amt,
+                                        updated_at = @now
+                                    WHERE id = @aid;", conn, trans))
+                                {
+                                    incCmd.Parameters.AddWithValue("@amt", settledAmountPiasters);
+                                    incCmd.Parameters.AddWithValue("@now", now);
+                                    incCmd.Parameters.AddWithValue("@aid", finalReceiptAccountId);
+                                    incCmd.ExecuteNonQuery();
+                                }
+
+                                newDigitalTxId = "dtx_" + Guid.NewGuid().ToString("N");
+                                string digitalNotes = string.Format("تحصيل مطالبة شركة التأمين: {0} ({1})", batch.BatchNumber, batch.CompanyName);
+
+                                using (var dtInsCmd = new SQLiteCommand(@"
+                                    INSERT INTO digital_transactions (
+                                        id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
+                                        payment_destination, status, notes, created_at
+                                    ) VALUES (
+                                        @id, @aid, 'insurance_settlement', @amt, 0, @amt,
+                                        'wallet', 'completed', @notes, @now
+                                    );", conn, trans))
+                                {
+                                    dtInsCmd.Parameters.AddWithValue("@id", newDigitalTxId);
+                                    dtInsCmd.Parameters.AddWithValue("@aid", finalReceiptAccountId);
+                                    dtInsCmd.Parameters.AddWithValue("@amt", settledAmountPiasters);
+                                    dtInsCmd.Parameters.AddWithValue("@notes", digitalNotes);
+                                    dtInsCmd.Parameters.AddWithValue("@now", now);
+                                    dtInsCmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
 
                         string updBatchSql = @"
                             UPDATE insurance_claim_batches
                             SET status = @stat, settled_at = @now, settled_amount_piasters = @settled,
                                 rejected_amount_piasters = @rej_amt, rejection_reason = @rej_reason,
-                                settlement_notes = @notes, settlement_deduction_target = @target, updated_at = @now
+                                settlement_notes = @notes, settlement_deduction_target = @target,
+                                settlement_receipt_target = @receipt_target, settlement_receipt_account_id = @receipt_acc_id,
+                                settlement_drawer_tx_id = @drawer_tx_id, settlement_digital_tx_id = @digital_tx_id,
+                                updated_at = @now
                             WHERE id = @id;";
 
                         using (var cmd = new SQLiteCommand(updBatchSql, conn, trans))
@@ -1180,6 +1444,10 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@rej_reason", (object)rejectionReason ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@notes", (object)notes ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@target", (object)settlementDeductionTarget ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@receipt_target", normalizedTarget);
+                            cmd.Parameters.AddWithValue("@receipt_acc_id", (object)finalReceiptAccountId ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@drawer_tx_id", (object)newDrawerTxId ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@digital_tx_id", (object)newDigitalTxId ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@id", batchId);
                             cmd.ExecuteNonQuery();
                         }
@@ -1198,6 +1466,29 @@ namespace RafiqPOS.Repositories
                             lineCmd.ExecuteNonQuery();
                         }
 
+                        // Idempotent rejection expense handling:
+                        // First, cancel any previous uncancelled insurance_rejection expenses for this batch
+                        string batchIdempotencyKey = "insurance_batch:" + batch.Id;
+                        string cancelPrevExpSql = @"
+                            UPDATE expenses 
+                            SET is_cancelled = 1,
+                                cancelled_at = @now,
+                                cancelled_by = @by,
+                                cancel_reason = @creason,
+                                idempotency_key = NULL
+                            WHERE (idempotency_key = @batchKey OR (category = 'insurance_rejection' AND notes LIKE @exactPattern))
+                              AND (is_cancelled = 0 OR is_cancelled IS NULL);";
+
+                        using (var cancelCmd = new SQLiteCommand(cancelPrevExpSql, conn, trans))
+                        {
+                            cancelCmd.Parameters.AddWithValue("@now", now);
+                            cancelCmd.Parameters.AddWithValue("@by", settledBy ?? "system");
+                            cancelCmd.Parameters.AddWithValue("@creason", string.Format("إلغاء قيد سابق لإعادة تسوية دفعة المطالبة {0}", batch.BatchNumber));
+                            cancelCmd.Parameters.AddWithValue("@batchKey", batchIdempotencyKey);
+                            cancelCmd.Parameters.AddWithValue("@exactPattern", "%دفعة المطالبة " + batch.BatchNumber + ":%");
+                            cancelCmd.ExecuteNonQuery();
+                        }
+
                         // If there is rejection and deduction target is expense: record expense contra-entry
                         if (rejectedAmountPiasters > 0 && string.Equals(settlementDeductionTarget, "expense", StringComparison.OrdinalIgnoreCase))
                         {
@@ -1205,7 +1496,7 @@ namespace RafiqPOS.Repositories
                             string bDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
                             string expSql = @"
                                 INSERT INTO expenses (
-                                    id, expense_number, amount_piasters, category, notes, source, created_by, business_date, created_at, is_cancelled
+                                    id, expense_number, amount_piasters, category, notes, source, created_by, business_date, created_at, is_cancelled, idempotency_key
                                 ) VALUES (
                                     @id, 
                                     COALESCE((SELECT MAX(expense_number) FROM expenses), 0) + 1,
@@ -1216,7 +1507,8 @@ namespace RafiqPOS.Repositories
                                     @by, 
                                     @bdate, 
                                     @created_at, 
-                                    0
+                                    0,
+                                    @idempotency_key
                                 );";
 
                             using (var expCmd = new SQLiteCommand(expSql, conn, trans))
@@ -1227,6 +1519,7 @@ namespace RafiqPOS.Repositories
                                 expCmd.Parameters.AddWithValue("@by", settledBy ?? "system");
                                 expCmd.Parameters.AddWithValue("@bdate", bDate);
                                 expCmd.Parameters.AddWithValue("@created_at", now);
+                                expCmd.Parameters.AddWithValue("@idempotency_key", batchIdempotencyKey);
                                 expCmd.ExecuteNonQuery();
                             }
                         }
@@ -1274,7 +1567,7 @@ namespace RafiqPOS.Repositories
 
         private static InsuranceClaimBatch ReadBatch(SQLiteDataReader reader)
         {
-            return new InsuranceClaimBatch
+            var batch = new InsuranceClaimBatch
             {
                 Id = reader["id"].ToString(),
                 BatchNumber = reader["batch_number"].ToString(),
@@ -1296,6 +1589,33 @@ namespace RafiqPOS.Repositories
                 CreatedAt = reader["created_at"].ToString(),
                 UpdatedAt = reader["updated_at"] != DBNull.Value ? reader["updated_at"].ToString() : null
             };
+
+            try
+            {
+                int colIdx = reader.GetOrdinal("settlement_receipt_target");
+                if (colIdx >= 0 && reader["settlement_receipt_target"] != DBNull.Value)
+                {
+                    batch.SettlementReceiptTarget = reader["settlement_receipt_target"].ToString();
+                }
+                colIdx = reader.GetOrdinal("settlement_receipt_account_id");
+                if (colIdx >= 0 && reader["settlement_receipt_account_id"] != DBNull.Value)
+                {
+                    batch.SettlementReceiptAccountId = reader["settlement_receipt_account_id"].ToString();
+                }
+                colIdx = reader.GetOrdinal("settlement_drawer_tx_id");
+                if (colIdx >= 0 && reader["settlement_drawer_tx_id"] != DBNull.Value)
+                {
+                    batch.SettlementDrawerTxId = reader["settlement_drawer_tx_id"].ToString();
+                }
+                colIdx = reader.GetOrdinal("settlement_digital_tx_id");
+                if (colIdx >= 0 && reader["settlement_digital_tx_id"] != DBNull.Value)
+                {
+                    batch.SettlementDigitalTxId = reader["settlement_digital_tx_id"].ToString();
+                }
+            }
+            catch { }
+
+            return batch;
         }
 
         #endregion

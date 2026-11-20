@@ -9,7 +9,6 @@ import {
   MapPin,
   Stethoscope,
   FileText,
-  Calendar,
   Lock,
   Upload,
   CheckCircle2,
@@ -22,6 +21,7 @@ import { invoke } from '../../bridge/ipc';
 import { useAuth } from '../../context/useAuth';
 import { RequiredMark } from '../../components/RequiredMark';
 import { parseMandatoryFields } from '../../utils/controlledMandatoryFields';
+import { CustomDatePicker } from '../../components/CustomDatePicker';
 
 interface ControlledDrugDispenseModalProps {
   isOpen: boolean;
@@ -450,15 +450,13 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                   تاريخ الروشتة {mandatorySettings.requirePrescriptionDate && <RequiredMark />}
                 </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={prescriptionDate}
-                    onChange={(e) => setPrescriptionDate(e.target.value)}
-                    className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg h-9 px-3 pr-8 font-mono text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                  />
-                  <Calendar className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-3 pointer-events-none" />
-                </div>
+                <CustomDatePicker
+                  value={prescriptionDate}
+                  onChange={(val) => setPrescriptionDate(val)}
+                  placeholder="اختر تاريخ الروشتة"
+                  size="md"
+                  className="w-full"
+                />
               </div>
             </div>
 

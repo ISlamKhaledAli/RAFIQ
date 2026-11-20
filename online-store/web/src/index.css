@@ -42,6 +42,21 @@
 * {
   -webkit-tap-highlight-color: transparent;
   box-sizing: border-box;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Disable browser native number spinners & Edge duplicate password reveal */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+input[type="number"] {
+  -moz-appearance: textfield !important;
+}
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
 }
 
 html, body {
@@ -52,11 +67,16 @@ html, body {
   font-family: 'Readex Pro', 'IBM Plex Sans Arabic', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: var(--store-bg);
   color: var(--store-text);
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  scroll-behavior: smooth;
+}
+
+/* High-performance Admin Scroll Pane (Zero Jank) */
+.admin-scroll-pane {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Safe area insets for modern notched phones (iPhone X+, Galaxy Fold, etc.) */
@@ -108,17 +128,13 @@ html, body {
   animation: slideUpSheet 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Glassmorphism */
+/* Crisp Solid Surfaces (Zero backdrop-filter scroll repaint lag) */
 .glass-header {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.98);
 }
 
 .glass-nav {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.98);
 }
 
 /* Shimmer Effect */
@@ -148,6 +164,228 @@ html, body {
   }
   ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+  }
+}
+
+/* =========================================================================
+   OFFICIAL RAFIQ DESKTOP MOTION SYSTEM (Ported 1:1 from frontend/src/index.css)
+   Compositor-only opacity / translate / scale transitions with reduced-motion guard.
+   ========================================================================= */
+@keyframes enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(
+        var(--tw-enter-translate-x, 0),
+        var(--tw-enter-translate-y, 0),
+        0
+      )
+      scale3d(
+        var(--tw-enter-scale, 1),
+        var(--tw-enter-scale, 1),
+        var(--tw-enter-scale, 1)
+      );
+  }
+}
+
+.animate-in {
+  animation-name: enter;
+  animation-duration: 0.15s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+  --tw-enter-opacity: initial;
+  --tw-enter-scale: initial;
+  --tw-enter-translate-x: initial;
+  --tw-enter-translate-y: initial;
+}
+
+.fade-in {
+  --tw-enter-opacity: 0;
+}
+
+.zoom-in-95 {
+  --tw-enter-scale: 0.95;
+}
+
+.slide-in-from-top-1 {
+  --tw-enter-translate-y: -4px;
+}
+
+.slide-in-from-top-2 {
+  --tw-enter-translate-y: -8px;
+}
+
+.slide-in-from-bottom-2 {
+  --tw-enter-translate-y: 8px;
+}
+
+.slide-in-from-bottom-3 {
+  --tw-enter-translate-y: 12px;
+}
+
+@media screen and (prefers-reduced-motion: no-preference) {
+  html[data-motion="on"] {
+    --rq-motion-duration: 240ms;
+    --rq-motion-distance: 16px;
+    --rq-motion-scale: 0.92;
+    --rq-motion-y: var(--rq-motion-distance);
+    --rq-motion-s: 1;
+    --rq-motion-dy: calc(var(--rq-motion-distance) * 0.875);
+    --rq-motion-ds: var(--rq-motion-scale);
+  }
+
+  html[data-motion="on"][data-motion-level="soft"] {
+    --rq-motion-duration: 160ms;
+    --rq-motion-distance: 8px;
+    --rq-motion-scale: 0.97;
+  }
+
+  html[data-motion="on"][data-motion-level="strong"] {
+    --rq-motion-duration: 280ms;
+    --rq-motion-distance: 22px;
+    --rq-motion-scale: 0.90;
+  }
+
+  html[data-motion="on"][data-motion-style="fade"] {
+    --rq-motion-y: 0px;
+    --rq-motion-s: 1;
+    --rq-motion-dy: 0px;
+    --rq-motion-ds: 1;
+  }
+
+  html[data-motion="on"][data-motion-style="zoom"] {
+    --rq-motion-y: 0px;
+    --rq-motion-s: calc(1 - (1 - var(--rq-motion-scale)) / 2);
+    --rq-motion-dy: 0px;
+    --rq-motion-ds: var(--rq-motion-scale);
+  }
+
+  @keyframes rq-panel-in-a {
+    from { opacity: 0; translate: 0 var(--rq-motion-y, 16px); scale: var(--rq-motion-s, 1); }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+
+  @keyframes rq-panel-in-b {
+    from { opacity: 0; translate: 0 var(--rq-motion-y, 16px); scale: var(--rq-motion-s, 1); }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+
+  @keyframes rq-modal-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes rq-modal-panel-in {
+    from { opacity: 0; scale: var(--rq-motion-ds, 0.92); translate: 0 var(--rq-motion-dy, 14px); }
+    to { opacity: 1; scale: 1; translate: 0 0; }
+  }
+
+  @keyframes rq-toast-in {
+    from { opacity: 0; translate: 0 calc(var(--rq-motion-y, 16px) * -1); scale: var(--rq-motion-s, 1); }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+
+  @keyframes rq-popup-in {
+    from { opacity: 0; translate: 0 calc(var(--rq-motion-dy, 14px) * -0.55); scale: 0.97; }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+
+  @keyframes rq-collapse-in {
+    from { opacity: 0; grid-template-rows: 0fr; }
+    to { opacity: 1; grid-template-rows: 1fr; }
+  }
+
+  @keyframes rq-badge-pop-a {
+    from { scale: calc(1 + (1 - var(--rq-motion-scale, 0.92)) * 1.9); }
+    to { scale: 1; }
+  }
+
+  @keyframes rq-badge-pop-b {
+    from { scale: calc(1 + (1 - var(--rq-motion-scale, 0.92)) * 1.9); }
+    to { scale: 1; }
+  }
+
+  /* Tab / View Phase Twin Switching */
+  html[data-motion="on"] [data-motion-phase="a"]:not(.motion-catalog-grid) > :not(.motion-static):not([class*="animate-"]) {
+    animation: rq-panel-in-a var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] [data-motion-phase="b"]:not(.motion-catalog-grid) > :not(.motion-static):not([class*="animate-"]) {
+    animation: rq-panel-in-b var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /* Storefront Catalog Grid Cascading Filter/Search Entrance */
+  html[data-motion="on"] .motion-catalog-grid[data-motion-phase="a"] > * {
+    animation: rq-panel-in-a var(--rq-motion-duration, 240ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  html[data-motion="on"] .motion-catalog-grid[data-motion-phase="b"] > * {
+    animation: rq-panel-in-b var(--rq-motion-duration, 240ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  html[data-motion="on"] .motion-catalog-grid > *:nth-child(1) { animation-delay: 0ms; }
+  html[data-motion="on"] .motion-catalog-grid > *:nth-child(2) { animation-delay: 28ms; }
+  html[data-motion="on"] .motion-catalog-grid > *:nth-child(3) { animation-delay: 56ms; }
+  html[data-motion="on"] .motion-catalog-grid > *:nth-child(4) { animation-delay: 84ms; }
+  html[data-motion="on"] .motion-catalog-grid > *:nth-child(5) { animation-delay: 112ms; }
+  html[data-motion="on"] .motion-catalog-grid > *:nth-child(6) { animation-delay: 140ms; }
+  html[data-motion="on"] .motion-catalog-grid > *:nth-child(n+7) { animation-delay: 160ms; }
+
+  html[data-motion="on"] .motion-panel {
+    animation: rq-panel-in-a var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-modal-backdrop {
+    animation: rq-modal-backdrop-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-modal-panel {
+    animation: rq-modal-panel-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-toast {
+    animation: rq-toast-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-popup {
+    animation: rq-popup-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-nav-group {
+    display: grid;
+    grid-template-rows: 1fr;
+    animation: rq-collapse-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-nav-group > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  html[data-motion="on"] .motion-chevron {
+    transition: transform var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-sidebar {
+    transition-property: width;
+    transition-duration: var(--rq-motion-duration, 240ms);
+    transition-timing-function: ease-out;
+  }
+
+  html[data-motion="on"] .motion-sidebar-label {
+    animation: rq-modal-backdrop-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] [data-pop="a"] {
+    animation: rq-badge-pop-a var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] [data-pop="b"] {
+    animation: rq-badge-pop-b var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] :is(.animate-in, .animate-fade-in, .animate-fadeIn) {
+    animation-duration: var(--rq-motion-duration, 240ms);
+    animation-timing-function: ease-out;
   }
 }
 

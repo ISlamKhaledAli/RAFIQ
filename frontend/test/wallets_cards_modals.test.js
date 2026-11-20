@@ -121,7 +121,9 @@ describe('pop-up widths', () => {
     const contract = between(insuranceModals, '{/* Modal: Contract */}', '{/* Modal: Member */}');
     const member = between(insuranceModals, '{/* Modal: Member */}', '{/* Modal: Create Batch */}');
     const batch = between(insuranceModals, '{/* Modal: Create Batch */}', '{/* Modal: Settle Batch */}');
-    const settle = insuranceModals.slice(insuranceModals.indexOf('{/* Modal: Settle Batch */}'));
+    const settle = insuranceModals.includes('{/* Quick Add Digital Account Modal */}')
+      ? between(insuranceModals, '{/* Modal: Settle Batch */}', '{/* Quick Add Digital Account Modal */}')
+      : insuranceModals.slice(insuranceModals.indexOf('{/* Modal: Settle Batch */}'));
     for (const m of [company, contract, member, settle]) {
       assert.match(m, /w-full max-w-2xl max-h-\[calc\(100vh-2rem\)\] flex flex-col/);
       assert.match(m, /p-6 space-y-4 flex-1 min-h-0 overflow-y-auto/);

@@ -576,6 +576,50 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, updateInfo);
                     return true;
 
+                case "updates:startDownload":
+                    var dlStartState = DatabaseService.Updates.StartDownload();
+                    response = BridgeResponse.Ok(request.Id, dlStartState);
+                    return true;
+
+                case "updates:getDownloadState":
+                    var dlCurState = DatabaseService.Updates.GetDownloadState();
+                    response = BridgeResponse.Ok(request.Id, dlCurState);
+                    return true;
+
+                case "updates:cancelDownload":
+                    var dlCancelState = DatabaseService.Updates.CancelDownload();
+                    response = BridgeResponse.Ok(request.Id, dlCancelState);
+                    return true;
+
+                case "updates:launchInstaller":
+                    var launchResult = DatabaseService.Updates.LaunchVerifiedInstaller();
+                    response = BridgeResponse.Ok(request.Id, launchResult);
+                    if (launchResult != null && launchResult.Launched && RafiqPOS.MainForm.Instance != null)
+                    {
+                        var closeThread = new System.Threading.Thread(delegate()
+                        {
+                            try
+                            {
+                                System.Threading.Thread.Sleep(450);
+                                if (RafiqPOS.MainForm.Instance != null && !RafiqPOS.MainForm.Instance.IsDisposed && RafiqPOS.MainForm.Instance.IsHandleCreated)
+                                {
+                                    RafiqPOS.MainForm.Instance.BeginInvoke(new Action(delegate
+                                    {
+                                        try
+                                        {
+                                            RafiqPOS.MainForm.Instance.Close();
+                                        }
+                                        catch { }
+                                    }));
+                                }
+                            }
+                            catch { }
+                        });
+                        closeThread.IsBackground = true;
+                        closeThread.Start();
+                    }
+                    return true;
+
                 default:
                     return false;
             }

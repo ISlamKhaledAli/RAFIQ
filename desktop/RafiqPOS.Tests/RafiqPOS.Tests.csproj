@@ -146,6 +146,8 @@
     <Compile Include="Scenarios\S100_ExactBarcodeLookupTest.cs" />
     <Compile Include="Scenarios\S101_BoundedSmartCatalogTest.cs" />
     <Compile Include="Scenarios\S102_TrialDataPurgeTest.cs" />
+    <Compile Include="Scenarios\S103_OnlineStoreSyncEngineTest.cs" />
+    <Compile Include="Scenarios\S104_InsurancePrescriptionCreditAndLedgerTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

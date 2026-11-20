@@ -905,6 +905,14 @@ export const adminScripts = `
         ? '<svg class="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
         : '<svg class="w-4 h-4 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
+      var isStoreOn = lic.online_store_enabled === 1;
+      var storeTitle = isStoreOn ? 'إدارة المتجر الإلكتروني السحابي' : 'تفعيل المتجر الإلكتروني السحابي';
+      var storeDesc = isStoreOn
+        ? ('مفعّل' + (lic.online_store_slug ? ' (' + escapeHtml(lic.online_store_slug) + ')' : '') + ' — تعديل الرابط والصلاحية أو الإيقاف')
+        : 'تشغيل المتجر السحابي وتخصيص الرابط والصلاحية';
+      var storeClass = isStoreOn ? 'text-[#00372d] hover:bg-emerald-50' : 'text-emerald-700 hover:bg-emerald-50';
+      var storeIcon = '<svg class="w-4 h-4 text-[#006d41] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
+
       menu.innerHTML = [
         '<div class="space-y-0.5 text-right">',
         '  <button type="button" data-id="' + escapeHtml(lic.id) + '" class="menu-item text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 cursor-pointer" onclick="closeActionMenu(); openShareModal(this.dataset.id);">',
@@ -928,6 +936,13 @@ export const adminScripts = `
         '    <div class="flex-1 text-right">',
         '      <div class="leading-tight font-bold">' + updTitle + '</div>',
         '      <div class="text-[10px] text-slate-400 font-normal mt-0.5">' + updDesc + '</div>',
+        '    </div>',
+        '  </button>',
+        '  <button type="button" data-id="' + escapeHtml(lic.id) + '" class="menu-item ' + storeClass + ' cursor-pointer" onclick="closeActionMenu(); openOnlineStoreModal(this.dataset.id);">',
+        '    ' + storeIcon,
+        '    <div class="flex-1 text-right">',
+        '      <div class="leading-tight font-bold">' + storeTitle + '</div>',
+        '      <div class="text-[10px] text-slate-400 font-normal mt-0.5">' + storeDesc + '</div>',
         '    </div>',
         '  </button>',
         '  <button type="button" data-id="' + escapeHtml(lic.id) + '" data-name="' + escapeHtml(lic.shop_name) + '" class="menu-item text-slate-800 hover:bg-amber-50 hover:text-amber-800 cursor-pointer" onclick="closeActionMenu(); resetDevice(this.dataset.id, this.dataset.name);">',
@@ -1088,9 +1103,13 @@ export const adminScripts = `
           ? '<span class="font-mono text-xs sm:text-sm text-slate-800 font-bold cursor-pointer hover:text-emerald-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200" data-id="' + escapeHtml(lic.id) + '" onclick="openDeviceModal(this.dataset.id)">...' + escapeHtml(lic.machine_fingerprint.slice(-14)) + '</span>'
           : '<span class="text-slate-400 text-xs font-semibold">بانتظار التفعيل</span>';
 
-        var updBadge = lic.can_receive_updates === 0
-          ? '<div class="mt-1"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="ممنوع من استلام التحديثات الهوائية"><svg class="w-2.5 h-2.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>التحديثات محجوبة</span></div>'
-          : '<div class="mt-1"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/70 border border-emerald-200/80 px-1.5 py-0.5 rounded" title="مؤهل لتلقي التحديثات"><svg class="w-2.5 h-2.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>مستحق للتحديث</span></div>';
+        var storeBadge = lic.online_store_enabled === 1
+          ? '<button type="button" data-id="' + escapeHtml(lic.id) + '" onclick="openOnlineStoreModal(this.dataset.id)" class="inline-flex items-center gap-1 text-[10px] font-bold text-[#00372d] bg-[#eaf5ee] hover:bg-[#d8efe1] border border-[#c4e3d0] px-1.5 py-0.5 rounded transition cursor-pointer" title="إدارة المتجر الإلكتروني السحابي"><svg class="w-2.5 h-2.5 text-[#006d41]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span>متجر سحابي' + (lic.online_store_slug ? ': ' + escapeHtml(lic.online_store_slug) : '') + '</span></button>'
+          : '';
+
+        var updBadge = '<div class="mt-1 flex flex-wrap items-center gap-1.5">' + (lic.can_receive_updates === 0
+          ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="ممنوع من استلام التحديثات الهوائية"><svg class="w-2.5 h-2.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>التحديثات محجوبة</span>'
+          : '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/70 border border-emerald-200/80 px-1.5 py-0.5 rounded" title="مؤهل لتلقي التحديثات"><svg class="w-2.5 h-2.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>مستحق للتحديث</span>') + storeBadge + '</div>';
 
         tr.innerHTML = [
           '<td class="px-4 py-4 text-center font-mono text-slate-500 font-bold text-xs sm:text-sm">' + rowNumber + '</td>',
@@ -1182,9 +1201,13 @@ export const adminScripts = `
           validityText = diffDays <= 0 ? 'منتهي الصلاحية' : 'متبقي ' + diffDays + ' يوم (' + expDate.toISOString().split('T')[0] + ')';
         }
 
-        var updBadge = lic.can_receive_updates === 0
-          ? '<div class="mt-1"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="ممنوع من استلام التحديثات الهوائية"><svg class="w-2.5 h-2.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>التحديثات محجوبة</span></div>'
-          : '<div class="mt-1"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/70 border border-emerald-200/80 px-1.5 py-0.5 rounded" title="مؤهل لتلقي التحديثات"><svg class="w-2.5 h-2.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>مستحق للتحديث</span></div>';
+        var storeBadge = lic.online_store_enabled === 1
+          ? '<button type="button" data-id="' + escapeHtml(lic.id) + '" onclick="openOnlineStoreModal(this.dataset.id)" class="inline-flex items-center gap-1 text-[10px] font-bold text-[#00372d] bg-[#eaf5ee] hover:bg-[#d8efe1] border border-[#c4e3d0] px-1.5 py-0.5 rounded transition cursor-pointer" title="إدارة المتجر الإلكتروني السحابي"><svg class="w-2.5 h-2.5 text-[#006d41]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span>متجر سحابي' + (lic.online_store_slug ? ': ' + escapeHtml(lic.online_store_slug) : '') + '</span></button>'
+          : '';
+
+        var updBadge = '<div class="mt-1 flex flex-wrap items-center gap-1.5">' + (lic.can_receive_updates === 0
+          ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="ممنوع من استلام التحديثات الهوائية"><svg class="w-2.5 h-2.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>التحديثات محجوبة</span>'
+          : '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50/70 border border-emerald-200/80 px-1.5 py-0.5 rounded" title="مؤهل لتلقي التحديثات"><svg class="w-2.5 h-2.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>مستحق للتحديث</span>') + storeBadge + '</div>';
 
         card.innerHTML = [
           '<div class="flex items-start justify-between pb-3 border-b border-slate-100 gap-3">',
@@ -1677,6 +1700,320 @@ export const adminScripts = `
         }
       } catch (err) {
         showToast('حدث خطأ أثناء الاتصال بالسيرفر', true);
+      }
+    }
+
+    // ==========================================
+    // ONLINE STORE CLOUD GOVERNANCE MODAL
+    // ==========================================
+    var ONLINE_STORE_BASE_URL = 'https://rafiq-store-web.rafiq-store-api.workers.dev/';
+    var currentOnlineStoreLic = null;
+
+    function isValidOnlineStoreSlug(slug) {
+      return /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slug);
+    }
+
+    function openOnlineStoreModal(id) {
+      var lic = allLicenses.find(function(l) { return l.id === id; });
+      if (!lic) return;
+      currentOnlineStoreLic = lic;
+
+      var idEl = document.getElementById('osLicenseId');
+      var shopEl = document.getElementById('osModalShopName');
+      var keyEl = document.getElementById('osModalLicenseKey');
+      var badgeEl = document.getElementById('osCurrentStatusBadge');
+      var expEl = document.getElementById('osCurrentExpiryText');
+      var slugInput = document.getElementById('osSlugInput');
+
+      if (idEl) idEl.value = lic.id;
+      if (shopEl) shopEl.textContent = lic.shop_name || '-';
+      if (keyEl) keyEl.textContent = lic.license_key || '-';
+
+      var isCurrentlyOn = lic.online_store_enabled === 1;
+      if (badgeEl) {
+        if (isCurrentlyOn) {
+          badgeEl.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold border bg-emerald-50 text-[#00372d] border-emerald-200';
+          badgeEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-[#006d41]"></span><span>مفعّل سحابياً</span>';
+        } else {
+          badgeEl.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold border bg-slate-100 text-slate-600 border-slate-200';
+          badgeEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-400"></span><span>غير مفعّل</span>';
+        }
+      }
+
+      if (expEl) {
+        if (lic.online_store_expires_at) {
+          var expDateStr = String(lic.online_store_expires_at).split('T')[0];
+          expEl.textContent = 'صلاحية المتجر حتى: ' + expDateStr;
+        } else if (isCurrentlyOn) {
+          expEl.textContent = 'صلاحية مفتوحة (بدون تاريخ انتهاء)';
+        } else {
+          expEl.textContent = 'جاهز للتفعيل الفوري';
+        }
+      }
+
+      if (slugInput) {
+        slugInput.value = lic.online_store_slug || '';
+      }
+
+      setCustomSelectValue('osDurationSelect', 'keep');
+      var customDaysInput = document.getElementById('osCustomDaysInput');
+      if (customDaysInput) customDaysInput.value = '';
+      onOnlineStoreDurationChange();
+
+      // Pre-select Enable mode so admin can configure & activate (or switch to Disable for Kill-Switch)
+      setOnlineStoreMode(true);
+      onOnlineStoreSlugInput();
+      openModal('onlineStoreModal');
+
+      if (!isCurrentlyOn && slugInput) {
+        setTimeout(function() {
+          try { slugInput.focus(); } catch (_) {}
+        }, 80);
+      }
+    }
+
+    function onOnlineStoreDurationChange() {
+      var durEl = document.getElementById('osDurationSelect');
+      var wrap = document.getElementById('osCustomDaysWrapper');
+      var labelEl = document.getElementById('osCustomDaysLabel');
+      var inputEl = document.getElementById('osCustomDaysInput');
+      var durVal = durEl ? durEl.value : 'keep';
+
+      if (!wrap) return;
+      if (durVal === 'add_custom' || durVal === 'set_exact') {
+        wrap.style.display = 'block';
+        if (labelEl) {
+          labelEl.textContent = durVal === 'set_exact'
+            ? 'عدد الأيام من تاريخ اليوم (يعيد ضبط الصلاحية):'
+            : 'عدد الأيام الإضافية المخصصة (+X يوم):';
+        }
+        updateOnlineStoreCustomDaysPreview();
+        if (inputEl) {
+          setTimeout(function() { try { inputEl.focus(); } catch (_) {} }, 50);
+        }
+      } else {
+        wrap.style.display = 'none';
+      }
+    }
+
+    function updateOnlineStoreCustomDaysPreview() {
+      var durEl = document.getElementById('osDurationSelect');
+      var inputEl = document.getElementById('osCustomDaysInput');
+      var hintEl = document.getElementById('osCustomDaysHint');
+      if (!hintEl) return;
+
+      var days = inputEl ? parseInt(inputEl.value, 10) : 0;
+      if (!days || days < 1 || days > 3650) {
+        hintEl.className = 'text-[11.5px] text-slate-500 font-medium';
+        hintEl.textContent = 'أدخل عدد الأيام المطلوب لحساب تاريخ الانتهاء المتوقع.';
+        return;
+      }
+
+      var durVal = durEl ? durEl.value : 'add_custom';
+      var base = new Date();
+      if (durVal === 'add_custom' && currentOnlineStoreLic && currentOnlineStoreLic.online_store_expires_at) {
+        var cur = new Date(currentOnlineStoreLic.online_store_expires_at);
+        if (!isNaN(cur.getTime()) && cur > base) base = cur;
+      }
+      base.setDate(base.getDate() + days);
+      var dateStr = base.toISOString().split('T')[0];
+      hintEl.className = 'text-[11.5px] text-[#006d41] font-bold';
+      hintEl.textContent = 'تاريخ الانتهاء الجديد المتوقع: ' + dateStr;
+    }
+
+    (function bindOnlineStoreDurationListener() {
+      var durEl = document.getElementById('osDurationSelect');
+      if (durEl) {
+        durEl.addEventListener('change', onOnlineStoreDurationChange);
+      }
+    })();
+
+    function setOnlineStoreMode(enableStore) {
+      var valEl = document.getElementById('osEnabledValue');
+      var btnEnable = document.getElementById('btnOsModeEnable');
+      var btnDisable = document.getElementById('btnOsModeDisable');
+      var warnBox = document.getElementById('osDisableWarningBox');
+      var cfgBox = document.getElementById('osConfigFields');
+      var submitBtn = document.getElementById('btnOsSubmit');
+      var submitText = document.getElementById('btnOsSubmitText');
+
+      if (valEl) valEl.value = enableStore ? '1' : '0';
+
+      if (btnEnable && btnDisable) {
+        btnEnable.className = enableStore ? 'os-mode-btn active-enable' : 'os-mode-btn';
+        btnDisable.className = enableStore ? 'os-mode-btn' : 'os-mode-btn active-disable';
+      }
+      if (warnBox) warnBox.style.display = enableStore ? 'none' : 'flex';
+      if (cfgBox) cfgBox.style.display = enableStore ? 'block' : 'none';
+
+      var wasAlreadyOn = currentOnlineStoreLic && currentOnlineStoreLic.online_store_enabled === 1;
+      if (submitBtn && submitText) {
+        if (enableStore) {
+          submitBtn.className = 'w-full sm:w-auto px-6 py-2.5 bg-[#006d41] hover:bg-[#005634] text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 flex items-center justify-center gap-2';
+          submitText.textContent = wasAlreadyOn ? 'حفظ إعدادات المتجر السحابي' : 'تفعيل المتجر وحفظ الإعدادات';
+        } else {
+          submitBtn.className = 'w-full sm:w-auto px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 flex items-center justify-center gap-2';
+          submitText.textContent = 'تأكيد إيقاف المتجر لحظياً';
+        }
+      }
+    }
+
+    function onOnlineStoreSlugInput() {
+      var input = document.getElementById('osSlugInput');
+      var wrap = document.getElementById('osSlugWrap');
+      var feedback = document.getElementById('osSlugFeedback');
+      var previewBox = document.getElementById('osUrlPreviewBox');
+      var previewText = document.getElementById('osUrlPreviewText');
+      if (!input || !wrap || !feedback) return;
+
+      var raw = input.value.trim().toLowerCase();
+      wrap.classList.remove('is-invalid');
+
+      if (!raw) {
+        feedback.className = 'text-[11.5px] text-slate-500 font-medium flex items-center gap-1.5 min-h-[18px]';
+        feedback.innerHTML = '<span>حروف إنجليزية صغيرة وأرقام وشرطة (-) فقط من 3 إلى 50 حرفاً (أو اتركه فارغاً).</span>';
+        if (previewBox) previewBox.style.display = 'none';
+        return;
+      }
+
+      if (isValidOnlineStoreSlug(raw)) {
+        feedback.className = 'text-[11.5px] text-[#006d41] font-bold flex items-center gap-1.5 min-h-[18px]';
+        feedback.innerHTML = '<svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>الاسم المختصر صالح وجاهز للمزامنة السحابية.</span>';
+        if (previewBox && previewText) {
+          previewText.textContent = ONLINE_STORE_BASE_URL + raw;
+          previewBox.style.display = 'flex';
+        }
+      } else {
+        wrap.classList.add('is-invalid');
+        feedback.className = 'text-[11.5px] text-rose-600 font-bold flex items-center gap-1.5 min-h-[18px]';
+        feedback.innerHTML = '<svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>يجب أن يبدأ وينتهي بحرف إنجليزي صغير أو رقم (3 إلى 50 حرفاً، وشرطة - فقط).</span>';
+        if (previewBox) previewBox.style.display = 'none';
+      }
+    }
+
+    function suggestOnlineStoreSlug() {
+      var input = document.getElementById('osSlugInput');
+      if (!input || !currentOnlineStoreLic) return;
+
+      var arMap = {
+        'ا': 'a', 'أ': 'a', 'إ': 'e', 'آ': 'a', 'ب': 'b', 'ت': 't', 'ث': 'th',
+        'ج': 'g', 'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z',
+        'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a',
+        'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+        'ه': 'h', 'ة': 'a', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ئ': 'e', 'ؤ': 'o'
+      };
+      var source = (currentOnlineStoreLic.shop_name || 'rafiq-store').toLowerCase();
+      var mapped = '';
+      for (var i = 0; i < source.length; i++) {
+        var ch = source.charAt(i);
+        mapped += arMap[ch] !== undefined ? arMap[ch] : ch;
+      }
+      var cleaned = mapped
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 44);
+
+      if (cleaned.length < 3) {
+        cleaned = (cleaned ? cleaned + '-' : '') + 'store';
+      }
+      cleaned = cleaned.replace(/-+$/g, '');
+      input.value = cleaned;
+      onOnlineStoreSlugInput();
+      try { input.focus(); } catch (_) {}
+    }
+
+    function copyOnlineStoreUrl() {
+      var previewText = document.getElementById('osUrlPreviewText');
+      if (!previewText || !previewText.textContent.trim()) return;
+      var url = previewText.textContent.trim();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function() {
+          showToast('تم نسخ رابط المتجر الإلكتروني بنجاح');
+        }).catch(function() {
+          showToast('تعذر النسخ التلقائي، يمكنك تحديد الرابط ونسخه يدوياً', true);
+        });
+      } else {
+        showToast('تم تجهيز الرابط للنسخ');
+      }
+    }
+
+    async function handleOnlineStoreSubmit(e) {
+      e.preventDefault();
+      var idEl = document.getElementById('osLicenseId');
+      var enabledEl = document.getElementById('osEnabledValue');
+      var slugInput = document.getElementById('osSlugInput');
+      var slugWrap = document.getElementById('osSlugWrap');
+      var durationEl = document.getElementById('osDurationSelect');
+      var customDaysInput = document.getElementById('osCustomDaysInput');
+      var submitBtn = document.getElementById('btnOsSubmit');
+      var submitText = document.getElementById('btnOsSubmitText');
+
+      var id = idEl ? idEl.value : '';
+      if (!id) return;
+
+      var enableStore = enabledEl ? enabledEl.value === '1' : true;
+      var payload = { enabled: enableStore };
+
+      if (enableStore) {
+        var cleanedSlug = slugInput ? slugInput.value.trim().toLowerCase() : '';
+        if (cleanedSlug && !isValidOnlineStoreSlug(cleanedSlug)) {
+          if (slugWrap) slugWrap.classList.add('is-invalid');
+          if (slugInput) {
+            markInputInvalid(slugInput, 'الاسم المختصر غير صالح — استخدم حروفاً إنجليزية صغيرة وأرقاماً وشرطة (-) فقط (3 إلى 50 حرفاً)');
+          }
+          return;
+        }
+        payload.slug = cleanedSlug;
+
+        var durVal = durationEl ? durationEl.value : 'keep';
+        if (durVal === 'unlimited') {
+          payload.expires_at = null;
+        } else if (durVal === 'add_custom' || durVal === 'set_exact') {
+          var customDays = customDaysInput ? parseInt(customDaysInput.value, 10) : 0;
+          if (!customDays || customDays < 1 || customDays > 3650) {
+            markInputInvalid(customDaysInput, 'يرجى إدخال عدد أيام صحيح بين 1 و 3650 يوم');
+            return;
+          }
+          if (durVal === 'add_custom') {
+            payload.days = customDays;
+          } else {
+            var exactDate = new Date();
+            exactDate.setDate(exactDate.getDate() + customDays);
+            payload.expires_at = exactDate.toISOString();
+          }
+        } else if (durVal && durVal.indexOf('add_') === 0) {
+          var addDays = parseInt(durVal.replace('add_', ''), 10);
+          if (addDays > 0) payload.days = addDays;
+        }
+      }
+
+      var prevText = submitText ? submitText.textContent : '';
+      if (submitBtn) submitBtn.disabled = true;
+      if (submitText) submitText.textContent = 'جاري الحفظ والمزامنة...';
+
+      try {
+        var res = await fetch('/api/admin/licenses/' + id + '/online-store', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Secret': getSecret()
+          },
+          body: JSON.stringify(payload)
+        });
+        var data = await res.json();
+        if (data.success) {
+          closeModal('onlineStoreModal');
+          var syncNote = (data.kv_synced || data.webhook_synced) ? ' (تمت المزامنة السحابية)' : '';
+          showToast((data.message || 'تم تحديث إعدادات المتجر الإلكتروني بنجاح!') + syncNote);
+          loadLicenses();
+        } else {
+          showToast(data.message || 'فشل تحديث حالة المتجر الإلكتروني', true);
+        }
+      } catch (err) {
+        showToast('حدث خطأ أثناء الاتصال بالسيرفر', true);
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+        if (submitText) submitText.textContent = prevText;
       }
     }
 

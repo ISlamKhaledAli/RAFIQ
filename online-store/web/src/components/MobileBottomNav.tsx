@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Home, Layers, ShoppingBag, Clock, MessageSquare } from 'lucide-react';
+import { buildWhatsAppUrl } from '../utils/whatsapp';
 
 interface Props {
   activeTab: string;
@@ -18,66 +19,78 @@ export const MobileBottomNav: React.FC<Props> = ({
   onOpenCart,
   onOpenTracker,
 }) => {
+  const [badgePop, setBadgePop] = useState<'a' | 'b'>('a');
+  const prevCartCountRef = useRef(cartCount);
+
+  useEffect(() => {
+    if (cartCount > 0 && cartCount !== prevCartCountRef.current) {
+      setBadgePop(prev => (prev === 'a' ? 'b' : 'a'));
+    }
+    prevCartCountRef.current = cartCount;
+  }, [cartCount]);
   return (
-    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 glass-nav border-t border-slate-200/80 shadow-[0_-4px_25px_rgba(0,0,0,0.06)] px-2 py-1.5 bottom-safe">
+    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 glass-nav border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-1.5 py-1 bottom-safe">
       <div className="grid grid-cols-5 items-center justify-around">
         {/* Home */}
         <button
           onClick={() => onSelectTab('home')}
-          className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors ${
+          className={`flex flex-col items-center justify-center py-0.5 rounded-xl transition-colors ${
             activeTab === 'home' ? 'text-store-primary' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Home className={`w-5 h-5 ${activeTab === 'home' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-          <span className="text-[10px] mt-1 font-bold">الرئيسية</span>
+          <Home className={`w-[18px] h-[18px] ${activeTab === 'home' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+          <span className="text-[10px] mt-0.5 font-bold leading-tight">الرئيسية</span>
         </button>
 
         {/* Categories */}
         <button
           onClick={() => onSelectTab('categories')}
-          className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors ${
+          className={`flex flex-col items-center justify-center py-0.5 rounded-xl transition-colors ${
             activeTab === 'categories' ? 'text-store-primary' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Layers className={`w-5 h-5 ${activeTab === 'categories' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-          <span className="text-[10px] mt-1 font-bold">الأقسام</span>
+          <Layers className={`w-[18px] h-[18px] ${activeTab === 'categories' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+          <span className="text-[10px] mt-0.5 font-bold leading-tight">الأقسام</span>
         </button>
 
         {/* Cart */}
         <button
           onClick={onOpenCart}
-          className="relative flex flex-col items-center justify-center py-1 text-slate-700 hover:text-store-primary transition-colors"
+          className="relative flex flex-col items-center justify-center py-0.5 text-slate-700 hover:text-store-primary transition-colors"
         >
           <div className="relative">
-            <ShoppingBag className="w-5 h-5 stroke-[2]" />
+            <ShoppingBag className="w-[18px] h-[18px] stroke-[2]" />
             {cartCount > 0 && (
-              <span className="absolute -top-1.5 -right-2 bg-store-secondary text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
+              <span
+                data-pop={badgePop}
+                className="absolute -top-1.5 -right-2 bg-store-secondary text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-sm tabular-nums"
+              >
                 {cartCount > 99 ? '99+' : cartCount}
               </span>
             )}
           </div>
-          <span className="text-[10px] mt-1 font-bold">السلة</span>
+          <span className="text-[10px] mt-0.5 font-bold leading-tight">السلة</span>
         </button>
 
         {/* Orders Tracker */}
         <button
           onClick={onOpenTracker}
-          className="flex flex-col items-center justify-center py-1 text-slate-500 hover:text-slate-800 transition-colors"
+          className="flex flex-col items-center justify-center py-0.5 text-slate-500 hover:text-slate-800 transition-colors"
         >
-          <Clock className="w-5 h-5 stroke-[1.8]" />
-          <span className="text-[10px] mt-1 font-bold">أوردراتي</span>
+          <Clock className="w-[18px] h-[18px] stroke-[1.8]" />
+          <span className="text-[10px] mt-0.5 font-bold leading-tight">أوردراتي</span>
         </button>
 
         {/* WhatsApp Chat Support */}
         {whatsappPhone ? (
           <a
-            href={`https://wa.me/2${whatsappPhone.replace(/^0+/, '')}`}
+            href={buildWhatsAppUrl(whatsappPhone)}
             target="_blank"
             rel="noreferrer"
-            className="flex flex-col items-center justify-center py-1 text-emerald-600 hover:text-emerald-700 transition-colors"
+            className="flex flex-col items-center justify-center py-0.5 text-emerald-600 hover:text-emerald-700 transition-colors"
           >
-            <MessageSquare className="w-5 h-5 stroke-[2]" />
-            <span className="text-[10px] mt-1 font-bold">محادثة</span>
+            <MessageSquare className="w-[18px] h-[18px] stroke-[2]" />
+            <span className="text-[10px] mt-0.5 font-bold leading-tight">محادثة</span>
           </a>
         ) : (
           <div className="w-5 h-5"></div>

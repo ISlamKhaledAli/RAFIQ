@@ -639,6 +639,38 @@ namespace RafiqPOS.Common
                     "recipes.produce"
                 }
             });
+
+            Register(new FeatureDefinition
+            {
+                Key = "feature_online_store",
+                NameAr = "المتجر الإلكتروني والمزامنة السحابية",
+                Category = "السحابة والتجارة الإلكترونية",
+                DescriptionAr = "ربط نقطة البيع بمتجر إلكتروني سحابي، ومزامنة المنتجات والمخزون، واستقبال ومعالجة طلبات الزبائن أونلاين",
+                DefaultValue = false,
+                Requires = new List<string>(),
+                OwnedCommands = new List<string>
+                {
+                    "onlineStore:getState",
+                    "onlineStore:saveConfig",
+                    "onlineStore:triggerSync",
+                    "onlineStore:getOrders",
+                    "onlineStore:processOrder",
+                    "onlineStore:convertToSale",
+                    "onlineStore:updateProductOnline",
+                    "onlineStore:openExternalUrl",
+                    "onlineStore:getRealtimeSession",
+                    "onlineStore:fastPulse",
+                    "onlineStore:setRealtimeConnected"
+                },
+                OwnedPermissions = new List<string>
+                {
+                    "online_store.manage",
+                    "online_store.view_orders",
+                    "online_store.process_orders",
+                    "online_store.sync",
+                    "online_store.images"
+                }
+            });
         }
 
         private static void Register(FeatureDefinition def)

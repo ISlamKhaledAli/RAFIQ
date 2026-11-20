@@ -318,6 +318,17 @@ namespace RafiqPOS.Bridge
                     string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
                     string actorName = SecurityService.CurrentUser != null ? (SecurityService.CurrentUser.DisplayName ?? SecurityService.CurrentUser.Username) : "المدير";
                     int clearedCount = DatabaseService.Products.ClearAllProducts();
+                    if (DatabaseService.Sync != null)
+                    {
+                        try
+                        {
+                            DatabaseService.Sync.PurgeCloudCatalog();
+                        }
+                        catch (Exception syncEx)
+                        {
+                            RafiqPOS.Common.Logger.Warn("فشل تصفير كتالوج المتجر الإلكتروني السحابي بعد مسح الأصناف: " + syncEx.Message);
+                        }
+                    }
                     try
                     {
                         if (DatabaseService.AuditRepo != null)

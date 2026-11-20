@@ -22,6 +22,7 @@ export type PermissionIconId =
   | 'insurance'
   | 'patients'
   | 'cafe'
+  | 'onlineStore'
   | 'ownerGrade';
 
 export type PermissionFeatureFlag =
@@ -30,7 +31,8 @@ export type PermissionFeatureFlag =
   | 'feature_patient_profiles'
   | 'feature_epay_services'
   | 'feature_digital_wallets'
-  | 'feature_cafe_restaurant';
+  | 'feature_cafe_restaurant'
+  | 'feature_online_store';
 
 export interface PermissionItem {
   key: string;
@@ -280,6 +282,19 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
     items: [
       { key: 'patients.view', label: 'استعراض الملف الطبي وتنبيهات الاستحقاق', description: 'الاطلاع على الملف الطبي للمريض والحساسية وتنبيهات مواعيد صرف العلاج الشهري' },
       { key: 'patients.edit', label: 'تعديل الملف الطبي وتسجيل الأدوية المزمنة', description: 'تعديل بيانات الحساسية والأمراض المزمنة وإضافة وحذف الأدوية الدورية للمريض' },
+    ],
+  },
+  {
+    id: 'online_store',
+    name: 'المتجر الإلكتروني والمزامنة السحابية',
+    icon: 'onlineStore',
+    feature: 'feature_online_store',
+    items: [
+      { key: 'online_store.view_orders', label: 'استعراض طلبات المتجر الإلكتروني', description: 'الاطلاع على الطلبات الواردة من العملاء أونلاين وتفاصيلها' },
+      { key: 'online_store.process_orders', label: 'قبول ورفض وتحديث حالة الطلبات أونلاين', description: 'تأكيد الطلبات الواردة أو رفضها مع ذكر السبب وتحديث حالة التجهيز' },
+      { key: 'online_store.sync', label: 'تشغيل المزامنة اليدوية مع السحابة', description: 'رفع الكتالوج وتحديث المخزون وسحب الطلبات الجديدة فوراً' },
+      { key: 'online_store.manage', label: 'إدارة إعدادات الربط السحابي وظهور الأصناف', description: 'ضبط بيانات ربط المتجر الإلكتروني والتحكم في الأصناف المعروضة أونلاين' },
+      { key: 'online_store.images', label: 'إدارة صور المنتجات للمتجر الإلكتروني', description: 'إضافة وتعديل وحذف صور المنتجات المعروضة في المتجر السحابي' },
     ],
   },
   {

@@ -1,6 +1,6 @@
 import { type DateFilterValue, getDateFilterPayload } from './dateFilter.ts';
 
-export type SalesStatusFilter = 'all' | 'completed' | 'cancelled' | 'refunded';
+export type SalesStatusFilter = 'all' | 'completed' | 'cancelled' | 'refunded' | 'insurance';
 
 /** Most invoices one load returns (rows are light: no items); the screen warns when the result hits it */
 export const SALES_HISTORY_LIMIT = 2000;

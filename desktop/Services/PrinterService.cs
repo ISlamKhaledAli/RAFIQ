@@ -2777,10 +2777,23 @@ namespace RafiqPOS.Services
                     p.WrapText(customer, p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
                 }
 
+                if (sale.InsuranceClaim != null)
+                {
+                    string compName = !string.IsNullOrWhiteSpace(sale.InsuranceClaim.CompanyName) ? sale.InsuranceClaim.CompanyName.Trim() : "شركة التأمين";
+                    p.WrapText("شركة: " + compName, p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                    if (!string.IsNullOrWhiteSpace(sale.InsuranceClaim.PatientName))
+                    {
+                        string pat = "المريض: " + sale.InsuranceClaim.PatientName.Trim();
+                        if (!string.IsNullOrWhiteSpace(sale.InsuranceClaim.MemberNo)) pat += " (كارنيه: " + sale.InsuranceClaim.MemberNo.Trim() + ")";
+                        p.WrapText(pat, p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                    }
+                }
+
                 // 3. شارات الحالة (نسخة فقط عند إعادة الطباعة)
                 p.Y += 2f;
                 if (isCopy) p.Badge("نسخة - إعادة طباعة");
                 if (isPreBill) p.Badge("غير مدفوع - للمراجعة فقط");
+                if (sale.InsuranceClaim != null) p.Badge("تأمين طبي - تعاقد");
                 if (string.Equals(sale.Status, "TEST_PILOT", StringComparison.OrdinalIgnoreCase)) p.Badge("فاتورة تجريبية - تدريب");
                 if (string.Equals(sale.Status, "cancelled", StringComparison.OrdinalIgnoreCase)) p.Badge("فاتورة ملغاة");
 
@@ -2798,6 +2811,11 @@ namespace RafiqPOS.Services
                 if (t.DiscountTotal > 0) rows.Add(new KeyValuePair<string, string>("إجمالي الخصم", "-" + FormatReceiptMoney(t.DiscountTotal)));
                 if (t.ServiceCharge > 0) rows.Add(new KeyValuePair<string, string>("خدمة الصالة", FormatReceiptMoney(t.ServiceCharge)));
                 if (t.DeliveryFee > 0) rows.Add(new KeyValuePair<string, string>("رسوم التوصيل", FormatReceiptMoney(t.DeliveryFee)));
+                if (sale.InsuranceClaim != null && sale.InsuranceClaim.CompanyPiasters > 0)
+                {
+                    rows.Add(new KeyValuePair<string, string>("تغطية شركة التأمين", "-" + FormatReceiptMoney(sale.InsuranceClaim.CompanyPiasters)));
+                    rows.Add(new KeyValuePair<string, string>("تحمل المريض المطلوب", FormatReceiptMoney(sale.InsuranceClaim.PatientPiasters)));
+                }
 
                 // خط منقط يفصل الأسطر عن بنود التسوية، وبدونها يكفي الخط الغامق قبل الإجمالي النهائي (لا خط مزدوج)
                 if (rows.Count > 0) p.Separator(p.Dashed, 0f, 3f);

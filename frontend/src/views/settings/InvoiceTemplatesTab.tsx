@@ -18,7 +18,7 @@ import { AppButton } from '../../components/AppButton';
 import { ToggleRow, SettingsCard, ReceiptTextField } from './settingsParts';
 import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
 import { formatArabicCurrency, tafqeetCurrency } from '../../utils/money';
-import { encodeInvoiceBarcode, layoutReceiptBarcode, RECEIPT_DPI } from '../../utils/receiptLayout';
+import { encodeInvoiceBarcode, layoutReceiptBarcode, RECEIPT_DPI, resolveStoreActivityType } from '../../utils/receiptLayout';
 import { rafiqAlert } from '../../utils/dialogService';
 import { useMotionPanel } from '../../hooks/useMotionPanel';
 
@@ -35,6 +35,7 @@ export interface InvoiceTemplatesTabProps {
   storeAddress?: string;
   taxNumber?: string;
   storeLogoUrl?: string;
+  storeType?: string;
   saveBarRef?: RefObject<HTMLDivElement | null>;
   onOpenPrinterSettings?: () => void;
 }
@@ -209,6 +210,7 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
   storePhone = '01012345678',
   storeAddress = 'شارع الجمهورية، وسط البلد، القاهرة',
   storeLogoUrl = '/receipt_logo_square.png',
+  storeType,
   saveBarRef,
   onOpenPrinterSettings,
 }) => {
@@ -367,8 +369,9 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
   // 1. Return Receipt (مرتجع مبيعات)
   const renderReturnContent = () => {
     const is57mm = currentConfig.paperWidth === '57mm';
+    const activity = resolveStoreActivityType(storeType, storeName);
 
-    const items = currentConfig.sampleMode === 'detailed'
+    let items = currentConfig.sampleMode === 'detailed'
       ? [
           { name: 'حليب كامل الدسم 1 لتر - جهينة', qty: '2 علبة', price: '45.00', total: '90.00', reason: 'رغبة العميل' },
           { name: 'جبنة بيضاء فيتا 500 جم - دومتي', qty: '1 عبوة', price: '38.50', total: '38.50', reason: 'عيب تغليف' },
@@ -377,6 +380,50 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
       : [
           { name: 'زيت عباد الشمس 800 مل - عافية', qty: '2 زجاجة', price: '75.00', total: '150.00', reason: 'رغبة العميل' },
         ];
+
+    if (activity === 'pharmacy') {
+      items = currentConfig.sampleMode === 'detailed'
+        ? [
+            { name: 'بنادول إكسترا أقراص مسكن', qty: '2 علبة', price: '45.00', total: '90.00', reason: 'رغبة العميل' },
+            { name: 'كتافلام 50 مجم مسكن ومضاد للالتهاب', qty: '1 علبة', price: '55.00', total: '55.00', reason: 'صنف زائد' },
+            { name: 'فيتامين سي 1000 مجم فوار', qty: '1 عبوة', price: '38.50', total: '38.50', reason: 'خطأ بالصرف' },
+          ]
+        : [
+            { name: 'أوجمنتين 1 جم أقراص مضاد حيوي', qty: '1 علبة', price: '135.00', total: '135.00', reason: 'رغبة العميل' },
+            { name: 'شريط بنادول إكسترا مسكن', qty: '1 شريط', price: '15.00', total: '15.00', reason: 'صنف زائد' },
+          ];
+    } else if (activity === 'cafe_restaurant') {
+      items = currentConfig.sampleMode === 'detailed'
+        ? [
+            { name: 'برجر لحم سبيشيال دبل', qty: '1 وجبة', price: '90.00', total: '90.00', reason: 'إلغاء طلب' },
+            { name: 'بيتزا مشكل جبن وسط', qty: '1 قطعة', price: '55.00', total: '55.00', reason: 'طلب بالخطأ' },
+            { name: 'بطاطس مقلية فارم فريتس', qty: '1 عبوة', price: '38.50', total: '38.50', reason: 'رغبة العميل' },
+          ]
+        : [
+            { name: 'برجر دجاج مقرمش سبيشيال', qty: '1 وجبة', price: '110.00', total: '110.00', reason: 'رغبة العميل' },
+            { name: 'كانز بيبسي 330 مل بارد', qty: '2 كانز', price: '20.00', total: '40.00', reason: 'صنف زائد' },
+          ];
+    } else if (activity === 'clothing_apparel') {
+      items = currentConfig.sampleMode === 'detailed'
+        ? [
+            { name: 'تيشرت بولو صيفي رجالي L', qty: '1 قطعة', price: '90.00', total: '90.00', reason: 'مقاس غير مناسب' },
+            { name: 'شراب قطن رجالي باكت 3 ق', qty: '1 باكت', price: '55.00', total: '55.00', reason: 'رغبة العميل' },
+            { name: 'كاب كاجوال رجالي مطرز', qty: '1 قطعة', price: '38.50', total: '38.50', reason: 'لون غير مناسب' },
+          ]
+        : [
+            { name: 'قميص رجالي كاجوال قطن L', qty: '1 قطعة', price: '150.00', total: '150.00', reason: 'مقاس غير مناسب' },
+          ];
+    } else if (activity === 'phones_electronics') {
+      items = currentConfig.sampleMode === 'detailed'
+        ? [
+            { name: 'سكرينة حماية زجاجية 9D', qty: '1 قطعة', price: '60.00', total: '60.00', reason: 'موديل غير مناسب' },
+            { name: 'جراب حماية سيليكون شفاف', qty: '1 قطعة', price: '45.00', total: '45.00', reason: 'رغبة العميل' },
+            { name: 'كابل شحن سريع Type-C قدرة 60W', qty: '1 كابل', price: '78.50', total: '78.50', reason: 'عيب مصنعي' },
+          ]
+        : [
+            { name: 'شاحن سريع Type-C قدرة 25W', qty: '1 جهاز', price: '150.00', total: '150.00', reason: 'رغبة العميل' },
+          ];
+    }
 
     const grandTotal = currentConfig.sampleMode === 'detailed' ? '183.50' : '150.00';
 
@@ -511,8 +558,9 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
   const renderPurchaseContent = () => {
     const isA4 = currentConfig.paperWidth === 'a4';
     const is57mm = currentConfig.paperWidth === '57mm';
+    const activity = resolveStoreActivityType(storeType, storeName);
 
-    const items = currentConfig.sampleMode === 'detailed'
+    let items = currentConfig.sampleMode === 'detailed'
       ? [
           { code: 'PRD-101', name: 'أرز فاخر عريض الحبة 1 كجم - الضحى', batch: 'B26-04', expiry: '11/2027', unitName: 'كرتونة 10ك', qty: 20, cost: '320.00', total: '6,400.00' },
           { code: 'PRD-102', name: 'مكرونة فرن 400 جم - الملكة', batch: 'B26-09', expiry: '08/2027', unitName: 'كرتونة 20ك', qty: 15, cost: '210.00', total: '3,150.00' },
@@ -521,6 +569,18 @@ export const InvoiceTemplatesTab: React.FC<InvoiceTemplatesTabProps> = ({
       : [
           { code: 'PRD-101', name: 'أرز فاخر عريض الحبة 1 كجم - الضحى', batch: 'B26-04', expiry: '11/2027', unitName: 'كرتونة 10ك', qty: 20, cost: '320.00', total: '6,400.00' },
         ];
+
+    if (activity === 'pharmacy') {
+      items = currentConfig.sampleMode === 'detailed'
+        ? [
+            { code: 'MED-101', name: 'بنادول إكسترا أقراص 500 مجم', batch: 'B26-04', expiry: '11/2027', unitName: 'باكت 20ع', qty: 20, cost: '320.00', total: '6,400.00' },
+            { code: 'MED-102', name: 'أوجمنتين 1 جم أقراص 14 قرص', batch: 'B26-09', expiry: '08/2027', unitName: 'باكت 10ع', qty: 15, cost: '210.00', total: '3,150.00' },
+            { code: 'MED-103', name: 'كتافلام 50 مجم مسكن 20 قرص', batch: 'B26-01', expiry: '12/2026', unitName: 'باكت 15ع', qty: 10, cost: '480.00', total: '4,800.00' },
+          ]
+        : [
+            { code: 'MED-101', name: 'بنادول إكسترا أقراص 500 مجم', batch: 'B26-04', expiry: '11/2027', unitName: 'باكت 20ع', qty: 20, cost: '320.00', total: '6,400.00' },
+          ];
+    }
 
     const gross = currentConfig.sampleMode === 'detailed' ? '14,350.00' : '6,400.00';
     const discount = currentConfig.sampleMode === 'detailed' ? '350.00' : '150.00';

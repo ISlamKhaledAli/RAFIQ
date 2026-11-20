@@ -63,10 +63,10 @@ namespace RafiqPOS.Tests.Scenarios
 
             // Re-run migration 66 on a store whose taxes are switched off today: history must stay untouched
             SettingsRepo.Set("feature_taxes", "0");
-            Exec("DELETE FROM schema_migrations WHERE version = 66;");
+            Exec("DELETE FROM schema_migrations WHERE version >= 66;");
             MigrationRunner.ApplyMigrations(ConnectionString, TestDbPath);
 
-            Assert.AreEqual(66L, Scalar("SELECT COALESCE(MAX(version), 0) FROM schema_migrations;"), "الترحيل سُجّل");
+            Assert.AreEqual(1L, Scalar("SELECT COUNT(*) FROM schema_migrations WHERE version = 66;"), "الترحيل سُجّل");
             Assert.AreEqual(taxBefore, Scalar("SELECT tax_piasters FROM sales WHERE id = '" + sale.Id + "';"), "ضريبة فاتورة تاريخية لا تُصفَّر");
         }
 

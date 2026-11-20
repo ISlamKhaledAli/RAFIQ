@@ -309,7 +309,7 @@ namespace RafiqPOS.Repositories
 
         private static CashDrawerTransaction MapDrawerTransaction(SQLiteDataReader reader)
         {
-            return new CashDrawerTransaction
+            var tx = new CashDrawerTransaction
             {
                 Id = reader["id"].ToString(),
                 ShiftId = reader["shift_id"].ToString(),
@@ -320,6 +320,33 @@ namespace RafiqPOS.Repositories
                 PerformedByName = reader["performed_by_name"].ToString(),
                 CreatedAt = reader["created_at"].ToString()
             };
+
+            try
+            {
+                int colIdx = reader.GetOrdinal("is_cancelled");
+                if (colIdx >= 0 && reader["is_cancelled"] != DBNull.Value)
+                {
+                    tx.IsCancelled = Convert.ToInt32(reader["is_cancelled"]) == 1;
+                }
+                colIdx = reader.GetOrdinal("cancelled_at");
+                if (colIdx >= 0 && reader["cancelled_at"] != DBNull.Value)
+                {
+                    tx.CancelledAt = reader["cancelled_at"].ToString();
+                }
+                colIdx = reader.GetOrdinal("cancelled_by");
+                if (colIdx >= 0 && reader["cancelled_by"] != DBNull.Value)
+                {
+                    tx.CancelledBy = reader["cancelled_by"].ToString();
+                }
+                colIdx = reader.GetOrdinal("cancel_reason");
+                if (colIdx >= 0 && reader["cancel_reason"] != DBNull.Value)
+                {
+                    tx.CancelReason = reader["cancel_reason"].ToString();
+                }
+            }
+            catch { }
+
+            return tx;
         }
 
         public List<Shift> GetRecentShifts(int limit = 30)
@@ -363,8 +390,18 @@ namespace RafiqPOS.Repositories
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
-                                WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
-                                WHEN s.payment_method = 'multi' THEN MAX(0, (
+                                WHEN s.payment_method = 'credit' THEN 
+                                    CASE 
+                                        WHEN EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id) THEN MAX(0, (
+                                            SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                            FROM payments p 
+                                            WHERE p.sale_id = s.id AND p.method = 'cash'
+                                        ) - COALESCE(s.change_piasters, 0))
+                                        ELSE MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
+                                    END
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN MAX(0, (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method = 'cash'
@@ -375,7 +412,9 @@ namespace RafiqPOS.Repositories
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method IN ('card', 'visa', 'mastercard', 'meeza', 'pos', 'bank_card') THEN (s.paid_piasters - s.service_fee_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method IN ('card', 'visa', 'mastercard', 'meeza', 'pos', 'bank_card')
@@ -386,7 +425,9 @@ namespace RafiqPOS.Repositories
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'instapay' THEN (s.paid_piasters - s.service_fee_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method = 'instapay'
@@ -397,7 +438,9 @@ namespace RafiqPOS.Repositories
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method IN ('vodafone_cash', 'wallet', 'orange_cash', 'etisalat_cash', 'we_pay') THEN (s.paid_piasters - s.service_fee_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method IN ('multi', 'insurance') 
+                                     OR EXISTS (SELECT 1 FROM insurance_claim_lines icl WHERE icl.sale_id = s.id)
+                                     OR EXISTS (SELECT 1 FROM payments p WHERE p.sale_id = s.id AND p.method = 'insurance') THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method IN ('vodafone_cash', 'wallet', 'orange_cash', 'etisalat_cash', 'we_pay')
@@ -509,7 +552,8 @@ namespace RafiqPOS.Repositories
                         COALESCE(SUM(CASE WHEN type = 'cash_in' THEN amount_piasters ELSE 0 END), 0) AS total_cash_in,
                         COALESCE(SUM(CASE WHEN type = 'cash_out' THEN amount_piasters ELSE 0 END), 0) AS total_cash_out
                     FROM cash_drawer_transactions
-                    WHERE shift_id = @shiftId;
+                    WHERE shift_id = @shiftId
+                      AND (is_cancelled = 0 OR is_cancelled IS NULL);
                 ";
                 using (var cmd = new SQLiteCommand(drawerSql, conn))
                 {

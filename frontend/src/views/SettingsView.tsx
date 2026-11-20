@@ -54,6 +54,7 @@ const SettingsViewContent = ({
   const allowedSubTabs = getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission });
   const subTab: SettingsSubTab = resolveSettingsSubTab(activeSubTab, allowedSubTabs);
   const motionPanel = useMotionPanel(subTab);
+  const [storeType, setStoreType] = useState('');
   const [storeName, setStoreName] = useState('متجر رفيق');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -167,6 +168,7 @@ const SettingsViewContent = ({
         if (settings) {
           if (settings.store_name) setStoreName(settings.store_name);
           if (settings.store_type) {
+            setStoreType(settings.store_type);
             try {
               localStorage.setItem('rafiq_store_type', settings.store_type);
             } catch {
@@ -599,6 +601,7 @@ const SettingsViewContent = ({
 
       {subTab === 'profile' && (
         <StoreProfileTab
+          storeType={storeType}
           storeName={storeName}
           setStoreName={setStoreName}
           phone={phone}

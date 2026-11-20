@@ -157,6 +157,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [stockAdjustReason, setStockAdjustReason] = useState('');
   const [minStockInput, setMinStockInput] = useState('5');
   const [taxRatePercent, setTaxRatePercent] = useState(0);
+  const [isOnline, setIsOnline] = useState(true);
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [onlineDescription, setOnlineDescription] = useState('');
+  const [comparePricePiasters, setComparePricePiasters] = useState(0);
   const [variantSize, setVariantSize] = useState('');
   const [variantColor, setVariantColor] = useState('');
   const [initialExpiryDate, setInitialExpiryDate] = useState('');
@@ -961,6 +965,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setStockAdjustReason('');
     setMinStockInput('0');
     setTaxRatePercent(isEnabled('feature_taxes') ? defaultTaxRate : 0);
+    setIsOnline(true);
+    setIsFeatured(false);
+    setOnlineDescription('');
+    setComparePricePiasters(0);
     setVariantSize('');
     setVariantColor('');
     setInitialExpiryDate('');
@@ -1084,6 +1092,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     const msKg = ((prod.minStockQuantityMilli ?? 5000) / 1000).toFixed(3).replace(/\.?0+$/, '');
     setMinStockInput(msKg || '5');
     setTaxRatePercent(isEnabled('feature_taxes') ? (prod.taxRatePercent || 0) : 0);
+    setIsOnline(prod.isOnline !== false);
+    setIsFeatured(Boolean(prod.isFeatured));
+    setOnlineDescription(prod.onlineDescription || '');
+    setComparePricePiasters(prod.comparePricePiasters || 0);
     setFormError('');
     setSimilarWarning(null);
     setBelowCostWarning(null);
@@ -1422,6 +1434,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         displayUnitId: displayUnitId || null,
         locationId: locationId || null,
         isColdChain: Boolean(isColdChain),
+        isOnline: Boolean(isOnline),
+        isFeatured: Boolean(isFeatured),
+        onlineDescription: onlineDescription.trim() || null,
+        comparePricePiasters: comparePricePiasters > 0 ? comparePricePiasters : null,
         confirmSimilarName: forceConfirmSimilar,
         confirmBelowCost: forceConfirmCost,
       };
@@ -2148,6 +2164,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         onOpenStorageLocationsModal={() => setShowStorageLocationsModal(true)}
         pharmaInfo={pharmaInfo}
         setPharmaInfo={setPharmaInfo}
+        isOnline={isOnline}
+        setIsOnline={setIsOnline}
+        isFeatured={isFeatured}
+        setIsFeatured={setIsFeatured}
+        onlineDescription={onlineDescription}
+        setOnlineDescription={setOnlineDescription}
+        comparePricePiasters={comparePricePiasters}
+        setComparePricePiasters={setComparePricePiasters}
       />
 
       {/* Confirm Product Delete Modal (Feature #112 / Task 112-2) */}

@@ -60,6 +60,10 @@ export interface Product {
   rxStatus?: string | null;
   controlledSchedule?: string | null;
   isControlled?: boolean;
+  isOnline?: boolean;
+  isFeatured?: boolean;
+  onlineDescription?: string | null;
+  comparePricePiasters?: number | null;
 }
 
 export interface StorageLocation {
@@ -300,7 +304,7 @@ export interface SalePayment {
   id?: string;
   saleId?: string;
   amountPiasters: number;
-  method: 'cash' | 'credit' | 'card' | 'instapay' | 'vodafone_cash';
+  method: 'cash' | 'credit' | 'card' | 'instapay' | 'vodafone_cash' | 'insurance';
   createdAt?: string;
 }
 
@@ -982,6 +986,9 @@ export interface PeriodSalesReport {
   cardSalesPiasters: number;
   instapaySalesPiasters?: number;
   vodafoneCashSalesPiasters?: number;
+  insuranceSalesPiasters?: number;
+  insuranceSettledPiasters?: number;
+  insurancePendingPiasters?: number;
   returnsTotalPiasters: number;
   cancelledTotalPiasters: number;
   netSalesPiasters: number;

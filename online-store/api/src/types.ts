@@ -3,7 +3,15 @@
 export interface Env {
   DB: D1Database;
   IMAGES?: R2Bucket;
+  /** Zero-card free-tier KV fallback for compressed WebP product images (auto-upgrades to R2 when IMAGES is bound). */
+  PRODUCT_IMAGES_KV?: KVNamespace;
   THEMES?: KVNamespace;
+  /** Shared Cloudflare KV written by rafiq-license-server for instant storefront kill-switch. */
+  STORE_LICENSES?: KVNamespace;
+  /** Per-store SQLite-backed Durable Object hub for instant WebSocket Hibernation order notifications. */
+  STORE_REALTIME?: DurableObjectNamespace;
+  /** Shared HMAC-SHA256 secret (>= 32 chars) for cross-account license-server governance webhook. */
+  GOVERNANCE_WEBHOOK_SECRET?: string;
   ENVIRONMENT?: string;
   APP_SECRET?: string;
 }
@@ -20,6 +28,14 @@ export interface Store {
   welcome_message: string | null;
   logo_url: string | null;
   banner_url: string | null;
+  vodafone_cash_phone?: string | null;
+  vodafone_cash_name?: string | null;
+  vodafone_cash_provider?: string | null;
+  instapay_handle?: string | null;
+  instapay_name?: string | null;
+  digital_accounts?: string | null;
+  accept_vodafone_cash?: number;
+  accept_instapay?: number;
   theme_preset: string;
   theme_custom: string | null; // JSON string
   min_order_amount: number; // in piasters
@@ -86,7 +102,11 @@ export interface Order {
   subtotal: number; // in piasters
   total: number; // in piasters
   notes: string | null;
-  status: 'new' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'rejected';
+  payment_method?: string | null;
+  sender_phone?: string | null;
+  payment_ref?: string | null;
+  receipt_image?: string | null;
+  status: 'new' | 'viewed' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'rejected' | 'cancelled';
   rejection_reason: string | null;
   status_history: string | null; // JSON array string
   synced_to_pos: number;
@@ -153,6 +173,11 @@ export interface SyncCatalogPayload {
     sort_order?: number;
     image_urls?: string[];
   }>;
+  remove_product_ids?: string[];
+}
+
+export interface SyncCatalogPrunePayload {
+  keep_product_ids: string[];
 }
 
 export interface SyncStockPayload {
@@ -160,6 +185,7 @@ export interface SyncStockPayload {
     product_id: string;
     stock_quantity: number; // in milli-units
   }>;
+  remove_product_ids?: string[];
 }
 
 export interface CreateOrderPayload {
@@ -169,6 +195,10 @@ export interface CreateOrderPayload {
   delivery_method: 'delivery' | 'pickup';
   delivery_zone?: string;
   notes?: string;
+  payment_method?: string;
+  sender_phone?: string;
+  payment_ref?: string;
+  receipt_image?: string;
   items: Array<{
     product_id: string;
     quantity: number; // in milli-units (1000 = 1 unit)

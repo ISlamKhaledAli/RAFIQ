@@ -1,23 +1,23 @@
 ---
 name: gitnexus-area-components
-description: "Skill for the Components area of RAFIQ. 1141 symbols across 288 files."
+description: "Skill for the Components area of RAFIQ. 1168 symbols across 288 files."
 ---
 
 # Components
 
-1141 symbols | 288 files | Cohesion: 62%
+1168 symbols | 288 files | Cohesion: 62%
 
 ## When to Use
 
 - Working with code in `frontend/`
-- Understanding how AppButton, BarcodeScannerSettingsModal, CertifiedHardwareModal work
+- Understanding how AppButton, BarcodeScannerSettingsModal, CategoryIconPickerModal work
 - Modifying components-related functionality
 
 ## Key Files
 
 | File | Symbols |
 |------|---------|
-| `frontend/src/App.tsx` | Lazy, LazyView, checkUpdates, handleMinimizeWindow, onSelect (+51) |
+| `frontend/src/App.tsx` | Lazy, LazyView, checkUpdates, handleMinimizeWindow, onSelect (+45) |
 | `frontend/src/components/UserManagerModal.tsx` | UserManagerModal, describeSubordinates, formatLastLogin, handleStartAdd, handleStartCredentials (+28) |
 | `frontend/src/components/PackagingWizardModal.tsx` | PackagingWizardModal, buildRowsFromUnits, generateUniqueUnitId, handleAddLargerLevel, handleAddSmallerLevel (+14) |
 | `frontend/src/utils/dateFilter.ts` | describeDateFilter, formatLocalDateTime, getDateFilterKey, getDateFilterRange, getDatePresetLabel (+11) |
@@ -34,9 +34,9 @@ Start here when exploring this area:
 
 - **`AppButton`** (Function) — `frontend/src/components/AppButton.tsx:32`
 - **`BarcodeScannerSettingsModal`** (Function) — `frontend/src/components/BarcodeScannerSettingsModal.tsx:75`
+- **`CategoryIconPickerModal`** (Function) — `frontend/src/components/CategoryIconPickerModal.tsx:38`
 - **`CertifiedHardwareModal`** (Function) — `frontend/src/components/CertifiedHardwareModal.tsx:68`
-- **`ConfirmModal`** (Function) — `frontend/src/components/ConfirmModal.tsx:18`
-- **`DatabaseRecoveryModal`** (Function) — `frontend/src/components/DatabaseRecoveryModal.tsx:36`
+- **`CustomDatePicker`** (Function) — `frontend/src/components/CustomDatePicker.tsx:68`
 
 ## Key Symbols
 
@@ -45,38 +45,38 @@ Start here when exploring this area:
 | `ErrorBoundary` | Class | `frontend/src/components/ErrorBoundary.tsx` | 14 |
 | `AppButton` | Function | `frontend/src/components/AppButton.tsx` | 32 |
 | `BarcodeScannerSettingsModal` | Function | `frontend/src/components/BarcodeScannerSettingsModal.tsx` | 75 |
+| `CategoryIconPickerModal` | Function | `frontend/src/components/CategoryIconPickerModal.tsx` | 38 |
 | `CertifiedHardwareModal` | Function | `frontend/src/components/CertifiedHardwareModal.tsx` | 68 |
-| `ConfirmModal` | Function | `frontend/src/components/ConfirmModal.tsx` | 18 |
+| `CustomDatePicker` | Function | `frontend/src/components/CustomDatePicker.tsx` | 68 |
+| `handleScroll` | Function | `frontend/src/components/CustomDatePicker.tsx` | 149 |
+| `handleClearClick` | Function | `frontend/src/components/CustomDatePicker.tsx` | 222 |
+| `initialDate` | Function | `frontend/src/components/CustomDatePicker.tsx` | 87 |
+| `updateCoords` | Function | `frontend/src/components/CustomDatePicker.tsx` | 97 |
 | `DatabaseRecoveryModal` | Function | `frontend/src/components/DatabaseRecoveryModal.tsx` | 36 |
 | `formatBytes` | Function | `frontend/src/components/DatabaseRecoveryModal.tsx` | 49 |
 | `DigitalPaymentModal` | Function | `frontend/src/components/DigitalPaymentModal.tsx` | 50 |
 | `InstapayPaymentModal` | Function | `frontend/src/components/DigitalPaymentModal.tsx` | 360 |
 | `WalletPaymentModal` | Function | `frontend/src/components/DigitalPaymentModal.tsx` | 364 |
 | `DosageLabelModal` | Function | `frontend/src/components/DosageLabelModal.tsx` | 50 |
-| `DrugInteractionManagerModal` | Function | `frontend/src/components/DrugInteractionManagerModal.tsx` | 31 |
-| `getSeverityBadge` | Function | `frontend/src/components/DrugInteractionManagerModal.tsx` | 261 |
-| `handleOpenEdit` | Function | `frontend/src/components/DrugInteractionManagerModal.tsx` | 118 |
-| `DrugReferenceImportModal` | Function | `frontend/src/components/DrugReferenceImportModal.tsx` | 47 |
 | `ExcelImportModal` | Function | `frontend/src/components/ExcelImportModal.tsx` | 44 |
 | `ExpenseModal` | Function | `frontend/src/components/ExpenseModal.tsx` | 43 |
 | `FactoryResetModal` | Function | `frontend/src/components/FactoryResetModal.tsx` | 27 |
 | `FeatureGate` | Function | `frontend/src/components/FeatureGate.tsx` | 15 |
-| `ForcedPinChangeForm` | Function | `frontend/src/components/ForcedPinChangeForm.tsx` | 18 |
 
 ## Execution Flows
 
 | Flow | Type | Steps |
 |------|------|-------|
+| `OnlineStoreView → ToLocalDateString` | cross_community | 9 |
 | `RootStatusPage → ToLocalDateString` | cross_community | 9 |
+| `OnlineStoreView → NormalizeDateRange` | cross_community | 8 |
 | `RootStatusPage → NormalizeDateRange` | cross_community | 8 |
+| `AppUpdateModal → ToLocalDateString` | cross_community | 8 |
 | `DataQualityAuditModal → ToLocalDateString` | cross_community | 8 |
-| `DemoDataModal → ToLocalDateString` | cross_community | 8 |
 | `DrugReferenceImportModal → ToLocalDateString` | cross_community | 8 |
 | `ExpiryReturnsModal → ToLocalDateString` | cross_community | 8 |
-| `HeldSalesModal → ToLocalDateString` | cross_community | 8 |
 | `MigrationWizardModal → ToLocalDateString` | cross_community | 8 |
 | `PharmacyStocktakingModal → ToLocalDateString` | cross_community | 8 |
-| `SpecializedPharmacyReportsModal → ToLocalDateString` | cross_community | 8 |
 
 ## How to Explore
 

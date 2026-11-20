@@ -30,7 +30,7 @@ export const ProductModal: React.FC<Props> = ({
 
   const activeProduct = product || cachedProduct;
   const isOpen = Boolean(product);
-  const { mounted, visible } = useModalAnimation(isOpen, 300);
+  const { mounted, visible } = useModalAnimation(isOpen, 280);
 
   if (!mounted || !activeProduct) return null;
 
@@ -42,16 +42,16 @@ export const ProductModal: React.FC<Props> = ({
   return (
     <div
       onClick={onClose}
-      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/70 transition-all duration-300 ease-in-out ${
-        visible ? 'opacity-100 backdrop-blur-md' : 'opacity-0 backdrop-blur-none pointer-events-none'
+      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 transition-opacity duration-200 ease-out ${
+        visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
     >
       <div
         onClick={e => e.stopPropagation()}
-        className={`relative w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-store-line overflow-hidden flex flex-col max-h-[92vh] transition-all duration-300 ease-in-out ${
+        className={`relative w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-store-line overflow-hidden flex flex-col max-h-[92vh] transition-[transform,opacity] duration-[280ms] ease-out ${
           visible
             ? 'translate-y-0 sm:scale-100 opacity-100'
-            : 'translate-y-full sm:translate-y-8 sm:scale-95 opacity-0'
+            : 'translate-y-full sm:translate-y-6 sm:scale-95 opacity-0'
         }`}
         style={{ backgroundColor: 'var(--store-card-bg, #FFFFFF)' }}
       >
@@ -159,40 +159,40 @@ export const ProductModal: React.FC<Props> = ({
             {/* Stepper & Action Controls */}
             <div className="pt-3 border-t border-store-line/60">
               {quantityInCart > 0 ? (
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   {/* Quantity Stepper */}
-                  <div className="flex items-center justify-between sm:justify-start gap-2 bg-store-card-subtle text-store-text rounded-2xl p-1.5 border border-store-line">
+                  <div className="flex items-center gap-1.5 h-12 bg-store-card-subtle text-store-text rounded-2xl px-1.5 border border-store-line shrink-0">
                     <button
                       onClick={() => onRemoveFromCart(activeProduct.id)}
-                      className="w-10 h-10 flex items-center justify-center rounded-xl bg-store-card hover:bg-store-primary-light/40 text-store-text font-bold btn-spring shadow-2xs border border-store-line"
+                      className="w-9 h-9 flex items-center justify-center rounded-xl bg-store-card hover:bg-store-primary-light/40 text-store-text font-bold btn-spring shadow-sm border border-store-line cursor-pointer"
                       title="تقليل الكمية"
                     >
                       <Minus className="w-4 h-4" />
                     </button>
-                    <div className="px-3 text-center min-w-[3rem]">
-                      <span className="font-black text-base text-store-text">{quantityInCart}</span>
-                      <span className="text-[10px] text-store-muted block -mt-1 font-bold">{activeProduct.unit_name}</span>
+                    <div className="px-2 text-center min-w-[2.5rem]">
+                      <span className="font-black text-sm text-store-text tabular-nums leading-none block">{quantityInCart}</span>
+                      <span className="text-[10px] text-store-muted block mt-0.5 font-bold leading-none">{activeProduct.unit_name}</span>
                     </div>
                     <button
                       onClick={() => onAddToCart(activeProduct)}
-                      className="w-10 h-10 flex items-center justify-center rounded-xl bg-store-primary !text-white hover:opacity-90 font-bold btn-spring shadow-2xs"
+                      className="w-9 h-9 flex items-center justify-center rounded-xl bg-store-primary !text-white hover:opacity-90 font-bold btn-spring shadow-sm cursor-pointer"
                       title="زيادة الكمية"
                     >
                       <Plus className="w-4 h-4 !text-white" />
                     </button>
                   </div>
 
-                  {/* Go to Cart & Checkout Button */}
+                  {/* Go to Cart Button — Crisp Single-Line */}
                   <button
                     onClick={() => {
                       onClose();
                       if (onOpenCart) onOpenCart();
                     }}
-                    className="flex-1 flex items-center justify-center gap-2.5 bg-store-primary hover:opacity-90 !text-white py-3.5 px-5 rounded-2xl font-black text-sm shadow-lg shadow-store-primary/20 transition-all btn-spring"
+                    className="flex-1 h-12 flex items-center justify-center gap-2 bg-store-primary hover:opacity-90 !text-white px-4 rounded-2xl font-black text-sm shadow-lg shadow-store-primary/20 transition-all btn-spring whitespace-nowrap cursor-pointer"
                   >
                     <ShoppingBag className="w-4 h-4 flex-shrink-0 !text-white" />
-                    <span className="!text-white">الذهاب إلى السلة وإتمام الطلب</span>
-                    <ArrowLeft className="w-4 h-4 mr-auto flex-shrink-0 !text-white" />
+                    <span className="!text-white">عرض السلة</span>
+                    <ArrowLeft className="w-4 h-4 flex-shrink-0 !text-white" />
                   </button>
                 </div>
               ) : (

@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AdminOrder } from './OrderPrintReceipt';
+import { buildWhatsAppUrl } from '../../utils/whatsapp';
 import {
   Clock,
   MapPin,
@@ -10,6 +11,8 @@ import {
   Truck,
   CheckCircle2,
   ChevronLeft,
+  XCircle,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 interface Props {
@@ -19,17 +22,12 @@ interface Props {
   storeName: string;
 }
 
-export const OrderCardItem: React.FC<Props> = ({
+const OrderCardItemComponent: React.FC<Props> = ({
   order,
   isSelected,
   onSelect,
   storeName,
 }) => {
-  const isNew = order.status === 'new';
-  const isAccepted = order.status === 'accepted';
-  const isReady = order.status === 'ready';
-  const isDelivered = order.status === 'delivered';
-
   const itemsCount = order.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 
   // Status visual mapping
@@ -40,7 +38,19 @@ export const OrderCardItem: React.FC<Props> = ({
       dot: 'bg-amber-500 animate-pulse',
       icon: AlertCircle,
     },
+    viewed: {
+      label: 'جديد - تم العرض',
+      bg: 'bg-amber-50 text-amber-800 border-amber-200',
+      dot: 'bg-amber-500',
+      icon: AlertCircle,
+    },
     accepted: {
+      label: 'بيتجهز في المحل',
+      bg: 'bg-blue-50 text-blue-800 border-blue-200',
+      dot: 'bg-blue-500',
+      icon: PackageCheck,
+    },
+    preparing: {
       label: 'بيتجهز في المحل',
       bg: 'bg-blue-50 text-blue-800 border-blue-200',
       dot: 'bg-blue-500',
@@ -58,6 +68,18 @@ export const OrderCardItem: React.FC<Props> = ({
       dot: 'bg-emerald-500',
       icon: CheckCircle2,
     },
+    rejected: {
+      label: 'ملغي / مرفوض',
+      bg: 'bg-rose-50 text-rose-800 border-rose-200',
+      dot: 'bg-rose-500',
+      icon: XCircle,
+    },
+    cancelled: {
+      label: 'ملغي',
+      bg: 'bg-rose-50 text-rose-800 border-rose-200',
+      dot: 'bg-rose-500',
+      icon: XCircle,
+    },
   }[order.status] || {
     label: order.status,
     bg: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -69,11 +91,11 @@ export const OrderCardItem: React.FC<Props> = ({
 
   const handleWhatsAppClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const cleanPhone = order.customer_phone.replace(/^0+/, '');
-    const message = encodeURIComponent(
+    const url = buildWhatsAppUrl(
+      order.customer_phone,
       `مرحباً أستاذ ${order.customer_name}، بنكلمك من ${storeName} بخصوص أوردرك رقم #ORD-${order.order_number}`
     );
-    window.open(`https://wa.me/20${cleanPhone}?text=${message}`, '_blank');
+    window.open(url, '_blank');
   };
 
   const handleCallClick = (e: React.MouseEvent) => {
@@ -162,6 +184,12 @@ export const OrderCardItem: React.FC<Props> = ({
           <span className="text-[10px] text-store-muted font-medium truncate bg-store-card-subtle border border-store-line px-1.5 py-0.5 rounded-md">
             {order.payment_method}
           </span>
+          {order.receipt_image && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-store-primary bg-store-primary-light border border-store-primary/25 px-1.5 py-0.5 rounded-md flex-shrink-0">
+              <ImageIcon className="w-2.5 h-2.5" />
+              <span>إيصال</span>
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -175,3 +203,5 @@ export const OrderCardItem: React.FC<Props> = ({
     </div>
   );
 };
+
+export const OrderCardItem = React.memo(OrderCardItemComponent);

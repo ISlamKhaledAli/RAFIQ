@@ -91,6 +91,7 @@
     <Compile Include="Bridge\IpcDispatcher.Backup.cs" />
     <Compile Include="Bridge\IpcDispatcher.Excel.cs" />
     <Compile Include="Bridge\IpcDispatcher.System.cs" />
+    <Compile Include="Bridge\IpcDispatcher.OnlineStore.cs" />
     <Compile Include="Common\IdempotencyGuard.cs" />
     <Compile Include="Common\Money.cs" />
     <Compile Include="Common\LicenseConfig.cs" />
@@ -110,7 +111,9 @@
     <Compile Include="Common\CompoundStockHelper.cs" />
     <Compile Include="Common\RawPrinterHelper.cs" />
     <Compile Include="Database\MigrationRunner.cs" />
+    <Compile Include="Database\MigrationRunner.OnlineStore.cs" />
     <Compile Include="Models\Product.cs" />
+    <Compile Include="Models\SyncModels.cs" />
     <Compile Include="Models\ProductUnit.cs" />
     <Compile Include="Models\Sale.cs" />
     <Compile Include="Models\Customer.cs" />
@@ -139,6 +142,8 @@
     <Compile Include="Repositories\ProductRepository.Import.cs" />
     <Compile Include="Repositories\ProductRepository.BulkPricing.cs" />
     <Compile Include="Repositories\ProductRepository.Barcodes.cs" />
+    <Compile Include="Repositories\ProductRepository.OnlineStore.cs" />
+    <Compile Include="Repositories\SyncRepository.cs" />
     <Compile Include="Repositories\SaleRepository.cs" />
     <Compile Include="Repositories\CounterRepository.cs" />
     <Compile Include="Repositories\SettingsRepository.cs" />
@@ -156,6 +161,8 @@
     <Compile Include="Repositories\HeldSaleRepository.cs" />
     <Compile Include="Repositories\ReturnRepository.cs" />
     <Compile Include="Services\DatabaseService.cs" />
+    <Compile Include="Services\SyncHttpClient.cs" />
+    <Compile Include="Services\SyncEngine.cs" />
     <Compile Include="Services\ProductService.cs" />
     <Compile Include="Services\ProductUnitService.cs" />
     <Compile Include="Services\ProductUnitTestRunner.cs" />
