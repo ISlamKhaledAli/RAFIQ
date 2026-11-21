@@ -1,6 +1,7 @@
 import type { Env, Store, SyncCatalogPayload, SyncCatalogPrunePayload, SyncStockPayload, Order, OrderItem } from '../types.ts';
 import { generateUUID } from '../crypto.ts';
 import { notifyStoreRealtime } from '../realtime.ts';
+import { formatUnitArabic } from '../units.ts';
 
 const D1_BATCH_CHUNK_SIZE = 50;
 
@@ -186,7 +187,7 @@ export async function handleSyncCatalog(
           Math.round(prod.price_piasters),
           prod.compare_price ? Math.round(prod.compare_price) : null,
           prod.cost_piasters ? Math.round(prod.cost_piasters) : null,
-          prod.unit_name || 'قطعة',
+          formatUnitArabic(prod.unit_name),
           prod.tax_rate ?? 0,
           stockQty,
           Math.round(prod.low_stock_threshold ?? 0),

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Product, Store } from '../../types';
 import type { DashboardOverviewData, DailySalesPoint } from '../../api/client';
+import { formatUnitArabic } from '../../utils/unitFormatter';
 import type { AdminOrder } from './OrderPrintReceipt';
 import { CustomDateRangePicker } from './CustomDatePicker';
 import {
@@ -1091,7 +1092,7 @@ export const AnalyticsOverviewPanel: React.FC<Props> = ({
                     <div className="min-w-0">
                       <div className="font-bold text-slate-900 truncate">{item.name}</div>
                       <div className="text-[10px] text-slate-500 mt-0.5">
-                        سعر البيع: {formatMoneyEgp(item.price_piasters)} ج.م • الوحدة: {item.unit_name}
+                        سعر البيع: {formatMoneyEgp(item.price_piasters)} ج.م • الوحدة: {formatUnitArabic(item.unit_name)}
                       </div>
                     </div>
                     <span

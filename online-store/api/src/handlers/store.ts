@@ -1,6 +1,7 @@
 import type { Env, Store, Product, Category, CreateOrderPayload, OrderItem } from '../types.ts';
 import { generateUUID } from '../crypto.ts';
 import { notifyStoreRealtime } from '../realtime.ts';
+import { formatUnitArabic } from '../units.ts';
 
 export async function handleGetStore(slug: string, env: Env): Promise<Response> {
   const store = await env.DB.prepare(
@@ -150,6 +151,7 @@ export async function handleGetStoreProducts(slug: string, url: URL, env: Env): 
 
   const parsedProducts = (query.results || []).map(p => ({
     ...p,
+    unit_name: formatUnitArabic(p.unit_name),
     image_urls: p.image_urls ? JSON.parse(p.image_urls) : [],
     in_stock: p.stock_quantity > 0,
   }));
@@ -216,6 +218,7 @@ export async function handleGetStoreProductDetail(
     JSON.stringify({
       product: {
         ...product,
+        unit_name: formatUnitArabic(product.unit_name),
         image_urls: product.image_urls ? JSON.parse(product.image_urls) : [],
         in_stock: product.stock_quantity > 0,
       },

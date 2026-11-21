@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Product } from '../types';
+import { formatUnitArabic } from '../utils/unitFormatter';
 import {
   Plus,
   Minus,
@@ -103,7 +104,7 @@ export const ProductCard: React.FC<Props> = ({
               {renderCategoryPlaceholderIcon(product)}
             </div>
             <span className="relative z-10 text-[10px] font-bold text-store-muted bg-store-card/90 border border-store-line/80 px-2.5 py-0.5 rounded-full">
-              {product.unit_name}
+              {formatUnitArabic(product.unit_name)}
             </span>
           </div>
         )}
@@ -140,7 +141,7 @@ export const ProductCard: React.FC<Props> = ({
       <div className="mt-2.5 flex-1 flex flex-col justify-between">
         <div onClick={() => onSelectProduct(product)} className="cursor-pointer">
           <div className="text-[10px] font-bold text-store-muted mb-1 flex items-center gap-1">
-            <span>الوحدة: {product.unit_name}</span>
+            <span>الوحدة: {formatUnitArabic(product.unit_name)}</span>
           </div>
 
           <h3 className="font-bold text-xs sm:text-sm text-store-text line-clamp-2 leading-snug group-hover:text-store-primary transition-colors min-h-[2rem]">

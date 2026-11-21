@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Services;
 
@@ -177,7 +178,7 @@ namespace RafiqPOS.Bridge
                             stockQuantityMilli = p.StockQuantityMilli,
                             stockFormatted = p.StockFormatted,
                             isOnline = p.IsOnline,
-                            unit = string.IsNullOrEmpty(p.Unit) ? "قطعة" : p.Unit
+                            unit = CompoundStockHelper.LocalizeUnit(p.Unit)
                         });
                     }
                     response = BridgeResponse.Ok(request.Id, list);
@@ -401,8 +402,8 @@ namespace RafiqPOS.Bridge
                             TaxPiasters = 0,
                             TaxRatePercent = localProd != null ? (int?)localProd.TaxRatePercent : 0,
                             UnitId = baseUnit != null ? baseUnit.Id : null,
-                            Unit = baseUnit != null ? baseUnit.UnitName : (localProd != null && !string.IsNullOrEmpty(localProd.Unit) ? localProd.Unit : "piece"),
-                            UnitName = baseUnit != null ? baseUnit.UnitName : (localProd != null && !string.IsNullOrEmpty(localProd.Unit) ? localProd.Unit : "قطعة"),
+                            Unit = baseUnit != null ? baseUnit.UnitName : (localProd != null && !string.IsNullOrEmpty(localProd.Unit) ? CompoundStockHelper.LocalizeUnit(localProd.Unit) : "قطعة"),
+                            UnitName = baseUnit != null ? baseUnit.UnitName : (localProd != null && !string.IsNullOrEmpty(localProd.Unit) ? CompoundStockHelper.LocalizeUnit(localProd.Unit) : "قطعة"),
                             ConversionFactor = 1,
                             Notes = line.Notes
                         });

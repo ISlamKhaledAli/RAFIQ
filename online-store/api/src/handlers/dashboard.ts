@@ -2,6 +2,7 @@ import type { Env, Store, Order, OrderItem, Product } from '../types.ts';
 import { sha256Hex, timingSafeEqual, createSessionToken } from '../crypto.ts';
 import { checkCloudStoreEntitlement } from '../auth.ts';
 import { notifyStoreRealtime } from '../realtime.ts';
+import { formatUnitArabic } from '../units.ts';
 
 export async function handleOwnerLogin(request: Request, env: Env): Promise<Response> {
   const body = (await request.json()) as { license_key?: string; pin?: string };
@@ -506,7 +507,7 @@ export async function handleDashboardOverview(
         cost_value: costValue,
         expected_profit: Math.max(0, retailValue - costValue),
       },
-      low_stock_products: lowStockListRes.results || [],
+      low_stock_products: (lowStockListRes.results || []).map(r => ({ ...r, unit_name: formatUnitArabic(r.unit_name) })),
       online_range_summary: {
         total_orders: onlineRangeRes?.total_orders || 0,
         active_sales: onlineRangeRes?.active_sales || 0,
@@ -727,6 +728,7 @@ export async function handleDashboardGetProducts(
 
   const products = (query.results || []).map(p => ({
     ...p,
+    unit_name: formatUnitArabic(p.unit_name),
     image_urls: p.image_urls ? JSON.parse(p.image_urls) : [],
     in_stock: p.stock_quantity > 0 && p.is_online === 1,
   }));

@@ -612,7 +612,7 @@ namespace RafiqPOS.Repositories
                                 insProdCmd.Parameters["@cost"].Value = newCost;
                                 insProdCmd.Parameters["@stock"].Value = newStock;
                                 insProdCmd.Parameters["@minStock"].Value = item.MinStockQuantityMilli.HasValue ? item.MinStockQuantityMilli.Value : DefaultImportMinStockMilli;
-                                insProdCmd.Parameters["@unit"].Value = !string.IsNullOrWhiteSpace(item.Unit) ? item.Unit.Trim() : "piece";
+                                insProdCmd.Parameters["@unit"].Value = !string.IsNullOrWhiteSpace(item.Unit) ? CompoundStockHelper.LocalizeUnit(item.Unit) : "قطعة";
                                 insProdCmd.Parameters["@tax"].Value = item.TaxRatePercent.HasValue ? item.TaxRatePercent.Value : 0;
                                 insProdCmd.Parameters["@taxCategoryCode"].Value = (object)item.TaxCategoryCode ?? "";
                                 insProdCmd.Parameters["@color"].Value = !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value;

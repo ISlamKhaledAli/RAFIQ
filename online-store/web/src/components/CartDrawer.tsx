@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { CartItem, Store } from '../types';
 import { useModalAnimation } from '../hooks/useModalAnimation';
+import { formatUnitArabic } from '../utils/unitFormatter';
 import { X, Trash2, Plus, Minus, ShoppingBag, ArrowLeft, MapPin, Truck, Store as StoreIcon, Check, ChevronDown } from 'lucide-react';
 
 interface Props {
@@ -127,7 +128,7 @@ export const CartDrawer: React.FC<Props> = ({
                       {item.product.name}
                     </h4>
                     <div className="text-[11px] text-slate-500 mt-0.5">
-                      {(item.product.price_piasters / 100).toFixed(2)} ج.م × {item.quantity} {item.product.unit_name}
+                      {(item.product.price_piasters / 100).toFixed(2)} ج.م × {item.quantity} {formatUnitArabic(item.product.unit_name)}
                     </div>
                     <div className="text-xs font-black text-store-primary mt-1">
                       {itemTotal} ج.م
