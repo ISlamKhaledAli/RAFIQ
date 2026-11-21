@@ -1395,7 +1395,7 @@ namespace RafiqPOS.Services
                 price_piasters = p.PricePiasters,
                 compare_price = p.ComparePricePiasters,
                 cost_piasters = p.CostPiasters,
-                unit_name = string.IsNullOrEmpty(p.Unit) ? "قطعة" : p.Unit,
+                unit_name = CompoundStockHelper.LocalizeUnit(p.Unit),
                 tax_rate = p.TaxRatePercent * 100,
                 stock_quantity = p.StockQuantityMilli,
                 low_stock_threshold = p.MinStockQuantityMilli,

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import type { Store, Category, Product } from '../types';
 import type { StoreThemeCustom } from '../components/ThemeInjector';
+import { formatUnitArabic } from '../utils/unitFormatter';
 import { ThemeStudioPanel } from '../components/admin/ThemeStudioPanel';
 import { AdminLoginScreen } from '../components/admin/AdminLoginScreen';
 import {
@@ -154,7 +155,7 @@ function mapCloudOrderToAdminOrder(raw: any): AdminOrder {
           return {
             name: it.product_name || it.name || 'صنف',
             quantity: displayQty,
-            unit: it.unit || it.unit_name || 'وحدة',
+            unit: formatUnitArabic(it.unit || it.unit_name),
             unit_price: Number(it.product_price ?? it.unit_price) || 0,
             total_price: Number(it.line_total ?? it.total_price) || 0,
           };
@@ -278,7 +279,7 @@ function buildInitialDemoOrders(): AdminOrder[] {
             ? o.items.map((it: any) => ({
                 name: it.name || it.product_name || 'صنف',
                 quantity: it.quantity || 1,
-                unit: it.unit || it.unit_name || 'قطعة',
+                unit: formatUnitArabic(it.unit || it.unit_name),
                 unit_price: it.unit_price || 0,
                 total_price: it.total_price || it.line_total || 0,
               }))

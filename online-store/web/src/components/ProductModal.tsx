@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Product } from '../types';
 import { useModalAnimation } from '../hooks/useModalAnimation';
+import { formatUnitArabic } from '../utils/unitFormatter';
 import { X, Package, Check, Plus, Minus, Barcode, ShoppingBag, ShieldCheck, Sparkles, ArrowLeft } from 'lucide-react';
 
 interface Props {
@@ -95,7 +96,7 @@ export const ProductModal: React.FC<Props> = ({
               {/* Badges */}
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs bg-store-card-subtle text-store-muted border border-store-line px-2.5 py-1 rounded-xl font-bold">
-                  الوحدة: {activeProduct.unit_name}
+                  الوحدة: {formatUnitArabic(activeProduct.unit_name)}
                 </span>
                 {!isOutOfStock ? (
                   <span className="text-xs bg-store-primary-light/70 text-store-primary px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 border border-store-primary/20">
@@ -171,7 +172,7 @@ export const ProductModal: React.FC<Props> = ({
                     </button>
                     <div className="px-2 text-center min-w-[2.5rem]">
                       <span className="font-black text-sm text-store-text tabular-nums leading-none block">{quantityInCart}</span>
-                      <span className="text-[10px] text-store-muted block mt-0.5 font-bold leading-none">{activeProduct.unit_name}</span>
+                      <span className="text-[10px] text-store-muted block mt-0.5 font-bold leading-none">{formatUnitArabic(activeProduct.unit_name)}</span>
                     </div>
                     <button
                       onClick={() => onAddToCart(activeProduct)}

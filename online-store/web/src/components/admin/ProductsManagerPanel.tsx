@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Category, Product } from '../../types';
+import { formatUnitArabic } from '../../utils/unitFormatter';
 import { ToggleSwitch } from './ToggleSwitch';
 import { SmartPublishModal, type SmartPublishPreset } from './SmartPublishModal';
 import { SingleDescriptionModal } from './SingleDescriptionModal';
@@ -1097,7 +1098,7 @@ export const ProductsManagerPanel: React.FC<Props> = ({
                               <Star className={`w-3.5 h-3.5 ${prod.is_featured === 1 ? 'fill-white' : ''}`} />
                             </button>
                             <span className="px-2 py-0.5 rounded-lg bg-black/75 text-white text-[10px] font-mono font-bold">
-                              {stockUnits} {prod.unit_name}
+                              {stockUnits} {formatUnitArabic(prod.unit_name)}
                             </span>
                           </div>
                         </div>
@@ -1353,7 +1354,7 @@ export const ProductsManagerPanel: React.FC<Props> = ({
                                   <span className="text-xs text-[#52605D]">المخزون:</span>
                                   <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-[#0F172A] bg-[#F8FAFC] border border-[#DCE1DC] px-2.5 py-0.5 rounded-xl">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    <span>{stockUnits} {prod.unit_name}</span>
+                                    <span>{stockUnits} {formatUnitArabic(prod.unit_name)}</span>
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
@@ -1436,7 +1437,7 @@ export const ProductsManagerPanel: React.FC<Props> = ({
                                     </span>
                                   )}
                                   <span className="text-[10px] text-[#52605D]/80">
-                                    {prod.unit_name}
+                                    {formatUnitArabic(prod.unit_name)}
                                   </span>
                                 </div>
                               </div>
@@ -1472,7 +1473,7 @@ export const ProductsManagerPanel: React.FC<Props> = ({
                               <div className="text-center">
                                 <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-[#0F172A] bg-[#F8FAFC] border border-[#DCE1DC] px-2.5 py-1 rounded-xl">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                  <span>{stockUnits} {prod.unit_name}</span>
+                                  <span>{stockUnits} {formatUnitArabic(prod.unit_name)}</span>
                                 </span>
                               </div>
 
