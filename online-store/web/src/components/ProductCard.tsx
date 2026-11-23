@@ -5,14 +5,16 @@ import {
   Plus,
   Minus,
   Package,
-  Sparkles,
+  Star,
   ShoppingBag,
   Utensils,
   Milk,
   Coffee,
   Croissant,
   SprayCan,
+  Heart,
 } from 'lucide-react';
+import type { StoreLayoutTemplate } from './ThemeInjector';
 
 function renderCategoryPlaceholderIcon(product: Product) {
   const n = product.name || '';
@@ -36,34 +38,48 @@ function renderCategoryPlaceholderIcon(product: Product) {
   return <Package className={iconCls} />;
 }
 
-import type { StoreLayoutTemplate } from './ThemeInjector';
-
 interface Props {
   product: Product;
   quantityInCart: number;
   layoutTemplate?: StoreLayoutTemplate;
+  isWishlisted?: boolean;
+  showWishlist?: boolean;
+  showSavingsBadge?: boolean;
+  showLowStockBadge?: boolean;
   onAddToCart: (product: Product) => void;
   onRemoveFromCart: (productId: string) => void;
   onSelectProduct: (product: Product) => void;
+  onToggleWishlist?: (productId: string) => void;
 }
 
 export const ProductCard: React.FC<Props> = ({
   product,
   quantityInCart,
   layoutTemplate = 'classic',
+  isWishlisted = false,
+  showWishlist = true,
+  showSavingsBadge = true,
+  showLowStockBadge = true,
   onAddToCart,
   onRemoveFromCart,
   onSelectProduct,
+  onToggleWishlist,
 }) => {
   // Integer arithmetic: piasters converted to EGP string format only for final UI display!
   const pricePounds = (product.price_piasters / 100).toFixed(2);
   const comparePounds = product.compare_price ? (product.compare_price / 100).toFixed(2) : null;
-  const hasDiscount = product.compare_price && product.compare_price > product.price_piasters;
+  const hasDiscount = Boolean(product.compare_price && product.compare_price > product.price_piasters);
   const discountPercent = hasDiscount && product.compare_price
     ? Math.round(((product.compare_price - product.price_piasters) / product.compare_price) * 100)
     : 0;
 
+  const savingsPounds = hasDiscount && product.compare_price
+    ? Math.floor((product.compare_price - product.price_piasters) / 100)
+    : null;
+
   const isOutOfStock = !product.in_stock || product.stock_quantity <= 0;
+  const stockUnits = Math.round(product.stock_quantity / 1000);
+  const isLowStock = !isOutOfStock && stockUnits > 0 && stockUnits <= 5;
 
   const isCompact = layoutTemplate === 'compact';
   const isBoutique = layoutTemplate === 'boutique';
@@ -109,21 +125,53 @@ export const ProductCard: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Top Badges - Bold High Contrast Badges */}
-        <div className="absolute top-2 right-2 left-2 flex items-center justify-between pointer-events-none">
-          {product.is_featured === 1 ? (
-            <span className="bg-amber-500 !text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
-              <Sparkles className="w-3 h-3 !text-white" />
-              <span>مميز</span>
-            </span>
-          ) : (
-            <span></span>
-          )}
+        {/* Top Badges & Wishlist Controls */}
+        <div className="absolute top-2 right-2 left-2 flex items-start justify-between pointer-events-none z-10">
+          {/* Badges on Right in RTL */}
+          <div className="flex flex-col gap-1 items-start max-w-[calc(100%-36px)]">
+            {product.is_featured === 1 && (
+              <span className="bg-amber-500 !text-white text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-xs">
+                <Star className="w-3 h-3 fill-current !text-white" />
+                <span>مميز</span>
+              </span>
+            )}
 
-          {hasDiscount && (
-            <span className="bg-rose-600 !text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-lg shadow-sm font-mono">
-              -{discountPercent}%
-            </span>
+            {hasDiscount && (
+              <span className="bg-rose-600 !text-white text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded-lg shadow-xs flex items-center gap-1">
+                <span>-{discountPercent}%</span>
+                {showSavingsBadge && savingsPounds && savingsPounds > 0 && (
+                  <span className="border-r border-white/30 pr-1 text-[9px] font-bold">
+                    وفر {savingsPounds} ج.م
+                  </span>
+                )}
+              </span>
+            )}
+
+            {showLowStockBadge && isLowStock && (
+              <span className="bg-amber-600 !text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-2xs">
+                متبقي {stockUnits} فقط
+              </span>
+            )}
+          </div>
+
+          {/* Wishlist Heart Button on Left in RTL */}
+          {showWishlist && onToggleWishlist && (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                onToggleWishlist(product.id);
+              }}
+              className="pointer-events-auto w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/90 backdrop-blur-md shadow-xs hover:shadow-md flex items-center justify-center text-slate-400 hover:text-rose-500 hover:scale-110 active:scale-90 transition-all btn-spring border border-slate-200/60"
+              title={isWishlisted ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة'}
+              aria-label={isWishlisted ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة'}
+            >
+              <Heart
+                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors ${
+                  isWishlisted ? 'fill-rose-500 text-rose-500 animate-pop' : ''
+                }`}
+              />
+            </button>
           )}
         </div>
 

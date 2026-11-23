@@ -15,7 +15,72 @@ export type StoreCornerStyle = 'rounded' | 'sharp' | 'soft';
 export interface StoreThemeCustom {
   layoutTemplate?: StoreLayoutTemplate;
   cornerStyle?: StoreCornerStyle;
-  [cssVar: string]: string | undefined;
+
+  // CRO Marketing Toggles
+  showStoriesBar?: boolean;
+  showPromoHero?: boolean;
+  showTrustBadges?: boolean;
+  showFreeShippingBar?: boolean;
+  freeShippingThresholdEgp?: number;
+  showCartCrossSell?: boolean;
+  showWhatsAppQuickOrder?: boolean;
+  showWishlist?: boolean;
+  showSavingsBadge?: boolean;
+  showLowStockBadge?: boolean;
+
+  // Custom Marketing Texts & Announcements
+  announcementText?: string;
+
+  // Hero Carousel Texts (Slide 1)
+  heroSlide1Tag?: string;
+  heroSlide1Title?: string;
+  heroSlide1Highlight?: string;
+  heroSlide1Subtitle?: string;
+  heroSlide1Cta?: string;
+
+  // Hero Carousel Texts (Slide 2)
+  heroSlide2Tag?: string;
+  heroSlide2Title?: string;
+  heroSlide2Highlight?: string;
+  heroSlide2Subtitle?: string;
+  heroSlide2Cta?: string;
+
+  // Hero Carousel Texts (Slide 3)
+  heroSlide3Tag?: string;
+  heroSlide3Title?: string;
+  heroSlide3Highlight?: string;
+  heroSlide3Subtitle?: string;
+  heroSlide3Cta?: string;
+
+  // Trust Badges Texts (Badges 1-4)
+  trustBadge1Title?: string;
+  trustBadge1Desc?: string;
+  trustBadge2Title?: string;
+  trustBadge2Desc?: string;
+  trustBadge3Title?: string;
+  trustBadge3Desc?: string;
+  trustBadge4Title?: string;
+  trustBadge4Desc?: string;
+
+  // Stories Bar Texts (Stories 1-6)
+  storyDealsTitle?: string;
+  storyDealsBadge?: string;
+  storyBestSellersTitle?: string;
+  storyBestSellersBadge?: string;
+  storyNewArrivalsTitle?: string;
+  storyNewArrivalsBadge?: string;
+  storyFreeDeliveryTitle?: string;
+  storyFreeDeliveryBadge?: string;
+  storyCombosTitle?: string;
+  storyCombosBadge?: string;
+  storyAllTitle?: string;
+  storyAllBadge?: string;
+
+  // Cart Texts
+  cartCrossSellTitle?: string;
+  freeShippingUnlockedText?: string;
+
+  [cssVar: string]: any;
 }
 
 export interface LayoutTemplateOption {

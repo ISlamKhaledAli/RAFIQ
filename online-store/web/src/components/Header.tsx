@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Store } from '../types';
-import { ShoppingBag, Search, X, Clock, MapPin, Shield, ChevronDown, Sparkles, BadgeCheck } from 'lucide-react';
+import { ShoppingBag, Search, X, Clock, MapPin, Shield, ChevronDown, Megaphone, BadgeCheck } from 'lucide-react';
 
 interface Props {
   store: Store;
+  announcementText?: string | null;
   cartCount: number;
   cartTotalPiasters?: number;
   searchQuery: string;
@@ -13,10 +14,12 @@ interface Props {
   onOpenTracker: () => void;
   onOpenDashboard: () => void;
   onSelectZoneClick?: () => void;
+  onOpenSearchModal?: () => void;
 }
 
 export const Header: React.FC<Props> = ({
   store,
+  announcementText,
   cartCount,
   cartTotalPiasters = 0,
   searchQuery,
@@ -26,7 +29,13 @@ export const Header: React.FC<Props> = ({
   onOpenTracker,
   onOpenDashboard,
   onSelectZoneClick,
+  onOpenSearchModal,
 }) => {
+  const activeAnnouncement =
+    announcementText !== undefined && announcementText !== null && announcementText.trim() !== ''
+      ? announcementText
+      : store.welcome_message;
+
   const cartTotalPounds = (cartTotalPiasters / 100).toFixed(2);
   const [badgePop, setBadgePop] = useState<'a' | 'b'>('a');
   const prevCartCountRef = useRef(cartCount);
@@ -41,10 +50,10 @@ export const Header: React.FC<Props> = ({
   return (
     <>
       {/* Top Welcome Announcement ticker (scrolls away naturally to maximize mobile browsing space) */}
-      {store.welcome_message && (
+      {activeAnnouncement && (
         <div className="bg-gradient-to-r from-store-primary via-store-secondary to-store-primary text-store-primary-contrast text-[11px] sm:text-xs py-1 sm:py-1.5 px-3 sm:px-4 text-center font-bold tracking-wide flex items-center justify-center gap-1.5 sm:gap-2 overflow-hidden">
-          <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-store-accent animate-pulse-slow flex-shrink-0" />
-          <span className="truncate">{store.welcome_message}</span>
+          <Megaphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-store-accent flex-shrink-0" />
+          <span className="truncate">{activeAnnouncement}</span>
         </div>
       )}
 
@@ -112,18 +121,33 @@ export const Header: React.FC<Props> = ({
 
           {/* Desktop Search Center */}
           <div className="hidden lg:flex flex-1 max-w-md mx-4">
-            <div className="relative w-full">
+            <div
+              onClick={onOpenSearchModal}
+              className={`relative w-full ${onOpenSearchModal ? 'cursor-pointer' : ''}`}
+            >
               <input
                 type="text"
-                placeholder="بتدور على إيه؟ اكتب اسم الصنف أو الباركود..."
+                placeholder="بتدور على إيه؟ اضغط للبحث الفوري عن الأصناف..."
                 value={searchQuery}
                 onChange={e => onSearchChange(e.target.value)}
-                className="w-full pl-9 pr-10 py-2.5 rounded-2xl border border-store-line bg-store-card-subtle text-xs sm:text-sm text-store-text placeholder:text-store-muted focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all shadow-inner"
+                onClick={e => {
+                  if (onOpenSearchModal) {
+                    e.preventDefault();
+                    onOpenSearchModal();
+                  }
+                }}
+                className={`w-full pl-9 pr-10 py-2.5 rounded-2xl border border-store-line bg-store-card-subtle text-xs sm:text-sm text-store-text placeholder:text-store-muted focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all shadow-inner ${
+                  onOpenSearchModal ? 'cursor-pointer' : ''
+                }`}
               />
               <Search className="w-4 h-4 text-store-muted absolute right-3.5 top-1/2 -translate-y-1/2" />
               {searchQuery && (
                 <button
-                  onClick={() => onSearchChange('')}
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation();
+                    onSearchChange('');
+                  }}
                   className="absolute left-3 top-1/2 -translate-y-1/2 p-1 text-store-muted hover:text-store-text rounded-full hover:bg-store-primary-light/40 transition-colors"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -186,18 +210,33 @@ export const Header: React.FC<Props> = ({
 
           {/* Mobile Search Bar */}
           <div className="lg:hidden pb-2 pt-0">
-            <div className="relative w-full">
+            <div
+              onClick={onOpenSearchModal}
+              className={`relative w-full ${onOpenSearchModal ? 'cursor-pointer' : ''}`}
+            >
               <input
                 type="text"
-                placeholder="بتدور على إيه؟ اكتب اسم الصنف أو الباركود..."
+                placeholder="بتدور على إيه؟ اضغط للبحث الفوري..."
                 value={searchQuery}
                 onChange={e => onSearchChange(e.target.value)}
-                className="w-full pl-8 pr-9 py-1.5 sm:py-2.5 rounded-xl sm:rounded-2xl border border-store-line bg-store-card-subtle text-xs sm:text-sm text-store-text placeholder:text-store-muted focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all shadow-inner"
+                onClick={e => {
+                  if (onOpenSearchModal) {
+                    e.preventDefault();
+                    onOpenSearchModal();
+                  }
+                }}
+                className={`w-full pl-8 pr-9 py-1.5 sm:py-2.5 rounded-xl sm:rounded-2xl border border-store-line bg-store-card-subtle text-xs sm:text-sm text-store-text placeholder:text-store-muted focus:outline-none focus:ring-2 focus:ring-store-primary focus:bg-store-card transition-all shadow-inner ${
+                  onOpenSearchModal ? 'cursor-pointer' : ''
+                }`}
               />
               <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-store-muted absolute right-3 top-1/2 -translate-y-1/2" />
               {searchQuery && (
                 <button
-                  onClick={() => onSearchChange('')}
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation();
+                    onSearchChange('');
+                  }}
                   className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-store-muted hover:text-store-text rounded-full hover:bg-store-primary-light/40"
                 >
                   <X className="w-3.5 h-3.5" />

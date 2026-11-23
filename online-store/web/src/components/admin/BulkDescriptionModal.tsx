@@ -120,7 +120,7 @@ export const BulkDescriptionModal: React.FC<Props> = ({
         {/* Tone Selector & Control Bar */}
         <div className="px-6 py-3 border-b border-[#DCE1DC] bg-white flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black text-[#0F172A]">الأسلوب والنبرة:</span>
+            <span className="text-xs font-black text-[#0F172A]">صيغة الوصف التجاري:</span>
             <div className="flex rounded-xl bg-[#F8FAFC] border border-[#DCE1DC] p-0.5">
               <button
                 type="button"
@@ -129,7 +129,7 @@ export const BulkDescriptionModal: React.FC<Props> = ({
                   selectedTone === 'catchy' ? 'bg-[#004D3F] text-white shadow-xs' : 'text-[#52605D]'
                 }`}
               >
-                تسويقي جذاب
+                صياغة بيعية متزنة
               </button>
               <button
                 type="button"
@@ -138,7 +138,7 @@ export const BulkDescriptionModal: React.FC<Props> = ({
                   selectedTone === 'short' ? 'bg-[#004D3F] text-white shadow-xs' : 'text-[#52605D]'
                 }`}
               >
-                مختصر ونظيف
+                موجز تجاري سريع
               </button>
               <button
                 type="button"
@@ -147,7 +147,7 @@ export const BulkDescriptionModal: React.FC<Props> = ({
                   selectedTone === 'detailed' ? 'bg-[#004D3F] text-white shadow-xs' : 'text-[#52605D]'
                 }`}
               >
-                تفصيلي بالنقاط
+                بطاقة مواصفات قياسية
               </button>
             </div>
           </div>

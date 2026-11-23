@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Order } from '../types';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { X, Search, Clock, Check, AlertTriangle, Package, Loader2 } from 'lucide-react';
+import { playStatusPing, triggerOrderVibration } from './admin/audioChime';
 
 interface Props {
   isOpen: boolean;
@@ -30,6 +31,10 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
     setIsLoading(true);
     try {
       const res = await trackOrderApi(orderNumber.trim(), phone.trim());
+      if (order && order.status !== res.status) {
+        playStatusPing();
+        triggerOrderVibration('status_change');
+      }
       setOrder(res);
     } catch (err: any) {
       setError(err.message || 'لم يتم العثور على الأوردر، تأكد من البيانات');

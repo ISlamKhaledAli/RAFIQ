@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Category } from '../types';
-import { Layers, Sparkles, Utensils, Coffee, Milk, Croissant, SprayCan as Spray } from 'lucide-react';
+import { Layers, LayoutGrid, Utensils, Coffee, Milk, Croissant, SprayCan as Spray } from 'lucide-react';
 
 interface Props {
   categories: Category[];
@@ -16,7 +16,7 @@ export const CategoryPills: React.FC<Props> = ({
   // Helper to pick contextual icons
   const getCategoryIcon = (name: string, isSelected: boolean) => {
     const iconClass = `w-3.5 h-3.5 ${isSelected ? '!text-white' : 'text-slate-600'}`;
-    if (name.includes('الكل')) return <Sparkles className={iconClass} />;
+    if (name.includes('الكل')) return <LayoutGrid className={iconClass} />;
     if (name.includes('ألبان') || name.includes('جبن')) return <Milk className={iconClass} />;
     if (name.includes('مخبوزات') || name.includes('فطار')) return <Croissant className={iconClass} />;
     if (name.includes('مشروبات') || name.includes('عصائر')) return <Coffee className={iconClass} />;

@@ -115,7 +115,7 @@ export const SingleDescriptionModal: React.FC<Props> = ({
           {/* Tone Selector Tabs */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-black text-[#0F172A]">اختر نبرة وأسلوب الوصف:</span>
+              <span className="text-xs font-black text-[#0F172A]">اختر صياغة ونمط الوصف المناسب:</span>
               <button
                 type="button"
                 onClick={handleRegenerate}
@@ -135,7 +135,7 @@ export const SingleDescriptionModal: React.FC<Props> = ({
                     : 'bg-[#F8FAFC] border-[#DCE1DC] text-[#52605D] hover:border-[#004D3F]'
                 }`}
               >
-                تسويقي جذاب
+                صياغة بيعية متزنة
               </button>
               <button
                 type="button"
@@ -146,7 +146,7 @@ export const SingleDescriptionModal: React.FC<Props> = ({
                     : 'bg-[#F8FAFC] border-[#DCE1DC] text-[#52605D] hover:border-[#004D3F]'
                 }`}
               >
-                مختصر ونظيف
+                موجز تجاري سريع
               </button>
               <button
                 type="button"
@@ -157,7 +157,7 @@ export const SingleDescriptionModal: React.FC<Props> = ({
                     : 'bg-[#F8FAFC] border-[#DCE1DC] text-[#52605D] hover:border-[#004D3F]'
                 }`}
               >
-                تفصيلي بالنقاط
+                بطاقة مواصفات قياسية
               </button>
             </div>
           </div>

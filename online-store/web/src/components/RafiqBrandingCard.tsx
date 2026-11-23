@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, MessageSquare, ArrowLeft, Monitor, Smartphone, CheckCircle2 } from 'lucide-react';
+import { BadgeCheck, ShieldCheck, MessageSquare, ArrowLeft, Monitor, Smartphone, CheckCircle2 } from 'lucide-react';
 import { buildWhatsAppUrl } from '../utils/whatsapp';
 
 interface Props {
@@ -26,8 +26,8 @@ export const RafiqBrandingCard: React.FC<Props> = ({
           </div>
           <div className="min-w-0">
             <h4 className="text-xs font-black text-store-text flex items-center gap-1 truncate">
-              <span>برنامج كاشير رفيق الذكي</span>
-              <Sparkles className="w-3 h-3 text-store-accent flex-shrink-0" />
+              <span>برنامج رفيق لإدارة نقاط البيع</span>
+              <BadgeCheck className="w-3.5 h-3.5 text-store-accent flex-shrink-0" />
             </h4>
             <span className="text-[10px] text-store-secondary font-bold block truncate">كاشير محلك ومتجرك الأونلاين</span>
           </div>
@@ -82,11 +82,11 @@ export const RafiqBrandingCard: React.FC<Props> = ({
                 البرنامج المعتمد لأصحاب المحلات
               </span>
               <h3 className="text-base font-black text-white">
-                برنامج كاشير رفيق الذكي لإدارة المحلات والمتاجر
+                برنامج رفيق لإدارة نقاط البيع والمتاجر بالتجزئة
               </h3>
             </div>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              السيستم الأنسب لأصحاب السوبرماركت ومحلات التجزئة في مصر: كاشير سطح مكتب أوفلاين يشتغل بدون إنترنت على جميع أجهزة ويندوز، مع متجر إلكتروني ذكي لمضاعفة مبيعاتك واستقبال طلبات الزباين دليفري وعلى الواتساب بنفس أسعار المحل.
+              السيستم الأنسب لأصحاب السوبرماركت ومحلات التجزئة في مصر: كاشير سطح مكتب أوفلاين يشتغل بدون إنترنت على جميع أجهزة ويندوز، مع متجر إلكتروني سحابي لمضاعفة مبيعاتك واستقبال طلبات الزباين دليفري وعلى الواتساب بنفس أسعار المحل.
             </p>
           </div>
         </div>
@@ -127,8 +127,8 @@ export const RafiqBrandingCard: React.FC<Props> = ({
             </div>
             <div>
               <h4 className="text-xs font-black text-white flex items-center gap-1">
-                <span>برنامج كاشير رفيق الذكي</span>
-                <Sparkles className="w-3 h-3 text-emerald-400" />
+                <span>برنامج رفيق لإدارة نقاط البيع</span>
+                <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" />
               </h4>
               <span className="text-[10px] text-emerald-300 font-bold">كاشير لمحلك ومتجر أونلاين لزباينك</span>
             </div>

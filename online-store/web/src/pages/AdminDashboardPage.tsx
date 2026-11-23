@@ -11,7 +11,13 @@ import {
 } from '../components/admin/AnalyticsOverviewPanel';
 import { ProductsManagerPanel, type CatalogUndoAction } from '../components/admin/ProductsManagerPanel';
 import { StoreSettingsPanel } from '../components/admin/StoreSettingsPanel';
-import { playOrderChime } from '../components/admin/audioChime';
+import {
+  playOrderChime,
+  alertNewOrder,
+  triggerOrderVibration,
+  getNotificationPermission,
+  requestNotificationPermission,
+} from '../components/admin/audioChime';
 import { OrderPrintReceipt } from '../components/admin/OrderPrintReceipt';
 import type { AdminOrder } from '../components/admin/OrderPrintReceipt';
 import { OrderCardItem } from '../components/admin/OrderCardItem';
@@ -36,6 +42,8 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Cloud,
+  Bell,
+  Volume2,
 } from 'lucide-react';
 
 interface Props {
@@ -407,6 +415,12 @@ export const AdminDashboardPage: React.FC<Props> = ({
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'split' | 'kanban'>('split');
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showMobileNotificationBanner, setShowMobileNotificationBanner] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const dismissed = sessionStorage.getItem('rafiq_mobile_notif_dismissed');
+    if (dismissed) return false;
+    return getNotificationPermission() === 'default';
+  });
   const [orderToPrint, setOrderToPrint] = useState<AdminOrder | null>(null);
   const [orders, setOrders] = useState<AdminOrder[]>(() =>
     isDemoStore ? buildInitialDemoOrders() : []
@@ -565,11 +579,22 @@ export const AdminDashboardPage: React.FC<Props> = ({
         const mappedOrders = rawOrders.map(mapCloudOrderToAdminOrder);
         if (
           silent &&
-          soundEnabled &&
           lastKnownOrderCountRef.current !== null &&
           mappedOrders.length > lastKnownOrderCountRef.current
         ) {
-          playOrderChime();
+          const newest = mappedOrders[0];
+          alertNewOrder(
+            newest
+              ? {
+                  orderId: newest.id,
+                  orderNumber: newest.order_number,
+                  customerName: newest.customer_name,
+                  totalPounds: (newest.total / 100).toFixed(2),
+                  zone: newest.address_zone,
+                }
+              : undefined,
+            soundEnabled
+          );
         }
         lastKnownOrderCountRef.current = mappedOrders.length;
         setOrders(mappedOrders);
@@ -639,11 +664,22 @@ export const AdminDashboardPage: React.FC<Props> = ({
         if (disposed) return;
         const mappedOrders = rawOrders.map(mapCloudOrderToAdminOrder);
         if (
-          soundEnabled &&
           lastKnownOrderCountRef.current !== null &&
           mappedOrders.length > lastKnownOrderCountRef.current
         ) {
-          playOrderChime();
+          const newest = mappedOrders[0];
+          alertNewOrder(
+            newest
+              ? {
+                  orderId: newest.id,
+                  orderNumber: newest.order_number,
+                  customerName: newest.customer_name,
+                  totalPounds: (newest.total / 100).toFixed(2),
+                  zone: newest.address_zone,
+                }
+              : undefined,
+            soundEnabled
+          );
         }
         lastKnownOrderCountRef.current = mappedOrders.length;
         setOrders(mappedOrders);
@@ -1391,6 +1427,7 @@ export const AdminDashboardPage: React.FC<Props> = ({
     const previousOrders = orders;
     setOrders(prev => prev.map(o => (o.id === orderId ? { ...o, status: newStatus } : o)));
     if (soundEnabled) playOrderChime();
+    triggerOrderVibration('status_change');
 
     if (isDemoStore || !token || token === 'demo-sandbox') return;
 
@@ -1640,6 +1677,27 @@ export const AdminDashboardPage: React.FC<Props> = ({
     { id: 'settings', label: 'الإعدادات', icon: Settings },
   ];
 
+  const handleEnableMobileNotifications = async () => {
+    const perm = await requestNotificationPermission();
+    setShowMobileNotificationBanner(false);
+    sessionStorage.setItem('rafiq_mobile_notif_dismissed', '1');
+    alertNewOrder(
+      {
+        orderId: 'test-order',
+        orderNumber: 'TEST',
+        customerName: 'فحص تنبيهات الهاتف',
+        totalPounds: '100.00',
+        zone: 'الهاتف جاهز لاستقبال الطلبات',
+      },
+      soundEnabled
+    );
+    if (perm === 'granted') {
+      showToast('تم تفعيل تنبيهات الهاتف الصوتية والإشعارات بنجاح!');
+    } else {
+      showToast('تم اختبار رنة التنبيه والاهتزاز على هاتفك.');
+    }
+  };
+
   return (
     <div
       dir="rtl"
@@ -1834,6 +1892,51 @@ export const AdminDashboardPage: React.FC<Props> = ({
           <div className="motion-toast fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-rose-700 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 text-xs font-bold border border-rose-400/50">
             <AlertCircle className="w-4 h-4 text-rose-200 flex-shrink-0" />
             <span>{saveErrorMsg}</span>
+          </div>
+        )}
+
+        {/* Mobile Phone Notification Permission & Activation Banner */}
+        {showMobileNotificationBanner && (
+          <div className="max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 pt-3">
+            <div className="rounded-2xl p-3.5 bg-gradient-to-r from-[#00372D] to-[#004D3F] text-white border border-[#CED46A]/30 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0 text-[#CED46A]">
+                  <Bell className="w-5 h-5 text-[#CED46A]" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
+                    <span>تفعيل تنبيهات الطلبات على الهاتف</span>
+                    <span className="text-[10px] bg-[#CED46A] text-[#00372D] px-2 py-0.5 rounded-full font-black">
+                      رنة + اهتزاز + إشعار
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-white/80 mt-0.5 font-medium leading-relaxed">
+                    فعّل إشعارات الهاتف لتصلك رنة واهتزاز وتنبيه على شاشة القفل فور وصول أي أوردر جديد لمتجرك حتى لو كانت الشاشة مغلقة.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={handleEnableMobileNotifications}
+                  className="px-4 py-2 rounded-xl bg-[#CED46A] hover:bg-[#dce17d] text-[#00372D] text-xs font-black shadow-md btn-spring cursor-pointer flex items-center gap-1.5"
+                >
+                  <Volume2 className="w-3.5 h-3.5 text-[#00372D]" />
+                  <span>تفعيل وتجربة التنبيه 🔔</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileNotificationBanner(false);
+                    sessionStorage.setItem('rafiq_mobile_notif_dismissed', '1');
+                  }}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold btn-spring cursor-pointer"
+                >
+                  لاحقاً
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

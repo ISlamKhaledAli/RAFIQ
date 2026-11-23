@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Product, Store } from '../../types';
 import type { AdminOrder } from './OrderPrintReceipt';
 import {
+  alertNewOrder,
+  requestNotificationPermission,
+  getNotificationPermission,
+} from './audioChime';
+import {
   Search,
   RefreshCw,
   Volume2,
@@ -12,7 +17,7 @@ import {
   ExternalLink,
   LogOut,
   ChevronLeft,
-  Sparkles,
+  BadgeCheck,
   ShoppingBag,
   TrendingUp,
   Package,
@@ -330,7 +335,7 @@ export const AdminTopHeader: React.FC<Props> = ({
           {/* Compact Environment / Store Live Status Indicator */}
           {isDemoStore ? (
             <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200/90 text-amber-800 text-[10px] font-bold flex-shrink-0">
-              <Sparkles className="w-3 h-3" />
+              <BadgeCheck className="w-3 h-3" />
               <span>تجريبي</span>
             </span>
           ) : (
@@ -498,16 +503,39 @@ export const AdminTopHeader: React.FC<Props> = ({
                     </div>
                   )}
 
-                  <div className="px-3 py-2 bg-[#F8FAFC] border-t border-[#DCE1DC]">
+                  <div className="p-2 bg-[#F8FAFC] border-t border-[#DCE1DC] flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         onNavigateTab('orders');
                         setBellOpen(false);
                       }}
-                      className="w-full py-1.5 rounded-xl text-[11px] font-black text-[#004D3F] hover:bg-[#E6F2ED] transition-colors cursor-pointer"
+                      className="flex-1 py-1.5 rounded-xl text-[11px] font-black text-[#004D3F] hover:bg-[#E6F2ED] transition-colors cursor-pointer text-center"
                     >
                       عرض كل الأوردرات
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (getNotificationPermission() === 'default') {
+                          await requestNotificationPermission();
+                        }
+                        alertNewOrder(
+                          {
+                            orderId: 'test-ping',
+                            orderNumber: 'TEST',
+                            customerName: 'فحص جرس واهتزاز الهاتف',
+                            totalPounds: '100.00',
+                            zone: 'الهاتف جاهز',
+                          },
+                          true
+                        );
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold text-[#52605D] hover:text-[#004D3F] hover:bg-[#E6F2ED] transition-colors cursor-pointer flex items-center gap-1 border border-[#DCE1DC]"
+                      title="تجربة رنة التنبيه والاهتزاز على الهاتف"
+                    >
+                      <Volume2 className="w-3 h-3 text-[#004D3F]" />
+                      <span>تجربة التنبيه 🔔</span>
                     </button>
                   </div>
                 </div>

@@ -808,7 +808,7 @@ export const apiClient = {
 
   async updateStoreTheme(
     themePreset: string,
-    themeCustom: Record<string, string | undefined> | null,
+    themeCustom: Record<string, any> | null,
     ownerToken?: string | null
   ): Promise<{ success: boolean; persistedCloud: boolean; message?: string }> {
     const token = (ownerToken || localStorage.getItem('rafiq_owner_token') || '').trim();

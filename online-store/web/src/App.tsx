@@ -10,7 +10,6 @@ import {
 import { applyDocumentBranding } from './utils/documentMeta';
 import { buildWhatsAppUrl } from './utils/whatsapp';
 import { Header } from './components/Header';
-import { DesktopHero } from './components/DesktopHero';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { CategoryPills } from './components/CategoryPills';
 import { ProductCard } from './components/ProductCard';
@@ -25,7 +24,12 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { Toast } from './components/Toast';
 import { RafiqBrandingCard } from './components/RafiqBrandingCard';
 import { StoreNotFoundPage } from './components/StoreNotFoundPage';
-import { Sparkles, MapPin, Clock, ShieldCheck, CheckCircle2, Loader2 } from 'lucide-react';
+import { StoreStoriesBar } from './components/StoreStoriesBar';
+import { HeroPromoCarousel } from './components/HeroPromoCarousel';
+import { TrustBadgesStrip } from './components/TrustBadgesStrip';
+import { ProductGridSkeleton } from './components/ProductGridSkeleton';
+import { InstantSearchModal } from './components/InstantSearchModal';
+import { Flame, Star, SearchX, MapPin, Clock, ShieldCheck, CheckCircle2, Loader2, Heart } from 'lucide-react';
 
 const STOREFRONT_PAGE_SIZE = 48;
 
@@ -212,6 +216,21 @@ export const App: React.FC = () => {
     [store.theme_custom]
   );
 
+  const themeCustom = useMemo(
+    () => (store.theme_custom as StoreThemeCustom | null) || {},
+    [store.theme_custom]
+  );
+  const showStoriesBar = themeCustom.showStoriesBar !== false;
+  const showPromoHero = themeCustom.showPromoHero !== false;
+  const showTrustBadges = themeCustom.showTrustBadges !== false;
+  const showFreeShippingBar = themeCustom.showFreeShippingBar !== false;
+  const freeShippingThresholdPiasters = (Number(themeCustom.freeShippingThresholdEgp) || 250) * 100;
+  const showCartCrossSell = themeCustom.showCartCrossSell !== false;
+  const showWhatsAppQuickOrder = themeCustom.showWhatsAppQuickOrder !== false;
+  const showWishlist = themeCustom.showWishlist !== false;
+  const showSavingsBadge = themeCustom.showSavingsBadge !== false;
+  const showLowStockBadge = themeCustom.showLowStockBadge !== false;
+
   const productsGridClass =
     activeLayoutTemplate === 'compact'
       ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3.5'
@@ -222,6 +241,7 @@ export const App: React.FC = () => {
   // Desktop quick filters
   const [featuredOnly, setFeaturedOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [wishlistOnly, setWishlistOnly] = useState(false);
 
   // Full-page view routing: 'store' | 'admin'
   const [currentView, setCurrentView] = useState<'store' | 'admin'>(() => {
@@ -284,6 +304,7 @@ export const App: React.FC = () => {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [isTrackerOpen, setIsTrackerOpen] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Toast Notification
@@ -347,6 +368,80 @@ export const App: React.FC = () => {
 
   // Active bottom nav tab
   const [mobileTab, setMobileTab] = useState<'home' | 'categories'>('home');
+
+  // Customer Wishlist State (persisted per store slug)
+  const [wishlistIds, setWishlistIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const raw = localStorage.getItem(`rafiq_store_wishlist_v1:${storeSlug || 'rafiq'}`);
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  const toggleWishlist = (productId: string) => {
+    setWishlistIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+        setToast(t => ({
+          visible: true,
+          message: 'تمت إزالة الصنف من المفضلة',
+          key: t.key + 1,
+        }));
+      } else {
+        next.add(productId);
+        setToast(t => ({
+          visible: true,
+          message: 'تمت إضافة الصنف إلى المفضلة',
+          key: t.key + 1,
+        }));
+      }
+      try {
+        localStorage.setItem(
+          `rafiq_store_wishlist_v1:${storeSlug || 'rafiq'}`,
+          JSON.stringify(Array.from(next))
+        );
+      } catch {}
+      return next;
+    });
+  };
+
+  // Active Story Filter State
+  const [activeStoryFilter, setActiveStoryFilter] = useState<string | null>(null);
+
+  const handleSelectStory = (storyId: string) => {
+    setActiveStoryFilter(storyId);
+    if (storyId === 'deals') {
+      setSelectedCategoryId('all');
+      setFeaturedOnly(true);
+      setInStockOnly(false);
+      setSearchQuery('');
+    } else if (storyId === 'best_sellers') {
+      setSelectedCategoryId('all');
+      setFeaturedOnly(true);
+      setInStockOnly(false);
+      setSearchQuery('');
+    } else if (storyId === 'new_arrivals') {
+      setSelectedCategoryId('all');
+      setFeaturedOnly(false);
+      setInStockOnly(true);
+      setSearchQuery('');
+    } else if (storyId === 'free_delivery') {
+      setIsCartOpen(true);
+    } else if (storyId === 'combos') {
+      setSelectedCategoryId('all');
+      setSearchQuery('');
+    } else {
+      setSelectedCategoryId('all');
+      setFeaturedOnly(false);
+      setInStockOnly(false);
+      setSearchQuery('');
+    }
+  };
 
   const categoriesSectionRef = useRef<HTMLDivElement>(null);
 
@@ -703,6 +798,10 @@ export const App: React.FC = () => {
       list = list.filter(p => p.in_stock && p.stock_quantity > 0);
     }
 
+    if (wishlistOnly) {
+      list = list.filter(p => wishlistIds.has(p.id));
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
@@ -711,20 +810,20 @@ export const App: React.FC = () => {
     }
 
     return list;
-  }, [storefrontProducts, selectedCategoryId, featuredOnly, inStockOnly, searchQuery]);
+  }, [storefrontProducts, selectedCategoryId, featuredOnly, inStockOnly, wishlistOnly, wishlistIds, searchQuery]);
 
   // Official Rafiq Motion Twin-Phase for Catalog Filtering & Search
   const [catalogMotionPhase, setCatalogMotionPhase] = useState<'a' | 'b'>('a');
-  const prevImmediateFilterRef = useRef<string>(`${selectedCategoryId}|${featuredOnly}|${inStockOnly}`);
+  const prevImmediateFilterRef = useRef<string>(`${selectedCategoryId}|${featuredOnly}|${inStockOnly}|${wishlistOnly}`);
   const prevSearchRef = useRef<string>(searchQuery.trim().toLowerCase());
 
   useEffect(() => {
-    const key = `${selectedCategoryId}|${featuredOnly}|${inStockOnly}`;
+    const key = `${selectedCategoryId}|${featuredOnly}|${inStockOnly}|${wishlistOnly}`;
     if (prevImmediateFilterRef.current !== key) {
       prevImmediateFilterRef.current = key;
       setCatalogMotionPhase(prev => (prev === 'a' ? 'b' : 'a'));
     }
-  }, [selectedCategoryId, featuredOnly, inStockOnly]);
+  }, [selectedCategoryId, featuredOnly, inStockOnly, wishlistOnly]);
 
   useEffect(() => {
     const normalized = searchQuery.trim().toLowerCase();
@@ -823,6 +922,7 @@ export const App: React.FC = () => {
       {/* Header */}
       <Header
         store={store}
+        announcementText={themeCustom.announcementText}
         cartCount={cartCount}
         cartTotalPiasters={cartTotalPiasters}
         searchQuery={searchQuery}
@@ -832,17 +932,40 @@ export const App: React.FC = () => {
         onOpenTracker={() => setIsTrackerOpen(true)}
         onOpenDashboard={() => navigateToView('admin')}
         onSelectZoneClick={() => setIsCartOpen(true)}
+        onOpenSearchModal={() => setIsSearchModalOpen(true)}
       />
 
-      {/* Desktop Executive Hero Section */}
-      <DesktopHero
-        store={store}
-        onExploreOffers={() => {
-          setSelectedCategoryId('all');
-          setFeaturedOnly(true);
-        }}
-        onOpenDashboard={() => navigateToView('admin')}
-      />
+      {/* Interactive Stories Bar (Instagram-like Stories UX) */}
+      {showStoriesBar && (
+        <StoreStoriesBar
+          activeStoryId={activeStoryFilter}
+          onSelectStory={handleSelectStory}
+          themeCustom={themeCustom}
+        />
+      )}
+
+      {/* Hero Promo Banner Slider / Carousel */}
+      {showPromoHero && (
+        <HeroPromoCarousel
+          store={store}
+          themeCustom={themeCustom}
+          onExploreOffers={() => {
+            setSelectedCategoryId('all');
+            setFeaturedOnly(true);
+          }}
+          onExploreDelivery={() => {
+            setIsCartOpen(true);
+          }}
+          onExploreGuarantee={() => {
+            setSelectedCategoryId('all');
+            setFeaturedOnly(false);
+            setInStockOnly(false);
+          }}
+        />
+      )}
+
+      {/* Trust & Guarantee Badges Strip */}
+      {showTrustBadges && <TrustBadgesStrip themeCustom={themeCustom} />}
 
       {/* Mobile-Only Category Pills Bar */}
       <div ref={categoriesSectionRef} className="sm:hidden px-3 w-full mt-1">
@@ -865,7 +988,7 @@ export const App: React.FC = () => {
                 : 'bg-store-card text-store-text border border-store-line hover:border-store-primary/40'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Flame className="w-3.5 h-3.5" />
             <span>عروض وتخفيضات</span>
           </button>
 
@@ -881,11 +1004,26 @@ export const App: React.FC = () => {
             <span>المتوفر بالمخزن فقط</span>
           </button>
 
-          {(featuredOnly || inStockOnly) && (
+          {showWishlist && wishlistIds.size > 0 && (
+            <button
+              onClick={() => setWishlistOnly(!wishlistOnly)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all flex-shrink-0 ${
+                wishlistOnly
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-store-card text-store-text border border-store-line hover:border-rose-400'
+              }`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${wishlistOnly ? 'fill-white text-white' : 'text-rose-500'}`} />
+              <span>المفضلة ({wishlistIds.size})</span>
+            </button>
+          )}
+
+          {(featuredOnly || inStockOnly || wishlistOnly) && (
             <button
               onClick={() => {
                 setFeaturedOnly(false);
                 setInStockOnly(false);
+                setWishlistOnly(false);
               }}
               className="text-[11px] font-bold text-store-muted hover:text-store-text px-2 py-1 flex-shrink-0"
             >
@@ -900,8 +1038,8 @@ export const App: React.FC = () => {
         <section className="sm:hidden px-3 w-full mt-4">
           <div className="flex items-center justify-between mb-2.5 px-0.5">
             <div className="flex items-center gap-1.5">
-              <span className="p-1 rounded-lg bg-amber-500/10 text-amber-600 animate-pulse-slow">
-                <Sparkles className="w-4 h-4" />
+              <span className="p-1 rounded-lg bg-amber-500/10 text-amber-600">
+                <Flame className="w-4 h-4" />
               </span>
               <h3 className="text-sm font-black text-store-text">عروض وتخفيضات حصرية</h3>
             </div>
@@ -921,9 +1059,15 @@ export const App: React.FC = () => {
                   key={product.id}
                   product={product}
                   quantityInCart={inCart}
+                  layoutTemplate={activeLayoutTemplate}
+                  isWishlisted={wishlistIds.has(product.id)}
+                  showWishlist={showWishlist}
+                  showSavingsBadge={showSavingsBadge}
+                  showLowStockBadge={showLowStockBadge}
                   onAddToCart={handleAddToCart}
                   onRemoveFromCart={handleRemoveFromCart}
                   onSelectProduct={setSelectedProduct}
+                  onToggleWishlist={showWishlist ? toggleWishlist : undefined}
                 />
               );
             })}
@@ -943,6 +1087,9 @@ export const App: React.FC = () => {
             onToggleFeatured={() => setFeaturedOnly(!featuredOnly)}
             inStockOnly={inStockOnly}
             onToggleInStock={() => setInStockOnly(!inStockOnly)}
+            wishlistCount={wishlistIds.size}
+            wishlistOnly={wishlistOnly}
+            onToggleWishlistOnly={() => setWishlistOnly(!wishlistOnly)}
             store={store}
           />
 
@@ -954,6 +1101,8 @@ export const App: React.FC = () => {
                 <h3 className="text-base font-black text-store-text">
                   {searchQuery
                     ? `نتائج البحث عن: "${searchQuery}"`
+                    : wishlistOnly
+                    ? 'الأصناف في قائمة المفضلة'
                     : featuredOnly
                     ? 'العروض والتخفيضات المميزة'
                     : selectedCategoryId === 'all' || selectedCategoryId === 'cat-1'
@@ -969,7 +1118,7 @@ export const App: React.FC = () => {
               <div className="flex items-center gap-2">
                 {featuredOnly && (
                   <span className="flex items-center gap-1 text-xs bg-store-accent text-store-accent-contrast px-3 py-1 rounded-xl font-bold animate-pop shadow-2xs">
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Flame className="w-3.5 h-3.5" />
                     عروض مميزة
                   </span>
                 )}
@@ -979,11 +1128,18 @@ export const App: React.FC = () => {
                     المتوفر فقط
                   </span>
                 )}
-                {(featuredOnly || inStockOnly || searchQuery) && (
+                {wishlistOnly && (
+                  <span className="flex items-center gap-1 text-xs bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1 rounded-xl font-bold animate-pop">
+                    <Heart className="w-3.5 h-3.5 fill-current text-rose-600" />
+                    المفضلة ({wishlistIds.size})
+                  </span>
+                )}
+                {(featuredOnly || inStockOnly || wishlistOnly || searchQuery) && (
                   <button
                     onClick={() => {
                       setFeaturedOnly(false);
                       setInStockOnly(false);
+                      setWishlistOnly(false);
                       setSearchQuery('');
                       setSelectedCategoryId('all');
                     }}
@@ -1013,15 +1169,12 @@ export const App: React.FC = () => {
 
             {/* Products Grid */}
             {isLoadingProducts ? (
-              <div className="py-16 flex flex-col items-center justify-center gap-3 text-store-muted bg-store-card rounded-3xl border border-store-line">
-                <Loader2 className="w-7 h-7 animate-spin text-store-primary" />
-                <span className="text-xs font-bold">جاري تحميل الأصناف...</span>
-              </div>
+              <ProductGridSkeleton count={8} gridClass={productsGridClass} />
             ) : filteredProducts.length === 0 ? (
               <div data-motion-phase={catalogMotionPhase}>
                 <div className="py-16 text-center text-store-muted bg-store-card rounded-3xl border border-store-line p-8 shadow-sm transition-colors">
                   <div className="w-16 h-16 rounded-3xl bg-store-primary-light text-store-primary mx-auto flex items-center justify-center mb-3 shadow-inner border border-store-primary/20">
-                    <Sparkles className="w-8 h-8" />
+                    <SearchX className="w-8 h-8" />
                   </div>
                   <h4 className="text-base font-black text-store-text">لا توجد أصناف مطابقة</h4>
                   <p className="text-xs text-store-muted mt-1">جرب إزالة بعض الفلاتر أو البحث بكلمة أخرى</p>
@@ -1051,9 +1204,14 @@ export const App: React.FC = () => {
                       product={product}
                       quantityInCart={inCart}
                       layoutTemplate={activeLayoutTemplate}
+                      isWishlisted={wishlistIds.has(product.id)}
+                      showWishlist={showWishlist}
+                      showSavingsBadge={showSavingsBadge}
+                      showLowStockBadge={showLowStockBadge}
                       onAddToCart={handleAddToCart}
                       onRemoveFromCart={handleRemoveFromCart}
                       onSelectProduct={setSelectedProduct}
+                      onToggleWishlist={showWishlist ? toggleWishlist : undefined}
                     />
                   );
                 })}
@@ -1236,10 +1394,13 @@ export const App: React.FC = () => {
       <ProductModal
         product={selectedProduct}
         quantityInCart={selectedProduct ? cartItems.find(i => i.product.id === selectedProduct.id)?.quantity || 0 : 0}
+        isWishlisted={selectedProduct ? wishlistIds.has(selectedProduct.id) : false}
+        showSavingsBadge={showSavingsBadge}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={handleAddToCart}
         onRemoveFromCart={handleRemoveFromCart}
         onOpenCart={() => setIsCartOpen(true)}
+        onToggleWishlist={showWishlist ? toggleWishlist : undefined}
       />
 
       <CartDrawer
@@ -1257,6 +1418,25 @@ export const App: React.FC = () => {
         onProceedToCheckout={() => {
           setIsCartOpen(false);
           setIsCheckoutOpen(true);
+        }}
+        suggestedProducts={showCartCrossSell ? (featuredProducts.length > 0 ? featuredProducts : products.slice(0, 4)) : []}
+        showFreeShippingBar={showFreeShippingBar}
+        freeShippingThresholdPiasters={freeShippingThresholdPiasters}
+        showWhatsAppQuickOrder={showWhatsAppQuickOrder}
+        crossSellTitle={themeCustom.cartCrossSellTitle}
+      />
+
+      <InstantSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        products={products}
+        cartItems={cartItems}
+        onAddToCart={handleAddToCart}
+        onRemoveFromCart={handleRemoveFromCart}
+        onSelectProduct={setSelectedProduct}
+        onSelectQueryFilter={q => {
+          setSearchQuery(q);
+          setSelectedCategoryId('all');
         }}
       />
 

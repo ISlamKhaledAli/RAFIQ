@@ -73,7 +73,7 @@ export const SmartPublishModal: React.FC<Props> = ({
               <h3 className="text-base font-black text-[#0F172A] flex items-center gap-2">
                 <span>معالج النشر السريع والتلقائي</span>
                 <span className="px-2 py-0.5 rounded-full bg-[#EAF5EE] text-[#006D41] text-[10px] font-black border border-[#006D41]/20">
-                  ذكاء المتجر
+                  إدارة الفهرس السحابي
                 </span>
               </h3>
               <p className="text-xs text-[#52605D] mt-0.5">

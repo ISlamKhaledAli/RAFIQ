@@ -3,7 +3,8 @@ import type { Category, Store } from '../types';
 import { ToggleSwitch } from './admin/ToggleSwitch';
 import {
   Layers,
-  Sparkles,
+  LayoutGrid,
+  Flame,
   CheckCircle2,
   Clock,
   MapPin,
@@ -13,6 +14,7 @@ import {
   Coffee,
   Croissant,
   SprayCan as Spray,
+  Heart,
 } from 'lucide-react';
 
 interface Props {
@@ -23,6 +25,9 @@ interface Props {
   onToggleFeatured: () => void;
   inStockOnly: boolean;
   onToggleInStock: () => void;
+  wishlistCount?: number;
+  wishlistOnly?: boolean;
+  onToggleWishlistOnly?: () => void;
   store: Store;
 }
 
@@ -34,11 +39,14 @@ export const DesktopSidebar: React.FC<Props> = ({
   onToggleFeatured,
   inStockOnly,
   onToggleInStock,
+  wishlistCount,
+  wishlistOnly,
+  onToggleWishlistOnly,
   store,
 }) => {
   const getCategoryIcon = (name: string, isSelected: boolean) => {
     const iconClass = `w-4 h-4 ${isSelected ? '!text-white' : 'text-slate-500 group-hover:text-store-primary'}`;
-    if (name.includes('الكل')) return <Sparkles className={iconClass} />;
+    if (name.includes('الكل')) return <LayoutGrid className={iconClass} />;
     if (name.includes('ألبان') || name.includes('جبن')) return <Milk className={iconClass} />;
     if (name.includes('مخبوزات') || name.includes('فطار')) return <Croissant className={iconClass} />;
     if (name.includes('مشروبات') || name.includes('عصائر')) return <Coffee className={iconClass} />;
@@ -112,7 +120,7 @@ export const DesktopSidebar: React.FC<Props> = ({
             }`}
           >
             <div className="flex items-center gap-2 text-xs font-bold text-store-text select-none">
-              <Sparkles className="w-4 h-4 text-store-accent shrink-0" />
+              <Flame className="w-4 h-4 text-store-accent shrink-0" />
               <span>عروض وتخفيضات فقط</span>
             </div>
             <ToggleSwitch
@@ -151,6 +159,42 @@ export const DesktopSidebar: React.FC<Props> = ({
               activeClassName="bg-store-primary hover:bg-store-primary-hover"
             />
           </div>
+
+          {/* Wishlist Filter */}
+          {onToggleWishlistOnly && (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={onToggleWishlistOnly}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onToggleWishlistOnly();
+                }
+              }}
+              className={`flex items-center justify-between p-2.5 rounded-2xl cursor-pointer transition-all border ${
+                wishlistOnly
+                  ? 'bg-rose-50 border-rose-300'
+                  : 'border-transparent hover:bg-store-primary-light/30 hover:border-store-line/60'
+              }`}
+            >
+              <div className="flex items-center gap-2 text-xs font-bold text-store-text select-none">
+                <Heart className={`w-4 h-4 shrink-0 ${wishlistOnly ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
+                <span>المفضلة فقط</span>
+                {wishlistCount !== undefined && wishlistCount > 0 && (
+                  <span className="text-[10px] bg-rose-100 text-rose-700 font-bold px-1.5 py-0.2 rounded-full">
+                    {wishlistCount}
+                  </span>
+                )}
+              </div>
+              <ToggleSwitch
+                checked={Boolean(wishlistOnly)}
+                onChange={() => onToggleWishlistOnly()}
+                size="sm"
+                activeClassName="bg-rose-600 hover:bg-rose-700"
+              />
+            </div>
+          )}
         </div>
       </div>
 

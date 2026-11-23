@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   Monitor,
   Smartphone,
-  Sparkles,
+  BadgeCheck,
   Copy,
   Check,
 } from 'lucide-react';
@@ -483,7 +483,7 @@ export const StoreNotFoundPage: React.FC<StoreNotFoundPageProps> = ({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#CED46A]/15 text-[#CED46A] border border-[#CED46A]/30 px-2.5 py-0.5 rounded-full">
-                      <Sparkles className="w-3 h-3" />
+                      <BadgeCheck className="w-3 h-3" />
                       هل لديك محل أو نشاط تجاري؟
                     </span>
                     <h2 className="text-sm sm:text-base font-black text-white">

@@ -28,7 +28,16 @@ import {
   ShieldCheck,
   CheckCircle2,
   Loader2,
+  Sliders,
+  Flame,
+  Truck,
+  MessageSquare,
+  Heart,
+  Tag,
+  Type,
+  Megaphone,
 } from 'lucide-react';
+import { ToggleSwitch } from './ToggleSwitch';
 
 interface Props {
   store: Store;
@@ -55,6 +64,8 @@ export const ThemeStudioPanel: React.FC<Props> = ({
 }) => {
   const [industryFilter, setIndustryFilter] = useState<'all' | ThemeIndustryGroup>('all');
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
+  const [textTab, setTextTab] = useState<'hero' | 'trust' | 'stories' | 'cart' | 'announcement'>('hero');
+  const [heroSlideSubTab, setHeroSlideSubTab] = useState<1 | 2 | 3>(1);
 
   const activeTheme = useMemo(() => resolveThemePreset(selectedPreset), [selectedPreset]);
   const activeLayout = useMemo(() => resolveLayoutTemplate(themeCustom), [themeCustom]);
@@ -79,6 +90,15 @@ export const ThemeStudioPanel: React.FC<Props> = ({
       ...(themeCustom || {}),
       layoutTemplate: activeLayout,
       cornerStyle,
+    });
+  };
+
+  const handleToggleFeature = (key: keyof StoreThemeCustom, value: any) => {
+    onChangeThemeCustom({
+      ...(themeCustom || {}),
+      layoutTemplate: activeLayout,
+      cornerStyle: activeCorner.id,
+      [key]: value,
     });
   };
 
@@ -274,7 +294,705 @@ export const ThemeStudioPanel: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* 2. Curated Color Themes Library */}
+          {/* 1.5. Live Storefront Components & CRO Features Controls */}
+          <div className="bg-store-card rounded-3xl border border-store-line p-4 sm:p-5 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-store-line">
+              <div>
+                <h4 className="text-sm sm:text-base font-black text-store-text flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-store-primary" />
+                  <span>التحكم في مكونات المتجر التسويقية الحية</span>
+                </h4>
+                <p className="text-xs text-store-muted mt-0.5">
+                  تفعيل وإيقاف أقسام وميزات زيادة المبيعات (CRO) في واجهة المتجر بنقرة واحدة
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {/* 1. Stories Bar */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-store-card-subtle border border-store-line/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                    <Flame className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-store-text">شريط دوائر القصص والعروض (Stories Bar)</div>
+                    <div className="text-[10px] text-store-muted">دوائر تفاعلية متحركة أعلى المتجر للتصفية السريعة للأصناف</div>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={themeCustom?.showStoriesBar !== false}
+                  onChange={val => handleToggleFeature('showStoriesBar', val)}
+                  size="sm"
+                />
+              </div>
+
+              {/* 2. Hero Promo Banner */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-store-card-subtle border border-store-line/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-store-primary/10 text-store-primary flex items-center justify-center">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-store-text">سلايدر وبنر العروض الترويجية (Hero Carousel)</div>
+                    <div className="text-[10px] text-store-muted">بنر عروض متجاوب يدعم السحب باللمس والتبديل التلقائي الذكي</div>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={themeCustom?.showPromoHero !== false}
+                  onChange={val => handleToggleFeature('showPromoHero', val)}
+                  size="sm"
+                />
+              </div>
+
+              {/* 3. Trust Badges Strip */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-store-card-subtle border border-store-line/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-store-text">شريط الطمأنينة وشارات الثقة (Trust Strip)</div>
+                    <div className="text-[10px] text-store-muted">تأكيد أسعار المحل الرسمية، وسرعة التوصيل، والدفع الآمن، والمعاينة</div>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={themeCustom?.showTrustBadges !== false}
+                  onChange={val => handleToggleFeature('showTrustBadges', val)}
+                  size="sm"
+                />
+              </div>
+
+              {/* 4. Free Shipping Progress Bar */}
+              <div className="p-3 rounded-2xl bg-store-card-subtle border border-store-line/60 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-600 flex items-center justify-center">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-store-text">شريط التوصيل المجاني التحفيزي بالسلة</div>
+                      <div className="text-[10px] text-store-muted">شريط تقدم ديناميكي يحفز العميل على زيادة مشترياته لكسب شحن مجاني</div>
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={themeCustom?.showFreeShippingBar !== false}
+                    onChange={val => handleToggleFeature('showFreeShippingBar', val)}
+                    size="sm"
+                  />
+                </div>
+                {themeCustom?.showFreeShippingBar !== false && (
+                  <div className="pt-2 border-t border-store-line flex items-center justify-between gap-3 text-xs">
+                    <label className="text-store-muted font-bold">الحد الأدنى للشحن المجاني (بالجنيه):</label>
+                    <div className="flex items-center gap-1.5 w-32">
+                      <input
+                        type="number"
+                        min="50"
+                        step="10"
+                        value={themeCustom?.freeShippingThresholdEgp ?? 250}
+                        onChange={e => handleToggleFeature('freeShippingThresholdEgp', Math.max(1, Number(e.target.value) || 250))}
+                        className="w-full text-center text-xs font-bold p-1.5 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                      />
+                      <span className="text-[10px] font-bold text-store-muted">ج.م</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. Cart Cross-Selling Suggestions */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-store-card-subtle border border-store-line/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-600 flex items-center justify-center">
+                    <ShoppingBag className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-store-text">اقتراحات إكمال الطلب في السلة (Cross-Sell)</div>
+                    <div className="text-[10px] text-store-muted">عرض قسم "يكتمل طلبك بهذه الأصناف" أسفل السلة لرفع متوسط الفاتورة</div>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={themeCustom?.showCartCrossSell !== false}
+                  onChange={val => handleToggleFeature('showCartCrossSell', val)}
+                  size="sm"
+                />
+              </div>
+
+              {/* 6. WhatsApp Direct Order */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-store-card-subtle border border-store-line/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-store-text">زر الطلب الفوري عبر واتساب في السلة</div>
+                    <div className="text-[10px] text-store-muted">إتاحة خيار إرسال تفاصيل السلة كرسالة واتساب منسقة مباشرة لرقم المحل</div>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={themeCustom?.showWhatsAppQuickOrder !== false}
+                  onChange={val => handleToggleFeature('showWhatsAppQuickOrder', val)}
+                  size="sm"
+                />
+              </div>
+
+              {/* 7. Wishlist Favorites */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-store-card-subtle border border-store-line/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                    <Heart className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-store-text">أيقونة وقائمة المفضلة (Wishlist)</div>
+                    <div className="text-[10px] text-store-muted">تمكين العملاء من حفظ أصنافهم المفضلة للعودة إليها لاحقاً</div>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={themeCustom?.showWishlist !== false}
+                  onChange={val => handleToggleFeature('showWishlist', val)}
+                  size="sm"
+                />
+              </div>
+
+              {/* 8. Savings Value Badge */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-store-card-subtle border border-store-line/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-paid flex items-center justify-center">
+                    <Tag className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-store-text">شارة قيمة التوفير المالي (وفر X ج.م)</div>
+                    <div className="text-[10px] text-store-muted">إبراز التوفير بالجنيه داخل شارة الخصم بدلاً من النسبة المئوية فقط</div>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={themeCustom?.showSavingsBadge !== false}
+                  onChange={val => handleToggleFeature('showSavingsBadge', val)}
+                  size="sm"
+                />
+              </div>
+
+              {/* 9. Scarcity & Low-Stock Urgency Badge */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-store-card-subtle border border-store-line/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                    <Flame className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-store-text">شارة نفاد المخزون العاجل (متبقي X فقط)</div>
+                    <div className="text-[10px] text-store-muted">تنبيه تحفيزي عند اقتراب نفاد كمية الصنف لدفع العميل للشراء الفوري</div>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={themeCustom?.showLowStockBadge !== false}
+                  onChange={val => handleToggleFeature('showLowStockBadge', val)}
+                  size="sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Marketing Texts & Copywriting Customizer (Every Word is Editable) */}
+          <div className="bg-store-card rounded-3xl border border-store-line p-4 sm:p-5 shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-store-line">
+              <div>
+                <h4 className="text-sm sm:text-base font-black text-store-text flex items-center gap-2">
+                  <Type className="w-4 h-4 text-store-primary" />
+                  <span>تخصيص نصوص ورسائل المتجر الترويجية (Store Texts & Copywriting)</span>
+                </h4>
+                <p className="text-xs text-store-muted mt-0.5">
+                  تحكم كامل في كل كلمة وعنوان وشرح في المتجر (بنرات العروض، شارات الثقة، دوائر الستوري، ونصوص السلة)
+                </p>
+              </div>
+            </div>
+
+            {/* Content Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              {[
+                { id: 'hero', label: 'بنرات العروض (Hero)', icon: Flame },
+                { id: 'trust', label: 'شارات الثقة (4)', icon: ShieldCheck },
+                { id: 'stories', label: 'دوائر القصص (6)', icon: Sparkles },
+                { id: 'cart', label: 'السلة والتوصيل', icon: ShoppingBag },
+                { id: 'announcement', label: 'شريط الإعلانات العلوي', icon: Megaphone },
+              ].map(tab => {
+                const active = textTab === tab.id;
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setTextTab(tab.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex-shrink-0 transition-all cursor-pointer border flex items-center gap-1.5 ${
+                      active
+                        ? 'bg-store-primary !text-white border-store-primary shadow-xs'
+                        : 'bg-store-card-subtle text-store-muted hover:text-store-text border-store-line'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Tab 1: Hero Carousel Texts */}
+            {textTab === 'hero' && (
+              <div className="space-y-3.5 bg-store-card-subtle/70 p-3.5 rounded-2xl border border-store-line">
+                <div className="flex items-center justify-between pb-2 border-b border-store-line/60">
+                  <span className="text-xs font-black text-store-text">اختيار شريحة البنر لتعديل نصوصها:</span>
+                  <div className="inline-flex bg-white rounded-xl p-1 border border-store-line gap-1">
+                    {[1, 2, 3].map(num => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setHeroSlideSubTab(num as any)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          heroSlideSubTab === num
+                            ? 'bg-store-primary text-white shadow-2xs'
+                            : 'text-store-muted hover:text-store-text'
+                        }`}
+                      >
+                        شريحة {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {heroSlideSubTab === 1 && (
+                  <div className="space-y-2.5 text-xs">
+                    <div>
+                      <label className="block font-bold text-store-muted mb-1">الوسم الترويجي الصغير (Tag):</label>
+                      <input
+                        type="text"
+                        value={themeCustom?.heroSlide1Tag ?? ''}
+                        onChange={e => handleToggleFeature('heroSlide1Tag', e.target.value)}
+                        placeholder="عروض وتخفيضات خاصة"
+                        className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block font-bold text-store-muted mb-1">العنوان الرئيسي (Title):</label>
+                        <input
+                          type="text"
+                          value={themeCustom?.heroSlide1Title ?? ''}
+                          onChange={e => handleToggleFeature('heroSlide1Title', e.target.value)}
+                          placeholder="تسوق أفضل منتجات"
+                          className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-store-muted mb-1">الكلمة المميزة باللون الأصفر:</label>
+                        <input
+                          type="text"
+                          value={themeCustom?.heroSlide1Highlight ?? ''}
+                          onChange={e => handleToggleFeature('heroSlide1Highlight', e.target.value)}
+                          placeholder={storeName || 'المتجر'}
+                          className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-store-muted mb-1">الوصف الترويجي (Subtitle):</label>
+                      <textarea
+                        rows={2}
+                        value={themeCustom?.heroSlide1Subtitle ?? ''}
+                        onChange={e => handleToggleFeature('heroSlide1Subtitle', e.target.value)}
+                        placeholder="خصومات حصرية على تشكيلة واسعة من الأصناف واحتياجات المنزل اليومية."
+                        className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-store-muted mb-1">نص زر الإجراء (CTA Button):</label>
+                      <input
+                        type="text"
+                        value={themeCustom?.heroSlide1Cta ?? ''}
+                        onChange={e => handleToggleFeature('heroSlide1Cta', e.target.value)}
+                        placeholder="استكشف التخفيضات"
+                        className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {heroSlideSubTab === 2 && (
+                  <div className="space-y-2.5 text-xs">
+                    <div>
+                      <label className="block font-bold text-store-muted mb-1">الوسم الترويجي الصغير (Tag):</label>
+                      <input
+                        type="text"
+                        value={themeCustom?.heroSlide2Tag ?? ''}
+                        onChange={e => handleToggleFeature('heroSlide2Tag', e.target.value)}
+                        placeholder="توصيل فوري لباب البيت"
+                        className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block font-bold text-store-muted mb-1">العنوان الرئيسي (Title):</label>
+                        <input
+                          type="text"
+                          value={themeCustom?.heroSlide2Title ?? ''}
+                          onChange={e => handleToggleFeature('heroSlide2Title', e.target.value)}
+                          placeholder="طلبك يوصلك أينما كنت"
+                          className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-store-muted mb-1">الكلمة المميزة باللون الأصفر:</label>
+                        <input
+                          type="text"
+                          value={themeCustom?.heroSlide2Highlight ?? ''}
+                          onChange={e => handleToggleFeature('heroSlide2Highlight', e.target.value)}
+                          placeholder="بسرعة وأمان تام"
+                          className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-store-muted mb-1">الوصف الترويجي (Subtitle):</label>
+                      <textarea
+                        rows={2}
+                        value={themeCustom?.heroSlide2Subtitle ?? ''}
+                        onChange={e => handleToggleFeature('heroSlide2Subtitle', e.target.value)}
+                        placeholder="فريق دليفري محترف لتسليم طلبك طازجاً مع دعم الدفع عند الاستلام أو إلكترونياً بإنستاباي ومحافظ الكاش."
+                        className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-store-muted mb-1">نص زر الإجراء (CTA Button):</label>
+                      <input
+                        type="text"
+                        value={themeCustom?.heroSlide2Cta ?? ''}
+                        onChange={e => handleToggleFeature('heroSlide2Cta', e.target.value)}
+                        placeholder="ابدأ طلبك الآن"
+                        className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {heroSlideSubTab === 3 && (
+                  <div className="space-y-2.5 text-xs">
+                    <div>
+                      <label className="block font-bold text-store-muted mb-1">الوسم الترويجي الصغير (Tag):</label>
+                      <input
+                        type="text"
+                        value={themeCustom?.heroSlide3Tag ?? ''}
+                        onChange={e => handleToggleFeature('heroSlide3Tag', e.target.value)}
+                        placeholder="ضمان الأسعار والجودة"
+                        className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block font-bold text-store-muted mb-1">العنوان الرئيسي (Title):</label>
+                        <input
+                          type="text"
+                          value={themeCustom?.heroSlide3Title ?? ''}
+                          onChange={e => handleToggleFeature('heroSlide3Title', e.target.value)}
+                          placeholder="أسعار الكاشير الرسمية"
+                          className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-store-muted mb-1">الكلمة المميزة باللون الأصفر:</label>
+                        <input
+                          type="text"
+                          value={themeCustom?.heroSlide3Highlight ?? ''}
+                          onChange={e => handleToggleFeature('heroSlide3Highlight', e.target.value)}
+                          placeholder="بدون أي زيادات خفية"
+                          className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-store-muted mb-1">الوصف الترويجي (Subtitle):</label>
+                      <textarea
+                        rows={2}
+                        value={themeCustom?.heroSlide3Subtitle ?? ''}
+                        onChange={e => handleToggleFeature('heroSlide3Subtitle', e.target.value)}
+                        placeholder="نظام رفيق يربط المتجر لحظياً بمخزن المحل لضمان توفر البضاعة ودقة الأسعار وجودة كل صنف."
+                        className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-store-muted mb-1">نص زر الإجراء (CTA Button):</label>
+                      <input
+                        type="text"
+                        value={themeCustom?.heroSlide3Cta ?? ''}
+                        onChange={e => handleToggleFeature('heroSlide3Cta', e.target.value)}
+                        placeholder="تصفح كافة الأصناف"
+                        className="w-full text-xs font-medium p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 2: Trust Badges Texts */}
+            {textTab === 'trust' && (
+              <div className="space-y-3 bg-store-card-subtle/70 p-3.5 rounded-2xl border border-store-line">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {/* Badge 1 */}
+                  <div className="p-3 bg-white rounded-xl border border-store-line space-y-2">
+                    <div className="font-bold text-store-text flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>الشارة 1 (التوصيل السريع):</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={themeCustom?.trustBadge1Title ?? ''}
+                      onChange={e => handleToggleFeature('trustBadge1Title', e.target.value)}
+                      placeholder="توصيل فوري سريع"
+                      className="w-full text-xs font-bold p-1.5 rounded-lg border border-store-line"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.trustBadge1Desc ?? ''}
+                      onChange={e => handleToggleFeature('trustBadge1Desc', e.target.value)}
+                      placeholder="من رف المحل لباب بيتك"
+                      className="w-full text-xs p-1.5 rounded-lg border border-store-line text-store-muted"
+                    />
+                  </div>
+
+                  {/* Badge 2 */}
+                  <div className="p-3 bg-white rounded-xl border border-store-line space-y-2">
+                    <div className="font-bold text-store-text flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-store-primary" />
+                      <span>الشارة 2 (ضمان الأسعار):</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={themeCustom?.trustBadge2Title ?? ''}
+                      onChange={e => handleToggleFeature('trustBadge2Title', e.target.value)}
+                      placeholder="أسعار الكاشير الرسمية"
+                      className="w-full text-xs font-bold p-1.5 rounded-lg border border-store-line"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.trustBadge2Desc ?? ''}
+                      onChange={e => handleToggleFeature('trustBadge2Desc', e.target.value)}
+                      placeholder="نفس أسعار المحل بدون أي زيادة"
+                      className="w-full text-xs p-1.5 rounded-lg border border-store-line text-store-muted"
+                    />
+                  </div>
+
+                  {/* Badge 3 */}
+                  <div className="p-3 bg-white rounded-xl border border-store-line space-y-2">
+                    <div className="font-bold text-store-text flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>الشارة 3 (الدفع المرن):</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={themeCustom?.trustBadge3Title ?? ''}
+                      onChange={e => handleToggleFeature('trustBadge3Title', e.target.value)}
+                      placeholder="دفع مرن وسهل"
+                      className="w-full text-xs font-bold p-1.5 rounded-lg border border-store-line"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.trustBadge3Desc ?? ''}
+                      onChange={e => handleToggleFeature('trustBadge3Desc', e.target.value)}
+                      placeholder="كاش عند الاستلام أو إنستاباي ومحافظ"
+                      className="w-full text-xs p-1.5 rounded-lg border border-store-line text-store-muted"
+                    />
+                  </div>
+
+                  {/* Badge 4 */}
+                  <div className="p-3 bg-white rounded-xl border border-store-line space-y-2">
+                    <div className="font-bold text-store-text flex items-center gap-1.5">
+                      <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                      <span>الشارة 4 (المعاينة عند الاستلام):</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={themeCustom?.trustBadge4Title ?? ''}
+                      onChange={e => handleToggleFeature('trustBadge4Title', e.target.value)}
+                      placeholder="معاينة عند الاستلام"
+                      className="w-full text-xs font-bold p-1.5 rounded-lg border border-store-line"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.trustBadge4Desc ?? ''}
+                      onChange={e => handleToggleFeature('trustBadge4Desc', e.target.value)}
+                      placeholder="حق مراجعة طلبك قبل الاستلام"
+                      className="w-full text-xs p-1.5 rounded-lg border border-store-line text-store-muted"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 3: Stories Bar Texts */}
+            {textTab === 'stories' && (
+              <div className="space-y-3 bg-store-card-subtle/70 p-3.5 rounded-2xl border border-store-line text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                  <div className="p-2.5 bg-white rounded-xl border border-store-line space-y-1.5">
+                    <label className="block font-bold text-store-text">قصة 1 (العروض):</label>
+                    <input
+                      type="text"
+                      value={themeCustom?.storyDealsTitle ?? ''}
+                      onChange={e => handleToggleFeature('storyDealsTitle', e.target.value)}
+                      placeholder="عروض حصرية"
+                      className="w-full p-1.5 rounded-lg border border-store-line text-xs font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.storyDealsBadge ?? ''}
+                      onChange={e => handleToggleFeature('storyDealsBadge', e.target.value)}
+                      placeholder="خصومات"
+                      className="w-full p-1 rounded-lg border border-store-line text-[11px] text-store-muted"
+                    />
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-xl border border-store-line space-y-1.5">
+                    <label className="block font-bold text-store-text">قصة 2 (الأكثر طلباً):</label>
+                    <input
+                      type="text"
+                      value={themeCustom?.storyBestSellersTitle ?? ''}
+                      onChange={e => handleToggleFeature('storyBestSellersTitle', e.target.value)}
+                      placeholder="الأكثر طلباً"
+                      className="w-full p-1.5 rounded-lg border border-store-line text-xs font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.storyBestSellersBadge ?? ''}
+                      onChange={e => handleToggleFeature('storyBestSellersBadge', e.target.value)}
+                      placeholder="رائج"
+                      className="w-full p-1 rounded-lg border border-store-line text-[11px] text-store-muted"
+                    />
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-xl border border-store-line space-y-1.5">
+                    <label className="block font-bold text-store-text">قصة 3 (وصل حديثاً):</label>
+                    <input
+                      type="text"
+                      value={themeCustom?.storyNewArrivalsTitle ?? ''}
+                      onChange={e => handleToggleFeature('storyNewArrivalsTitle', e.target.value)}
+                      placeholder="وصل حديثاً"
+                      className="w-full p-1.5 rounded-lg border border-store-line text-xs font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.storyNewArrivalsBadge ?? ''}
+                      onChange={e => handleToggleFeature('storyNewArrivalsBadge', e.target.value)}
+                      placeholder="جديد"
+                      className="w-full p-1 rounded-lg border border-store-line text-[11px] text-store-muted"
+                    />
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-xl border border-store-line space-y-1.5">
+                    <label className="block font-bold text-store-text">قصة 4 (شحن مجاني):</label>
+                    <input
+                      type="text"
+                      value={themeCustom?.storyFreeDeliveryTitle ?? ''}
+                      onChange={e => handleToggleFeature('storyFreeDeliveryTitle', e.target.value)}
+                      placeholder="شحن مجاني"
+                      className="w-full p-1.5 rounded-lg border border-store-line text-xs font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.storyFreeDeliveryBadge ?? ''}
+                      onChange={e => handleToggleFeature('storyFreeDeliveryBadge', e.target.value)}
+                      placeholder="توفير"
+                      className="w-full p-1 rounded-lg border border-store-line text-[11px] text-store-muted"
+                    />
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-xl border border-store-line space-y-1.5">
+                    <label className="block font-bold text-store-text">قصة 5 (توفير العائلة):</label>
+                    <input
+                      type="text"
+                      value={themeCustom?.storyCombosTitle ?? ''}
+                      onChange={e => handleToggleFeature('storyCombosTitle', e.target.value)}
+                      placeholder="توفير العائلة"
+                      className="w-full p-1.5 rounded-lg border border-store-line text-xs font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.storyCombosBadge ?? ''}
+                      onChange={e => handleToggleFeature('storyCombosBadge', e.target.value)}
+                      placeholder="حزم توفير"
+                      className="w-full p-1 rounded-lg border border-store-line text-[11px] text-store-muted"
+                    />
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-xl border border-store-line space-y-1.5">
+                    <label className="block font-bold text-store-text">قصة 6 (الكل):</label>
+                    <input
+                      type="text"
+                      value={themeCustom?.storyAllTitle ?? ''}
+                      onChange={e => handleToggleFeature('storyAllTitle', e.target.value)}
+                      placeholder="كافة الأصناف"
+                      className="w-full p-1.5 rounded-lg border border-store-line text-xs font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={themeCustom?.storyAllBadge ?? ''}
+                      onChange={e => handleToggleFeature('storyAllBadge', e.target.value)}
+                      placeholder="الكل"
+                      className="w-full p-1 rounded-lg border border-store-line text-[11px] text-store-muted"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 4: Cart Texts */}
+            {textTab === 'cart' && (
+              <div className="space-y-3 bg-store-card-subtle/70 p-3.5 rounded-2xl border border-store-line text-xs">
+                <div>
+                  <label className="block font-bold text-store-muted mb-1">
+                    عنوان قسم اقتراحات زيادة السلة (Cross-Sell Title):
+                  </label>
+                  <input
+                    type="text"
+                    value={themeCustom?.cartCrossSellTitle ?? ''}
+                    onChange={e => handleToggleFeature('cartCrossSellTitle', e.target.value)}
+                    placeholder="يكتمل طلبك بهذه الأصناف:"
+                    className="w-full text-xs font-bold p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-store-muted mb-1">
+                    رسالة تحقيق التوصيل المجاني بالسلة:
+                  </label>
+                  <input
+                    type="text"
+                    value={themeCustom?.freeShippingUnlockedText ?? ''}
+                    onChange={e => handleToggleFeature('freeShippingUnlockedText', e.target.value)}
+                    placeholder="مبروك! حصلت على توصيل مجاني لطلبك"
+                    className="w-full text-xs font-bold p-2 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Tab 5: Top Announcement Ticker */}
+            {textTab === 'announcement' && (
+              <div className="space-y-3 bg-store-card-subtle/70 p-3.5 rounded-2xl border border-store-line text-xs">
+                <div>
+                  <label className="block font-bold text-store-muted mb-1">
+                    نص الشريط الإعلاني الترويجي أعلى الصفحة (Announcement Bar):
+                  </label>
+                  <input
+                    type="text"
+                    value={themeCustom?.announcementText ?? ''}
+                    onChange={e => handleToggleFeature('announcementText', e.target.value)}
+                    placeholder={store.welcome_message || 'توصيل مجاني للطلبات فوق 250 ج.م | أسعار رسمية بضمان الكاشير'}
+                    className="w-full text-xs font-bold p-2.5 rounded-xl border border-store-line bg-white focus:outline-none focus:ring-2 focus:ring-store-primary"
+                  />
+                  <p className="text-[10px] text-store-muted mt-1">
+                    يظهر كشريط مميز أعلى رأس المتجر يلفت انتباه الزائر فور دخوله (اتركه فارغاً للاعتماد على رسالة الترحيب العامة).
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Curated Color Themes Library */}
           <div className="bg-store-card rounded-3xl border border-store-line p-4 sm:p-5 shadow-2xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-store-line">
               <div>
@@ -499,48 +1217,117 @@ export const ThemeStudioPanel: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* Mini Hero Strip */}
-                <div className="p-2.5 pb-0">
+                {/* Mini Announcement Ticker (Reactive Preview) */}
+                {(themeCustom?.announcementText || store.welcome_message) && (
                   <div
-                    className="p-3 text-white flex items-center justify-between gap-2"
+                    className="py-1 px-2 text-[8px] font-bold text-center truncate flex items-center justify-center gap-1"
                     style={{
                       background: activeTheme.gradient,
-                      borderRadius: activeCorner.cardRadius,
+                      color: activeTheme.primaryContrast,
                     }}
                   >
-                    <div className="space-y-0.5 min-w-0">
-                      <span
-                        className="inline-block text-[8px] font-black px-2 py-0.5 rounded-full"
+                    <Megaphone className="w-2.5 h-2.5 flex-shrink-0" />
+                    <span className="truncate">{themeCustom?.announcementText || store.welcome_message}</span>
+                  </div>
+                )}
+
+                {/* Mini Stories Bar (Reactive Preview) */}
+                {themeCustom?.showStoriesBar !== false && (
+                  <div className="px-2.5 pt-2 flex items-center gap-1.5 overflow-hidden">
+                    {[
+                      themeCustom?.storyDealsTitle || 'عروض خاصة',
+                      themeCustom?.storyBestSellersTitle || 'الأكثر طلباً',
+                      themeCustom?.storyNewArrivalsTitle || 'وصل حديثاً',
+                    ].map((story, sIdx) => (
+                      <div
+                        key={sIdx}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-bold border flex-shrink-0"
+                        style={{
+                          borderColor: activeTheme.line,
+                          backgroundColor: activeTheme.cardBg,
+                          color: activeTheme.text,
+                        }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: activeTheme.primary }} />
+                        <span>{story}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Mini Hero Strip (Reactive Preview) */}
+                {themeCustom?.showPromoHero !== false && (
+                  <div className="p-2.5 pb-0">
+                    <div
+                      className="p-3 text-white flex items-center justify-between gap-2"
+                      style={{
+                        background: activeTheme.gradient,
+                        borderRadius: activeCorner.cardRadius,
+                      }}
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <span
+                          className="inline-block text-[8px] font-black px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor: activeTheme.accent,
+                            color: activeTheme.accentContrast,
+                          }}
+                        >
+                          {themeCustom?.heroSlide1Tag || 'عروض اليوم'}
+                        </span>
+                        <div className="text-[11px] font-black truncate">
+                          {themeCustom?.heroSlide1Title || storeName}
+                        </div>
+                        <div className="text-[9px] text-white/80 truncate">
+                          {themeCustom?.heroSlide1Subtitle || 'توصيل سريع بأسعار المحل الرسمية'}
+                        </div>
+                      </div>
+                      <div
+                        className="px-2 py-1 text-[9px] font-black flex-shrink-0"
                         style={{
                           backgroundColor: activeTheme.accent,
                           color: activeTheme.accentContrast,
+                          borderRadius: activeCorner.btnRadius,
                         }}
                       >
-                        عروض اليوم
-                      </span>
-                      <div className="text-[11px] font-black truncate">{storeName}</div>
-                      <div className="text-[9px] text-white/80 truncate">توصيل سريع بأسعار المحل الرسمية</div>
-                    </div>
-                    <div
-                      className="px-2 py-1 text-[9px] font-black flex-shrink-0"
-                      style={{
-                        backgroundColor: activeTheme.accent,
-                        color: activeTheme.accentContrast,
-                        borderRadius: activeCorner.btnRadius,
-                      }}
-                    >
-                      تسوّق الآن
+                        {themeCustom?.heroSlide1Cta || 'تسوّق الآن'}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+
+                {/* Mini Trust Strip (Reactive Preview) */}
+                {themeCustom?.showTrustBadges !== false && (
+                  <div
+                    className="mx-2.5 mt-2 px-2 py-1 rounded-xl flex items-center justify-between text-[7px] border"
+                    style={{
+                      borderColor: activeTheme.line,
+                      backgroundColor: activeTheme.cardSubtle,
+                      color: activeTheme.muted,
+                    }}
+                  >
+                    <span className="flex items-center gap-0.5 font-bold truncate">
+                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 flex-shrink-0" />
+                      <span className="truncate">{themeCustom?.trustBadge2Title || 'أسعار رسمية'}</span>
+                    </span>
+                    <span className="flex items-center gap-0.5 font-bold truncate">
+                      <Truck className="w-2.5 h-2.5 flex-shrink-0" style={{ color: activeTheme.primary }} />
+                      <span className="truncate">{themeCustom?.trustBadge1Title || 'توصيل سريع'}</span>
+                    </span>
+                    <span className="flex items-center gap-0.5 font-bold truncate">
+                      <CheckCircle2 className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />
+                      <span className="truncate">{themeCustom?.trustBadge4Title || 'معاينة الاستلام'}</span>
+                    </span>
+                  </div>
+                )}
 
                 {/* Mini Product Grid Reflecting Active Template & Corner Style */}
                 <div className={`p-2.5 grid gap-2 ${previewGridCols}`}>
                   {[
-                    { name: 'أرز مصري فاخر 1 كجم', price: '35.00', tag: '-15%', isAccent: false },
-                    { name: 'زيت عباد الشمس 800 مل', price: '75.00', tag: 'مميز', isAccent: true },
+                    { name: 'أرز مصري فاخر 1 كجم', price: '35.00', tag: '-15%', savings: 5, isAccent: false, isLowStock: false },
+                    { name: 'زيت عباد الشمس 800 مل', price: '75.00', tag: 'مميز', isAccent: true, isLowStock: true },
                     ...(previewDevice === 'desktop' && activeLayout === 'compact'
-                      ? [{ name: 'جبنة فيتا 500 جم', price: '42.00', tag: 'طازج', isAccent: false }]
+                      ? [{ name: 'جبنة فيتا 500 جم', price: '42.00', tag: 'طازج', isAccent: false, isLowStock: false }]
                       : []),
                   ].map((item, idx) => (
                     <div
@@ -570,8 +1357,20 @@ export const ThemeStudioPanel: React.FC<Props> = ({
                             color: item.isAccent ? activeTheme.accentContrast : activeTheme.secondaryContrast,
                           }}
                         >
-                          {item.tag}
+                          {themeCustom?.showSavingsBadge !== false && item.savings ? `وفر ${item.savings} ج.م` : item.tag}
                         </span>
+
+                        {themeCustom?.showLowStockBadge !== false && item.isLowStock && (
+                          <span className="absolute bottom-1 right-1 px-1 py-0.2 rounded bg-amber-500 text-white text-[7px] font-bold">
+                            متبقي 3 فقط
+                          </span>
+                        )}
+
+                        {themeCustom?.showWishlist !== false && (
+                          <div className="absolute top-1 left-1 w-4 h-4 rounded-full bg-white/90 flex items-center justify-center text-rose-500 shadow-2xs">
+                            <Heart className="w-2.5 h-2.5 fill-current" />
+                          </div>
+                        )}
                       </div>
 
                       <div>

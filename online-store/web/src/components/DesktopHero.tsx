@@ -3,7 +3,7 @@ import {
   MapPin,
   Phone,
   MessageSquare,
-  Sparkles,
+  Flame,
   Truck,
   CreditCard,
   RefreshCw,
@@ -102,8 +102,8 @@ export const DesktopHero: React.FC<Props> = ({
 
               <div className="space-y-2">
                 <h2 className="text-xl sm:text-3xl lg:text-[32px] font-black text-white leading-tight tracking-tight">
-                  تجربة التسوّق الذكية لمتاجر{' '}
-                  <span className="text-[#CED46A]">رفيق</span> الإلكترونية
+                  منصة التسوّق الرقمي لمتاجر{' '}
+                  <span className="text-[#CED46A]">رفيق</span> الرسمية
                 </h2>
                 <p className="text-xs sm:text-sm text-white/85 leading-relaxed max-w-xl font-medium">
                   استعرض المنتجات، أضف للسلة، جرّب الدفع عبر كاش أو إنستاباي وفودافون كاش، وتابع حالة الطلب لحظة بلحظة — بنفس تجربة عملاء محلك المرتبطة مباشرةً بكاشير رفيق.
@@ -118,7 +118,7 @@ export const DesktopHero: React.FC<Props> = ({
                     onClick={onExploreOffers}
                     className="inline-flex items-center gap-2 bg-[#CED46A] hover:bg-[#dce17d] text-[#00372D] px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm font-black shadow-lg shadow-black/20 transition-all btn-spring cursor-pointer"
                   >
-                    <Sparkles className="w-4 h-4 text-[#00372D]" />
+                    <Flame className="w-4 h-4 text-[#00372D]" />
                     <span>استكشف العروض المميزة</span>
                     <ArrowLeft className="w-3.5 h-3.5 text-[#00372D]" />
                   </button>
