@@ -189,7 +189,7 @@ async function resolvePageMeta(url: URL, env: Env): Promise<PageMeta> {
 
   // Live lookup of tenant store metadata for WhatsApp / Social OG + Instant Tab Branding
   const apiBase = (
-    env.STORE_API_BASE || 'https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1'
+    env.STORE_API_BASE || 'https://rafiq-store-api.rafiqpos.workers.dev/api/v1'
   ).replace(/\/+$/, '');
 
   try {

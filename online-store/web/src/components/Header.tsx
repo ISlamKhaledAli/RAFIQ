@@ -170,10 +170,11 @@ export const Header: React.FC<Props> = ({
             {/* Owner Dashboard Shortcut */}
             <button
               onClick={onOpenDashboard}
-              title="لوحة تحكم صاحب المحل"
-              className="p-2 sm:p-2.5 rounded-2xl text-store-muted hover:text-store-primary hover:bg-store-primary-light/50 btn-spring transition-colors"
+              title="لوحة تحكم وتخصيص المتجر"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-store-primary/10 text-store-primary hover:bg-store-primary hover:text-white font-black text-[11px] sm:text-xs btn-spring transition-all border border-store-primary/25 shadow-2xs cursor-pointer"
             >
-              <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>لوحة التحكم</span>
             </button>
 
             {/* Desktop Cart Button */}

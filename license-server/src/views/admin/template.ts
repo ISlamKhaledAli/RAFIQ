@@ -1302,7 +1302,7 @@ export const adminTemplate = `
             </div>
 
             <div id="osSlugWrap" class="os-slug-input-wrap" dir="ltr">
-              <span class="os-slug-prefix" title="https://rafiq-store-web.rafiq-store-api.workers.dev/">...workers.dev/</span>
+              <span class="os-slug-prefix" title="https://store.rafiqpos.workers.dev/">...workers.dev/</span>
               <input type="text" id="osSlugInput" maxlength="50" autocomplete="off" spellcheck="false" placeholder="al-nour-market" oninput="onOnlineStoreSlugInput()" dir="ltr">
             </div>
 

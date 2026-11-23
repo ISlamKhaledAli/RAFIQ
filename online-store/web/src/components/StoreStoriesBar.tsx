@@ -18,7 +18,7 @@ interface Props {
 }
 
 export const StoreStoriesBar: React.FC<Props> = ({ activeStoryId, onSelectStory, themeCustom }) => {
-  const stories: StoryItem[] = [
+  const rawStories: Array<StoryItem & { visible: boolean }> = [
     {
       id: 'deals',
       title: themeCustom?.storyDealsTitle || 'عروض حصرية',
@@ -26,6 +26,7 @@ export const StoreStoriesBar: React.FC<Props> = ({ activeStoryId, onSelectStory,
       icon: <Flame className="w-5 h-5 text-white" />,
       gradient: 'from-amber-500 via-rose-500 to-red-600',
       hasUnseenRing: true,
+      visible: themeCustom?.showStoryDeals !== false,
     },
     {
       id: 'best_sellers',
@@ -34,6 +35,7 @@ export const StoreStoriesBar: React.FC<Props> = ({ activeStoryId, onSelectStory,
       icon: <Award className="w-5 h-5 text-white" />,
       gradient: 'from-violet-600 to-indigo-700',
       hasUnseenRing: true,
+      visible: themeCustom?.showStoryBestSellers !== false,
     },
     {
       id: 'new_arrivals',
@@ -42,6 +44,7 @@ export const StoreStoriesBar: React.FC<Props> = ({ activeStoryId, onSelectStory,
       icon: <Sparkles className="w-5 h-5 text-white" />,
       gradient: 'from-emerald-500 to-teal-700',
       hasUnseenRing: false,
+      visible: themeCustom?.showStoryNewArrivals !== false,
     },
     {
       id: 'free_delivery',
@@ -50,6 +53,7 @@ export const StoreStoriesBar: React.FC<Props> = ({ activeStoryId, onSelectStory,
       icon: <Truck className="w-5 h-5 text-white" />,
       gradient: 'from-cyan-500 to-blue-600',
       hasUnseenRing: false,
+      visible: themeCustom?.showStoryFreeDelivery !== false,
     },
     {
       id: 'combos',
@@ -58,6 +62,7 @@ export const StoreStoriesBar: React.FC<Props> = ({ activeStoryId, onSelectStory,
       icon: <Percent className="w-5 h-5 text-white" />,
       gradient: 'from-fuchsia-500 to-pink-600',
       hasUnseenRing: false,
+      visible: themeCustom?.showStoryCombos !== false,
     },
     {
       id: 'all',
@@ -66,8 +71,15 @@ export const StoreStoriesBar: React.FC<Props> = ({ activeStoryId, onSelectStory,
       icon: <LayoutGrid className="w-5 h-5 text-white" />,
       gradient: 'from-slate-700 to-slate-900',
       hasUnseenRing: false,
+      visible: themeCustom?.showStoryAll !== false,
     },
   ];
+
+  const stories = rawStories.filter(s => s.visible);
+
+  if (stories.length === 0) {
+    return null;
+  }
 
   return (
     <nav

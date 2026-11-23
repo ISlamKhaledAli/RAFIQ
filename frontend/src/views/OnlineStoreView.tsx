@@ -148,7 +148,7 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
   const [cfgStoreId, setCfgStoreId] = useState('');
   const [cfgApiKey, setCfgApiKey] = useState('');
   const [cfgSlug, setCfgSlug] = useState('');
-  const [cfgApiUrl, setCfgApiUrl] = useState('https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1');
+  const [cfgApiUrl, setCfgApiUrl] = useState('https://rafiq-store-api.rafiqpos.workers.dev/api/v1');
   const [cfgInterval, setCfgInterval] = useState('300');
 
   const loadData = useCallback(async (silent = false) => {
@@ -167,7 +167,7 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
         setCfgStoreId(stateRes.storeCloudId || '');
         setCfgApiKey(stateRes.syncApiKeyMasked || '');
         setCfgSlug(stateRes.onlineStoreSlug || '');
-        setCfgApiUrl(stateRes.cloudApiUrl || 'https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1');
+        setCfgApiUrl(stateRes.cloudApiUrl || 'https://rafiq-store-api.rafiqpos.workers.dev/api/v1');
         setCfgInterval(String(stateRes.syncIntervalSeconds || 300));
       }
     } catch (err: unknown) {
@@ -576,7 +576,7 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
                   readOnly
                   value={
                     cfgSlug
-                      ? `https://rafiq-store-web.rafiq-store-api.workers.dev/${cfgSlug}`
+                      ? `https://store.rafiqpos.workers.dev/${cfgSlug}`
                       : 'يتزامن تلقائياً فور تفعيل المتجر من لوحة التراخيص'
                   }
                   className="flex-1 min-w-[12.5rem] px-3 py-2 text-xs font-mono rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark select-all focus:outline-none"
@@ -588,7 +588,7 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
                       size="sm"
                       icon={Copy}
                       onClick={() => {
-                        const url = `https://rafiq-store-web.rafiq-store-api.workers.dev/${cfgSlug}`;
+                        const url = `https://store.rafiqpos.workers.dev/${cfgSlug}`;
                         if (navigator.clipboard) {
                           void navigator.clipboard.writeText(url).then(() => {
                             setBannerMessage({ type: 'success', text: 'تم نسخ رابط المتجر الإلكتروني بنجاح.' });
@@ -603,7 +603,7 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
                       size="sm"
                       icon={ExternalLink}
                       onClick={() => {
-                        const url = `https://rafiq-store-web.rafiq-store-api.workers.dev/${cfgSlug}`;
+                        const url = `https://store.rafiqpos.workers.dev/${cfgSlug}`;
                         void openOnlineStoreExternalUrl(url).catch(() => {
                           window.open(url, '_blank', 'noopener,noreferrer');
                         });
@@ -616,7 +616,7 @@ export const OnlineStoreView: React.FC<OnlineStoreViewProps> = ({
                       size="sm"
                       icon={Settings}
                       onClick={() => {
-                        const url = `https://rafiq-store-web.rafiq-store-api.workers.dev/${cfgSlug}/admin`;
+                        const url = `https://store.rafiqpos.workers.dev/${cfgSlug}/admin`;
                         void openOnlineStoreExternalUrl(url).catch(() => {
                           window.open(url, '_blank', 'noopener,noreferrer');
                         });

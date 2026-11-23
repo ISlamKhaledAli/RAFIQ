@@ -1706,7 +1706,7 @@ export const adminScripts = `
     // ==========================================
     // ONLINE STORE CLOUD GOVERNANCE MODAL
     // ==========================================
-    var ONLINE_STORE_BASE_URL = 'https://rafiq-store-web.rafiq-store-api.workers.dev/';
+    var ONLINE_STORE_BASE_URL = 'https://store.rafiqpos.workers.dev/';
     var currentOnlineStoreLic = null;
 
     function isValidOnlineStoreSlug(slug) {

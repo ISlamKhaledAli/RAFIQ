@@ -1110,7 +1110,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
         online_store_plan: nextPlan,
         online_store_expires_at: nextExpiresAt,
         online_store_slug: nextSlug,
-        online_store_url: nextSlug ? `https://rafiq-store-web.rafiq-store-api.workers.dev/${nextSlug}` : null,
+        online_store_url: nextSlug ? `https://store.rafiqpos.workers.dev/${nextSlug}` : null,
         kv_synced: syncOutcome.kvSynced,
         webhook_synced: syncOutcome.webhookSynced,
       }),
@@ -1125,7 +1125,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
 }
 
 const DEFAULT_ONLINE_STORE_WEBHOOK_URL =
-  'https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1/internal/governance/store-license';
+  'https://rafiq-store-api.rafiqpos.workers.dev/api/v1/internal/governance/store-license';
 
 async function sha256HexLocal(message: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(message));

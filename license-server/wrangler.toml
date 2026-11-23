@@ -1,11 +1,11 @@
-name = "rafiq-license-server"
+name = "licenses"
 main = "src/index.ts"
 compatibility_date = "2024-05-01"
 
 # Environment Variables
 [vars]
 ENVIRONMENT = "production"
-ONLINE_STORE_WEBHOOK_URL = "https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1/internal/governance/store-license"
+ONLINE_STORE_WEBHOOK_URL = "https://rafiq-store-api.rafiqpos.workers.dev/api/v1/internal/governance/store-license"
 
 # SECRETS (Audit F-05): never commit secret values to this file.
 # 1. Generate keys locally (git-ignored output):   node scripts/setup-secrets.mjs

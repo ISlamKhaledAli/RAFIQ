@@ -43,7 +43,9 @@ export const AdminLoginScreen: React.FC<Props> = ({
 }) => {
   const [showPin, setShowPin] = useState(false);
 
-  const storePublicHost = `rafiq-store-web.rafiq-store-api.workers.dev/${store.slug}`;
+  const storePublicHost = typeof window !== 'undefined' && window.location.host
+    ? `${window.location.host}/${store.slug}`
+    : `store.rafiqpos.workers.dev/${store.slug}`;
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#F7FAFC] flex items-center justify-center p-4 sm:p-6">

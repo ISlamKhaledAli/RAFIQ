@@ -168,7 +168,7 @@ namespace RafiqPOS.Database
                         INSERT OR IGNORE INTO sync_state (key, value) VALUES ('store_cloud_id', '');
                         INSERT OR IGNORE INTO sync_state (key, value) VALUES ('sync_api_key', '');
                         INSERT OR IGNORE INTO sync_state (key, value) VALUES ('online_store_slug', '');
-                        INSERT OR IGNORE INTO sync_state (key, value) VALUES ('cloud_api_url', 'https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1');
+                        INSERT OR IGNORE INTO sync_state (key, value) VALUES ('cloud_api_url', 'https://rafiq-store-api.rafiqpos.workers.dev/api/v1');
                         INSERT OR IGNORE INTO sync_state (key, value) VALUES ('last_sync_timestamp', '');
                         INSERT OR IGNORE INTO sync_state (key, value) VALUES ('sync_interval_seconds', '300');
                     ", conn, trans))

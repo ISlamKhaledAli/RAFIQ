@@ -1363,7 +1363,7 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
         try {
           const envWebhook: any = {
             ...env,
-            ONLINE_STORE_WEBHOOK_URL: 'https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1/internal/governance/store-license',
+            ONLINE_STORE_WEBHOOK_URL: 'https://rafiq-store-api.rafiqpos.workers.dev/api/v1/internal/governance/store-license',
             GOVERNANCE_WEBHOOK_SECRET: webhookSecret,
           };
 

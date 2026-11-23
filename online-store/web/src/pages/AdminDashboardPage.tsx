@@ -32,6 +32,7 @@ import {
   Settings,
   Package,
   Palette,
+  Sparkles,
   Search,
   CheckCircle2,
   AlertCircle,
@@ -315,7 +316,9 @@ export const AdminDashboardPage: React.FC<Props> = ({
 }) => {
   const isDemoStore = store.id === 'rafiq-official-demo' || store.slug === 'rafiq';
   const tokenStorageKey = `rafiq_owner_token:${store.slug}`;
-  const storePublicUrl = `https://rafiq-store-web.rafiq-store-api.workers.dev/${store.slug}`;
+  const storePublicUrl = typeof window !== 'undefined' && window.location.origin
+    ? `${window.location.origin}/${store.slug}`
+    : `https://store.rafiqpos.workers.dev/${store.slug}`;
 
   // Real JWT Owner Auth for live stores; instant sandbox access for /rafiq demo store
   const [token, setToken] = useState<string | null>(() => {
@@ -1656,9 +1659,9 @@ export const AdminDashboardPage: React.FC<Props> = ({
       ],
     },
     {
-      title: 'تخصيص المتجر',
+      title: 'إدارة وتخصيص المتجر',
       items: [
-        { id: 'theme', label: 'القالب والألوان', icon: Palette },
+        { id: 'theme', label: 'العروض وتخصيص المتجر', icon: Sparkles },
         { id: 'settings', label: 'إعدادات المتجر والتوصيل', icon: Settings },
       ],
     },
@@ -1673,7 +1676,7 @@ export const AdminDashboardPage: React.FC<Props> = ({
     { id: 'orders', label: 'الأوردرات', icon: ShoppingBag, badge: pendingOrdersCount },
     { id: 'overview', label: 'التقارير', icon: TrendingUp },
     { id: 'products', label: 'الأصناف', icon: Package },
-    { id: 'theme', label: 'الهوية', icon: Palette },
+    { id: 'theme', label: 'التخصيص والعروض', icon: Sparkles },
     { id: 'settings', label: 'الإعدادات', icon: Settings },
   ];
 
@@ -1923,7 +1926,7 @@ export const AdminDashboardPage: React.FC<Props> = ({
                   className="px-4 py-2 rounded-xl bg-[#CED46A] hover:bg-[#dce17d] text-[#00372D] text-xs font-black shadow-md btn-spring cursor-pointer flex items-center gap-1.5"
                 >
                   <Volume2 className="w-3.5 h-3.5 text-[#00372D]" />
-                  <span>تفعيل وتجربة التنبيه 🔔</span>
+                  <span>تفعيل وتجربة التنبيه الصوتي</span>
                 </button>
                 <button
                   type="button"
@@ -2263,6 +2266,7 @@ export const AdminDashboardPage: React.FC<Props> = ({
           {activeTab === 'settings' && (
             <StoreSettingsPanel
               store={store}
+              onGoToThemeStudio={() => setActiveTab('theme')}
               isDemoStore={isDemoStore}
               hasCustomPin={hasCustomPin || Boolean(overviewData?.has_custom_pin)}
               storeName={storeName}

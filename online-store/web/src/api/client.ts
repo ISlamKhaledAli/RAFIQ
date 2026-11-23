@@ -1,6 +1,6 @@
 import type { Store, Category, Product, Order } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://rafiq-store-api.rafiqpos.workers.dev/api/v1';
 
 // Official Rafiq Flagship Demo Store (/rafiq)
 export const MOCK_STORE: Store = {

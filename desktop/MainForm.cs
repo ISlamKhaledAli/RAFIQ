@@ -1735,6 +1735,11 @@ namespace RafiqPOS
             if (string.IsNullOrWhiteSpace(host)) return false;
             string h = host.Trim().ToLowerInvariant();
             return h == "rafiq-store-web.rafiq-store-api.workers.dev" ||
+                   h == "store.rafiq.workers.dev" ||
+                   h == "store.rafiqpos.workers.dev" ||
+                   h == "store.rafiq-store-api.workers.dev" ||
+                   h.EndsWith(".rafiq.workers.dev") ||
+                   h.EndsWith(".rafiqpos.workers.dev") ||
                    h.EndsWith(".rafiq-store-api.workers.dev") ||
                    h == "wa.me" ||
                    h == "api.whatsapp.com";

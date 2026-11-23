@@ -114,7 +114,7 @@ namespace RafiqPOS.Services
 
             string storeId = _syncRepo.GetState("store_cloud_id", "");
             string apiKey = _syncRepo.GetState("sync_api_key", "");
-            string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1").TrimEnd('/');
+            string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiqpos.workers.dev/api/v1").TrimEnd('/');
 
             if (string.IsNullOrEmpty(storeId) || string.IsNullOrEmpty(apiKey))
             {
@@ -382,7 +382,7 @@ namespace RafiqPOS.Services
 
                 string storeId = _syncRepo.GetState("store_cloud_id", "");
                 string apiKey = _syncRepo.GetState("sync_api_key", "");
-                string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1").TrimEnd('/');
+                string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiqpos.workers.dev/api/v1").TrimEnd('/');
 
                 if (string.IsNullOrEmpty(storeId) || string.IsNullOrEmpty(apiKey))
                 {
@@ -553,7 +553,7 @@ namespace RafiqPOS.Services
             string storeId = states.ContainsKey("store_cloud_id") ? states["store_cloud_id"] : "";
             string apiKey = states.ContainsKey("sync_api_key") ? states["sync_api_key"] : "";
             string slug = states.ContainsKey("online_store_slug") ? states["online_store_slug"] : "";
-            string apiUrl = states.ContainsKey("cloud_api_url") ? states["cloud_api_url"] : "https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1";
+            string apiUrl = states.ContainsKey("cloud_api_url") ? states["cloud_api_url"] : "https://rafiq-store-api.rafiqpos.workers.dev/api/v1";
             string lastSync = states.ContainsKey("last_sync_timestamp") ? states["last_sync_timestamp"] : "";
             string intervalStr = states.ContainsKey("sync_interval_seconds") ? states["sync_interval_seconds"] : "300";
 
@@ -700,7 +700,7 @@ namespace RafiqPOS.Services
 
                 string storeId = _syncRepo.GetState("store_cloud_id", "");
                 string apiKey = _syncRepo.GetState("sync_api_key", "");
-                string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1").TrimEnd('/');
+                string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiqpos.workers.dev/api/v1").TrimEnd('/');
 
                 if (string.IsNullOrEmpty(storeId) || string.IsNullOrEmpty(apiKey))
                 {
@@ -1419,7 +1419,7 @@ namespace RafiqPOS.Services
                 {
                     string storeId = _syncRepo.GetState("store_cloud_id", "");
                     string apiKey = _syncRepo.GetState("sync_api_key", "");
-                    string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1").TrimEnd('/');
+                    string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiqpos.workers.dev/api/v1").TrimEnd('/');
                     if (string.IsNullOrEmpty(storeId) || string.IsNullOrEmpty(apiKey)) return;
                     SyncStoreProfileInternal(baseUrl, storeId, apiKey, false);
                 }
@@ -1729,7 +1729,7 @@ namespace RafiqPOS.Services
             {
                 string storeId = _syncRepo.GetState("store_cloud_id", "");
                 string apiKey = _syncRepo.GetState("sync_api_key", "");
-                string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1").TrimEnd('/');
+                string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiqpos.workers.dev/api/v1").TrimEnd('/');
 
                 if (string.IsNullOrWhiteSpace(storeId) || string.IsNullOrWhiteSpace(apiKey))
                 {
@@ -1752,7 +1752,7 @@ namespace RafiqPOS.Services
             {
                 string storeId = _syncRepo.GetState("store_cloud_id", "");
                 string apiKey = _syncRepo.GetState("sync_api_key", "");
-                string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiq-store-api.workers.dev/api/v1").TrimEnd('/');
+                string baseUrl = _syncRepo.GetState("cloud_api_url", "https://rafiq-store-api.rafiqpos.workers.dev/api/v1").TrimEnd('/');
 
                 if (string.IsNullOrWhiteSpace(storeId) || string.IsNullOrWhiteSpace(apiKey))
                 {

@@ -195,7 +195,7 @@ function buildWhatsAppLink(
     clean = '2' + clean;
   }
   const statusAr = ORDER_STATUS_META[status]?.label || status;
-  const trackingUrl = storeSlug ? `https://rafiq-store-web.rafiq-store-api.workers.dev/${storeSlug}` : '';
+  const trackingUrl = storeSlug ? `https://store.rafiqpos.workers.dev/${storeSlug}` : '';
   const text = `أهلاً بك يا ${customerName}، حالة طلبك رقم ${formatOrderCode(orderNumber)} أصبحت الآن: (${statusAr}).${
     trackingUrl ? ` يمكنك متابعة طلبك عبر: ${trackingUrl}` : ''
   }`;

@@ -60,6 +60,7 @@ interface Props {
   onRemoveDeliveryZone: (idx: number) => void;
   onSave: () => void;
   onChangePin?: (currentPin: string, newPin: string) => Promise<void>;
+  onGoToThemeStudio?: () => void;
   onBackToStore: () => void;
 }
 
@@ -95,6 +96,7 @@ export const StoreSettingsPanel: React.FC<Props> = ({
   onRemoveDeliveryZone,
   onSave,
   onChangePin,
+  onGoToThemeStudio,
   onBackToStore,
 }) => {
   const [newZoneName, setNewZoneName] = useState('');
@@ -141,7 +143,9 @@ export const StoreSettingsPanel: React.FC<Props> = ({
     }
   };
 
-  const storePublicUrl = `https://rafiq-store-web.rafiq-store-api.workers.dev/${store.slug}`;
+  const storePublicUrl = typeof window !== 'undefined' && window.location.origin
+    ? `${window.location.origin}/${store.slug}`
+    : `https://store.rafiqpos.workers.dev/${store.slug}`;
 
   const handleCopyUrl = () => {
     try {
@@ -162,6 +166,33 @@ export const StoreSettingsPanel: React.FC<Props> = ({
 
   return (
     <div className="space-y-5 pb-20">
+      {/* Visual Customization & Marketing Hub Shortcut Banner */}
+      {onGoToThemeStudio && (
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#004D3F] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+              <Sparkles className="w-5 h-5 text-amber-300" />
+            </div>
+            <div>
+              <div className="text-sm font-black text-slate-900">
+                تخصيص الهوية البصرية، دوائر القصص، وعروض زيادة السلة
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                تم تجميع كافة خيارات الألوان، البانرات الترويجية، دوائر القصص واقتراحات السلة في تبويب مستقل لتجنب التكرار وسهولة التحكم.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onGoToThemeStudio}
+            className="px-4 py-2 bg-[#004D3F] hover:bg-[#00372D] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all btn-spring flex-shrink-0 shadow-xs cursor-pointer"
+          >
+            <span>فتح استوديو التخصيص والعروض</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* 1. Store Operational Status & Share Link Card */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Live Status Switch Card */}

@@ -568,6 +568,11 @@ namespace RafiqPOS.Bridge
 
                     string host = (parsedUri.Host ?? "").Trim().ToLowerInvariant();
                     bool trusted = host == "rafiq-store-web.rafiq-store-api.workers.dev" ||
+                                   host == "store.rafiq.workers.dev" ||
+                                   host == "store.rafiqpos.workers.dev" ||
+                                   host == "store.rafiq-store-api.workers.dev" ||
+                                   host.EndsWith(".rafiq.workers.dev") ||
+                                   host.EndsWith(".rafiqpos.workers.dev") ||
                                    host.EndsWith(".rafiq-store-api.workers.dev") ||
                                    host == "wa.me" ||
                                    host == "api.whatsapp.com" ||

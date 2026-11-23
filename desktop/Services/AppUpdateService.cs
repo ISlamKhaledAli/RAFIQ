@@ -57,7 +57,8 @@ namespace RafiqPOS.Services
         // Single source of truth for the running version: the assembly version (AssemblyInfo.cs). The installer and
         // frontend/package.json must carry the same number (guarded by frontend/test/app_update.test.js).
         public static readonly string CurrentVersion = ReadAssemblyVersion();
-        public const string DEFAULT_UPDATE_SERVER_URL = "https://rafiq-license-server.khaledislam9003.workers.dev/api/updates/check";
+        public const string DEFAULT_UPDATE_SERVER_URL = "https://licenses.rafiq-cloud.workers.dev/api/updates/check";
+        public const string FALLBACK_UPDATE_SERVER_URL = "https://licenses.khaledislam9003.workers.dev/api/updates/check";
         private const int NETWORK_TIMEOUT_MS = 7000;
         private const int DOWNLOAD_TIMEOUT_MS = 30000;
         private const long MIN_INSTALLER_BYTES = 100L * 1024L;         // 100 KB sanity minimum

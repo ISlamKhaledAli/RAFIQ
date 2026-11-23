@@ -65,19 +65,31 @@ export interface StoreThemeCustom {
   // Stories Bar Texts (Stories 1-6)
   storyDealsTitle?: string;
   storyDealsBadge?: string;
+  showStoryDeals?: boolean;
+
   storyBestSellersTitle?: string;
   storyBestSellersBadge?: string;
+  showStoryBestSellers?: boolean;
+
   storyNewArrivalsTitle?: string;
   storyNewArrivalsBadge?: string;
+  showStoryNewArrivals?: boolean;
+
   storyFreeDeliveryTitle?: string;
   storyFreeDeliveryBadge?: string;
+  showStoryFreeDelivery?: boolean;
+
   storyCombosTitle?: string;
   storyCombosBadge?: string;
+  showStoryCombos?: boolean;
+
   storyAllTitle?: string;
   storyAllBadge?: string;
+  showStoryAll?: boolean;
 
-  // Cart Texts
+  // Cart Texts & Cross-Sell Source
   cartCrossSellTitle?: string;
+  crossSellSource?: 'featured' | 'all';
   freeShippingUnlockedText?: string;
 
   [cssVar: string]: any;

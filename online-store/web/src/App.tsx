@@ -29,7 +29,7 @@ import { HeroPromoCarousel } from './components/HeroPromoCarousel';
 import { TrustBadgesStrip } from './components/TrustBadgesStrip';
 import { ProductGridSkeleton } from './components/ProductGridSkeleton';
 import { InstantSearchModal } from './components/InstantSearchModal';
-import { Flame, Star, SearchX, MapPin, Clock, ShieldCheck, CheckCircle2, Loader2, Heart } from 'lucide-react';
+import { Flame, Star, SearchX, MapPin, Clock, ShieldCheck, CheckCircle2, Loader2, Heart, Sliders } from 'lucide-react';
 
 const STOREFRONT_PAGE_SIZE = 48;
 
@@ -260,12 +260,15 @@ export const App: React.FC = () => {
     return 'store';
   });
 
-  const navigateToView = (view: 'store' | 'admin') => {
+  const navigateToView = (view: 'store' | 'admin', defaultTab?: string) => {
     setCurrentView(view);
     try {
       const url = new URL(window.location.href);
       if (view === 'admin') {
         url.searchParams.set('admin', '1');
+        if (defaultTab) {
+          url.searchParams.set('tab', defaultTab);
+        }
         window.history.pushState({}, '', url.toString());
       } else {
         url.searchParams.delete('admin');
@@ -930,7 +933,7 @@ export const App: React.FC = () => {
         onSearchChange={setSearchQuery}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenTracker={() => setIsTrackerOpen(true)}
-        onOpenDashboard={() => navigateToView('admin')}
+        onOpenDashboard={() => navigateToView('admin', 'theme')}
         onSelectZoneClick={() => setIsCartOpen(true)}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
       />
@@ -1380,6 +1383,19 @@ export const App: React.FC = () => {
         onOpenCart={() => setIsCartOpen(true)}
       />
 
+      {/* Floating Theme & Content Customizer Shortcut */}
+      <div className="fixed bottom-20 left-4 z-40 hidden sm:flex">
+        <button
+          type="button"
+          onClick={() => navigateToView('admin', 'theme')}
+          className="flex items-center gap-2 bg-slate-900/90 hover:bg-slate-900 text-white px-3.5 py-2.5 rounded-full shadow-2xl border border-white/20 backdrop-blur-md text-xs font-bold btn-spring transition-all cursor-pointer group"
+          title="الانتقال المباشر للوحة التخصيص واستوديو الثيمات"
+        >
+          <Sliders className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-45 transition-transform" />
+          <span>تخصيص مكونات ونصوص المتجر</span>
+        </button>
+      </div>
+
       {/* Mobile App Bottom Nav Bar */}
       <MobileBottomNav
         activeTab={mobileTab}
@@ -1419,7 +1435,13 @@ export const App: React.FC = () => {
           setIsCartOpen(false);
           setIsCheckoutOpen(true);
         }}
-        suggestedProducts={showCartCrossSell ? (featuredProducts.length > 0 ? featuredProducts : products.slice(0, 4)) : []}
+        suggestedProducts={
+          showCartCrossSell
+            ? (themeCustom.crossSellSource === 'all'
+                ? storefrontProducts
+                : (featuredProducts.length > 0 ? featuredProducts : storefrontProducts.slice(0, 6)))
+            : []
+        }
         showFreeShippingBar={showFreeShippingBar}
         freeShippingThresholdPiasters={freeShippingThresholdPiasters}
         showWhatsAppQuickOrder={showWhatsAppQuickOrder}
