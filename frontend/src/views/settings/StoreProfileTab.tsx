@@ -13,6 +13,10 @@ import {
   Type,
   Layers,
   ScrollText,
+  Sparkles,
+  Truck,
+  ShoppingBag,
+  Clock,
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
@@ -59,6 +63,16 @@ interface StoreProfileTabProps {
   setShowReceiptPaid?: (val: boolean) => void;
   showReceiptChange?: boolean;
   setShowReceiptChange?: (val: boolean) => void;
+  showReceiptOnlineStoreQr?: boolean;
+  setShowReceiptOnlineStoreQr?: (val: boolean) => void;
+  receiptOnlineStoreQrText?: string;
+  setReceiptOnlineStoreQrText?: (val: string) => void;
+  receiptOnlineStoreQrLabel?: string;
+  setReceiptOnlineStoreQrLabel?: (val: string) => void;
+  receiptOnlineStoreQrShowUrl?: boolean;
+  setReceiptOnlineStoreQrShowUrl?: (val: boolean) => void;
+  onlineStoreEnabled?: boolean;
+  onlineStoreSlug?: string;
   storeLogoUrl?: string;
   setStoreLogoUrl?: (val: string) => void;
   rawLogoSource?: string | null;
@@ -85,6 +99,45 @@ interface StoreProfileTabProps {
 const DEFAULT_LOGOS = ['/receipt_logo.png', '/receipt_logo_square.png', '/logo.png'];
 const DEFAULT_LOGO_URL = '/receipt_logo_square.png';
 
+interface QrPreset {
+  id: string;
+  name: string;
+  icon: typeof Sparkles;
+  label: string;
+  text: string;
+}
+
+const QR_PRESETS: QrPreset[] = [
+  {
+    id: 'delivery',
+    name: 'طلب وتوصيل',
+    icon: Truck,
+    label: 'متجرنا الإلكتروني',
+    text: 'امسح الرمز واطلب أونلاين مع خدمة توصيل سريع',
+  },
+  {
+    id: 'offers',
+    name: 'عروض وتخفيضات',
+    icon: Sparkles,
+    label: 'عروض وتخفيضات حصرية',
+    text: 'امسح الرمز لاكتشاف أقوى التخفيضات اليومية',
+  },
+  {
+    id: 'menu',
+    name: 'قائمة الأصناف',
+    icon: ShoppingBag,
+    label: 'قائمتنا الكاملة أونلاين',
+    text: 'امسح الرمز لتصفح الأصناف والأسعار المحدثة',
+  },
+  {
+    id: 'support24',
+    name: 'تسوق 24/7',
+    icon: Clock,
+    label: 'تسوق معنا 24/7',
+    text: 'متجرنا في خدمتكم دائماً.. اطلب في أي وقت',
+  },
+];
+
 export const StoreProfileTab = ({
   storeType,
   storeName,
@@ -109,6 +162,16 @@ export const StoreProfileTab = ({
   setShowReceiptPaid,
   showReceiptChange = true,
   setShowReceiptChange,
+  showReceiptOnlineStoreQr = true,
+  setShowReceiptOnlineStoreQr,
+  receiptOnlineStoreQrText = 'امسح الرمز لطلب المنتجات أونلاين',
+  setReceiptOnlineStoreQrText,
+  receiptOnlineStoreQrLabel = 'متجرنا الإلكتروني',
+  setReceiptOnlineStoreQrLabel,
+  receiptOnlineStoreQrShowUrl = true,
+  setReceiptOnlineStoreQrShowUrl,
+  onlineStoreEnabled = false,
+  onlineStoreSlug = '',
   storeLogoUrl = DEFAULT_LOGO_URL,
   setStoreLogoUrl,
   rawLogoSource = null,
@@ -547,6 +610,97 @@ export const StoreProfileTab = ({
             checked={showReceiptChange}
             onChange={(next) => setShowReceiptChange?.(next)}
           />
+          <ToggleRow
+            title="إظهار باركود المتجر الإلكتروني على الوصل"
+            description={
+              onlineStoreEnabled
+                ? (onlineStoreSlug ? `يُطبع رمز QR ورابط المتجر (/${onlineStoreSlug}) أسفل الفاتورة لمسحه بكاميرا الهاتف.` : 'يُطبع رمز QR المتجر في تذييل الفاتورة.')
+                : 'يتطلب تفعيل المتجر الإلكتروني السحابي أولاً من شاشة المتجر الإلكتروني ليظهر على الفاتورة.'
+            }
+            checked={onlineStoreEnabled && showReceiptOnlineStoreQr}
+            disabled={!onlineStoreEnabled}
+            onChange={(next) => setShowReceiptOnlineStoreQr?.(next)}
+          />
+
+          {onlineStoreEnabled && showReceiptOnlineStoreQr && (
+            <div className="p-4 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-4 animate-in fade-in duration-150">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
+                  قوالب احترافية سريعة للنصوص
+                </span>
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
+                  اختر قالباً تسويقياً جاهزاً بضغطة زر أو خصّص العبارات بنفسك:
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {QR_PRESETS.map((preset) => {
+                  const Icon = preset.icon;
+                  const isActive = receiptOnlineStoreQrText === preset.text && receiptOnlineStoreQrLabel === preset.label;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setReceiptOnlineStoreQrLabel?.(preset.label);
+                        setReceiptOnlineStoreQrText?.(preset.text);
+                      }}
+                      className={`flex items-center gap-1.5 p-2 rounded-lg text-xs font-bold border transition-colors text-right ${
+                        isActive
+                          ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid text-paid dark:text-paid-bright shadow-2xs'
+                          : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-line-hover'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
+                      <span className="truncate">{preset.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <Field label="عنوان الرمز (العريض)" hint="يظهر كعنوان رئيسي أعلى الرمز">
+                  <input
+                    type="text"
+                    maxLength={35}
+                    value={receiptOnlineStoreQrLabel}
+                    onChange={(e) => setReceiptOnlineStoreQrLabel?.(e.target.value)}
+                    placeholder="متجرنا الإلكتروني"
+                    className={FIELD_INPUT_CLASS}
+                  />
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark text-left dir-ltr">
+                    {receiptOnlineStoreQrLabel.length} / 35
+                  </span>
+                </Field>
+
+                <Field label="النص الترويجي تحت الرمز" hint="رسالة تشجيعية للعميل لمسح الرمز">
+                  <input
+                    type="text"
+                    maxLength={75}
+                    value={receiptOnlineStoreQrText}
+                    onChange={(e) => setReceiptOnlineStoreQrText?.(e.target.value)}
+                    placeholder="امسح الرمز لطلب المنتجات أونلاين"
+                    className={FIELD_INPUT_CLASS}
+                  />
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark text-left dir-ltr">
+                    {receiptOnlineStoreQrText.length} / 75
+                  </span>
+                </Field>
+              </div>
+
+              <ToggleRow
+                title="إظهار رابط المتجر النصي أسفل الرمز"
+                description={
+                  onlineStoreSlug
+                    ? `طباعة store.rafiqpos.workers.dev/${onlineStoreSlug} تحت الرمز.`
+                    : 'طباعة رابط المتجر باللغة الإنجليزية تحت الرمز.'
+                }
+                checked={receiptOnlineStoreQrShowUrl}
+                onChange={(next) => setReceiptOnlineStoreQrShowUrl?.(next)}
+              />
+            </div>
+          )}
         </SettingsCard>
 
         <div ref={saveBarRef} className="sticky bottom-0 z-10 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-md rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -588,12 +742,18 @@ export const StoreProfileTab = ({
                   header: receiptHeader,
                   footer: receiptFooter,
                   signature: developerSignature,
+                  onlineStoreEnabled: Boolean(onlineStoreEnabled),
+                  onlineStoreSlug: onlineStoreSlug || '',
+                  onlineStoreQrLabel: receiptOnlineStoreQrLabel,
+                  onlineStoreQrText: receiptOnlineStoreQrText,
+                  onlineStoreQrShowUrl: receiptOnlineStoreQrShowUrl,
                 },
                 {
                   showCashier: showReceiptCashier,
                   showInvoiceNumber: showReceiptInvoiceNumber,
                   showPaid: showReceiptPaid,
                   showChange: showReceiptChange,
+                  showOnlineStoreQr: showReceiptOnlineStoreQr,
                   signatureVisible: developerSignatureVisible,
                   signatureImage: developerSignatureImage,
                   builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES,

@@ -9,7 +9,7 @@ export type ThemeIndustryGroup =
   | 'luxury'
   | 'tech';
 
-export type StoreLayoutTemplate = 'classic' | 'compact' | 'boutique';
+export type StoreLayoutTemplate = 'classic' | 'compact' | 'boutique' | 'food' | 'pharmacy';
 export type StoreCornerStyle = 'rounded' | 'sharp' | 'soft';
 
 export interface StoreThemeCustom {
@@ -114,23 +114,37 @@ export const STORE_LAYOUT_TEMPLATES: LayoutTemplateOption[] = [
   {
     id: 'classic',
     name: 'القالب الكلاسيكي المتوازن',
-    badge: 'الأكثر استخداماً',
-    description: 'شبكة عرض متوازنة 3 أعمدة مع شريط أقسام جانبي واضح وبطاقات غنية بالتفاصيل.',
-    bestFor: 'السوبرماركت والبقالة ومحلات التجزئة',
+    badge: 'الأكثر شمولاً',
+    description: 'شبكة عرض متوازنة مع شريط أقسام جانبي واضح وبطاقات غنية بالتفاصيل والأسعار.',
+    bestFor: 'المتاجر العامة ومحلات التجزئة والميني ماركت',
   },
   {
     id: 'compact',
-    name: 'القالب السريع الكثيف',
-    badge: 'طلب فوري',
-    description: 'شبكة عرض سريعة 4 أعمدة تعرض أكبر عدد من الأصناف لطلب فوري بدون تمرير طويل.',
-    bestFor: 'الهايبرماركت والصيدليات والمنظفات',
+    name: 'سوبرماركت وهايبرماركت سريع',
+    badge: 'كثافة وسرعة',
+    description: 'شبكة عرض سريعة مكثفة مع أزرار (+/-) فورية عريضة لإضافة سريعة لعشرات الأصناف.',
+    bestFor: 'السوبرماركت والهايبرماركت والخضروات والمنظفات',
   },
   {
     id: 'boutique',
-    name: 'قالب البوتيك الفاخر',
-    badge: 'عرض راقي',
-    description: 'بطاقات أوسع بمساحات تنفس أنيقة تبرز صور المنتجات والخصومات بلمسة عصرية.',
-    bestFor: 'العطور والمحامص والحلويات والأزياء',
+    name: 'بوتيك فاخر وموضة وعطور',
+    badge: 'عرض تحريري',
+    description: 'بطاقات صور رأسية فاخرة (4:5) مع مساحات تنفس وبساطة راقية تبرز بريق المعروضات.',
+    bestFor: 'العطور والساعات والمجوهرات والأزياء والهدايا',
+  },
+  {
+    id: 'food',
+    name: 'مطاعم وكافيهات ومخبوزات',
+    badge: 'شهي ومفصل',
+    description: 'بطاقات أفقية للمأكولات مع سطر المكونات وشارة وقت التجهيز المتوقع وإبراز الأصناف.',
+    bestFor: 'المطاعم، الكافيهات، المخابز، ومحلات البرجر والحلويات',
+  },
+  {
+    id: 'pharmacy',
+    name: 'صيدلية وعناية ومستحضرات',
+    badge: 'ثقة واعتماد',
+    description: 'تصميم عيادي منظم مع شارات الجرعة وحجم العبوة ومؤشر توفر الدواء وموثوقية الصيدلية.',
+    bestFor: 'الصيدليات، المكملات الغذائية، ومستحضرات التجميل',
   },
 ];
 
@@ -682,7 +696,7 @@ export function resolveThemePreset(presetKey: string | null | undefined): ThemeP
 
 export function resolveLayoutTemplate(custom?: StoreThemeCustom | null): StoreLayoutTemplate {
   const val = custom?.layoutTemplate;
-  if (val === 'compact' || val === 'boutique' || val === 'classic') return val;
+  if (val === 'compact' || val === 'boutique' || val === 'food' || val === 'pharmacy' || val === 'classic') return val;
   return 'classic';
 }
 

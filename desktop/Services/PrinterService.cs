@@ -1351,6 +1351,13 @@ namespace RafiqPOS.Services
             public bool SignatureVisible = true;
             public string SignatureImage = "";
             public string ThermalLogoMode = "dither";
+            public bool OnlineStoreEnabled = false;
+            public string OnlineStoreSlug = "";
+            public string OnlineStoreUrl = "";
+            public bool ShowOnlineStoreQr = true;
+            public string OnlineStoreQrLabel = "متجرنا الإلكتروني";
+            public string OnlineStoreQrText = "امسح الرمز لطلب المنتجات أونلاين";
+            public bool OnlineStoreQrShowUrl = true;
         }
 
         private sealed class ReceiptPaymentLine
@@ -1852,6 +1859,25 @@ namespace RafiqPOS.Services
             string signature = _settings != null ? _settings.Get("developer_signature", SettingsService.DefaultDeveloperSignature) : SettingsService.DefaultDeveloperSignature;
             if (SettingsService.IsLegacyOrBlankDeveloperSignature(signature)) signature = SettingsService.DefaultDeveloperSignature;
             info.Signature = SettingsService.NormalizeReceiptText(signature);
+
+            bool isStoreOn = false;
+            string storeSlug = "";
+            if (DatabaseService.SyncRepo != null)
+            {
+                isStoreOn = DatabaseService.SyncRepo.GetState("online_store_enabled", "0") == "1";
+                storeSlug = DatabaseService.SyncRepo.GetState("online_store_slug", "");
+            }
+            info.OnlineStoreEnabled = isStoreOn;
+            info.OnlineStoreSlug = storeSlug;
+            string customStoreUrl = ReadStoreSetting(store, "online_store_url");
+            info.OnlineStoreUrl = !string.IsNullOrWhiteSpace(customStoreUrl)
+                ? customStoreUrl.Trim()
+                : (!string.IsNullOrWhiteSpace(storeSlug) ? "https://store.rafiqpos.workers.dev/" + storeSlug.Trim() : "");
+            info.ShowOnlineStoreQr = ReadStoreSetting(store, "receipt_show_online_store_qr") != "0";
+            info.OnlineStoreQrLabel = ReadStoreSetting(store, "receipt_online_store_qr_label", "متجرنا الإلكتروني");
+            info.OnlineStoreQrText = ReadStoreSetting(store, "receipt_online_store_qr_text", "امسح الرمز لطلب المنتجات أونلاين");
+            info.OnlineStoreQrShowUrl = ReadStoreSetting(store, "receipt_online_store_qr_show_url", "1") != "0";
+
             return info;
         }
 
@@ -1860,6 +1886,13 @@ namespace RafiqPOS.Services
             string value;
             if (store != null && store.TryGetValue(key, out value) && value != null) return value.Trim();
             return "";
+        }
+
+        private static string ReadStoreSetting(Dictionary<string, string> store, string key, string fallback)
+        {
+            string value;
+            if (store != null && store.TryGetValue(key, out value) && value != null && value.Trim().Length > 0) return value.Trim();
+            return fallback;
         }
 
         /// <summary>أدوات الرسم: كل دالة تقيس ثم ترسم وتحرك Y، فلا يوجد نص مقطوع مهما طال</summary>
@@ -2599,6 +2632,79 @@ namespace RafiqPOS.Services
             p.Y += 2f;
         }
 
+        /// <summary>
+        /// رسم باركود QR للمتجر الإلكتروني في تذييل الفاتورة بنقاط صحيحة متناسبة مع عرض الورقة
+        /// </summary>
+        private static void DrawOnlineStoreQr(ReceiptPainter p, string url, string label, string text, bool showUrl)
+        {
+            if (string.IsNullOrEmpty(url)) return;
+            bool[,] matrix = QrCodeGenerator.Encode(url, QrCodeGenerator.EccLevel.Medium);
+            if (matrix == null) return;
+
+            p.Y += 2f;
+            if (!string.IsNullOrWhiteSpace(label))
+            {
+                p.WrapText(label, p.Bold, p.Center, ReceiptPainter.Pad, p.Usable);
+                p.Y += 1f;
+            }
+
+            int matrixSize = matrix.GetLength(0);
+            int quietModules = 2;
+            int totalModules = matrixSize + quietModules * 2;
+
+            float scale;
+            float originX;
+            float originY;
+            using (Matrix transform = p.G.Transform)
+            {
+                float[] e = transform.Elements;
+                scale = e[0] > 0f ? e[0] : 1f;
+                originX = e[4];
+                originY = e[5];
+            }
+
+            int paperDots = (int)Math.Round(p.W * scale);
+            int maxQrDots = p.Compact ? 160 : 240;
+            int moduleDots = Math.Max(1, maxQrDots / totalModules);
+            int widthDots = totalModules * moduleDots;
+            int left = (int)Math.Round(originX) + Math.Max(0, (paperDots - widthDots) / 2);
+
+            int top = (int)Math.Round(originY + p.Y * scale);
+
+            GraphicsState state = p.G.Save();
+            try
+            {
+                p.G.ResetTransform();
+                for (int r = 0; r < matrixSize; r++)
+                {
+                    int rowTop = top + (r + quietModules) * moduleDots;
+                    for (int c = 0; c < matrixSize; c++)
+                    {
+                        if (matrix[r, c])
+                        {
+                            p.G.FillRectangle(Brushes.Black, left + (c + quietModules) * moduleDots, rowTop, moduleDots, moduleDots);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                p.G.Restore(state);
+            }
+
+            p.Y += (widthDots / scale) + 1f;
+            if (showUrl)
+            {
+                string displayUrl = url.Replace("https://", "").Replace("http://", "");
+                p.WrapText(displayUrl, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+            }
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                p.WrapText(text, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+            }
+            p.Y += 1f;
+        }
+
         /// <summary>جدول الأصناف: الاسم بعرض كامل ملتفاً، وتحته الكمية | السعر | الإجمالي بأعمدة مقاسة (أو سطرين إذا لم تتسع)</summary>
         private static void DrawReceiptLines(ReceiptPainter p, List<ReceiptLine> lines, string headerNote = null)
         {
@@ -2904,6 +3010,11 @@ namespace RafiqPOS.Services
                 if (store.Footer.Length > 0)
                 {
                     p.WrapLines(store.Footer, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+                    hasFooterBlock = true;
+                }
+                if (store.OnlineStoreEnabled && store.ShowOnlineStoreQr && !string.IsNullOrEmpty(store.OnlineStoreUrl))
+                {
+                    DrawOnlineStoreQr(p, store.OnlineStoreUrl, store.OnlineStoreQrLabel, store.OnlineStoreQrText, store.OnlineStoreQrShowUrl);
                     hasFooterBlock = true;
                 }
                 // بدون خاتمة ولا ملاحظات يكفي الخط الفاصل السابق: لا خط مزدوج ولا فراغ

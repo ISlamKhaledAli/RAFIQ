@@ -229,6 +229,7 @@
     <Compile Include="Services\ProductVariantService.cs" />
     <Compile Include="Services\ProductVariantTestRunner.cs" />
     <Compile Include="Common\BarcodeGenerator.cs" />
+    <Compile Include="Common\QrCodeGenerator.cs" />
     <Compile Include="Models\BarcodeLabel.cs" />
     <Compile Include="Services\BarcodeLabelService.cs" />
     <Compile Include="Services\BarcodeLabelTestRunner.cs" />

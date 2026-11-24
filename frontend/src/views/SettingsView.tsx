@@ -66,6 +66,12 @@ const SettingsViewContent = ({
   const [showReceiptInvoiceNumber, setShowReceiptInvoiceNumber] = useState(true);
   const [showReceiptPaid, setShowReceiptPaid] = useState(true);
   const [showReceiptChange, setShowReceiptChange] = useState(true);
+  const [showReceiptOnlineStoreQr, setShowReceiptOnlineStoreQr] = useState(true);
+  const [receiptOnlineStoreQrText, setReceiptOnlineStoreQrText] = useState('امسح الرمز لطلب المنتجات أونلاين');
+  const [receiptOnlineStoreQrLabel, setReceiptOnlineStoreQrLabel] = useState('متجرنا الإلكتروني');
+  const [receiptOnlineStoreQrShowUrl, setReceiptOnlineStoreQrShowUrl] = useState(true);
+  const [onlineStoreEnabled, setOnlineStoreEnabled] = useState(false);
+  const [onlineStoreSlug, setOnlineStoreSlug] = useState('');
   const [storeLogoUrl, setStoreLogoUrl] = useState('/receipt_logo_square.png');
   const [thermalLogoMode, setThermalLogoMode] = useState<ThermalOptimizeMode>('dither');
   // Developer signature: edited on the root console, only read here to draw the receipt preview
@@ -100,6 +106,10 @@ const SettingsViewContent = ({
     showReceiptInvoiceNumber,
     showReceiptPaid,
     showReceiptChange,
+    showReceiptOnlineStoreQr,
+    receiptOnlineStoreQrText.trim(),
+    receiptOnlineStoreQrLabel.trim(),
+    receiptOnlineStoreQrShowUrl,
     storeLogoUrl,
     thermalLogoMode,
     rawLogoSource,
@@ -190,6 +200,18 @@ const SettingsViewContent = ({
           setShowReceiptInvoiceNumber(settings.receipt_show_invoice_number !== '0');
           setShowReceiptPaid(settings.receipt_show_paid !== '0');
           setShowReceiptChange(settings.receipt_show_change !== '0');
+          setShowReceiptOnlineStoreQr(settings.receipt_show_online_store_qr !== '0');
+          if (settings.receipt_online_store_qr_text !== undefined) {
+            setReceiptOnlineStoreQrText(settings.receipt_online_store_qr_text);
+          }
+          if (settings.receipt_online_store_qr_label !== undefined) {
+            setReceiptOnlineStoreQrLabel(settings.receipt_online_store_qr_label);
+          }
+          if (settings.receipt_online_store_qr_show_url !== undefined) {
+            setReceiptOnlineStoreQrShowUrl(settings.receipt_online_store_qr_show_url !== '0');
+          }
+          setOnlineStoreEnabled(settings.online_store_enabled === '1');
+          setOnlineStoreSlug(settings.online_store_slug || '');
           if (settings.store_logo_raw) {
             setRawLogoSource(settings.store_logo_raw);
           } else if (
@@ -287,6 +309,10 @@ const SettingsViewContent = ({
         receipt_show_invoice_number: showReceiptInvoiceNumber ? '1' : '0',
         receipt_show_paid: showReceiptPaid ? '1' : '0',
         receipt_show_change: showReceiptChange ? '1' : '0',
+        receipt_show_online_store_qr: showReceiptOnlineStoreQr ? '1' : '0',
+        receipt_online_store_qr_text: receiptOnlineStoreQrText.trim(),
+        receipt_online_store_qr_label: receiptOnlineStoreQrLabel.trim(),
+        receipt_online_store_qr_show_url: receiptOnlineStoreQrShowUrl ? '1' : '0',
         store_logo_url: storeLogoUrl,
         store_logo_raw: rawLogoSource || storeLogoUrl,
         thermal_logo_mode: thermalLogoMode,
@@ -624,6 +650,16 @@ const SettingsViewContent = ({
           setShowReceiptPaid={setShowReceiptPaid}
           showReceiptChange={showReceiptChange}
           setShowReceiptChange={setShowReceiptChange}
+          showReceiptOnlineStoreQr={showReceiptOnlineStoreQr}
+          setShowReceiptOnlineStoreQr={setShowReceiptOnlineStoreQr}
+          receiptOnlineStoreQrText={receiptOnlineStoreQrText}
+          setReceiptOnlineStoreQrText={setReceiptOnlineStoreQrText}
+          receiptOnlineStoreQrLabel={receiptOnlineStoreQrLabel}
+          setReceiptOnlineStoreQrLabel={setReceiptOnlineStoreQrLabel}
+          receiptOnlineStoreQrShowUrl={receiptOnlineStoreQrShowUrl}
+          setReceiptOnlineStoreQrShowUrl={setReceiptOnlineStoreQrShowUrl}
+          onlineStoreEnabled={onlineStoreEnabled}
+          onlineStoreSlug={onlineStoreSlug}
           storeLogoUrl={storeLogoUrl}
           setStoreLogoUrl={setStoreLogoUrl}
           rawLogoSource={rawLogoSource}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { CartItem, Store } from '../types';
 import { useModalAnimation } from '../hooks/useModalAnimation';
+import { useSwipeDownDismiss } from '../hooks/useSwipeDownDismiss';
 import {
   X,
   CheckCircle,
@@ -23,6 +24,7 @@ import {
   Upload,
   CheckCircle2,
   AlertCircle,
+  QrCode,
 } from 'lucide-react';
 
 interface Props {
@@ -59,6 +61,10 @@ export const CheckoutModal: React.FC<Props> = ({
   createOrderApi,
 }) => {
   const { mounted, visible } = useModalAnimation(isOpen, 280);
+  const { dragHandleProps, sheetStyle } = useSwipeDownDismiss({
+    onClose,
+    threshold: 80,
+  });
   const nameInputRef = useRef<HTMLInputElement>(null);
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const streetInputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +153,8 @@ export const CheckoutModal: React.FC<Props> = ({
   const [paymentRef, setPaymentRef] = useState('');
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
   const [copiedType, setCopiedType] = useState<string | null>(null);
+  const [showInstapayQr, setShowInstapayQr] = useState(false);
+  const [showWalletQr, setShowWalletQr] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -476,10 +484,18 @@ export const CheckoutModal: React.FC<Props> = ({
             ? 'translate-y-0 sm:scale-100 opacity-100'
             : 'translate-y-full sm:translate-y-6 sm:scale-95 opacity-0'
         }`}
-        style={{ backgroundColor: 'var(--store-card-bg, #FFFFFF)' }}
+        style={{
+          backgroundColor: 'var(--store-card-bg, #FFFFFF)',
+          ...sheetStyle,
+        }}
       >
-        {/* Mobile Swipe Handle Pill */}
-        <div className="sm:hidden w-12 h-1.5 bg-store-line rounded-full mx-auto my-2.5 flex-shrink-0"></div>
+        {/* Mobile Swipe Handle Pill with Touch Physics */}
+        <div
+          {...dragHandleProps}
+          className="sm:hidden w-full py-2.5 flex items-center justify-center cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+        >
+          <div className="w-12 h-1.5 bg-store-line rounded-full"></div>
+        </div>
 
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-store-line flex items-center justify-between bg-store-drawer-header flex-shrink-0">
@@ -861,10 +877,34 @@ export const CheckoutModal: React.FC<Props> = ({
                       </div>
                     )}
                   </div>
-                  <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-lg font-bold">
-                    حساب رسمي معتمد
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowInstapayQr(!showInstapayQr)}
+                      className="flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-2.5 py-1 rounded-xl transition-colors btn-spring cursor-pointer"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>{showInstapayQr ? 'إخفاء QR' : 'كود QR'}</span>
+                    </button>
+                    <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-lg font-bold">
+                      حساب رسمي معتمد
+                    </span>
+                  </div>
                 </div>
+
+                {showInstapayQr && (
+                  <div className="p-3 bg-store-card rounded-2xl border border-purple-200 text-center space-y-2 animate-in fade-in">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(instapayHandle)}`}
+                      alt="InstaPay QR Code"
+                      className="w-32 h-32 mx-auto rounded-xl border border-purple-200 p-1.5 bg-white shadow-2xs"
+                      loading="lazy"
+                    />
+                    <p className="text-[10px] text-purple-900 font-bold">
+                      امسح الكود بكاميرا الموبايل الآخر أو من داخل تطبيق إنستاباي للتحويل الفوري
+                    </p>
+                  </div>
+                )}
 
                 {/* Proof of Payment Upload & Verification */}
                 <div className="pt-2 border-t border-purple-200/80 space-y-2.5">
@@ -1001,18 +1041,42 @@ export const CheckoutModal: React.FC<Props> = ({
                       </div>
                     )}
                   </div>
-                  {activeWallet?.provider === 'vodafone_cash' && (
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => handleCopyText(ussdCode, 'ussd')}
-                      className="text-[11px] bg-rose-100 hover:bg-rose-200 text-rose-900 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 btn-spring"
-                      title="كود التحويل السريع لعملاء فودافون كاش"
+                      onClick={() => setShowWalletQr(!showWalletQr)}
+                      className="flex items-center gap-1 text-[11px] font-bold text-rose-700 hover:text-rose-900 bg-rose-100 hover:bg-rose-200 px-2.5 py-1 rounded-xl transition-colors btn-spring cursor-pointer"
                     >
-                      <Smartphone className="w-3.5 h-3.5 text-rose-700" />
-                      <span>{copiedType === 'ussd' ? 'تم نسخ الكود!' : 'كود التحويل المباشر'}</span>
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>{showWalletQr ? 'إخفاء QR' : 'كود QR'}</span>
                     </button>
-                  )}
+                    {activeWallet?.provider === 'vodafone_cash' && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(ussdCode, 'ussd')}
+                        className="text-[11px] bg-rose-100 hover:bg-rose-200 text-rose-900 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 btn-spring cursor-pointer"
+                        title="كود التحويل السريع لعملاء فودافون كاش"
+                      >
+                        <Smartphone className="w-3.5 h-3.5 text-rose-700" />
+                        <span>{copiedType === 'ussd' ? 'تم نسخ الكود!' : 'كود التحويل المباشر'}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {showWalletQr && (
+                  <div className="p-3 bg-store-card rounded-2xl border border-rose-200 text-center space-y-2 animate-in fade-in">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(vodafoneNumber)}`}
+                      alt="Wallet QR Code"
+                      className="w-32 h-32 mx-auto rounded-xl border border-rose-200 p-1.5 bg-white shadow-2xs"
+                      loading="lazy"
+                    />
+                    <p className="text-[10px] text-rose-900 font-bold">
+                      امسح الكود من تطبيق محفظتك الإلكترونية للتحويل الفوري
+                    </p>
+                  </div>
+                )}
 
                 {/* Proof of Payment Upload & Verification */}
                 <div className="pt-2 border-t border-rose-200/80 space-y-2.5">

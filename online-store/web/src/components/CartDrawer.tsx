@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { CartItem, Store, Product } from '../types';
 import { useModalAnimation } from '../hooks/useModalAnimation';
+import { useSwipeDownDismiss } from '../hooks/useSwipeDownDismiss';
 import { formatUnitArabic } from '../utils/unitFormatter';
 import { FreeShippingProgressBar } from './FreeShippingProgressBar';
 import { buildWhatsAppUrl } from '../utils/whatsapp';
@@ -63,6 +64,11 @@ export const CartDrawer: React.FC<Props> = ({
   const { mounted, visible } = useModalAnimation(isOpen, 280);
   const [isZoneDropdownOpen, setIsZoneDropdownOpen] = useState(false);
 
+  const { dragHandleProps, sheetStyle } = useSwipeDownDismiss({
+    onClose,
+    threshold: 75,
+  });
+
   // Safe integer calculations
   let subtotalPiasters = 0;
   cartItems.forEach(item => {
@@ -121,10 +127,18 @@ export const CartDrawer: React.FC<Props> = ({
             ? 'translate-y-0 sm:translate-x-0'
             : 'translate-y-full sm:translate-x-full'
         }`}
-        style={{ backgroundColor: 'var(--store-drawer-bg, #FFFFFF)' }}
+        style={{
+          backgroundColor: 'var(--store-drawer-bg, #FFFFFF)',
+          ...sheetStyle,
+        }}
       >
-        {/* Mobile Swipe Handle Pill */}
-        <div className="sm:hidden w-12 h-1.5 bg-slate-300 rounded-full mx-auto my-2.5 flex-shrink-0"></div>
+        {/* Mobile Swipe Handle Pill with Touch Physics */}
+        <div
+          {...dragHandleProps}
+          className="sm:hidden w-full py-2.5 flex items-center justify-center cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+        >
+          <div className="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
 
         {/* Drawer Header */}
         <div

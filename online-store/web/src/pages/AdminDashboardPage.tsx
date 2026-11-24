@@ -1704,7 +1704,7 @@ export const AdminDashboardPage: React.FC<Props> = ({
   return (
     <div
       dir="rtl"
-      className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#F4F6F8] text-slate-900 flex font-sans pb-20 lg:pb-0"
+      className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#F4F6F8] text-slate-900 flex font-sans pb-24 lg:pb-0"
     >
       {/* Printable Thermal Receipt (Hidden on Screen, Active on Print) */}
       {(orderToPrint || selectedOrder) && (
@@ -1907,7 +1907,7 @@ export const AdminDashboardPage: React.FC<Props> = ({
                   <Bell className="w-5 h-5 text-[#CED46A]" />
                 </div>
                 <div>
-                  <h4 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-black text-white flex items-center gap-2 flex-wrap">
                     <span>تفعيل تنبيهات الطلبات على الهاتف</span>
                     <span className="text-[10px] bg-[#CED46A] text-[#00372D] px-2 py-0.5 rounded-full font-black">
                       رنة + اهتزاز + إشعار
@@ -1923,7 +1923,7 @@ export const AdminDashboardPage: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={handleEnableMobileNotifications}
-                  className="px-4 py-2 rounded-xl bg-[#CED46A] hover:bg-[#dce17d] text-[#00372D] text-xs font-black shadow-md btn-spring cursor-pointer flex items-center gap-1.5"
+                  className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-[#CED46A] hover:bg-[#dce17d] text-[#00372D] text-xs font-black shadow-md btn-spring cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Volume2 className="w-3.5 h-3.5 text-[#00372D]" />
                   <span>تفعيل وتجربة التنبيه الصوتي</span>
@@ -1934,7 +1934,7 @@ export const AdminDashboardPage: React.FC<Props> = ({
                     setShowMobileNotificationBanner(false);
                     sessionStorage.setItem('rafiq_mobile_notif_dismissed', '1');
                   }}
-                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold btn-spring cursor-pointer"
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold btn-spring cursor-pointer flex-shrink-0"
                 >
                   لاحقاً
                 </button>
@@ -2198,8 +2198,15 @@ export const AdminDashboardPage: React.FC<Props> = ({
 
               {/* Mobile Order Detail Sheet */}
               {mobileDetailOpen && selectedOrder && (
-                <div className="fixed inset-0 z-50 lg:hidden bg-slate-900/60 flex flex-col justify-end">
-                  <div className="bg-white rounded-t-3xl max-h-[92vh] overflow-y-auto animate-sheet flex flex-col shadow-2xl">
+                <div
+                  onClick={() => setMobileDetailOpen(false)}
+                  className="fixed inset-0 z-50 lg:hidden bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end transition-opacity duration-200"
+                >
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    className="bg-white rounded-t-3xl max-h-[92vh] overflow-y-auto animate-sheet flex flex-col shadow-2xl border-t border-store-line"
+                  >
+                    <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto my-2.5 flex-shrink-0"></div>
                     <OrderDetailsPanel
                       order={selectedOrder}
                       store={store}
@@ -2323,7 +2330,7 @@ export const AdminDashboardPage: React.FC<Props> = ({
       {/* ========================================================================= */}
       {/* MOBILE THUMB-FRIENDLY BOTTOM NAVIGATION BAR (48px+ touch targets)         */}
       {/* ========================================================================= */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 px-1.5 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 px-1.5 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] pb-[max(0.375rem,env(safe-area-inset-bottom))]">
         <div className="grid grid-cols-5 gap-1">
           {mobileNavItems.map(item => {
             const Icon = item.icon;

@@ -105,6 +105,12 @@ export interface ReceiptStoreInput {
   header?: string | null;
   footer?: string | null;
   signature?: string | null;
+  onlineStoreEnabled?: boolean | null;
+  onlineStoreSlug?: string | null;
+  onlineStoreUrl?: string | null;
+  onlineStoreQrLabel?: string | null;
+  onlineStoreQrText?: string | null;
+  onlineStoreQrShowUrl?: boolean | null;
 }
 
 export interface ReceiptLineModel {
@@ -185,7 +191,17 @@ export interface ReceiptModel {
   signatureImageSrc: string | null;
   /** real invoice barcode between the payments and the footer; null for pre-bills, training receipts and sales without a valid invoice number */
   barcode: ReceiptBarcodeModel | null;
+  /** online store barcode / QR code in the footer; null when disabled or without slug */
+  onlineStoreQr: ReceiptOnlineStoreQrModel | null;
   totals: ReceiptTotals;
+}
+
+export interface ReceiptOnlineStoreQrModel {
+  url: string;
+  slug: string;
+  label: string;
+  subtext: string;
+  showUrl: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -554,6 +570,8 @@ export interface BuildReceiptOptions {
   signatureImageIndex?: number | null;
   /** store setting developer_signature_visible: false hides the whole signature block; default true */
   signatureVisible?: boolean;
+  /** false hides the online store QR barcode even if enabled; default true */
+  showOnlineStoreQr?: boolean;
 }
 
 export function buildReceiptModel(
@@ -634,6 +652,29 @@ export function buildReceiptModel(
   const coldChainNotice = hasColdChain ? COLD_CHAIN_NOTICE : '';
   const notes = !isPreBill ? clean(sale.notes) : '';
 
+  const onlineStoreEnabled = Boolean(store.onlineStoreEnabled);
+  const onlineStoreSlug = clean(store.onlineStoreSlug);
+  const showOnlineStoreQr = options.showOnlineStoreQr !== false;
+  let onlineStoreQr: ReceiptOnlineStoreQrModel | null = null;
+  if (onlineStoreEnabled && showOnlineStoreQr && onlineStoreSlug) {
+    const url = clean(store.onlineStoreUrl) || `https://store.rafiqpos.workers.dev/${onlineStoreSlug}`;
+    const qrLabel = store.onlineStoreQrLabel !== undefined && store.onlineStoreQrLabel !== null
+      ? clean(store.onlineStoreQrLabel)
+      : 'متجرنا الإلكتروني';
+    const qrText = store.onlineStoreQrText !== undefined && store.onlineStoreQrText !== null
+      ? clean(store.onlineStoreQrText)
+      : 'امسح الرمز لطلب المنتجات أونلاين';
+    const showUrl = store.onlineStoreQrShowUrl !== false;
+
+    onlineStoreQr = {
+      url,
+      slug: onlineStoreSlug,
+      label: qrLabel,
+      subtext: qrText,
+      showUrl,
+    };
+  }
+
   return {
     storeName: clean(store.name) || 'متجر رفيق',
     address: clean(store.address),
@@ -661,12 +702,13 @@ export function buildReceiptModel(
     notes,
     footer,
     footerLines,
-    footerBlock: coldChainNotice !== '' || notes !== '' || footerLines.length > 0,
+    footerBlock: coldChainNotice !== '' || notes !== '' || footerLines.length > 0 || Boolean(onlineStoreQr),
     signature,
     signatureLines,
     signatureVisible: options.signatureVisible !== false,
     signatureImageSrc: resolveSignatureImageSrc(options.signatureImage, isPreBill ? '' : clean(sale.id), options.builtInSignatureImages ?? [], options.signatureImageIndex),
     barcode: !isPreBill && status.toUpperCase() !== 'TEST_PILOT' && invoiceNumber > 0 ? { value: formatInvoiceBarcodeValue(invoiceNumber) } : null,
+    onlineStoreQr,
     totals: t,
   };
 }

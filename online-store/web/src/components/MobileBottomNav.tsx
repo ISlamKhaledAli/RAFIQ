@@ -29,13 +29,13 @@ export const MobileBottomNav: React.FC<Props> = ({
     prevCartCountRef.current = cartCount;
   }, [cartCount]);
   return (
-    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 glass-nav border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-1.5 py-1 bottom-safe">
+    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 glass-nav border-t border-store-line/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-1.5 py-1 bottom-safe bg-store-card/95 backdrop-blur-md">
       <div className="grid grid-cols-5 items-center justify-around">
         {/* Home */}
         <button
           onClick={() => onSelectTab('home')}
-          className={`flex flex-col items-center justify-center py-0.5 rounded-xl transition-colors ${
-            activeTab === 'home' ? 'text-store-primary' : 'text-slate-500 hover:text-slate-800'
+          className={`flex flex-col items-center justify-center py-0.5 rounded-xl transition-colors btn-spring cursor-pointer ${
+            activeTab === 'home' ? 'text-store-primary' : 'text-store-muted hover:text-store-text'
           }`}
         >
           <Home className={`w-[18px] h-[18px] ${activeTab === 'home' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
@@ -45,8 +45,8 @@ export const MobileBottomNav: React.FC<Props> = ({
         {/* Categories */}
         <button
           onClick={() => onSelectTab('categories')}
-          className={`flex flex-col items-center justify-center py-0.5 rounded-xl transition-colors ${
-            activeTab === 'categories' ? 'text-store-primary' : 'text-slate-500 hover:text-slate-800'
+          className={`flex flex-col items-center justify-center py-0.5 rounded-xl transition-colors btn-spring cursor-pointer ${
+            activeTab === 'categories' ? 'text-store-primary' : 'text-store-muted hover:text-store-text'
           }`}
         >
           <Layers className={`w-[18px] h-[18px] ${activeTab === 'categories' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
@@ -56,7 +56,7 @@ export const MobileBottomNav: React.FC<Props> = ({
         {/* Cart */}
         <button
           onClick={onOpenCart}
-          className="relative flex flex-col items-center justify-center py-0.5 text-slate-700 hover:text-store-primary transition-colors"
+          className="relative flex flex-col items-center justify-center py-0.5 text-store-muted hover:text-store-primary transition-colors btn-spring cursor-pointer"
         >
           <div className="relative">
             <ShoppingBag className="w-[18px] h-[18px] stroke-[2]" />
@@ -75,7 +75,7 @@ export const MobileBottomNav: React.FC<Props> = ({
         {/* Orders Tracker */}
         <button
           onClick={onOpenTracker}
-          className="flex flex-col items-center justify-center py-0.5 text-slate-500 hover:text-slate-800 transition-colors"
+          className="flex flex-col items-center justify-center py-0.5 text-store-muted hover:text-store-text transition-colors btn-spring cursor-pointer"
         >
           <Clock className="w-[18px] h-[18px] stroke-[1.8]" />
           <span className="text-[10px] mt-0.5 font-bold leading-tight">أوردراتي</span>
@@ -87,7 +87,7 @@ export const MobileBottomNav: React.FC<Props> = ({
             href={buildWhatsAppUrl(whatsappPhone)}
             target="_blank"
             rel="noreferrer"
-            className="flex flex-col items-center justify-center py-0.5 text-emerald-600 hover:text-emerald-700 transition-colors"
+            className="flex flex-col items-center justify-center py-0.5 text-emerald-600 hover:text-emerald-700 transition-colors btn-spring"
           >
             <MessageSquare className="w-[18px] h-[18px] stroke-[2]" />
             <span className="text-[10px] mt-0.5 font-bold leading-tight">محادثة</span>

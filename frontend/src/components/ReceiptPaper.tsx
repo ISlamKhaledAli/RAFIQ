@@ -1,5 +1,6 @@
 import { encodeInvoiceBarcode, layoutReceiptBarcode, layoutReceiptTable, RECEIPT_CURRENCY, RECEIPT_DPI } from '../utils/receiptLayout';
-import type { ReceiptModel, ReceiptPaperWidth, ReceiptRow } from '../utils/receiptLayout';
+import type { ReceiptModel, ReceiptOnlineStoreQrModel, ReceiptPaperWidth, ReceiptRow } from '../utils/receiptLayout';
+import { buildQrSvgPath, encodeQrMatrix } from '../utils/qrCode';
 
 interface ReceiptPaperProps {
   model: ReceiptModel;
@@ -59,6 +60,46 @@ function InvoiceBarcode({ value, paper, showText = true }: { value: string; pape
           {value}
         </div>
       )}
+    </div>
+  );
+}
+
+// Online store QR barcode in receipt footer: crisp SVG vector with quiet zone, size adapted to paper width
+function OnlineStoreQr({ qr, paper }: { qr: ReceiptOnlineStoreQrModel; paper: ReceiptPaperWidth }) {
+  const is57mm = paper === '57mm';
+  const matrix = encodeQrMatrix(qr.url, 'M');
+  if (!matrix) return null;
+  const { path, totalSize } = buildQrSvgPath(matrix, 2);
+
+  // 80mm: ~24mm (approx 90px); 57mm: ~20mm (approx 76px)
+  const sizePx = is57mm ? 76 : 90;
+
+  return (
+    <div className="mt-2 text-center select-text">
+      {qr.label ? <div className="text-micro font-bold text-black mb-1">{qr.label}</div> : null}
+      <div className="inline-block p-1 bg-white border border-line rounded">
+        <svg
+          role="img"
+          aria-label={`باركود المتجر الإلكتروني ${qr.url}`}
+          className="block mx-auto"
+          style={{ width: `${sizePx}px`, height: `${sizePx}px` }}
+          viewBox={`0 0 ${totalSize} ${totalSize}`}
+          shapeRendering="crispEdges"
+        >
+          <rect width={totalSize} height={totalSize} fill="white" />
+          <path d={path} fill="black" />
+        </svg>
+      </div>
+      {qr.showUrl && (
+        <div dir="ltr" className="text-micro font-mono text-black font-semibold mt-1 break-all select-text">
+          {qr.url.replace(/^https?:\/\//, '')}
+        </div>
+      )}
+      {qr.subtext ? (
+        <div className="text-micro text-ink-muted mt-0.5 leading-snug">
+          {qr.subtext}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -244,6 +285,10 @@ export function ReceiptPaper({ model, paper, logoUrl, id }: ReceiptPaperProps) {
             <div key={i} className="break-words min-h-[1em]">{line}</div>
           ))}
         </div>
+      )}
+
+      {model.onlineStoreQr && (
+        <OnlineStoreQr qr={model.onlineStoreQr} paper={paper} />
       )}
 
       {model.signatureVisible && (

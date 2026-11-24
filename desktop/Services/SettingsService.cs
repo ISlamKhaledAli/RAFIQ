@@ -40,6 +40,15 @@ namespace RafiqPOS.Services
             if (!settings.ContainsKey("receipt_show_invoice_number")) settings["receipt_show_invoice_number"] = "1";
             if (!settings.ContainsKey("receipt_show_paid")) settings["receipt_show_paid"] = "1";
             if (!settings.ContainsKey("receipt_show_change")) settings["receipt_show_change"] = "1";
+            if (!settings.ContainsKey("receipt_show_online_store_qr")) settings["receipt_show_online_store_qr"] = "1";
+            if (!settings.ContainsKey("receipt_online_store_qr_label")) settings["receipt_online_store_qr_label"] = "متجرنا الإلكتروني";
+            if (!settings.ContainsKey("receipt_online_store_qr_text")) settings["receipt_online_store_qr_text"] = "امسح الرمز لطلب المنتجات أونلاين";
+            if (!settings.ContainsKey("receipt_online_store_qr_show_url")) settings["receipt_online_store_qr_show_url"] = "1";
+            if (DatabaseService.SyncRepo != null)
+            {
+                settings["online_store_enabled"] = DatabaseService.SyncRepo.GetState("online_store_enabled", "0");
+                settings["online_store_slug"] = DatabaseService.SyncRepo.GetState("online_store_slug", "");
+            }
             if (!settings.ContainsKey(UiMotionKey)) settings[UiMotionKey] = UiMotionDefault;
             if (!settings.ContainsKey(UiMotionLevelKey)) settings[UiMotionLevelKey] = GetDetectedDefaultMotionLevel();
             if (!settings.ContainsKey(UiMotionStyleKey)) settings[UiMotionStyleKey] = UiMotionStyleDefault;

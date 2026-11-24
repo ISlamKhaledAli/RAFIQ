@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   PauseCircle,
   Command,
+  MoreVertical,
 } from 'lucide-react';
 
 export type AdminHeaderTab = 'orders' | 'overview' | 'products' | 'settings' | 'theme';
@@ -97,9 +98,11 @@ export const AdminTopHeader: React.FC<Props> = ({
   const [commandQuery, setCommandQuery] = useState('');
   const [activeCommandIdx, setActiveCommandIdx] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const commandInputRef = useRef<HTMLInputElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
 
   const ActiveTabIcon = TAB_CONFIG[activeTab].icon;
 
@@ -109,10 +112,12 @@ export const AdminTopHeader: React.FC<Props> = ({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setBellOpen(false);
+        setMoreOpen(false);
         setCommandOpen(prev => !prev);
       } else if (e.key === 'Escape') {
         setCommandOpen(false);
         setBellOpen(false);
+        setMoreOpen(false);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -139,6 +144,18 @@ export const AdminTopHeader: React.FC<Props> = ({
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [bellOpen]);
+
+  // Close More menu on outside click
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [moreOpen]);
 
   const pendingOrders = useMemo(
     () => orders.filter(o => o.status === 'new' || o.status === 'viewed').slice(0, 6),
@@ -303,7 +320,7 @@ export const AdminTopHeader: React.FC<Props> = ({
       {/* Sleek 56px Executive Topbar (Stripe / Linear / Shopify Polaris Grade) */}
       <header className="sticky top-0 z-30 bg-white border-b border-[#DCE1DC] px-3.5 sm:px-6 h-14 flex items-center justify-between gap-3 shrink-0">
         {/* ZONE 1 (RIGHT): Compact Breadcrumb + Store Logo Avatar + Store Live Status Pill */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 sm:flex-initial">
           {/* Store Logo Avatar (Mobile & Desktop) */}
           <div className="w-8 h-8 rounded-xl bg-white border border-[#DCE1DC] p-1 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-2xs" title={storeName}>
             <img
@@ -322,11 +339,11 @@ export const AdminTopHeader: React.FC<Props> = ({
             </span>
             <ChevronLeft className="hidden sm:inline w-3.5 h-3.5 text-[#B5C0B7] flex-shrink-0" />
 
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
               <span className="hidden sm:inline-flex w-7 h-7 rounded-lg bg-[#E6F2ED] text-[#004D3F] items-center justify-center flex-shrink-0">
                 <ActiveTabIcon className="w-3.5 h-3.5" />
               </span>
-              <h1 className="text-[13px] sm:text-sm font-black text-[#0F172A] truncate">
+              <h1 className="text-xs sm:text-sm font-black text-[#0F172A] truncate">
                 {TAB_CONFIG[activeTab].label}
               </h1>
             </div>
@@ -384,12 +401,12 @@ export const AdminTopHeader: React.FC<Props> = ({
         </div>
 
         {/* ZONE 3 (LEFT): Precision Utility Icon Cluster + Unified Store Split-Control */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
           {/* Mobile Search Icon */}
           <button
             type="button"
             onClick={() => setCommandOpen(true)}
-            className="md:hidden w-9 h-9 rounded-xl text-[#52605D] hover:text-[#004D3F] hover:bg-[#F1F5F4] flex items-center justify-center transition-colors cursor-pointer"
+            className="md:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-[#52605D] hover:text-[#004D3F] hover:bg-[#F1F5F4] flex items-center justify-center transition-colors cursor-pointer"
             title="بحث سريع (Ctrl+K)"
           >
             <Search className="w-4 h-4" />
@@ -402,7 +419,7 @@ export const AdminTopHeader: React.FC<Props> = ({
                 type="button"
                 onClick={onRefresh}
                 disabled={isLoadingOrders}
-                className="w-9 h-9 rounded-xl text-[#52605D] hover:text-[#004D3F] hover:bg-[#F1F5F4] flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-[#52605D] hover:text-[#004D3F] hover:bg-[#F1F5F4] flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
                 title={isLoadingOrders ? 'جاري التحديث من السحابة...' : 'تحديث البيانات من السحابة'}
               >
                 <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin text-[#004D3F]' : ''}`} />
@@ -413,7 +430,7 @@ export const AdminTopHeader: React.FC<Props> = ({
             <button
               type="button"
               onClick={onToggleSound}
-              className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+              className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
                 soundEnabled
                   ? 'text-[#004D3F] hover:bg-[#E6F2ED]'
                   : 'text-[#52605D] hover:bg-[#F1F5F4]'
@@ -422,7 +439,7 @@ export const AdminTopHeader: React.FC<Props> = ({
             >
               {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
               {soundEnabled && (
-                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#006D41]" />
+                <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-1.5 h-1.5 rounded-full bg-[#006D41]" />
               )}
             </button>
 
@@ -430,8 +447,11 @@ export const AdminTopHeader: React.FC<Props> = ({
             <div ref={bellRef} className="relative">
               <button
                 type="button"
-                onClick={() => setBellOpen(prev => !prev)}
-                className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                onClick={() => {
+                  setBellOpen(prev => !prev);
+                  setMoreOpen(false);
+                }}
+                className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
                   bellOpen
                     ? 'bg-[#E6F2ED] text-[#004D3F]'
                     : 'text-[#52605D] hover:text-[#004D3F] hover:bg-[#F1F5F4]'
@@ -447,106 +467,126 @@ export const AdminTopHeader: React.FC<Props> = ({
               </button>
 
               {bellOpen && (
-                <div className="absolute left-0 mt-2 w-80 bg-white rounded-2xl border border-[#DCE1DC] shadow-2xl overflow-hidden z-50">
-                  <div className="px-4 py-3 bg-[#F8FAFC] border-b border-[#DCE1DC] flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Bell className="w-3.5 h-3.5 text-[#004D3F]" />
-                      <span className="text-xs font-black text-[#0F172A]">الطلبات بانتظار التأكيد</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-[#E6F2ED] text-[#004D3F] text-[10px] font-black font-mono">
-                      {pendingOrdersCount}
-                    </span>
-                  </div>
+                <>
+                  {/* Backdrop on mobile */}
+                  <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 sm:hidden animate-in fade-in duration-150"
+                    onClick={() => setBellOpen(false)}
+                    aria-hidden="true"
+                  />
 
-                  {pendingOrders.length === 0 ? (
-                    <div className="px-4 py-8 text-center space-y-1.5">
-                      <CheckCircle2 className="w-7 h-7 text-[#006D41]/70 mx-auto" />
-                      <p className="text-xs font-bold text-[#0F172A]">كل الطلبات تمت مراجعتها</p>
-                      <p className="text-[11px] text-[#52605D]">
-                        سيظهر هنا أي أوردر جديد بمجرد وصوله من المتجر.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-[#DCE1DC]/70 max-h-72 overflow-y-auto">
-                      {pendingOrders.map(ord => (
+                  {/* Popover Card: Safe on mobile (fixed, inset-x-3, top-16) and desktop (absolute left-0 top-full mt-2 w-80) */}
+                  <div className="fixed inset-x-3 top-16 max-w-sm mx-auto sm:max-w-none sm:mx-0 sm:inset-auto sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-80 bg-white rounded-2xl border border-[#DCE1DC] shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 sm:slide-in-from-top-1 duration-150">
+                    <div className="px-4 py-3 bg-[#F8FAFC] border-b border-[#DCE1DC] flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-3.5 h-3.5 text-[#004D3F]" />
+                        <span className="text-xs font-black text-[#0F172A]">الطلبات بانتظار التأكيد</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-full bg-[#E6F2ED] text-[#004D3F] text-[10px] font-black font-mono">
+                          {pendingOrdersCount}
+                        </span>
                         <button
-                          key={ord.id}
                           type="button"
-                          onClick={() => {
-                            onSelectOrder(ord.id);
-                            onNavigateTab('orders');
-                            setBellOpen(false);
-                          }}
-                          className="w-full px-4 py-3 text-right hover:bg-[#F8FAFC] transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                          onClick={() => setBellOpen(false)}
+                          className="sm:hidden p-1 rounded-lg text-[#52605D] hover:text-[#0F172A] hover:bg-[#F1F5F4] transition-colors"
+                          title="إغلاق"
                         >
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-black text-[#0F172A] truncate">
-                                {ord.customer_name}
-                              </span>
-                              <span className="text-[10px] font-mono font-bold text-[#004D3F]" dir="ltr">
-                                #ORD-{ord.order_number}
-                              </span>
-                            </div>
-                            <div className="text-[10px] text-[#52605D] flex items-center gap-1.5 mt-0.5">
-                              <Clock className="w-3 h-3" />
-                              <span>{ord.created_at}</span>
-                              <span>•</span>
-                              <span className="truncate">{ord.address_zone}</span>
-                            </div>
-                          </div>
-                          <span className="text-xs font-black text-[#004D3F] font-mono flex-shrink-0" dir="ltr">
-                            {(ord.total / 100).toFixed(2)} ج.م
-                          </span>
+                          <X className="w-3.5 h-3.5" />
                         </button>
-                      ))}
+                      </div>
                     </div>
-                  )}
 
-                  <div className="p-2 bg-[#F8FAFC] border-t border-[#DCE1DC] flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onNavigateTab('orders');
-                        setBellOpen(false);
-                      }}
-                      className="flex-1 py-1.5 rounded-xl text-[11px] font-black text-[#004D3F] hover:bg-[#E6F2ED] transition-colors cursor-pointer text-center"
-                    >
-                      عرض كل الأوردرات
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (getNotificationPermission() === 'default') {
-                          await requestNotificationPermission();
-                        }
-                        alertNewOrder(
-                          {
-                            orderId: 'test-ping',
-                            orderNumber: 'TEST',
-                            customerName: 'فحص جرس واهتزاز الهاتف',
-                            totalPounds: '100.00',
-                            zone: 'الهاتف جاهز',
-                          },
-                          true
-                        );
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold text-[#52605D] hover:text-[#004D3F] hover:bg-[#E6F2ED] transition-colors cursor-pointer flex items-center gap-1 border border-[#DCE1DC]"
-                      title="تجربة رنة التنبيه والاهتزاز على الهاتف"
-                    >
-                      <Volume2 className="w-3 h-3 text-[#004D3F]" />
-                      <span>تجربة التنبيه 🔔</span>
-                    </button>
+                    {pendingOrders.length === 0 ? (
+                      <div className="px-4 py-8 text-center space-y-1.5">
+                        <CheckCircle2 className="w-7 h-7 text-[#006D41]/70 mx-auto" />
+                        <p className="text-xs font-bold text-[#0F172A]">كل الطلبات تمت مراجعتها</p>
+                        <p className="text-[11px] text-[#52605D]">
+                          سيظهر هنا أي أوردر جديد بمجرد وصوله من المتجر.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-[#DCE1DC]/70 max-h-72 overflow-y-auto">
+                        {pendingOrders.map(ord => (
+                          <button
+                            key={ord.id}
+                            type="button"
+                            onClick={() => {
+                              onSelectOrder(ord.id);
+                              onNavigateTab('orders');
+                              setBellOpen(false);
+                            }}
+                            className="w-full px-4 py-3 text-right hover:bg-[#F8FAFC] transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-black text-[#0F172A] truncate">
+                                  {ord.customer_name}
+                                </span>
+                                <span className="text-[10px] font-mono font-bold text-[#004D3F]" dir="ltr">
+                                  #ORD-{ord.order_number}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-[#52605D] flex items-center gap-1.5 mt-0.5">
+                                <Clock className="w-3 h-3" />
+                                <span>{ord.created_at}</span>
+                                <span>•</span>
+                                <span className="truncate">{ord.address_zone}</span>
+                              </div>
+                            </div>
+                            <span className="text-xs font-black text-[#004D3F] font-mono flex-shrink-0" dir="ltr">
+                              {(ord.total / 100).toFixed(2)} ج.م
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="p-2 bg-[#F8FAFC] border-t border-[#DCE1DC] flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onNavigateTab('orders');
+                          setBellOpen(false);
+                        }}
+                        className="flex-1 py-1.5 rounded-xl text-[11px] font-black text-[#004D3F] hover:bg-[#E6F2ED] transition-colors cursor-pointer text-center"
+                      >
+                        عرض كل الأوردرات
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (getNotificationPermission() === 'default') {
+                            await requestNotificationPermission();
+                          }
+                          alertNewOrder(
+                            {
+                              orderId: 'test-ping',
+                              orderNumber: 'TEST',
+                              customerName: 'فحص جرس واهتزاز الهاتف',
+                              totalPounds: '100.00',
+                              zone: 'الهاتف جاهز',
+                            },
+                            true
+                          );
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold text-[#52605D] hover:text-[#004D3F] hover:bg-[#E6F2ED] transition-colors cursor-pointer flex items-center gap-1.5 border border-[#DCE1DC]"
+                        title="تجربة رنة التنبيه والاهتزاز على الهاتف"
+                      >
+                        <Volume2 className="w-3 h-3 text-[#004D3F]" />
+                        <span>تجربة التنبيه</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
           </div>
 
           <span className="hidden sm:block h-5 w-px bg-[#DCE1DC] mx-0.5" aria-hidden="true" />
 
-          {/* Unified Store Split-Control: [معاينة المتجر | نسخ الرابط] */}
-          <div className="inline-flex items-stretch rounded-xl overflow-hidden border border-[#004D3F]/20 shadow-sm h-9">
+          {/* Desktop & Tablet: Unified Store Split-Control [معاينة المتجر | نسخ الرابط] */}
+          <div className="hidden sm:inline-flex items-stretch rounded-xl overflow-hidden border border-[#004D3F]/20 shadow-sm h-9">
             <button
               type="button"
               onClick={onOpenStore}
@@ -554,7 +594,7 @@ export const AdminTopHeader: React.FC<Props> = ({
               title="فتح ومعاينة المتجر الإلكتروني"
             >
               <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="hidden sm:inline">معاينة المتجر</span>
+              <span>معاينة المتجر</span>
             </button>
             <button
               type="button"
@@ -577,15 +617,92 @@ export const AdminTopHeader: React.FC<Props> = ({
             </button>
           </div>
 
-          {/* Mobile Logout Button */}
+          {/* Desktop / Tablet Logout Button */}
           <button
             type="button"
             onClick={onLogout}
-            className="lg:hidden w-9 h-9 rounded-xl text-[#52605D] hover:text-[#B23A2E] hover:bg-[#FDF2F2] flex items-center justify-center transition-colors cursor-pointer"
+            className="hidden sm:flex lg:hidden w-9 h-9 rounded-xl text-[#52605D] hover:text-[#B23A2E] hover:bg-[#FDF2F2] items-center justify-center transition-colors cursor-pointer"
             title="تسجيل الخروج"
           >
             <LogOut className="w-4 h-4" />
           </button>
+
+          {/* Mobile Only: Compact Store & Account Overflow Menu */}
+          <div ref={moreRef} className="relative sm:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setMoreOpen(prev => !prev);
+                setBellOpen(false);
+              }}
+              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                moreOpen
+                  ? 'bg-[#E6F2ED] text-[#004D3F]'
+                  : 'text-[#52605D] hover:text-[#004D3F] hover:bg-[#F1F5F4]'
+              }`}
+              title="خيارات المتجر والحساب"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+
+            {moreOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/20"
+                  onClick={() => setMoreOpen(false)}
+                  aria-hidden="true"
+                />
+                <div className="absolute left-0 mt-2 w-48 bg-white rounded-2xl border border-[#DCE1DC] shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      onOpenStore();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-[#0F172A] hover:bg-[#E6F2ED] hover:text-[#004D3F] rounded-xl transition-colors text-right cursor-pointer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-[#004D3F]" />
+                    <span>معاينة المتجر الحي</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onCopyUrl();
+                      setMoreOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-[#0F172A] hover:bg-[#E6F2ED] hover:text-[#004D3F] rounded-xl transition-colors text-right cursor-pointer"
+                  >
+                    {copiedHeaderLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-[#006D41]" />
+                        <span className="text-[#006D41]">تم نسخ الرابط!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-[#52605D]" />
+                        <span>نسخ رابط المتجر</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="my-1 border-t border-[#DCE1DC]/70" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      onLogout();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-[#B23A2E] hover:bg-[#FDF2F2] rounded-xl transition-colors text-right cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>تسجيل الخروج</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 

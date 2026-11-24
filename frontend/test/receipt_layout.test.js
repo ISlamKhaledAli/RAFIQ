@@ -840,3 +840,88 @@ test('the receipt model uses the cleaned name and falls back to "صنف" when no
   assert.equal(model.lines[0].name, 'حلوى بالفراولة');
   assert.equal(model.lines[1].name, 'صنف');
 });
+
+test('online store QR barcode: appears only when online store is enabled with valid slug and toggle is on', () => {
+  const sale = makeSale([item('خبز', 1000, 100)]);
+
+  // 1. Online store enabled with slug -> QR code model is present and footerBlock is true
+  const modelEnabled = buildReceiptModel(
+    sale,
+    {
+      ...STORE,
+      footer: '',
+      onlineStoreEnabled: true,
+      onlineStoreSlug: 'souq-al-khair',
+    },
+    { showOnlineStoreQr: true }
+  );
+  assert.ok(modelEnabled.onlineStoreQr, 'QR model should be populated when online store is on');
+  assert.equal(modelEnabled.onlineStoreQr.url, 'https://store.rafiqpos.workers.dev/souq-al-khair');
+  assert.equal(modelEnabled.onlineStoreQr.slug, 'souq-al-khair');
+  assert.equal(modelEnabled.onlineStoreQr.label, 'متجرنا الإلكتروني');
+  assert.equal(modelEnabled.onlineStoreQr.subtext, 'امسح الرمز لطلب المنتجات أونلاين');
+  assert.equal(modelEnabled.onlineStoreQr.showUrl, true);
+  assert.equal(modelEnabled.footerBlock, true, 'QR code counts as part of the footer block');
+
+  // 1b. Custom label, custom prompt text, and showUrl toggle
+  const modelCustom = buildReceiptModel(
+    sale,
+    {
+      ...STORE,
+      footer: '',
+      onlineStoreEnabled: true,
+      onlineStoreSlug: 'souq-al-khair',
+      onlineStoreQrLabel: 'اطلب أونلاين',
+      onlineStoreQrText: 'خدمة توصيل سريعة حتى باب البيت',
+      onlineStoreQrShowUrl: false,
+    },
+    { showOnlineStoreQr: true }
+  );
+  assert.equal(modelCustom.onlineStoreQr?.label, 'اطلب أونلاين');
+  assert.equal(modelCustom.onlineStoreQr?.subtext, 'خدمة توصيل سريعة حتى باب البيت');
+  assert.equal(modelCustom.onlineStoreQr?.showUrl, false);
+
+  // 2. Online store disabled -> QR code is absent
+  const modelDisabled = buildReceiptModel(
+    sale,
+    {
+      ...STORE,
+      footer: '',
+      onlineStoreEnabled: false,
+      onlineStoreSlug: 'souq-al-khair',
+    },
+    { showOnlineStoreQr: true }
+  );
+  assert.equal(modelDisabled.onlineStoreQr, null, 'QR should be null when store is disabled');
+
+  // 3. Online store enabled but blank slug -> QR code is absent
+  const modelBlankSlug = buildReceiptModel(
+    sale,
+    {
+      ...STORE,
+      footer: '',
+      onlineStoreEnabled: true,
+      onlineStoreSlug: '   ',
+    },
+    { showOnlineStoreQr: true }
+  );
+  assert.equal(modelBlankSlug.onlineStoreQr, null, 'QR should be null when slug is empty');
+
+  // 4. Online store enabled but showOnlineStoreQr = false -> QR code is absent
+  const modelToggledOff = buildReceiptModel(
+    sale,
+    {
+      ...STORE,
+      footer: '',
+      onlineStoreEnabled: true,
+      onlineStoreSlug: 'souq-al-khair',
+    },
+    { showOnlineStoreQr: false }
+  );
+  assert.equal(modelToggledOff.onlineStoreQr, null, 'QR should be null when toggle is off');
+
+  // 5. C# PrinterService parity check
+  const cs = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'), 'utf8');
+  assert.ok(cs.includes('DrawOnlineStoreQr(p, store.OnlineStoreUrl, store.OnlineStoreQrLabel, store.OnlineStoreQrText, store.OnlineStoreQrShowUrl);'), 'PrinterService draws the online store QR with custom text');
+  assert.ok(cs.includes('store.OnlineStoreEnabled && store.ShowOnlineStoreQr && !string.IsNullOrEmpty(store.OnlineStoreUrl)'), 'PrinterService guards QR by store enabled and toggle');
+});

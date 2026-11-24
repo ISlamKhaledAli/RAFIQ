@@ -120,11 +120,13 @@ export const ThemeStudioPanel: React.FC<Props> = ({
 
   const previewGridCols =
     previewDevice === 'mobile'
-      ? activeLayout === 'boutique'
+      ? activeLayout === 'boutique' || activeLayout === 'food'
         ? 'grid-cols-1'
         : 'grid-cols-2'
-      : activeLayout === 'compact'
+      : activeLayout === 'compact' || activeLayout === 'pharmacy'
       ? 'grid-cols-3'
+      : activeLayout === 'food' || activeLayout === 'boutique'
+      ? 'grid-cols-2'
       : 'grid-cols-2';
 
   return (
@@ -206,7 +208,7 @@ export const ThemeStudioPanel: React.FC<Props> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
               {STORE_LAYOUT_TEMPLATES.map(tpl => {
                 const isSelected = activeLayout === tpl.id;
                 return (
@@ -242,6 +244,31 @@ export const ThemeStudioPanel: React.FC<Props> = ({
                         <div className="grid grid-cols-2 gap-2 flex-1">
                           <div className="rounded-lg bg-store-primary/18 border border-store-primary/25" />
                           <div className="rounded-lg bg-store-primary/18 border border-store-primary/25" />
+                        </div>
+                      )}
+                      {tpl.id === 'food' && (
+                        <div className="flex flex-col gap-1 flex-1 justify-center">
+                          <div className="flex items-center gap-1.5 h-4 rounded bg-store-primary/15 border border-store-primary/20 px-1">
+                            <div className="w-2.5 h-2.5 rounded bg-store-primary/30" />
+                            <div className="h-1 flex-1 rounded bg-store-primary/25" />
+                          </div>
+                          <div className="flex items-center gap-1.5 h-4 rounded bg-store-primary/15 border border-store-primary/20 px-1">
+                            <div className="w-2.5 h-2.5 rounded bg-store-primary/30" />
+                            <div className="h-1 flex-1 rounded bg-store-primary/25" />
+                          </div>
+                        </div>
+                      )}
+                      {tpl.id === 'pharmacy' && (
+                        <div className="grid grid-cols-3 gap-1 flex-1">
+                          <div className="rounded bg-store-primary/15 border border-store-primary/20 flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-store-primary/40" />
+                          </div>
+                          <div className="rounded bg-store-primary/15 border border-store-primary/20 flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-store-primary/40" />
+                          </div>
+                          <div className="rounded bg-store-primary/15 border border-store-primary/20 flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-store-primary/40" />
+                          </div>
                         </div>
                       )}
                     </div>

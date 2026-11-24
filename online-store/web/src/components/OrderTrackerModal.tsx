@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Order } from '../types';
 import { useModalAnimation } from '../hooks/useModalAnimation';
+import { useSwipeDownDismiss } from '../hooks/useSwipeDownDismiss';
 import { X, Search, Clock, Check, AlertTriangle, Package, Loader2 } from 'lucide-react';
 import { playStatusPing, triggerOrderVibration } from './admin/audioChime';
 
@@ -12,6 +13,10 @@ interface Props {
 
 export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrderApi }) => {
   const { mounted, visible } = useModalAnimation(isOpen, 280);
+  const { dragHandleProps, sheetStyle } = useSwipeDownDismiss({
+    onClose,
+    threshold: 75,
+  });
 
   const [orderNumber, setOrderNumber] = useState('');
   const [phone, setPhone] = useState('');
@@ -87,9 +92,15 @@ export const OrderTrackerModal: React.FC<Props> = ({ isOpen, onClose, trackOrder
             ? 'translate-y-0 sm:scale-100 opacity-100'
             : 'translate-y-full sm:translate-y-6 sm:scale-95 opacity-0'
         }`}
+        style={sheetStyle}
       >
-        {/* Mobile Swipe Handle */}
-        <div className="sm:hidden w-12 h-1.5 bg-store-line rounded-full mx-auto my-2.5 flex-shrink-0"></div>
+        {/* Mobile Swipe Handle with Touch Physics */}
+        <div
+          {...dragHandleProps}
+          className="sm:hidden w-full py-2.5 flex items-center justify-center cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+        >
+          <div className="w-12 h-1.5 bg-store-line rounded-full"></div>
+        </div>
 
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-store-line flex items-center justify-between bg-store-drawer-header flex-shrink-0">

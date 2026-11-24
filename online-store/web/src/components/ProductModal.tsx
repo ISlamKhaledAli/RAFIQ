@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Product } from '../types';
 import { useModalAnimation } from '../hooks/useModalAnimation';
+import { useSwipeDownDismiss } from '../hooks/useSwipeDownDismiss';
 import { formatUnitArabic } from '../utils/unitFormatter';
 import {
   X,
@@ -58,6 +59,11 @@ export const ProductModal: React.FC<Props> = ({
   const isOpen = Boolean(product);
   const { mounted, visible } = useModalAnimation(isOpen, 280);
 
+  const { dragHandleProps, sheetStyle } = useSwipeDownDismiss({
+    onClose,
+    threshold: 75,
+  });
+
   if (!mounted || !activeProduct) return null;
 
   const pricePounds = (activeProduct.price_piasters / 100).toFixed(2);
@@ -103,10 +109,18 @@ export const ProductModal: React.FC<Props> = ({
             ? 'translate-y-0 sm:scale-100 opacity-100'
             : 'translate-y-full sm:translate-y-6 sm:scale-95 opacity-0'
         }`}
-        style={{ backgroundColor: 'var(--store-card-bg, #FFFFFF)' }}
+        style={{
+          backgroundColor: 'var(--store-card-bg, #FFFFFF)',
+          ...sheetStyle,
+        }}
       >
-        {/* Mobile Swipe Handle Pill */}
-        <div className="sm:hidden w-12 h-1.5 bg-store-line rounded-full mx-auto my-2.5 flex-shrink-0"></div>
+        {/* Mobile Swipe Handle Pill with Touch Physics */}
+        <div
+          {...dragHandleProps}
+          className="sm:hidden w-full py-2.5 flex items-center justify-center cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+        >
+          <div className="w-12 h-1.5 bg-store-line rounded-full"></div>
+        </div>
 
         {/* Top Control Buttons (Close, Share, Wishlist) */}
         <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5">

@@ -236,6 +236,10 @@ export const App: React.FC = () => {
       ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3.5'
       : activeLayoutTemplate === 'boutique'
       ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6'
+      : activeLayoutTemplate === 'food'
+      ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-3.5 sm:gap-5'
+      : activeLayoutTemplate === 'pharmacy'
+      ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4'
       : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-3 sm:gap-5';
 
   // Desktop quick filters
@@ -805,6 +809,17 @@ export const App: React.FC = () => {
       list = list.filter(p => wishlistIds.has(p.id));
     }
 
+    if (activeStoryFilter === 'combos') {
+      const comboKeywords = ['توفير', 'عائلي', 'حزمة', 'عرض', 'كرتونة', 'بكج', 'باقة', 'مجموعة'];
+      const matched = list.filter(p =>
+        comboKeywords.some(kw => p.name.includes(kw) || (p.description && p.description.includes(kw))) ||
+        (p.compare_price && p.compare_price > p.price_piasters)
+      );
+      if (matched.length > 0) {
+        list = matched;
+      }
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
@@ -970,30 +985,36 @@ export const App: React.FC = () => {
       {/* Trust & Guarantee Badges Strip */}
       {showTrustBadges && <TrustBadgesStrip themeCustom={themeCustom} />}
 
-      {/* Mobile-Only Category Pills Bar */}
-      <div ref={categoriesSectionRef} className="sm:hidden px-3 w-full mt-1">
+      {/* Mobile-Only Category Pills Bar (Sticky underneath Header on Scroll) */}
+      <div ref={categoriesSectionRef} className="sm:hidden px-3 w-full mt-1 sticky top-[84px] z-20 bg-store-bg/95 backdrop-blur-md pb-1 border-b border-store-line/60 shadow-2xs transition-all">
         <CategoryPills
           categories={storefrontCategories}
           selectedCategoryId={selectedCategoryId}
           onSelectCategory={id => {
             setSelectedCategoryId(id);
             setMobileTab('home');
+            setActiveStoryFilter(null);
+            if (id === 'all' || id === 'cat-1') {
+              setFeaturedOnly(false);
+            }
           }}
         />
 
         {/* Mobile Quick Filter Chips */}
         <div className="mt-2.5 flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
-          <button
-            onClick={() => setFeaturedOnly(!featuredOnly)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all flex-shrink-0 ${
-              featuredOnly
-                ? 'bg-store-accent text-store-accent-contrast shadow-xs'
-                : 'bg-store-card text-store-text border border-store-line hover:border-store-primary/40'
-            }`}
-          >
-            <Flame className="w-3.5 h-3.5" />
-            <span>عروض وتخفيضات</span>
-          </button>
+          {selectedCategoryId !== 'all' && selectedCategoryId !== 'cat-1' && (
+            <button
+              onClick={() => setFeaturedOnly(!featuredOnly)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all flex-shrink-0 ${
+                featuredOnly
+                  ? 'bg-store-accent text-store-accent-contrast shadow-xs'
+                  : 'bg-store-card text-store-text border border-store-line hover:border-store-primary/40'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5" />
+              <span>عروض وتخفيضات</span>
+            </button>
+          )}
 
           <button
             onClick={() => setInStockOnly(!inStockOnly)}
@@ -1021,12 +1042,13 @@ export const App: React.FC = () => {
             </button>
           )}
 
-          {(featuredOnly || inStockOnly || wishlistOnly) && (
+          {(featuredOnly || inStockOnly || wishlistOnly || activeStoryFilter) && (
             <button
               onClick={() => {
                 setFeaturedOnly(false);
                 setInStockOnly(false);
                 setWishlistOnly(false);
+                setActiveStoryFilter(null);
               }}
               className="text-[11px] font-bold text-store-muted hover:text-store-text px-2 py-1 flex-shrink-0"
             >

@@ -36,6 +36,12 @@ interface StoreReceiptData {
   showInvoiceNumber: boolean;
   showPaid: boolean;
   showChange: boolean;
+  showOnlineStoreQr: boolean;
+  onlineStoreEnabled: boolean;
+  onlineStoreSlug: string;
+  onlineStoreQrLabel?: string;
+  onlineStoreQrText?: string;
+  onlineStoreQrShowUrl?: boolean;
   paper: '80mm' | '57mm';
 }
 
@@ -52,6 +58,12 @@ const EMPTY_STORE: StoreReceiptData = {
   showInvoiceNumber: true,
   showPaid: true,
   showChange: true,
+  showOnlineStoreQr: true,
+  onlineStoreEnabled: false,
+  onlineStoreSlug: '',
+  onlineStoreQrLabel: 'متجرنا الإلكتروني',
+  onlineStoreQrText: 'امسح الرمز لطلب المنتجات أونلاين',
+  onlineStoreQrShowUrl: true,
   paper: '80mm',
 };
 
@@ -110,6 +122,12 @@ export const RootReceiptPage = ({ isActive, onDiscard }: RootReceiptPageProps) =
           showInvoiceNumber: s.receipt_show_invoice_number !== '0',
           showPaid: s.receipt_show_paid !== '0',
           showChange: s.receipt_show_change !== '0',
+          showOnlineStoreQr: s.receipt_show_online_store_qr !== '0',
+          onlineStoreEnabled: s.online_store_enabled === '1',
+          onlineStoreSlug: s.online_store_slug ?? '',
+          onlineStoreQrLabel: s.receipt_online_store_qr_label,
+          onlineStoreQrText: s.receipt_online_store_qr_text,
+          onlineStoreQrShowUrl: s.receipt_online_store_qr_show_url !== '0',
           paper: s.receipt_paper_width === '57mm' ? '57mm' : '80mm',
         });
         setLoaded(true);
@@ -249,12 +267,18 @@ export const RootReceiptPage = ({ isActive, onDiscard }: RootReceiptPageProps) =
                   header: store.header,
                   footer: store.footer,
                   signature,
+                  onlineStoreEnabled: store.onlineStoreEnabled,
+                  onlineStoreSlug: store.onlineStoreSlug,
+                  onlineStoreQrLabel: store.onlineStoreQrLabel,
+                  onlineStoreQrText: store.onlineStoreQrText,
+                  onlineStoreQrShowUrl: store.onlineStoreQrShowUrl,
                 },
                 {
                   showCashier: store.showCashier,
                   showInvoiceNumber: store.showInvoiceNumber,
                   showPaid: store.showPaid,
                   showChange: store.showChange,
+                  showOnlineStoreQr: store.showOnlineStoreQr,
                   signatureVisible: visible,
                   signatureImage: image,
                   builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES,

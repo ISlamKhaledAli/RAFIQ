@@ -31,7 +31,7 @@ export const FloatingCartBar: React.FC<Props> = ({ cartItems, onOpenCart }) => {
     totalItems === 1 ? 'صنف واحد' : totalItems === 2 ? 'صنفان' : `${totalItems} أصناف`;
 
   return (
-    <div className="fixed bottom-[56px] sm:bottom-6 left-2.5 right-2.5 sm:left-auto sm:right-6 z-40 sm:w-auto sm:min-w-[360px] sm:max-w-[440px] motion-panel">
+    <div className="fixed bottom-[calc(52px+env(safe-area-inset-bottom,0px))] sm:bottom-6 left-2.5 right-2.5 sm:left-auto sm:right-6 z-40 sm:w-auto sm:min-w-[360px] sm:max-w-[440px] motion-panel">
       <button
         onClick={onOpenCart}
         className="w-full flex items-center justify-between gap-2.5 sm:gap-4 bg-gradient-to-r from-store-primary via-store-secondary to-store-primary text-white px-2.5 py-2 sm:px-4 sm:py-3.5 rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl shadow-store-primary/35 hover:shadow-store-primary/50 btn-spring transition-all border border-white/20 group"
