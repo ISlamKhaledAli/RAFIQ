@@ -145,7 +145,7 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.AreEqual(1500, created.PricePiasters);
             Assert.AreEqual(0, created.CostPiasters);
             Assert.AreEqual(0, created.StockQuantityMilli);
-            Assert.AreEqual("piece", created.Unit);
+            Assert.AreEqual("قطعة", created.Unit);
             Assert.AreEqual(5000, created.MinStockQuantityMilli);
             Assert.IsFalse(string.IsNullOrEmpty(created.CategoryId));
         }

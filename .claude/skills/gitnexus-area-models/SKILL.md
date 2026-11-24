@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-models
-description: "Skill for the Models area of RAFIQ. 27 symbols across 15 files."
+description: "Skill for the Models area of RAFIQ. 34 symbols across 18 files."
 ---
 
 # Models
 
-27 symbols | 15 files | Cohesion: 63%
+34 symbols | 18 files | Cohesion: 61%
 
 ## When to Use
 
@@ -20,13 +20,13 @@ description: "Skill for the Models area of RAFIQ. 27 symbols across 15 files."
 | `desktop/Models/DailyClosing.cs` | DailyClosingEpayTerminalSummary, DailyClosingEpayTransactionItem, DailyClosingWalletSummary, DailyClosingWalletTransactionItem |
 | `desktop/Models/Customer.cs` | CustomerImportPreviewResult, CustomerImportResult, CustomerImportRow |
 | `desktop/Models/DashboardSummary.cs` | DashboardSummary, StockAdjustmentSummaryItem, TopDebtorItem |
+| `desktop/Models/SyncModels.cs` | DailyExtendedMetricsDto, DailySalesSummaryDto, DailyTopProductDto |
+| `desktop/Repositories/SyncRepository.cs` | GetDailySalesSummaryForDate, GetRecentDailySalesSummaries, GetTodaySalesSummary |
 | `desktop/Common/CompoundStockHelper.cs` | FormatCompoundStock, IsOpenPackage, LocalizeUnit |
 | `desktop/Models/DigitalAccountModels.cs` | DigitalAccountFunding, DigitalAnalyticsSummary |
 | `desktop/Repositories/DigitalAccountRepository.cs` | GetAnalytics, MapFunding |
 | `desktop/Services/DailyClosingService.cs` | PopulateEpayAndWalletsDetails, TableExists |
 | `desktop/Models/EpayModels.cs` | EpayAnalyticsSummary |
-| `desktop/Common/Money.cs` | FormatPiasters |
-| `desktop/Models/BulkPriceAdjustmentModels.cs` | BulkPriceRevertResult |
 
 ## Entry Points
 
@@ -51,6 +51,9 @@ Start here when exploring this area:
 | `DigitalAccountFunding` | Class | `desktop/Models/DigitalAccountModels.cs` | 227 |
 | `DigitalAnalyticsSummary` | Class | `desktop/Models/DigitalAccountModels.cs` | 266 |
 | `EpayAnalyticsSummary` | Class | `desktop/Models/EpayModels.cs` | 247 |
+| `DailyExtendedMetricsDto` | Class | `desktop/Models/SyncModels.cs` | 327 |
+| `DailySalesSummaryDto` | Class | `desktop/Models/SyncModels.cs` | 288 |
+| `DailyTopProductDto` | Class | `desktop/Models/SyncModels.cs` | 369 |
 | `DailyClosingEpayTerminalSummary` | Class | `desktop/Models/DailyClosing.cs` | 328 |
 | `DailyClosingEpayTransactionItem` | Class | `desktop/Models/DailyClosing.cs` | 355 |
 | `DailyClosingWalletSummary` | Class | `desktop/Models/DailyClosing.cs` | 397 |
@@ -59,9 +62,6 @@ Start here when exploring this area:
 | `ProductPriceHistory` | Class | `desktop/Models/ProductPriceHistory.cs` | 5 |
 | `Product` | Class | `desktop/Models/Product.cs` | 5 |
 | `FormatPiasters` | Method | `desktop/Common/Money.cs` | 33 |
-| `GetAnalytics` | Method | `desktop/Repositories/DigitalAccountRepository.cs` | 1300 |
-| `GetByProductId` | Method | `desktop/Repositories/ProductPriceHistoryRepository.cs` | 83 |
-| `RevertBulkPriceAdjustment` | Method | `desktop/Repositories/ProductRepository.BulkPricing.cs` | 288 |
 
 ## Execution Flows
 

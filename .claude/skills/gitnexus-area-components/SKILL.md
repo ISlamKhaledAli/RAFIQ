@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-components
-description: "Skill for the Components area of RAFIQ. 1168 symbols across 288 files."
+description: "Skill for the Components area of RAFIQ. 1240 symbols across 307 files."
 ---
 
 # Components
 
-1168 symbols | 288 files | Cohesion: 62%
+1240 symbols | 307 files | Cohesion: 63%
 
 ## When to Use
 
@@ -17,7 +17,7 @@ description: "Skill for the Components area of RAFIQ. 1168 symbols across 288 fi
 
 | File | Symbols |
 |------|---------|
-| `frontend/src/App.tsx` | Lazy, LazyView, checkUpdates, handleMinimizeWindow, onSelect (+45) |
+| `frontend/src/App.tsx` | Lazy, LazyView, checkUpdates, handleMinimizeWindow, onSelect (+46) |
 | `frontend/src/components/UserManagerModal.tsx` | UserManagerModal, describeSubordinates, formatLastLogin, handleStartAdd, handleStartCredentials (+28) |
 | `frontend/src/components/PackagingWizardModal.tsx` | PackagingWizardModal, buildRowsFromUnits, generateUniqueUnitId, handleAddLargerLevel, handleAddSmallerLevel (+14) |
 | `frontend/src/utils/dateFilter.ts` | describeDateFilter, formatLocalDateTime, getDateFilterKey, getDateFilterRange, getDatePresetLabel (+11) |
@@ -43,6 +43,7 @@ Start here when exploring this area:
 | Symbol | Type | File | Line |
 |--------|------|------|------|
 | `ErrorBoundary` | Class | `frontend/src/components/ErrorBoundary.tsx` | 14 |
+| `StoreUnavailableError` | Class | `online-store/web/src/api/client.ts` | 207 |
 | `AppButton` | Function | `frontend/src/components/AppButton.tsx` | 32 |
 | `BarcodeScannerSettingsModal` | Function | `frontend/src/components/BarcodeScannerSettingsModal.tsx` | 75 |
 | `CategoryIconPickerModal` | Function | `frontend/src/components/CategoryIconPickerModal.tsx` | 38 |
@@ -61,7 +62,6 @@ Start here when exploring this area:
 | `ExcelImportModal` | Function | `frontend/src/components/ExcelImportModal.tsx` | 44 |
 | `ExpenseModal` | Function | `frontend/src/components/ExpenseModal.tsx` | 43 |
 | `FactoryResetModal` | Function | `frontend/src/components/FactoryResetModal.tsx` | 27 |
-| `FeatureGate` | Function | `frontend/src/components/FeatureGate.tsx` | 15 |
 
 ## Execution Flows
 

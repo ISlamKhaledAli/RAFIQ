@@ -525,9 +525,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   useDataSubscription('epay', loadData);
 
   // Selected Terminal Object
-  const currentTerminal = useMemo(() => {
-    return terminals.find((t) => t.id === selectedTerminalId) || terminals[0] || null;
-  }, [terminals, selectedTerminalId]);
+  const currentTerminal = terminals.find((t) => t.id === selectedTerminalId) || terminals[0] || null;
 
   // Financial calculation based on 3 direct inputs:
   // 1. Bill amount (deducted from terminal)

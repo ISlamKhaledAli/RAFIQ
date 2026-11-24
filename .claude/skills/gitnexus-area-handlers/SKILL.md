@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-handlers
-description: "Skill for the Handlers area of RAFIQ. 86 symbols across 18 files."
+description: "Skill for the Handlers area of RAFIQ. 87 symbols across 19 files."
 ---
 
 # Handlers
 
-86 symbols | 18 files | Cohesion: 92%
+87 symbols | 19 files | Cohesion: 88%
 
 ## When to Use
 
@@ -51,17 +51,17 @@ Start here when exploring this area:
 | `sha256Hex` | Function | `online-store/api/src/crypto.ts` | 2 |
 | `timingSafeEqual` | Function | `online-store/api/src/crypto.ts` | 23 |
 | `verifySessionToken` | Function | `online-store/api/src/crypto.ts` | 63 |
-| `handleDashboardBatchUpdateProducts` | Function | `online-store/api/src/handlers/dashboard.ts` | 1038 |
-| `handleDashboardBulkUpdateCategoriesVisibility` | Function | `online-store/api/src/handlers/dashboard.ts` | 867 |
-| `handleDashboardBulkUpdateProductsVisibility` | Function | `online-store/api/src/handlers/dashboard.ts` | 929 |
-| `handleDashboardGetCategories` | Function | `online-store/api/src/handlers/dashboard.ts` | 745 |
-| `handleDashboardGetOrders` | Function | `online-store/api/src/handlers/dashboard.ts` | 531 |
-| `handleDashboardGetProducts` | Function | `online-store/api/src/handlers/dashboard.ts` | 692 |
-| `handleDashboardOverview` | Function | `online-store/api/src/handlers/dashboard.ts` | 184 |
-| `handleDashboardSmartPublishCatalog` | Function | `online-store/api/src/handlers/dashboard.ts` | 1104 |
-| `handleDashboardUpdateCategoryVisibility` | Function | `online-store/api/src/handlers/dashboard.ts` | 793 |
-| `handleDashboardUpdateOrderStatus` | Function | `online-store/api/src/handlers/dashboard.ts` | 575 |
-| `handleDashboardUpdateProductOnlineSettings` | Function | `online-store/api/src/handlers/dashboard.ts` | 992 |
+| `handleDashboardBatchUpdateProducts` | Function | `online-store/api/src/handlers/dashboard.ts` | 1040 |
+| `handleDashboardBulkUpdateCategoriesVisibility` | Function | `online-store/api/src/handlers/dashboard.ts` | 869 |
+| `handleDashboardBulkUpdateProductsVisibility` | Function | `online-store/api/src/handlers/dashboard.ts` | 931 |
+| `handleDashboardGetCategories` | Function | `online-store/api/src/handlers/dashboard.ts` | 747 |
+| `handleDashboardGetOrders` | Function | `online-store/api/src/handlers/dashboard.ts` | 532 |
+| `handleDashboardSmartPublishCatalog` | Function | `online-store/api/src/handlers/dashboard.ts` | 1106 |
+| `handleDashboardUpdateCategoryVisibility` | Function | `online-store/api/src/handlers/dashboard.ts` | 795 |
+| `handleDashboardUpdateOrderStatus` | Function | `online-store/api/src/handlers/dashboard.ts` | 576 |
+| `handleDashboardUpdateProductOnlineSettings` | Function | `online-store/api/src/handlers/dashboard.ts` | 994 |
+| `handleDashboardUpdateStoreSettings` | Function | `online-store/api/src/handlers/dashboard.ts` | 1247 |
+| `handleDashboardUpdateStoreTheme` | Function | `online-store/api/src/handlers/dashboard.ts` | 1330 |
 
 ## Execution Flows
 

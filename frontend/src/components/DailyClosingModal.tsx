@@ -345,12 +345,12 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   const totalEpayAndWalletTxCount = epayTxList.length + walletTxList.length;
 
   const totalWalletsBalancePiasters = useMemo(() => {
-    return walletsSummaryList.reduce((acc, curr) => acc + (curr.currentBalancePiasters || 0), 0);
-  }, [walletsSummaryList]);
+    return (preview?.walletsSummary || []).reduce((acc, curr) => acc + (curr.currentBalancePiasters || 0), 0);
+  }, [preview?.walletsSummary]);
 
   const totalWalletsProfitPiasters = useMemo(() => {
-    return walletsSummaryList.reduce((acc, curr) => acc + (curr.netProfitPiasters || 0), 0);
-  }, [walletsSummaryList]);
+    return (preview?.walletsSummary || []).reduce((acc, curr) => acc + (curr.netProfitPiasters || 0), 0);
+  }, [preview?.walletsSummary]);
 
   const hasEpayFeature = isEnabled('feature_epay_services');
   const hasEpayActivity =

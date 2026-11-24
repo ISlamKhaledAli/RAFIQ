@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-services
-description: "Skill for the Services area of RAFIQ. 1367 symbols across 223 files."
+description: "Skill for the Services area of RAFIQ. 1362 symbols across 220 files."
 ---
 
 # Services
 
-1367 symbols | 223 files | Cohesion: 60%
+1362 symbols | 220 files | Cohesion: 60%
 
 ## When to Use
 
@@ -17,16 +17,16 @@ description: "Skill for the Services area of RAFIQ. 1367 symbols across 223 file
 
 | File | Symbols |
 |------|---------|
-| `desktop/Services/PrinterService.cs` | PrintResult, PrinterInfo, PrinterStatusInfo, ReceiptLine, ReceiptRenderJob (+112) |
+| `desktop/Services/PrinterService.cs` | PrintResult, PrinterInfo, PrinterStatusInfo, ReceiptLine, ReceiptRenderJob (+114) |
+| `desktop/Services/DatabaseService.cs` | ApplyIntegrityFailure, CheckAndQuarantine, MoveAsideWalAndShm, PruneDirectoryFiles, ReplaceDatabaseFile (+30) |
 | `desktop/Services/ReportsService.cs` | BindCustomDates, GetCashierPerformanceReport, GetCategoryPerformance, GetClosingHistory, GetCreditOverview (+29) |
 | `desktop/Services/SeniorRuthlessAuditRunner.cs` | AssertCondition, RunAllTests, RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity, RunTest11_SupplierDirectPaymentDrawerDeductionAndLedgerParity, RunTest12_SaleCancellationBlockedOnExistingReturns (+28) |
-| `desktop/Services/DatabaseService.cs` | ApplyIntegrityFailure, CheckAndQuarantine, MoveAsideWalAndShm, PruneDirectoryFiles, ReplaceDatabaseFile (+28) |
 | `desktop/Services/MigrationService.cs` | Dispose, TryDetectRecoveryCodeFromFolder, MigrationPackageExportResult, CheckRestoreDiskSpace, CopyDirectoryRecursive (+28) |
+| `desktop/Services/SyncEngine.cs` | CachedRealtimeSessionInfo, ComputeSha256Hex, HandleExplicitDeactivation, IsBuiltInDefaultLogoPath, IsOnlineStoreFeatureEnabled (+25) |
+| `desktop/Services/SupportService.cs` | CollectFeatureFlags, SupportBundleResult, BuildReadme, BuildSuccessMessage, BuildTargets (+25) |
 | `desktop/Services/DemoDataService.cs` | DemoCustomerSeed, DemoStatusResult, CountWhere, GetDemoCustomers, GetDemoProductsForStoreType (+25) |
-| `desktop/Services/SupportService.cs` | SupportBundleResult, BuildReadme, BuildSuccessMessage, BuildTargets, CreateSupportBundle (+25) |
-| `desktop/Services/SyncEngine.cs` | BuildCloudProductDto, IsDemoOrStressId, IsEligibleForCloudStore, ProcessOutboxInternal, PushFullCatalogInternal (+23) |
 | `desktop/Services/BackupService.cs` | ReadLiveCounts, VerifyBackupCore, VerifyBackupDetailed, DriveItem, GetAvailableDrives (+20) |
-| `desktop/Services/SettingsService.cs` | Get, TryDecodeSignatureImage, GetDetectedDefaultMotionLevel, GetUiMotionLevel, GetUiMotionStyle (+19) |
+| `desktop/Services/SettingsService.cs` | Get, TryDecodeSignatureImage, GetBool, GetFeatureFlags, IsFeatureEnabled (+19) |
 
 ## Entry Points
 
@@ -46,6 +46,8 @@ Start here when exploring this area:
 | `CustomerBalanceVerification` | Class | `desktop/Models/Customer.cs` | 105 |
 | `DigitalAccount` | Class | `desktop/Models/DigitalAccountModels.cs` | 7 |
 | `DigitalTransaction` | Class | `desktop/Models/DigitalAccountModels.cs` | 106 |
+| `EpayPricingResult` | Class | `desktop/Models/EpayModels.cs` | 366 |
+| `EpayServiceFeeRule` | Class | `desktop/Models/EpayModels.cs` | 333 |
 | `EpayTerminal` | Class | `desktop/Models/EpayModels.cs` | 7 |
 | `CreateExpenseRequest` | Class | `desktop/Models/Expense.cs` | 69 |
 | `Expense` | Class | `desktop/Models/Expense.cs` | 6 |
@@ -60,8 +62,6 @@ Start here when exploring this area:
 | `SaleItemBatchAllocation` | Class | `desktop/Models/SaleItemBatchAllocation.cs` | 5 |
 | `OpenShiftRequest` | Class | `desktop/Models/ShiftModels.cs` | 156 |
 | `Supplier` | Class | `desktop/Models/Supplier.cs` | 5 |
-| `SupplierBalanceVerification` | Class | `desktop/Models/Supplier.cs` | 44 |
-| `SupplierTransaction` | Class | `desktop/Models/SupplierTransaction.cs` | 5 |
 
 ## Execution Flows
 
@@ -72,11 +72,11 @@ Start here when exploring this area:
 | `RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest20_DigitalWalletRefundAndCancelOverdraftGuards → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest26_GenericWalletAndCardClosingParity → InsuranceClaimLine` | cross_community | 8 |
-| `RunTest29_CustomerAdvanceCreditReturnSymmetry → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest30_MultiTenderInstapayWalletCashSplitParity → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest8_FinancialRoundingAndCreditReversals → InsuranceClaimLine` | cross_community | 8 |
 | `RunAllTests → InsuranceClaimLine` | cross_community | 8 |
 | `TryDispatchSales → CheckAndRotate` | cross_community | 7 |
+| `RunBaseline → Sale` | cross_community | 7 |
 
 ## How to Explore
 

@@ -32,34 +32,34 @@ description: "Skill for the Settings area of RAFIQ. 56 symbols across 14 files."
 
 Start here when exploring this area:
 
-- **`ReceiptPaper`** (Function) — `frontend/src/components/ReceiptPaper.tsx:65`
+- **`ReceiptPaper`** (Function) — `frontend/src/components/ReceiptPaper.tsx:106`
 - **`UnsavedChangesChip`** (Function) — `frontend/src/components/UnsavedChangesChip.tsx:6`
-- **`buildSampleReceiptSale`** (Function) — `frontend/src/utils/receiptLayout.ts:1017`
-- **`layoutReceiptTable`** (Function) — `frontend/src/utils/receiptLayout.ts:722`
-- **`normalizeReceiptText`** (Function) — `frontend/src/utils/receiptLayout.ts:312`
+- **`buildSampleReceiptSale`** (Function) — `frontend/src/utils/receiptLayout.ts:1059`
+- **`layoutReceiptTable`** (Function) — `frontend/src/utils/receiptLayout.ts:764`
+- **`normalizeReceiptText`** (Function) — `frontend/src/utils/receiptLayout.ts:328`
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
-| `ReceiptPaper` | Function | `frontend/src/components/ReceiptPaper.tsx` | 65 |
+| `ReceiptPaper` | Function | `frontend/src/components/ReceiptPaper.tsx` | 106 |
 | `UnsavedChangesChip` | Function | `frontend/src/components/UnsavedChangesChip.tsx` | 6 |
-| `buildSampleReceiptSale` | Function | `frontend/src/utils/receiptLayout.ts` | 1017 |
-| `layoutReceiptTable` | Function | `frontend/src/utils/receiptLayout.ts` | 722 |
-| `normalizeReceiptText` | Function | `frontend/src/utils/receiptLayout.ts` | 312 |
-| `receiptTextLimitError` | Function | `frontend/src/utils/receiptLayout.ts` | 337 |
-| `resolveReceiptFooter` | Function | `frontend/src/utils/receiptLayout.ts` | 498 |
-| `resolveReceiptSignature` | Function | `frontend/src/utils/receiptLayout.ts` | 505 |
-| `splitReceiptText` | Function | `frontend/src/utils/receiptLayout.ts` | 331 |
+| `buildSampleReceiptSale` | Function | `frontend/src/utils/receiptLayout.ts` | 1059 |
+| `layoutReceiptTable` | Function | `frontend/src/utils/receiptLayout.ts` | 764 |
+| `normalizeReceiptText` | Function | `frontend/src/utils/receiptLayout.ts` | 328 |
+| `receiptTextLimitError` | Function | `frontend/src/utils/receiptLayout.ts` | 353 |
+| `resolveReceiptFooter` | Function | `frontend/src/utils/receiptLayout.ts` | 514 |
+| `resolveReceiptSignature` | Function | `frontend/src/utils/receiptLayout.ts` | 521 |
+| `splitReceiptText` | Function | `frontend/src/utils/receiptLayout.ts` | 347 |
 | `resolveSettingsSubTab` | Function | `frontend/src/utils/settingsAccess.ts` | 25 |
-| `SettingsView` | Function | `frontend/src/views/SettingsView.tsx` | 675 |
-| `RootReceiptPage` | Function | `frontend/src/views/root/RootReceiptPage.tsx` | 65 |
-| `handleSave` | Function | `frontend/src/views/root/RootReceiptPage.tsx` | 124 |
-| `save` | Function | `frontend/src/views/root/RootReceiptPage.tsx` | 152 |
+| `SettingsView` | Function | `frontend/src/views/SettingsView.tsx` | 711 |
+| `RootReceiptPage` | Function | `frontend/src/views/root/RootReceiptPage.tsx` | 77 |
+| `handleSave` | Function | `frontend/src/views/root/RootReceiptPage.tsx` | 142 |
+| `save` | Function | `frontend/src/views/root/RootReceiptPage.tsx` | 170 |
 | `InvoiceTemplatesTab` | Function | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | 207 |
 | `handleTestPrint` | Function | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | 328 |
 | `updateCurrentConfig` | Function | `frontend/src/views/settings/InvoiceTemplatesTab.tsx` | 273 |
-| `StoreProfileTab` | Function | `frontend/src/views/settings/StoreProfileTab.tsx` | 87 |
+| `StoreProfileTab` | Function | `frontend/src/views/settings/StoreProfileTab.tsx` | 140 |
 | `ReceiptTextField` | Function | `frontend/src/views/settings/settingsParts.tsx` | 24 |
 | `ToggleRow` | Function | `frontend/src/views/settings/settingsParts.tsx` | 123 |
 

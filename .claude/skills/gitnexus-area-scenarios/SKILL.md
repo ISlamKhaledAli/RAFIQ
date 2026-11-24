@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-scenarios
-description: "Skill for the Scenarios area of RAFIQ. 1155 symbols across 125 files."
+description: "Skill for the Scenarios area of RAFIQ. 1158 symbols across 126 files."
 ---
 
 # Scenarios
 
-1155 symbols | 125 files | Cohesion: 80%
+1158 symbols | 126 files | Cohesion: 80%
 
 ## When to Use
 
@@ -72,11 +72,11 @@ Start here when exploring this area:
 | `RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest20_DigitalWalletRefundAndCancelOverdraftGuards → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest26_GenericWalletAndCardClosingParity → InsuranceClaimLine` | cross_community | 8 |
-| `RunTest29_CustomerAdvanceCreditReturnSymmetry → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest30_MultiTenderInstapayWalletCashSplitParity → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest8_FinancialRoundingAndCreditReversals → InsuranceClaimLine` | cross_community | 8 |
 | `RunAllTests → InsuranceClaimLine` | cross_community | 8 |
 | `RunBaseline → Sale` | cross_community | 7 |
+| `RunAllTests → SaleItem` | cross_community | 7 |
 
 ## How to Explore
 

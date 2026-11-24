@@ -472,5 +472,6 @@ export const usePosShortcuts = ({
     handleCartBackspace,
     onSelectNextCartItem,
     onSelectPrevCartItem,
+    onOpenPriceOverride,
   ]);
 };

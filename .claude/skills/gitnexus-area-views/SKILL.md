@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-views
-description: "Skill for the Views area of RAFIQ. 184 symbols across 28 files."
+description: "Skill for the Views area of RAFIQ. 186 symbols across 28 files."
 ---
 
 # Views
 
-184 symbols | 28 files | Cohesion: 70%
+186 symbols | 28 files | Cohesion: 70%
 
 ## When to Use
 
@@ -21,7 +21,7 @@ description: "Skill for the Views area of RAFIQ. 184 symbols across 28 files."
 | `frontend/src/views/SettingsView.tsx` | autoSaveSetting, handleBlurTaxNumber, handleChangeDefaultTaxRate, handleChangeDrawerPin, handleChangeDrawerPulse (+14) |
 | `frontend/src/views/PurchasesView.tsx` | fetchInitialData, onConfirm, handleConfirmPayment, handlePrintInvoiceLabels, handleRestoreSupplier (+12) |
 | `frontend/src/views/ProductsView.tsx` | applySearch, clearAllFilters, clearCategoryFilter, clearSearchFilter, clearStockStatusFilter (+11) |
-| `frontend/src/views/OnlineStoreView.tsx` | intervalId, unsubscribe, handleManualSync, handlePurgeOrders, handleUpdateOrderStatus (+4) |
+| `frontend/src/views/OnlineStoreView.tsx` | intervalId, handleCustomCatalogUpload, handleManualSync, handlePurgeOrders, handleUpdateOrderStatus (+6) |
 | `frontend/src/views/CustomersView.tsx` | handleExportCustomersToExcel, applyCustomerSearch, handleArchiveCustomer, handleExecuteImport, handleRecordPayment (+3) |
 | `frontend/src/utils/excelImport.ts` | downloadErrorReport, exportCustomersToExcel, exportCustomersViaSheetJs, exportProductsViaSheetJs, buildSheetJsProductSheet (+2) |
 | `frontend/src/bridge/onlineStoreIpc.ts` | getOnlineStoreOrders, getOnlineStoreState, processOnlineStoreOrder, purgeOnlineStoreOrders, triggerOnlineStoreSync (+1) |

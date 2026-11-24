@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-bridge
-description: "Skill for the Bridge area of RAFIQ. 81 symbols across 22 files."
+description: "Skill for the Bridge area of RAFIQ. 88 symbols across 23 files."
 ---
 
 # Bridge
 
-81 symbols | 22 files | Cohesion: 66%
+88 symbols | 23 files | Cohesion: 65%
 
 ## When to Use
 
@@ -21,21 +21,21 @@ description: "Skill for the Bridge area of RAFIQ. 81 symbols across 22 files."
 | `desktop/Bridge/IpcDispatcher.System.cs` | EffectiveRootOnlyValue, IsCurrentUserRoot, IsProtectedSettingKey, IsRootOnlySettingKey, RemoveProtectedSettingKeys (+2) |
 | `desktop/Bridge/IpcDispatcher.Printing.cs` | HandlePrintReceipt, HandlePrintRecoveryVoucher, ReadPayloadBool, ReadPayloadString, ToPrintResponse (+1) |
 | `desktop/Bridge/IpcDispatcher.ReportFiles.cs` | HandleOpenReportsFolder, HandleSaveReceiptImage, HandleSaveReportFile, HandleSaveReportPdf, ToSaveResponse (+1) |
-| `desktop/Bridge/IpcDispatcher.cs` | HandleCorruptDatabaseSession, IsLicenseBlockedAction, NormalizeActionName, SplitCamelWords, StartsWithReadVerb |
+| `desktop/Bridge/IpcDispatcher.cs` | HandleCorruptDatabaseSession, CheckFeatureGate, IsLicenseBlockedAction, NormalizeActionName, SplitCamelWords (+1) |
 | `desktop/Repositories/SyncRepository.cs` | EnqueueOutbox, GetInboxOrderByOrderId, GetInboxOrders, TryEnqueueOutboxIfEnabled, UpdateInboxOrderStatus |
+| `desktop/Common/FeatureRegistry.cs` | GetAllDefinitions, GetDefinition, GetFeatureForCommand, IsHistoricalOrReadCommand, ValidateDependencies |
 | `desktop/Bridge/BridgeModels.cs` | BridgeError, BridgeResponse, Fail, Ok |
 | `desktop/Services/StoreTemplateService.cs` | ResetFirstRun, SeedProductsForTemplate, IsFirstRunNeeded |
 | `desktop/Bridge/IpcDispatcher.Backup.cs` | GetFilePickerLocations, ScanFolderForPackages, ScanKnownLocationsForPackages |
-| `desktop/Models/SyncModels.cs` | OnlineOrderItemDto, SyncInboxItem |
 
 ## Entry Points
 
 Start here when exploring this area:
 
-- **`convertOnlineOrderToSale`** (Function) — `frontend/src/bridge/onlineStoreIpc.ts:144`
-- **`printPosSaleReceipt`** (Function) — `frontend/src/bridge/onlineStoreIpc.ts:151`
-- **`handleConvertOrderToSale`** (Function) — `frontend/src/views/OnlineStoreView.tsx:280`
-- **`handlePrintOrderSaleReceipt`** (Function) — `frontend/src/views/OnlineStoreView.tsx:317`
+- **`convertOnlineOrderToSale`** (Function) — `frontend/src/bridge/onlineStoreIpc.ts:183`
+- **`printPosSaleReceipt`** (Function) — `frontend/src/bridge/onlineStoreIpc.ts:190`
+- **`handleConvertOrderToSale`** (Function) — `frontend/src/views/OnlineStoreView.tsx:325`
+- **`handlePrintOrderSaleReceipt`** (Function) — `frontend/src/views/OnlineStoreView.tsx:362`
 - **`BridgeError`** (Class) — `desktop/Bridge/BridgeModels.cs:52`
 
 ## Key Symbols
@@ -47,10 +47,10 @@ Start here when exploring this area:
 | `OnlineOrderItemDto` | Class | `desktop/Models/SyncModels.cs` | 78 |
 | `SyncInboxItem` | Class | `desktop/Models/SyncModels.cs` | 39 |
 | `RecoveryVoucherRequest` | Class | `desktop/Services/PrinterService.cs` | 42 |
-| `convertOnlineOrderToSale` | Function | `frontend/src/bridge/onlineStoreIpc.ts` | 144 |
-| `printPosSaleReceipt` | Function | `frontend/src/bridge/onlineStoreIpc.ts` | 151 |
-| `handleConvertOrderToSale` | Function | `frontend/src/views/OnlineStoreView.tsx` | 280 |
-| `handlePrintOrderSaleReceipt` | Function | `frontend/src/views/OnlineStoreView.tsx` | 317 |
+| `convertOnlineOrderToSale` | Function | `frontend/src/bridge/onlineStoreIpc.ts` | 183 |
+| `printPosSaleReceipt` | Function | `frontend/src/bridge/onlineStoreIpc.ts` | 190 |
+| `handleConvertOrderToSale` | Function | `frontend/src/views/OnlineStoreView.tsx` | 325 |
+| `handlePrintOrderSaleReceipt` | Function | `frontend/src/views/OnlineStoreView.tsx` | 362 |
 | `Fail` | Method | `desktop/Bridge/BridgeModels.cs` | 41 |
 | `Ok` | Method | `desktop/Bridge/BridgeModels.cs` | 31 |
 | `SyncRepository_InboxOrders_IdempotentInsertAndAtomicStatusUpdateEnqueuesOutbox` | Method | `desktop/RafiqPOS.Tests/Scenarios/S103_OnlineStoreSyncEngineTest.cs` | 72 |

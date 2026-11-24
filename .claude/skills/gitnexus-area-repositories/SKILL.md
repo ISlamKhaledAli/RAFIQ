@@ -1,11 +1,11 @@
 ---
 name: gitnexus-area-repositories
-description: "Skill for the Repositories area of RAFIQ. 437 symbols across 103 files."
+description: "Skill for the Repositories area of RAFIQ. 439 symbols across 104 files."
 ---
 
 # Repositories
 
-437 symbols | 103 files | Cohesion: 66%
+439 symbols | 104 files | Cohesion: 66%
 
 ## When to Use
 
@@ -17,8 +17,8 @@ description: "Skill for the Repositories area of RAFIQ. 437 symbols across 103 f
 
 | File | Symbols |
 |------|---------|
-| `desktop/Repositories/EpayRepository.cs` | AdjustBalance, CalculatePricing, CancelTransaction, ComputeFeeOrCommission, CreateTransaction (+17) |
 | `desktop/Repositories/ProductRepository.cs` | GetAllSearchIds, GetSearchCount, GetTotalActiveCount, Upsert, Upsert (+15) |
+| `desktop/Repositories/EpayRepository.cs` | AdjustBalance, CancelTransaction, CreateTransaction, DeleteTerminal, FundTerminal (+14) |
 | `desktop/Repositories/InsuranceRepository.cs` | GetClaimLineBySaleId, ReadClaimLine, GetCompanies, GetCompanyById, ReadCompany (+14) |
 | `desktop/Repositories/DigitalAccountRepository.cs` | AdjustBalance, CancelTransaction, DeleteAccount, FundWalletTillCash, GetTransactionById (+10) |
 | `desktop/Repositories/PurchaseRepository.cs` | CreatePurchaseReturn, DeductReturnFromBatches, ProportionalValue, PurchaseFingerprint, PurchaseReturnFingerprint (+9) |
@@ -26,7 +26,7 @@ description: "Skill for the Repositories area of RAFIQ. 437 symbols across 103 f
 | `desktop/Repositories/RecipeRepository.cs` | ReverseRecipeConsumptionOnCancelAtomic, GetAllRecipes, GetByProductId, GetByProductIdInternal, MapIngredient (+7) |
 | `desktop/Repositories/ProductRepository.Import.cs` | ImportUnitMatch, ApplyImportedStock, ApplyPackageUnitRow, BindImportUpdate, CleanVariantValue (+7) |
 | `desktop/Repositories/SaleRepository.cs` | GetSaleById, GetSaleByIdempotencyKey, GetSaleByInvoiceNumber, GetSaleItems, GetSalePayments (+7) |
-| `desktop/Repositories/SyncRepository.cs` | GetDailySalesSummaryForDate, GetPendingOutboxCount, GetRecentDailySalesSummaries, GetTodaySalesSummary, SetState (+7) |
+| `desktop/Repositories/SyncRepository.cs` | GetAllStates, GetFailedOutboxCount, GetNewOrdersCount, GetPendingOutboxItems, MarkOutboxItemsStatus (+7) |
 
 ## Entry Points
 
@@ -36,7 +36,7 @@ Start here when exploring this area:
 - **`AuditLog`** (Class) — `desktop/Models/AuditLog.cs:5`
 - **`BulkPriceApplyResult`** (Class) — `desktop/Models/BulkPriceAdjustmentModels.cs:162`
 - **`LiveDrawerBalanceResult`** (Class) — `desktop/Models/DailyClosing.cs:475`
-- **`EpayPricingResult`** (Class) — `desktop/Models/EpayModels.cs:366`
+- **`EpayTerminalFunding`** (Class) — `desktop/Models/EpayModels.cs:201`
 
 ## Key Symbols
 
@@ -45,23 +45,23 @@ Start here when exploring this area:
 | `AuditLog` | Class | `desktop/Models/AuditLog.cs` | 5 |
 | `BulkPriceApplyResult` | Class | `desktop/Models/BulkPriceAdjustmentModels.cs` | 162 |
 | `LiveDrawerBalanceResult` | Class | `desktop/Models/DailyClosing.cs` | 475 |
-| `EpayPricingResult` | Class | `desktop/Models/EpayModels.cs` | 366 |
-| `EpayServiceFeeRule` | Class | `desktop/Models/EpayModels.cs` | 333 |
 | `EpayTerminalFunding` | Class | `desktop/Models/EpayModels.cs` | 201 |
 | `EpayTransaction` | Class | `desktop/Models/EpayModels.cs` | 85 |
 | `CashDrawerTransaction` | Class | `desktop/Models/ShiftModels.cs` | 111 |
 | `CashMovementRequest` | Class | `desktop/Models/ShiftModels.cs` | 192 |
+| `ApplyTemplateResult` | Class | `desktop/Models/StoreTemplate.cs` | 73 |
 | `RebaseResult` | Class | `desktop/Repositories/ProductRepository.Rebase.cs` | 9 |
 | `ControlledInspectionReportRow` | Class | `desktop/Models/PharmaModels.cs` | 477 |
-| `DailyExtendedMetricsDto` | Class | `desktop/Models/SyncModels.cs` | 327 |
-| `DailySalesSummaryDto` | Class | `desktop/Models/SyncModels.cs` | 288 |
-| `DailyTopProductDto` | Class | `desktop/Models/SyncModels.cs` | 369 |
 | `CustomerLedgerEntry` | Class | `desktop/Models/Customer.cs` | 51 |
 | `DeliveryOrder` | Class | `desktop/Models/CafeModels.cs` | 455 |
 | `DailyClosing` | Class | `desktop/Models/DailyClosing.cs` | 6 |
+| `DrugReference` | Class | `desktop/Models/DrugReference.cs` | 6 |
 | `OnlineOrdersSyncedEvent` | Class | `desktop/Models/SyncModels.cs` | 424 |
 | `SyncStateDto` | Class | `desktop/Models/SyncModels.cs` | 173 |
 | `InsuranceExclusion` | Class | `desktop/Models/Insurance.cs` | 113 |
+| `ExpiryReturnableBatch` | Class | `desktop/Models/DrugReference.cs` | 167 |
+| `ExpenseCategory` | Class | `desktop/Models/Expense.cs` | 139 |
+| `LostSalesReportItem` | Class | `desktop/Models/ShortageEntry.cs` | 134 |
 
 ## Execution Flows
 
@@ -72,11 +72,11 @@ Start here when exploring this area:
 | `RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest20_DigitalWalletRefundAndCancelOverdraftGuards → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest26_GenericWalletAndCardClosingParity → InsuranceClaimLine` | cross_community | 8 |
-| `RunTest29_CustomerAdvanceCreditReturnSymmetry → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest30_MultiTenderInstapayWalletCashSplitParity → InsuranceClaimLine` | cross_community | 8 |
 | `RunTest8_FinancialRoundingAndCreditReversals → InsuranceClaimLine` | cross_community | 8 |
 | `RunAllTests → InsuranceClaimLine` | cross_community | 8 |
 | `RunBaseline → Sale` | cross_community | 7 |
+| `RunAllTests → InsertInternal` | cross_community | 7 |
 
 ## How to Explore
 
