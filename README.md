@@ -4,12 +4,12 @@ Desktop point of sale and store management system designed for offline-first ret
 
 [Read in Arabic / النسخة العربية](README.ar.md)
 
-[![Release](https://img.shields.io/badge/Release-v1.1.0-blue.svg)](desktop/Properties/AssemblyInfo.cs)
+[![Release](https://img.shields.io/badge/Release-v1.2.0-blue.svg)](desktop/Properties/AssemblyInfo.cs)
 [![Platform](https://img.shields.io/badge/Platform-Windows_7_SP1_to_11_(32%2F64--bit)-0078D4.svg)](desktop/app.manifest)
 [![Host](https://img.shields.io/badge/.NET_Framework-4.8_C%23-512BD4.svg)](desktop/RafiqPOS.csproj)
 [![UI](https://img.shields.io/badge/React_19-TypeScript_6-61DAFB.svg)](frontend/package.json)
-[![Storage](https://img.shields.io/badge/SQLite_3-66_Migrations_(WAL)-003B57.svg)](desktop/Database/MigrationRunner.cs)
-[![Tests](https://img.shields.io/badge/Tests-3000%2B_Passing-006D41.svg)](frontend/test/)
+[![Storage](https://img.shields.io/badge/SQLite_3-55_Migrations_(WAL)-003B57.svg)](desktop/Database/MigrationRunner.cs)
+[![Tests](https://img.shields.io/badge/Tests-2584_Passing-006D41.svg)](frontend/test/)
 
 ---
 
@@ -66,6 +66,13 @@ Retail stores in Egypt operate under constraints that standard web apps cannot h
 ### Store Templates
 11 built-in presets: Supermarket, Pharmacy, Cafe/Restaurant, Roastery, Bakery, Clothing, Electronics, Hardware Tools, Perfumery, Stationery, and General Retail.
 
+### Online Store and Cloud Sync
+* Bidirectional catalog and inventory sync between the desktop POS and a Cloudflare Workers-backed storefront.
+* Merchant admin dashboard with product management, order processing, and analytics.
+* Theme studio for customizing storefront colors, layout, and branding without code changes.
+* Mobile-first storefront with stories carousel, promotional banners, search, and trust badges.
+* QR code on printed receipts linking customers to the online store.
+
 ---
 
 ## Architecture
@@ -76,7 +83,7 @@ graph TD
     IPC["Typed IPC Bridge<br/>(JSON-RPC, Request ID, Topic Invalidation)"]
     Host["C# Host (.NET Framework 4.8)<br/>(Microsoft WebView2, Windows Forms)"]
     Services["Domain Application Services<br/>(Sales, Stock, Pharmacy DDI, Cafe, Ledger, RBAC)"]
-    DB[("SQLite 3 Storage Engine<br/>(WAL Mode, 66 Migrations, Foreign Keys)")]
+    DB[("SQLite 3 Storage Engine<br/>(WAL Mode, 55 Migrations, Foreign Keys)")]
     HW["Hardware Layer<br/>(Raw ESC/POS, RS-232 Scales, TSPL Labels, Cash Drawers)"]
 
     UI <-->|postMessage JSON-RPC| IPC
@@ -91,7 +98,7 @@ graph TD
 1. **Integer Arithmetic for Financial Calculations:** All monetary values, taxes, and discounts are calculated and stored as whole piasters (long in C#, number in TypeScript). Percentages use basis points (100% = 10,000 bps). Floating-point conversions occur only at the final display string using AwayFromZero rounding, preventing IEEE 754 precision drift.
 2. **Crash Resilience with SQLite WAL:** All sales and inventory mutations execute inside atomic transactions (`conn.BeginTransaction()`). Write-Ahead Logging (`WAL`), `PRAGMA synchronous = FULL`, and `PRAGMA busy_timeout = 5000` protect against corruption during sudden power outages.
 3. **Idempotent Sales Recovery:** Client requests assign a UUIDv4 idempotency key. If an IPC timeout occurs during checkout, the IPC bridge queries `sales:getByIdempotencyKey` before retrying, preventing duplicate charges and double stock deductions.
-4. **Additive Migrations with Snapshot Rollback:** Schema updates run through 66 incremental versions in `MigrationRunner.cs`. A database backup snapshot is created before running any migration. If a migration step fails, the previous database file is restored automatically.
+4. **Additive Migrations with Snapshot Rollback:** Schema updates run through 55 incremental versions in `MigrationRunner.cs`. A database backup snapshot is created before running any migration. If a migration step fails, the previous database file is restored automatically.
 5. **No Hard Deletes and Tamper-Evident Audit Trail:** Financial records, invoices, and inventory movements are never hard-deleted. Corrections are written as reversing contra entries. Sensitive actions (price overrides, cash drawer triggers, role changes) append to a SHA-256 chained audit log.
 6. **Hardware-Adaptive UI Motion:** Low-tier POS terminals experience frame drops during CSS layout transitions. A device tier detection utility profiles CPU cores, memory, and OS version, dynamically applying Tailwind transition tokens (`duration-0` on budget hardware) to maintain responsive checkout.
 7. **Zero-Dependency Navigation and State:** The frontend avoids external routing and state libraries (no React Router, Redux, or Zustand). Tab routing is managed through custom state with lazy tab mounting via a `visitedTabs` Set, while cross-view updates use a topic-based invalidation event bus.
@@ -126,7 +133,7 @@ The frontend uses the Node.js test runner with `node:assert/strict` across 160 t
 cd frontend
 npm test
 ```
-Result: **2,355 passing tests** across 516 test suites in ~15 seconds.
+Result: **2,584 passing tests** across 516 test suites in ~15 seconds.
 
 ### Frontend Linting
 ```bash
@@ -190,7 +197,7 @@ Run the installer build script to package the binary and dependencies:
 ```cmd
 Build_Installer_Full.bat
 ```
-Output executable is generated in `installer/Output/RafiqPOS_Setup_v1.1.0.exe`.
+Output executable is generated in `installer/Output/RafiqPOS_Setup_v1.2.0.exe`.
 
 ---
 
@@ -234,9 +241,9 @@ RAFIQ/
 ├── desktop/                      # C# .NET 4.8 WinForms desktop host
 │   ├── Bridge/                   # IPC dispatchers handling WebView2 messages
 │   ├── Common/                   # Device tier detection, OTP helpers, and features
-│   ├── Database/                 # SQLite migration runner (66 versions)
+│   ├── Database/                 # SQLite migration runner (55 versions)
 │   ├── Models/                   # Domain entities (Sale, Product, Customer, Shift)
-│   ├── Properties/               # Assembly metadata and v1.1.0 versioning
+│   ├── Properties/               # Assembly metadata and v1.2.0 versioning
 │   ├── Repositories/             # Data access layer executing SQLite commands
 │   ├── Services/                 # Domain business logic (Sales, Stock, Pharma, Cafe)
 │   └── RafiqPOS.Tests/           # NUnit test suites (Scenarios S1 through S71)
@@ -266,10 +273,13 @@ RAFIQ/
 * Multi-version database migration pipeline with automatic rollback.
 * Hardware drivers for ESC/POS thermal printers, RS-232 scales, and TSPL labelers.
 * Hardware-adaptive UI motion scaling and Floyd-Steinberg receipt logo dithering.
-* 3,000+ automated tests across UI and host (2,355 frontend + 657 C# NUnit).
+* Online Store platform with 2-way cloud sync, merchant dashboard, theme studio, and mobile-ready storefront.
+* Receipt QR code integration with 5 customizable layout templates.
+* Real-time Pharmacy DDI engine with 127 critical interaction pairs.
+* Insurance module with contracts, co-pay ledger, and prescription pricing.
+* Over 2,500 automated tests across UI and host (frontend + C# NUnit).
 
 ### In Progress and Planned
-* **Online Store Integration:** Full architectural specification completed in [`docs/ONLINE_STORE_DESIGN_DOC.md`](docs/ONLINE_STORE_DESIGN_DOC.md) for bidirectional cloud catalog sync, online order webhooks, and inventory allocations. Code implementation has not started.
 * **Multi-Terminal Network Sync:** Currently, each installation operates as an isolated single-terminal database. Local LAN multi-register synchronization is planned for a future release.
 
 ---

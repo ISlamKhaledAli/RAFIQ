@@ -4,12 +4,12 @@
 
 [English Version / النسخة الإنجليزية](README.md)
 
-[![Release](https://img.shields.io/badge/Release-v1.1.0-blue.svg)](desktop/Properties/AssemblyInfo.cs)
+[![Release](https://img.shields.io/badge/Release-v1.2.0-blue.svg)](desktop/Properties/AssemblyInfo.cs)
 [![Platform](https://img.shields.io/badge/Platform-Windows_7_SP1_to_11_(32%2F64--bit)-0078D4.svg)](desktop/app.manifest)
 [![Host](https://img.shields.io/badge/.NET_Framework-4.8_C%23-512BD4.svg)](desktop/RafiqPOS.csproj)
 [![UI](https://img.shields.io/badge/React_19-TypeScript_6-61DAFB.svg)](frontend/package.json)
-[![Storage](https://img.shields.io/badge/SQLite_3-66_Migrations_(WAL)-003B57.svg)](desktop/Database/MigrationRunner.cs)
-[![Tests](https://img.shields.io/badge/Tests-3000%2B_Passing-006D41.svg)](frontend/test/)
+[![Storage](https://img.shields.io/badge/SQLite_3-55_Migrations_(WAL)-003B57.svg)](desktop/Database/MigrationRunner.cs)
+[![Tests](https://img.shields.io/badge/Tests-2584_Passing-006D41.svg)](frontend/test/)
 
 ---
 
